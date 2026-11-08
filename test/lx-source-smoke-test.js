@@ -13,6 +13,7 @@ let requestHandler = null;
 const sentEvents = [];
 const counts = {};        // url 前缀 -> 请求次数
 let mockRoute = null;     // 当前路由模式
+let probeRoute = null;    // v8.11：交付验真探针（binary Range）专用路由；null = 默认 206 audio 空 body（放行）
 
 // ---- mock 宿主 ----
 function resetMock() {
@@ -39,7 +40,10 @@ function setMockLx() {
       const u = String(url);
       const key = u.split('?')[0];
       counts[key] = (counts[key] || 0) + 1;
-      const route = mockRoute ? mockRoute(u) : audioRoute;
+      const isProbe = !!(opts && opts.binary);
+      const route = isProbe
+        ? (probeRoute ? probeRoute(u, opts) : { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' })
+        : (mockRoute ? mockRoute(u, opts) : audioRoute);
       setTimeout(() => {
         if (route.error) return cb(new Error(route.error), null);
         cb(null, { statusCode: route.statusCode, headers: route.headers || {}, body: route.body ?? '', url: u });
@@ -89,7 +93,7 @@ function buildRoutes(mode) {
     },
     netfail: {}, // 全部网络错误
   };
-  return (u) => {
+  return (u, opts) => {
     if (mode === 'netfail') return { error: 'ETIMEDOUT' };
     for (const [needle, route] of Object.entries(map[mode] || {})) {
       if (u.includes(needle)) return route;
@@ -150,7 +154,11 @@ async function test(name, fn) {
   assert.strictEqual(url2.url, res.url, '缓存命中应返回同一URL');
   assert.strictEqual(url2.subSource, res.subSource, '缓存命中应透出同一实际子源');
   const newCalls = Object.values(counts).reduce((s, v) => s + v, 0) - Object.values(countsAfter).reduce((s, v) => s + v, 0);
-  assert.strictEqual(newCalls, 0, `成功缓存后不应有新增外呼，实际+${newCalls}`);
+  // v8.11：缓存命中也要验真（P4）——允许至多 1 次音频 Range 校验请求（约 100ms）；
+  // 但绝不允许出现「重新调用音源接口」，那说明缓存被绕过
+  const apiCalls = Object.keys(counts).filter(k => /zddyr\.top|oiapi\.net|kuwo\.cn|haitangw|ikun|gdstudio/.test(k));
+  assert.strictEqual(apiCalls.length, 0, `缓存命中不得重新调用音源接口，实际: ${apiCalls.join(',')}`);
+  assert.ok(newCalls <= 1, `缓存命中允许至多 1 次音频验真请求，实际+${newCalls}`);
 
   console.log('[T6] 失败缓存差异化：404(歌不存在) → 缓存1h（重复请求不重试）');
   resetMock();
@@ -1366,7 +1374,185 @@ async function test(name, fn) {
       '以下启用源没有任何登记端点，日报对它们完全失明：' + blind.join(', '));
   }
 
-  console.log('\n冒烟测试完成：60 组用例');
+  // ===== v8.11 交付真实性闸门（1KB 字节验真）=====
+  const mp3Buf = (seconds) => {
+    const frames = Math.max(1, Math.round((seconds * 44100) / 1152));
+    const b = Buffer.alloc(48);
+    b[0] = 0xFF; b[1] = 0xFB; b[2] = 0x90; b[3] = 0x64; // MPEG1 Layer3 128kbps 44.1kHz
+    b.write('Xing', 36, 'ascii');
+    b.writeUInt32BE(1, 40);
+    b.writeUInt32BE(frames, 44);
+    return b;
+  };
+  const flacBuf = (seconds) => {
+    const b = Buffer.alloc(64);
+    b.write('fLaC', 0, 'ascii');
+    b[4] = 0x80; b[5] = 0; b[6] = 0; b[7] = 34; // last STREAMINFO block, len=34
+    b[18] = 0x0A; b[19] = 0xC4; b[20] = 0x40;   // sampleRate=44100
+    const total = Math.round(seconds * 44100);
+    b[21] = Math.floor(total / 4294967296) & 0x0F;
+    b[22] = Math.floor(total / 16777216) & 0xFF;
+    b[23] = Math.floor(total / 65536) & 0xFF;
+    b[24] = Math.floor(total / 256) & 0xFF;
+    b[25] = total & 0xFF;
+    return b;
+  };
+  const okAudio = (headers) => ({ statusCode: 206, headers: Object.assign({ 'content-type': 'audio/mpeg' }, headers || {}), body: '', delay: 2 });
+
+  console.log('[T61] v8.11 验真闸门：5 秒试听片段必须拒收（不再当 flac 交付）');
+  {
+    const mod = freshMod({});
+    const song = { name: '八千里路明月照', singer: '泽国同学', duration: 200000, songmid: '660878096' };
+    mod.runtimeToggles.suyinKuwo = true;
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/seg5.mp3' } }), delay: 2 };
+      if (u.includes('example.com')) return okAudio();
+      return { error: 'ETIMEDOUT' };
+    };
+    // 源内部 isAudioPlayable 只看 206，验真额外读字节 → 5.3s / 84972 字节（实测酷我试听片段指纹）
+    probeRoute = () => ({ statusCode: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-1023/84972' }, body: mp3Buf(5.3) });
+    let r = null, err = null;
+    try { r = await requestUrl('kw', 'flac', song); } catch (e) { err = e; }
+    probeRoute = null;
+    // B 方案（用户拍板）：全平台都只有片段时，交付片段并标注「试听版」，不点歌没声
+    assert.ok(r, '全档只有片段时应兜底交付片段，而不是失败: ' + (err && err.message));
+    assert.ok(r.url.includes('seg5.mp3'), '应交付片段 URL，实际=' + JSON.stringify(r.url));
+    assert.strictEqual(r.type, '128k', '片段是真 128k mp3，标签必须按真实格式，实际=' + r.type);
+    assert.ok(String(r.subSourceName).includes('试听版'), '子源名必须标注「试听版」，实际=' + r.subSourceName);
+    // 不设 6h 成功缓存 —— 下次仍要重新找完整版
+    resetMock();
+    const before2 = totalCounts();
+    const r2 = await requestUrl('kw', 'flac', song);
+    assert.ok(totalCounts() > before2, '片段兜底结果不得占住 6h 成功缓存（下次必须重新找完整版）');
+    assert.ok(r2 && r2.url, '第二次仍应返回可用片段');
+  }
+
+  console.log('[T62] v8.11 验真闸门：完整版放行，且标签回填真实音质（请求 flac 实得 128k mp3 → 128k）');
+  {
+    const mod = freshMod({});
+    const song = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228908' };
+    mod.runtimeToggles.suyinKuwo = true;
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/full.mp3' } }), delay: 2 };
+      if (u.includes('example.com')) return okAudio();
+      return { error: 'ETIMEDOUT' };
+    };
+    probeRoute = () => ({ statusCode: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-1023/4317292' }, body: mp3Buf(269.8) });
+    const r = await requestUrl('kw', 'flac', song);
+    probeRoute = null;
+    assert.ok(r && r.url.includes('full.mp3'), '270s 完整版应放行: ' + JSON.stringify(r));
+    assert.strictEqual(r.type, '128k', '请求 flac 实得 128k mp3 时标签必须写 128k，实际=' + r.type);
+  }
+
+  console.log('[T63] v8.11 验真闸门：真 FLAC 完整版放行且标签为 flac');
+  {
+    const mod = freshMod({});
+    const song = { name: '晴天flac', singer: '周杰伦', duration: 271000, songmid: '228909' };
+    mod.runtimeToggles.suyinKuwo = true;
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/real.flac' } }), delay: 2 };
+      if (u.includes('example.com')) return okAudio();
+      return { error: 'ETIMEDOUT' };
+    };
+    probeRoute = () => ({ statusCode: 206, headers: { 'content-type': 'audio/flac', 'content-range': 'bytes 0-1023/55397039' }, body: flacBuf(269.7) });
+    const r = await requestUrl('kw', 'flac', song);
+    probeRoute = null;
+    assert.ok(r && r.url.includes('real.flac'), 'FLAC 完整版应放行: ' + JSON.stringify(r));
+    assert.strictEqual(r.type, 'flac', '真 FLAC 应标 flac，实际=' + r.type);
+  }
+
+  console.log('[T64] v8.11 缓存命中也要验真：缓存里的链接已变片段时必须清理重取，不得原样交付');
+  {
+    const mod = freshMod({});
+    const song = { name: '缓存验真', singer: 's', duration: 200000, songmid: 'cachechk1' };
+    mod.runtimeToggles.suyinKuwo = true;
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/chk.mp3' } }), delay: 2 };
+      if (u.includes('example.com')) return okAudio();
+      return { error: 'ETIMEDOUT' };
+    };
+    probeRoute = () => ({ statusCode: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-1023/4317292' }, body: mp3Buf(269.8) });
+    const r1 = await requestUrl('kw', 'flac', song);
+    assert.ok(r1 && r1.url, '首次应成功入缓存');
+    // 缓存里同一条 URL 此刻只能给 5 秒片段
+    probeRoute = () => ({ statusCode: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-1023/84972' }, body: mp3Buf(5.3) });
+    let r2 = null, err2 = null;
+    try { r2 = await requestUrl('kw', 'flac', song); } catch (e) { err2 = e; }
+    probeRoute = null;
+    // 判据不能被缓存绕过：要么重新取到新链，要么按 B 方案交付片段并标注试听版（不能当完整版蒙过去）
+    assert.ok(r2, '缓存验真失败后仍要有可用结果（新链或带标注的片段），实际失败: ' + (err2 && err2.message));
+    assert.ok(r2.url !== 'https://example.com/chk.mp3' || String(r2.subSourceName || '').includes('试听版'),
+      '缓存里的片段不得被当成完整版静默交付，实际=' + JSON.stringify(r2));
+  }
+
+  console.log('[T65] v8.11 验真闸门：交付内容不是音频（HTML 登录页）必须拒收');
+  {
+    const mod = freshMod({});
+    const song = { name: '假音频', singer: 's', duration: 200000, songmid: 'fakeaudio1' };
+    mod.runtimeToggles.suyinKuwo = true;
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/fake.mp3' } }), delay: 2 };
+      if (u.includes('example.com')) return okAudio();
+      return { error: 'ETIMEDOUT' };
+    };
+    probeRoute = () => ({ statusCode: 200, headers: { 'content-type': 'text/html' }, body: '<!DOCTYPE html><html><body>请先登录</body></html>' });
+    let err = null;
+    try { await requestUrl('kw', 'flac', song); } catch (e) { err = e; }
+    probeRoute = null;
+    assert.ok(err, 'HTML 页面必须拒收');
+    const codes = (err.detail || []).map(d => d.code);
+    assert.ok(codes.includes('NOT_AUDIO'), '应记 NOT_AUDIO，实际: ' + JSON.stringify(codes));
+  }
+
+  console.log('[T66] v8.11 验真拿不准就放行：探针网络超时不得误杀可用链接');
+  {
+    const mod = freshMod({});
+    const song = { name: '探针超时', singer: 's', duration: 200000, songmid: 'probeerr1' };
+    mod.runtimeToggles.suyinKuwo = true;
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/unknown.mp3' } }), delay: 2 };
+      if (u.includes('example.com')) return okAudio();
+      return { error: 'ETIMEDOUT' };
+    };
+    probeRoute = () => ({ error: 'ETIMEDOUT' });
+    const r = await requestUrl('kw', 'flac', song);
+    probeRoute = null;
+    assert.ok(r && r.url.includes('unknown.mp3'), '验真无法完成时必须放行（误杀代价高于听到片段），实际=' + JSON.stringify(r));
+  }
+
+  console.log('[T67] v8.11.1 源级限流识别：同一源对 ≥2 首不同歌三档全片段 → 判源级限流并冷却（单曲受限不冷却，防误伤）');
+  {
+    const mod = freshMod({});
+    const song = { name: '限流歌', singer: 's', duration: 200000, songmid: 'throttle1' };
+    mod.runtimeToggles.suyinKuwo = true;
+    mockRoute = (u) => {
+      if (u.includes('oiapi.net/api/Kuwo')) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://example.com/t.mp3' } }), delay: 2 };
+      if (u.includes('example.com')) return okAudio();
+      return { error: 'ETIMEDOUT' };
+    };
+    probeRoute = () => ({ statusCode: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-1023/84972' }, body: mp3Buf(5.3) });
+    try { await requestUrl('kw', 'flac', song); } catch (e) { /* 第一首：三档全片段 */ }
+    // v8.11.1：单曲受限不足以判定源被风控（会误伤同源其他歌），需要第二首不同歌作为跨歌证据
+    const song2 = { name: '限流歌二', singer: 's', duration: 210000, songmid: 'throttle2' };
+    try { await requestUrl('kw', 'flac', song2); } catch (e) { /* 第二首：再次全片段 → 触发冷却 */ }
+    resetMock();
+    const before = totalCounts();
+    const song3 = { name: '限流歌三', singer: 's', duration: 220000, songmid: 'throttle3' };
+    try { await requestUrl('kw', 'flac', song3); } catch (e) { /* 第三首应被冷却直接拦下 */ }
+    probeRoute = null;
+    const after = totalCounts();
+    // 实测指纹：被风控时所有歌都返回同一个 84972 字节 5 秒文件，此时切源降档全无效，只能跨平台
+    // 冷却/失败缓存命中后不得再打音源接口（允许至多 1 次缓存命中验真探针）
+    const apiCalls = Object.keys(counts).filter(k => /oiapi|zddyr\.top|kuwo\.cn|haitangw|ikun|gdstudio/.test(k));
+    // v8.11.1 二轮压测修订：冷却期放行 128k 保底档（否则新歌连片段都拿不到），
+    // 因此允许至多 1 次 128k 接口调用，其余档位必须全部跳过
+    // v8.11.1 二轮审计（打点实测修正）：冷却期只放行 128k 保底档，flac/320k 被跳过，
+    // 因此只允许出现该源接口 1 个 key（至多 1 次调用）
+    assert.ok(apiCalls.length <= 1, '判定源级限流后仅允许 128k 保底档调接口，实际: ' + apiCalls.join(','));
+    assert.ok(after - before <= 4, '128k 保底档：至多 1 次接口 + 可播校验 + 1KB 探针，实际+' + (after - before));
+  }
+
+  console.log('\n冒烟测试完成：67 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

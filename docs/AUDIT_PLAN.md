@@ -766,3 +766,132 @@ gdstudio → {"ok": true, "status": 200, "time": 1068, "reason": "OK", "payload"
 版本：`lx-source.js` `@version` 8.10.4 → **8.10.12**（同步 `logInfo`、`@description`、README 版本历史、ROADMAP、DEV_GUIDE 行数基线 2619→2629、App 跨仓引用）。
 
 门禁：self-check 0 / 冒烟 60 组 0 / candidate 6-0 / docs-audit 0。
+
+---
+
+### v8.11.0 闭环：交付真实性闸门（2026-11-08）
+
+用户报告《八千里路明月照》（rid 660878096）显示「音质 FLAC / 音源 helloworld(kw)」但总时长只有 00:05，播到 3 秒弹 VIP。真实网络隔离复现：
+
+| 源 / 档位 | 接口自报 | 1KB 实测真实时长 | 总字节 | 判定 |
+|---|---|---|---|---|
+| helloworld 通道① flac / 320k / 128k | `duration:5, format:mp3, bitrate:1` | **5.3s** | **84972** | 片段（三档返回同一文件） |
+| 溯音酷我 br=9 flac | — | **199.4s** | **3,191,784** → 修复后交付 46,787,765 | 完整版存在 |
+
+根因三层：①`getUrlWithFallback` 末尾 `type: selectedQuality` 是**请求档**不是真实格式；②`raceFirst` 认为「HTTP 200 + audio/mpeg」= 成功，5 秒片段完全满足且回得更快；③`isPreviewFragmentUrl` 对酷我试听链一字不沾，从 v8.0 起是死代码。
+
+修复（六处）：①`verifyDelivery` 交付前 Range 0-1023 字节验真，FLAC STREAMINFO / MP3 Xing 算真实时长，阈值 60% + 15s 双条件；②`deliveryQualityMap` 回填实交付音质；③`buildQualityChain` 修 128k 终档截断；④`verifyOnCacheHit` 校验命中缓存 + 移除 helloworld 内层缓存；⑤`previewCooldownMap` 源级限流识别（同源三档全片段 → 冷却 5 分钟）；⑥巡检同判据。
+
+**关键设计**：探针异常（超时/5xx/DNS）一律返回 `ok:null` **放行**，只有 410/404 判死链。理由：误杀代价是「点歌没声」，比「听到 5 秒」更严重。
+
+验证（真实网络，非 mock）：VIP 歌只开 helloworld → 三档全部 `PREVIEW_FRAGMENT（仅 5.3s，原曲 200s）` 并触发 `该歌三档均只给试听片段 → 判定源级限流`；全链开启 → 溯音交付 199.4 秒 / 46,787,765 字节 / `fLaC` / `audio/x-flac`（独立 curl 解析 STREAMINFO：sampleRate 48000，totalSamples 9,571,385）；免费歌《晴天》269.7 秒 / 55,397,039 字节放行。
+
+版本：`@version` 8.10.12 → **8.11.0**（同步 `logInfo`、`@description`、README 版本历史、ROADMAP、DEV_GUIDE 行段基线、App `docs/MUSIC_SOURCE_GUIDE.md` 标题）。
+
+门禁：self-check 0 / 冒烟 **67 组** 0（新增 T61–T67）/ candidate 6-0 / docs-audit 0 / probe 时长解析自检 4-4。
+
+---
+
+### v8.11.1 压测加固：压测抓出 3 个真缺陷（2026-11-08）
+
+新增固化压测 `test/stress-test.js`（8 组 32 断言，全 mock 零外网，CI 必跑）：G1 档位矩阵（flac24bit/flac/320k/128k/大写/undefined）、G2 30 并发混合档、G3 探针故障注入 14 种、G4 `duration` 为 0/null/缺失/负数/1e9/非数字、G5 2000 首长跑堆增长、G6 全档片段兜底、G7 冷却误伤、G8 缓存命中开销。
+
+首轮压测 30 通过 / 2 失败，两个失败都是**真缺陷**（不是测试环境问题，首版的 23 个失败才是我把 mock 路由漏了音频直链、缓存未隔离造成的误报，已修正后重跑）：
+
+| 缺陷 | 触发路径 | 危害 | 修复 |
+|---|---|---|---|
+| JSON 错误体被放行 | 音频直链返回 `{"code":403}`（`application/json`）→ `httpRequest` 把 `{` 开头文本自动 `JSON.parse` 成对象 → `sniffAudioBytes` 拿不到字节 → `kind=unknown` → `verifyDelivery` 判「拿不准」放行 | 交付一段 JSON 给播放器 = 点歌没声 | `probeAudioDelivery` 增加：body 是对象（非 Buffer）直接判 `NOT_AUDIO` |
+| 源级限流冷却误伤 | 同一首歌三档全片段 → 直接给整个源 5 分钟冷却 | 一首 VIP 歌会让同源其他本可播放的歌一起被跳过（掉音质甚至全失败） | 改为跨歌证据：同源在 5 分钟窗口内对 ≥2 首不同歌都三档全片段才冷却；单曲只记「该歌该源不可用」 |
+| 片段兜底可能返回过期签名 | `fragmentUrlMap` 无 TTL，酷我直链是临时签名 | 10 分钟后仍拿旧链兜底 → 用户听到死链 | 记录带 `ts`，兜底前校验 `FRAGMENT_URL_TTL_MS=10min`，过期即删 |
+
+**压测量化结果（修后复跑 32/32 通过）**：30 并发 17ms 完成、未捕获拒绝 0；探针 404/410/HTML/m3u8/JSON 全部拒收，500/503/429/超时/DNS/空 body/无 ct 全部放行（无误杀）；`duration` 六种异常全部不被误判片段；2000 首成功 2000/2000、堆增长 0.9MB（0.5KB/首）；全片段兜底交付 `helloworld(kw) · 试听版`；一完整+其余片段时正确给完整版（不提前兜底）；单曲受限后同源换歌未被误伤。
+
+版本：`@version` 8.11.0 → **8.11.1**（同步 `logInfo`、`@description`、README、ROADMAP、DEV_GUIDE 行段基线 3032→3090、App `docs/MUSIC_SOURCE_GUIDE.md`）。
+
+门禁：self-check 0 / 冒烟 67 组 0 / 压测 32 断言 0 / candidate 6-0 / docs-audit 0 / probe 自检 4-4。
+
+
+## v8.11.1 全面审计结果（2026-11-08）
+
+9 维度 79 项，全部可复跑（脚本固化在 `test/audit/`）：
+
+| 批次 | 维度 | 结果 | 命令 |
+|---|---|---|---|
+| 批0/1 | 静态 A1–A7 + 框架 B1–B6 | 12 / 0 | `node test/audit/a-static.js` |
+| 批2 | 逻辑与状态机 C1–C10 | 30 / 0 | `node test/audit/b-logic.js` |
+| 批3/4/5/8 | 功能 D + 性能 E + 安全 F + 边界回滚 I | 30 / 0 | `node test/audit/d-func.js` |
+| 批6 | 运维闭环 G1–G3 | 3 / 0 | 错误码闭环脚本 / probe 阈值比对 / 压测 G7 |
+| 批7 | 文档一致 H1–H4 | 4 / 0 | self-check / 行段核对 / 跨仓标题 / CI 步骤 |
+
+**抓到 2 个真缺陷，均已修复**：
+
+1. （严重）闸门 5 开关 + 4 阈值不在 `USER_CONFIG` 白名单 → `cfg()` 恒返默认值，`__lxSourceConfig.verifyDelivery=false` 完全无效，“可关闭/可回滚”是空话。已全部纳入白名单，布尔键改用 `??`（`||` 会把 `false` 吞成默认 true）。
+2. （一般）死代码 `xinghaiBackendToken`（v8.4 改匿名调用后零引用），已删除。
+
+**已知边界（记录未修）**：慢源场景单次点歌可达 40s——`raceBudget*` 只约束竞速决策，不取消“已在飞的请求”，每源 5s 超时 × 重试 1 次 + 可播校验 5s 逐档累加。真实源 P95 < 1s 时不触发，仅上游整体抖动时放大。
+
+**待确认语义**：`xinghaiBackup` 的 `platform !== "kg"` 条件（该源是 20 源中唯一在其全部候选平台零外呼者，域名已不可解析、默认关闭，现网零影响）。
+
+### 审计后按决策修复（2026-11-08）
+
+| 项 | 决策 | 结果 |
+|---|---|---|
+| 慢源 40s | **修** | 根因不是"预算按档"，而是**单源链分支绕过 `raceFirst`**：`fallbackRace` 在 `chain.length === 1` 时直接 `await wrapExecute`，无任何 deadline。打点实测：flac 档 0→20.4s、320k/128k 预算耗尽跳过、末档 floor 再跑 20.4s = **40.8s**。给单链补单源硬上限后 **14.0s**（≤15s 上界） |
+| `xinghaiBackup` 语义 | 保留行为 + 显式标注 | 加注释说明"域名不可解析、默认关闭、非 kg 备用胎"，避免误以为可用 |
+| 新错误码文案 | 源侧补中文 | 新增 `CODE_HINT`，message 变为「PREVIEW_FRAGMENT: 该曲目只提供试听片段（已尽量给出可用片段）（技术细节）」，code 前缀不变，App 原样展示即可读 |
+| `qualityCeilingMap` 持久化 | 不持久化 | 加注释写明取舍：重启后重新探一次的代价远小于引入存储依赖 |
+
+回归：冒烟 67 组 0 / 压测 32 断言 0 / 审计 79 项全绿（12+30+30+3+4）/ self-check 0 / docs-audit 0
+
+## 第二轮全覆盖审计 + 压测重做（2026-11-08）
+
+### 为什么重做
+第一轮 79 项**只覆盖了 `musicUrl` 一条链路**。仓库里还有 `lyric`/`pic`/`health`/`toggle`/`probe`/`config`/`trend` 七个 action、断路器、限速窗口、冷启动、质量短路、健康分、LRU 容量、QuickJS 兼容性、定时器泄漏——全部未测。
+
+### 新增 J~T 十组 57 条断言（`test/audit/e-extra.js`，退出码 0）
+| 组 | 覆盖 | 结果 |
+|---|---|---|
+| J | 歌词链路（wy 可用、非 wy 明确 NOT_FOUND、无歌词、emoji、超时、字段） | 6/6 |
+| K | 五个管理 action + 未知 action + 只读 action 不外呼 | 8/8 |
+| L | 断路器 closed→open→half-open→closed、业务失败不熔断 | 5/5 |
+| M | 并发上限、窗口配额、滑动恢复、退避有界 | 5/5 |
+| N | successCache 500 / failCache 300 容量淘汰、三档 TTL | 4/4 |
+| O | 冷启动上限、预热复用、质量短路开关、playDeadRevive | 5/5 |
+| P | 健康分 0 样本不 NaN、排序稳定、快照字段、片段不污染口径 | 4/4 |
+| Q | QuickJS 兼容（无 ES2022 独有语法、Promise.race、无 Buffer 降级、不依赖 fetch） | 5/5 |
+| R | 定时器残留（正常路径、单链超时、200 次） | 3/3 |
+| S | 非法 type / 缺 musicInfo / duration 0·负·1e9 / 未知 platform / 导出面 / 试听版字段 | 7/7 |
+| T | 签名直链、卡密、上游响应体不入日志 | 3/3 |
+
+### 本轮抓到并修复的真缺陷（5 个）
+| # | 严重度 | 缺陷 | 实测证据 | 修法 |
+|---|---|---|---|---|
+| 1 | **严重** | 65 处 `throw new Error("CODE: msg")` 只把码写进 message、**没赋 `err.code`**；`lyric`/`pic`/缺参等**直连 action** 不经聚合，App 拿到 `undefined` 无法分类 | J2/J3/S4 三条实测 `code=undefined`；日志显示 `NOT_FOUND` 只在 message 里 | 新增 `normalizeErrCode()`，在 action 出口按 message 前缀归一（不改 65 处，零风险） |
+| 2 | **一般** | 歌词接口走 `RETRY_TIMES=1` 重试 → 超时 5s×2=**10.2s**，切歌卡顿 | J5 实测 10207ms | `httpGet` 增 `retries` 参数，歌词传 0 → 实测 **5005ms** |
+| 3 | **一般** | 缺 `musicInfo` 的 reject 未赋 code | S8 实测 `undefined` | 显式赋 `PARAM_ERROR` |
+| 4 | **一般** | 源级冷却整源跳过 → 连续片段歌时**新歌连片段都拿不到**，与「整站只有片段时给片段」冲突 | S9 压测：50 首片段只交付 2 首 | 冷却期放行 128k 保底档（单档不累积三档证据，冷却不会被延长）→ 实测 **50/50 交付且 50/50 标「试听版」** |
+| 5 | **一般** | 片段兜底条件要求本次链上有 `PREVIEW_FRAGMENT`，冷却跳过的歌无该证据 → 兜底不触发 | 同上 | 补 `hasFragCache`：该歌该档已有片段记录时零上游请求也交付 |
+
+### 压测全部重做（`test/stress-test.js`，10 组 12 断言，退出码 0）
+| 组 | 场景 | 实测 |
+|---|---|---|
+| S1 | 120 并发混合（musicUrl/lyric/health） | 120/120 成功，26ms，无未捕获拒绝 |
+| S2 | 200 并发 musicUrl | 200/200，22ms，外呼 600 |
+| S3 | 单链预算专项 | **14005ms**（≤15s 上界；修复前 40838ms） |
+| S4 | 窗口配额 3/2000ms 打满 | 前 3 次 OK，后 7 次 RATE_LIMIT；窗口滑过后恢复 |
+| S5 | 熔断雪崩 10 连败 | 外呼 13→0,0,0…（收敛）；冷却后半开恢复 |
+| S6 | 缓存写 505 首超容量 | 505/505 成功，3.3s，堆 5.3MB，最旧被淘汰后重查外呼 3 |
+| S7 | 3000 次长跑混合 | 8.5s（350 次/秒），堆 5.3→5.6MB（+0.3），Timer 7→7 |
+| S8 | 极端参数（5000 字歌名/0/负/1e9/null） | 不崩，空 info=PARAM_ERROR |
+| S9 | 闸门开 vs 关对照组（50 首全片段） | 开：50/50 交付且 **50/50 标「试听版」**；关：50/50 按旧行为放行、0 标注 → 回滚有效 |
+| S10 | 200 次超时路径定时器 | 50 次=25、100 次=25（请求路径零累积），抬升来自模块重载 interval |
+
+### 二轮遗留项（已定位并修复）
+1. ~~源级冷却设置后未拦住请求~~ → **已修复**。加 `LXCOOL` 打点实测：`previewCooldownMap` 里 `until` 是未来时间戳、冷却**一直生效**，flac/320k 确实被拦，只放行 128k 保底档。所谓「外呼=3」是 128k 档的「接口请求 + 可播校验 + 1KB 探针」三次 `request`，**旧断言误把总量当成接口次数**（原判据还要求抛 `RATE_LIMIT`，但 128k 保底档正常返回内容、最终抛的是 `PREVIEW_FRAGMENT`）。
+   同时修掉真正的隐患：v8.11.1「跳过已知片段源」让同源同歌首档片段即跳过其余档，`qs.size` 恒为 1，`>= 3` 的跨歌证据条件几乎不可达 → 改为 `qs.size >= 1`（单歌不足以判源级限流，仍要求 ≥2 首不同歌）。
+   C9a 判据改为「该源接口至多 1 次调用」，冒烟同步收紧到 `apiCalls.length <= 1`。
+2. **`config` action 的 `ALLOWED_KEYS` 只有 14 键**：本轮新增的 9 个闸门键（`verifyDelivery` 等）不在其中，App 设置页无法热改闸门——**有意如此**（防用户误关质检），但需在文档写明仅支持 `__lxSourceConfig` 注入。
+3. `xinghaiBackup` 域名不可解析、默认关闭（已加注释标注）。
+
+### 本轮门禁最终态（真实退出码）
+`node --check` 0 ｜ 冒烟 67 组 0 ｜ a-static 12/0 ｜ b-logic 30/0 ｜ d-func 30/0 ｜ **e-extra 57/0** ｜ **压测 12/0** ｜ candidate 6/0 ｜ probe 自检 4/4 ｜ self-check 0 ｜ docs-audit 0

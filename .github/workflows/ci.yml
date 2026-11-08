@@ -29,10 +29,16 @@ jobs:
           node-version: 20
       - name: L0 语法检查
         run: node --check lx-source.js
-      - name: L1 冒烟测试（mock lx 宿主，60 组用例）
+      - name: L1 冒烟测试（mock lx 宿主，67 组用例）
         run: node test/lx-source-smoke-test.js
       - name: L1.1 candidate-audit 专项测试（v8.1）
         run: node test/candidate-audit-test.js
+      # v8.11：巡检时长判据自检——用构造的真实字节锁住解析器，防止被"简化"成只判状态码
+      - name: L1.2 巡检交付时长判据自检（v8.11）
+        run: node scripts/probe.js --selftest-duration
+      # v8.11.1：压力测试固化——档位矩阵/30并发/探针故障注入/边界输入/长跑泄漏/兜底/冷却误伤
+      - name: L1.3 压力测试（v8.11.1，G1~G8 共 32 断言）
+        run: node --expose-gc test/stress-test.js
       # v5.0：发布前自检门——版本串同步/actions声明/README与ROADMAP同步，任一失败阻断
       - name: L2 发布前自检门（版本串/action声明/文档同步）
         run: node scripts/self-check.js

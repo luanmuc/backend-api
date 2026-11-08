@@ -219,7 +219,11 @@ function payloadFetch(url, opt = {}) {
         }
         const chunks = [];
         res.on('data', c => chunks.push(c));
-        res.on('end', () => resolve({ statusCode: res.statusCode, headers: res.headers, body: Buffer.concat(chunks).toString('utf-8') }));
+        res.on('end', () => {
+          const raw = Buffer.concat(chunks);
+          // v8.11：保留原始字节——音频头结构必须按精确偏移解析，先转 utf-8 会把 0xFF 等字节毁掉
+          resolve({ statusCode: res.statusCode, headers: res.headers, body: raw.toString('utf-8'), rawBuf: raw });
+        });
       });
       req.on('timeout', () => { req.destroy(); resolve({ statusCode: 0, body: '', headers: {} }); });
       req.on('error', () => resolve({ statusCode: 0, body: '', headers: {} }));
@@ -232,13 +236,61 @@ function payloadFetch(url, opt = {}) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function rangeOk(audioUrl) {
+// v8.11：交付真实性判据（与 lx-source.js verifyDelivery 同源）
+// 实测：片段伪装成"能播"是 206 + audio/mpeg 全绿，只判状态码必然假绿；
+// 而 FLAC STREAMINFO / MP3 Xing 都在文件头，Range 0-1023 就够算真实时长
+function parseDurationFromHead(rawBuf) {
+  const b = Buffer.isBuffer(rawBuf) ? rawBuf : Buffer.from(String(rawBuf || ''), 'binary');
+  if (!b || b.length < 8) return null;
+  if (b.toString('ascii', 0, 4) === 'fLaC') {
+    let p = 4, guard = 0;
+    while (p + 4 <= b.length && guard++ < 8) {
+      const last = (b[p] & 0x80) !== 0, type = b[p] & 0x7F;
+      const len = (b[p + 1] << 16) | (b[p + 2] << 8) | b[p + 3];
+      if (type === 0) {
+        const q = p + 4 + 10;
+        if (q + 8 > b.length) return null;
+        const sr = (b[q] << 12) | (b[q + 1] << 4) | (b[q + 2] >> 4);
+        const tot = ((b[q + 3] & 0x0F) * 4294967296) + b[q + 4] * 16777216 + b[q + 5] * 65536 + b[q + 6] * 256 + b[q + 7];
+        return (sr > 0 && tot > 0) ? +(tot / sr).toFixed(1) : null;
+      }
+      p += 4 + len;
+      if (last) break;
+    }
+    return null;
+  }
+  let off = 0;
+  if (b.length >= 10 && b.toString('ascii', 0, 3) === 'ID3') {
+    off = 10 + ((b[6] << 21) | (b[7] << 14) | (b[8] << 7) | b[9]);
+  }
+  for (let i = Math.max(off, 0); i < Math.min(b.length - 4, off + 4096); i++) {
+    if (b[i] !== 0xFF || (b[i + 1] & 0xE0) !== 0xE0) continue;
+    const ver = (b[i + 1] >> 3) & 0x03, layer = (b[i + 1] >> 1) & 0x03;
+    if (ver === 1 || layer === 0) continue;
+    const spir = ver === 3 ? 1152 : 576;
+    const xing = i + 4 + (ver === 3 ? 32 : 17);
+    if (xing + 12 <= b.length && (b.toString('ascii', xing, xing + 4) === 'Xing' || b.toString('ascii', xing, xing + 4) === 'Info')) {
+      const flags = b.readUInt32BE(xing + 4);
+      if (flags & 1) {
+        const frames = b.readUInt32BE(xing + 8);
+        const srIdx = (b[i + 2] >> 2) & 0x03;
+        const sr = (ver === 3 ? [44100, 48000, 32000] : [22050, 24000, 16000])[srIdx];
+        if (frames > 0 && sr) return +((frames * spir) / sr).toFixed(1);
+      }
+    }
+    break;
+  }
+  return null;
+}
+
+async function rangeOk(audioUrl, expectSec) {
   if (!audioUrl || !/^https?:\/\//.test(String(audioUrl))) return 'NO_URL';
   const probe = async () => {
     const r = await payloadFetch(String(audioUrl).replace(/^http:/, 'https:'), { headers: { Range: 'bytes=0-1023' } });
     const ct = String((r.headers || {})['content-type'] || '');
     const playable = r.statusCode === 206 || (r.statusCode === 200 && /audio|octet|mpeg|flac/i.test(ct));
-    return { playable, status: r.statusCode };
+    // v8.11：同一份字节顺手算真实时长（零额外流量）
+    return { playable, status: r.statusCode, dur: parseDurationFromHead(r.rawBuf) };
   };
   let r = await probe();
   // v8.5：429/503 是上游 QPS 限流（尤其星海后端 kwplay 链），退避后重试一次；不算死链
@@ -247,7 +299,10 @@ async function rangeOk(audioUrl) {
     r = await probe();
     if (!r.playable && (r.status === 429 || r.status === 503)) return 'THROTTLED';
   }
-  return r.playable ? 'PLAYABLE' : 'DEAD';
+  if (!r.playable) return 'DEAD';
+  // v8.11：能播 + 只有几秒 = 试听片段（实测酷我 VIP 歌统一 84972 字节 / 5.3 秒，206 全绿骗过状态码判定）
+  if (r.dur && expectSec && expectSec >= 90 && r.dur / expectSec < 0.6 && expectSec - r.dur > 15) return 'FRAGMENT';
+  return 'PLAYABLE';
 }
 
 // 每个取链型端点的真实调用（返回直链，交由 rangeOk 判定可播）
@@ -257,6 +312,7 @@ const PAYLOAD_CHECKS = [
     // 只判状态码必然永远假绿。改为带参 convert_url 取链：返回体是纯文本 URL（非 JSON），
     // 用两个不同资源 id 兜底 —— 单个 rid 失效不该被判成"服务死亡"。
     key: 'antiserver.kuwo.cn/anti.s',
+    expectSec: 269, // 探测歌 MUSIC_228908《晴天》271s，实测交付 269.7s；命中 <60% 记为片段
     getUrl: async () => {
       for (const rid of ['MUSIC_228908', 'MUSIC_186016']) {
         const r = await payloadFetch(`http://antiserver.kuwo.cn/anti.s?type=convert_url&rid=${rid}&format=mp3&response=url`);
@@ -375,8 +431,9 @@ async function runPayloadCheck(endpointUrl) {
   try {
     const url = await c.getUrl();
     if (!url) return { ok: false, reason: 'PAYLOAD_NO_URL' };
-    const state = await rangeOk(url);
+    const state = await rangeOk(url, c.expectSec);
     if (state === 'PLAYABLE') return { ok: true, reason: 'OK' };
+    if (state === 'FRAGMENT') return { ok: false, reason: 'PAYLOAD_FRAGMENT' };
     if (state === 'THROTTLED') return { ok: true, reason: 'PAYLOAD_THROTTLED' }; // 限流非死链，不误判
     return { ok: false, reason: 'PAYLOAD_DEAD' };
   } catch (e) { return { ok: false, reason: 'PAYLOAD_ERR' }; }
@@ -413,6 +470,40 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
       resolve({ url, ok: false, status: 0, time: Date.now() - start, reason: e.code || 'ERR' });
     });
   });
+}
+
+// v8.11：时长解析自检（不发网络，CI 必跑）——用构造的真实字节锁住解析器，
+// 防止以后有人"顺手简化"成只判状态码，让片段重新伪装成健康
+if (process.argv.includes('--selftest-duration')) {
+  const mp3 = (sec) => {
+    const frames = Math.max(1, Math.round((sec * 44100) / 1152));
+    const b = Buffer.alloc(48);
+    b[0] = 0xFF; b[1] = 0xFB; b[2] = 0x90; b[3] = 0x64;
+    b.write('Xing', 36, 'ascii'); b.writeUInt32BE(1, 40); b.writeUInt32BE(frames, 44);
+    return b;
+  };
+  const flac = (sec) => {
+    const b = Buffer.alloc(64);
+    b.write('fLaC', 0, 'ascii');
+    b[4] = 0x80; b[5] = 0; b[6] = 0; b[7] = 34;
+    b[18] = 0x0A; b[19] = 0xC4; b[20] = 0x40;
+    const tot = Math.round(sec * 44100);
+    b[21] = Math.floor(tot / 4294967296) & 0x0F;
+    b[22] = Math.floor(tot / 16777216) & 0xFF;
+    b[23] = Math.floor(tot / 65536) & 0xFF;
+    b[24] = Math.floor(tot / 256) & 0xFF;
+    b[25] = tot & 0xFF;
+    return b;
+  };
+  const cases = [[mp3(269.8), 269.8, 'mp3 完整版'], [mp3(5.3), 5.3, 'mp3 片段'], [flac(269.7), 269.7, 'flac 完整版'], [flac(5.3), 5.3, 'flac 片段']];
+  let pass = 0;
+  for (const [buf, want, name] of cases) {
+    const got = parseDurationFromHead(buf);
+    if (got && Math.abs(got - want) <= 0.5) pass++;
+    else console.log(`  ❌ ${name}: want ${want}, got ${got}`);
+  }
+  console.log(pass === cases.length ? `时长解析自检通过：${pass}/${cases.length}（mp3/flac × 完整/片段）` : `时长解析自检失败：${pass}/${cases.length}`);
+  process.exit(pass === cases.length ? 0 : 1);
 }
 
 (async () => {

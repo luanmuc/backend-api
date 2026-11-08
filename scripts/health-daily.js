@@ -324,6 +324,9 @@ function main() {
       rate: r.rate, total: r.total, consecutiveFail: r.consecutiveFail, reason: r.lastReason,
     })),
     watch: rows.filter(r => r.bucket === 'watch').map(r => ({ label: r.label, url: r.url, rate: r.rate, total: r.total })),
+    // v8.11：交付片段（能播但只有几秒）单独暴露——它不会被"可用率"暴露，
+    // 因为片段在端点层是 100% 绿色的 206；不单列就等于巡检对用户真实听感失明
+    fragment: rows.filter(r => String(r.lastReason || '').includes('PAYLOAD_FRAGMENT')).map(r => ({ label: r.label, url: r.url, sources: r.sources })),
     changes: changes.map(c => c.text),
   };
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2) + '\n');
