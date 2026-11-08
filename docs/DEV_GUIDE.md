@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.10.4：可播校验错误码修复**；上一版 v8.10.3：全覆盖审计 15 项隐性缺陷全修（详见 §3.4 与版本表）+ v8.10.2 记账顺序修复（先验后记）+ 半开收口 + 用例真化 + v8.10.1 缓存 LRU delete 补修 + v8.10 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.10.12：可播校验错误码修复**；上一版 v8.10.3：全覆盖审计 15 项隐性缺陷全修（详见 §3.4 与版本表）+ v8.10.2 记账顺序修复（先验后记）+ 半开收口 + 用例真化 + v8.10.1 缓存 LRU delete 补修 + v8.10 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -25,9 +25,9 @@
 | ⑤ 歌曲信息与匹配工具 | 967~1129 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey` |
 | ⑥ 音源实现 | 1130~1761 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
 | ⑦ 注册表 + 调度 + 健康分 | 1762~2398 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback` |
-| ⑧ 上报 + 事件监听 | 2415~2619（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ⑧ 上报 + 事件监听 | 2425~2629（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.10.4 基线（`lx-source.js` 共 2619 行）** 实测值，代码增删后需同步本表；表格覆盖全文（①～⑧ 首尾相接，无空白区）。
+> 行段为 **v8.10.12 基线（`lx-source.js` 共 2629 行）** 实测值，代码增删后需同步本表；表格覆盖全文（①～⑧ 首尾相接，无空白区）。
 
 ## 三、核心机制详解
 

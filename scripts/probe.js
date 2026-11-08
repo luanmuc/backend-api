@@ -340,8 +340,9 @@ const PAYLOAD_CHECKS = [
     key: 'music-api.gdstudio.xyz',
     getUrl: async () => {
       // v8.10.11：探测 id 不能用手写死的 VIP 歌。仓库自己早就写明
-      //「186016 周杰伦 VIP 无 url 已排除」（lx-source.js 的 PROBE_163_IDS 注释），
-      // 但 buildProbeConfig 里 gdWy 仍写死 id=186016 —— 用它做校验会让端点无论好坏都判死。
+      //「186016 周杰伦 VIP 无 url 已排除」（lx-source.js 的 PROBE_163_IDS 注释）。
+      // buildProbeConfig 里 gdWy 曾同样写死 186016 —— 已于 lx-source.js v8.10.12 一并修正为 2652820720。
+      // 这里保留双 id 顺序兜底：2652820720（已实测出真链）优先，347230 仅作后备（该 id 在本端点未验证）。
       // 改用已验证能出真实 mp3 的免费歌 id（同源网易云 id），并做双 id 兜底。
       for (const id of ['2652820720', '347230']) {
         const r = await payloadFetch(`https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light&types=url&source=netease&id=${id}&br=320`);

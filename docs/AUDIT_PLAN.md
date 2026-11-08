@@ -743,3 +743,26 @@ gdstudio → {"ok": true, "status": 200, "time": 1068, "reason": "OK", "payload"
 已于 `39a0fa8` 将 `gdWy` 置为 `false`（默认关闭，需要时手动打开）。
 
 至此 gdWy 这条线闭环：**误判（VIP 歌）→ 修 id → 验端点真实可用 → 发现出口与配额限制 → 默认关闭**。
+
+### v8.10.12 探测素材全量修正（用户要求「全部都修」）
+
+清点 `buildProbeConfig` 里全部写死的探测素材后，逐条给结论（不为了"统一"去动正常项）：
+
+| 端点 | 原探测素材 | 实测 | 处置 |
+|---|---|---|---|
+| `gdWy` | 网易云 `186016` | 该歌「周杰伦 VIP 无 url」，**永远取不到链接** | ✅ 改为 `2652820720`（`probe --json` 实测 `payload:true` 真出 mp3） |
+| `wyOuter` | 写死 `2652820720` | 走 outer 接口 **200 / audio/mpeg / 4.4MB 真可播** | ⏸ **保留写死**：池内 `347230` 同一接口返回 200 但 `content-type: text/html`（不可播），随池轮换会每两轮误报一次 |
+| `xinghaiBackend` | 写死「晴天/周杰伦」 | 接口按「歌名+歌手」联合检索 | ⏸ **保留写死**并注明是刻意设计：换成轮换歌名但歌手对不上会直接搜不到，反而制造误判 |
+| `suyin163` | `PROBE_163_IDS` 轮换 | 已实测出真实 mp3 | ✅ 保持 |
+| `suyinKuwo` | `PROBE_SONG_POOL` 轮换 | 已有双音质分域探测 | ✅ 保持 |
+
+**关键教训（推翻了我自己先前的改法）**：一开始想把 `PROBE_163_IDS` 整池套到 `gdWy`/`wyOuter` 上，实测发现
+**同一组"免费歌"在不同端点的适用性不同**（`347230` 对 wyOuter 返回 HTML），照搬会制造新的假故障。
+结论：**每个端点的探测素材必须各自实测通过后才可用，不能共用一张池**。
+
+**新增回归保护**：`self-check` 规则 6 —— 直接扫 `buildProbeConfig` 函数体，出现 `186016` 即阻断发布。
+红绿已验证：改回 `id=186016` → `[自检失败] buildProbeConfig 又用回 VIP 无效歌 186016`；恢复 → 通过。
+
+版本：`lx-source.js` `@version` 8.10.4 → **8.10.12**（同步 `logInfo`、`@description`、README 版本历史、ROADMAP、DEV_GUIDE 行数基线 2619→2629、App 跨仓引用）。
+
+门禁：self-check 0 / 冒烟 60 组 0 / candidate 6-0 / docs-audit 0。

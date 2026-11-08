@@ -88,6 +88,19 @@ if (fs.existsSync(roadmapPath)) {
   }
 }
 
+// 6) v8.10.12：探测素材不得回退到已知无效的 VIP 歌
+//    背景：gdWy 的探测 id 曾写死网易云 186016（周杰伦 VIP「无 url」），仓库自己早已把它从探测池排除，
+//    却仍在 buildProbeConfig 里用它 → 端点无论好坏都取不到链接、被恒定判死（2026-11-08 用户手机实测暴露）。
+//    只在注释里写挡不住下次改回，这里直接扫函数体。
+{
+  const i = src.indexOf('function buildProbeConfig');
+  const j = i === -1 ? -1 : src.indexOf('\nfunction ', i + 10);
+  const body = i === -1 ? '' : src.slice(i, j === -1 ? src.length : j);
+  if (!body) fail('lx-source.js 找不到 buildProbeConfig');
+  else if (/id=186016|"\{id\}"\s*,\s*"186016"/.test(body))
+    fail('buildProbeConfig 又用回 VIP 无效歌 186016（该歌无 url，会让端点恒定判死）');
+}
+
 if (failed) {
   console.error('发布前自检未通过，阻断发布。');
   process.exit(1);
