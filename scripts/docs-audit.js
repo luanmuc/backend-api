@@ -191,6 +191,22 @@ function ruleCrossRepoAppDoc() {
   else report.push(`🟢 跨仓一致：App MUSIC_SOURCE_GUIDE 与本仓 @version 均 v${m[1]}`);
 }
 
+// ── 规则 13：ITERATION_ROADMAP 的「当前最新版本 vX」↔ @version ──────────
+function ruleRoadmapVersion() {
+  const m = read('lx-source.js').match(/@version[: \t]+([\d.]+)/);
+  if (!m) { report.push('⚠️ 规则13：本仓 @version 未找到'); return; }
+  align('docs/ITERATION_ROADMAP.md', /当前最新版本 v([\d.]+)/, () => `当前最新版本 v${m[1]}`, 'ROADMAP 当前版本');
+}
+
+// ── 规则 14：SOURCE_AUDIT 的「N 个登记源」「N 个 verified 源」↔ 真值 ────
+function ruleSourceAuditFacts() {
+  const blk = handlerBlock();
+  const n = (blk.match(/^\s+\w+: \{/gm) || []).length;
+  align('docs/SOURCE_AUDIT.md', /(\d+) 个登记源/, () => `${n} 个登记源`, 'SOURCE_AUDIT 登记源数');
+  const ve = (blk.match(/verified/g) || []).length;
+  align('docs/SOURCE_AUDIT.md', /(\d+) 个 `verified` 源/, () => `${ve} 个 \`verified\` 源`, 'SOURCE_AUDIT verified 源数');
+}
+
 // ── 执行 ────────────────────────────────────────────────────────────────
 ruleSmokeCount();
 ruleVersion();
@@ -204,6 +220,8 @@ ruleSourceCount();
 ruleToggleTruth();
 ruleHardcodedGrowing();
 ruleCrossRepoAppDoc();
+ruleRoadmapVersion();
+ruleSourceAuditFacts();
 
 console.log(`\n[L4 文档巡检] ${DRY ? 'DRY-RUN（不修改）' : '自动修复'} — ${new Date().toISOString().slice(0, 10)}\n`);
 for (const r of report) console.log(r);
