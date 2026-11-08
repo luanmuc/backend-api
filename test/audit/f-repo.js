@@ -333,4 +333,6 @@ console.log('\n[Z] 资源与启动');
 }
 
 console.log(`\n第三轮全仓覆盖审计（U~Z）汇总：${res.length - fail} 通过 / ${fail} 失败`);
-process.exit(fail ? 1 : 0);
+// require.main 守卫：被其他脚本 require 时不得杀掉调用方（D-16 同类，见 g-meta M9）
+if (require.main === module) process.exit(fail ? 1 : 0);
+module.exports = { results: res };

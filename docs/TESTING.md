@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> 5 个入口，**没有统一 runner**，逐条跑。断言总数：冒烟 67 组 + 审计 12/30/30/57 + 压测 12 = **136 条审计断言 + 12 条压测断言**。
+> 9 个入口，**没有统一 runner**，逐条跑。断言实测：冒烟 67 组 + 审计 10/30/30/50/50/12 + 压测 12+12 = **132 条审计断言 + 24 条压测断言**（另有 9 条 `note` 信息登记，不计入通过/失败）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 一、入口总表
@@ -8,11 +8,12 @@
 | 入口 | 断言数 | 覆盖 | 依赖 | 命令 |
 |---|---|---|---|---|
 | `test/lx-source-smoke-test.js` | 67 组 | 主链行为回归：取链/降档/验真/缓存/熔断/限速/冷却/探针/歌词 | 纯 mock 宿主 | `node test/lx-source-smoke-test.js` |
-| `test/audit/a-static.js` | 12 | 静态：常量一致性、导出面、无死键、注释与代码对齐 | 读文件 | `node test/audit/a-static.js` |
+| `test/audit/a-static.js` | 10(+2 note) | 静态：常量一致性、导出面、无死键、注释与代码对齐 | 读文件 | `node test/audit/a-static.js` |
 | `test/audit/b-logic.js` | 30 | 逻辑：闸门判据、降档链、缓存键、记账口径、冷却状态机 | mock 宿主 | `node test/audit/b-logic.js` |
 | `test/audit/d-func.js` | 30 | 功能：五平台取链、音质矩阵、订阅源、错误码、配置读写 | mock 宿主 | `node test/audit/d-func.js` |
-| `test/audit/e-extra.js` | 57 | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏 | mock 宿主 | `node test/audit/e-extra.js` |
+| `test/audit/e-extra.js` | 50(+7 note) | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏 | mock 宿主 | `node test/audit/e-extra.js` |
 | `test/audit/f-repo.js` | 50 | 三轮新增：全仓 58 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
+| `test/audit/g-meta.js` | 12 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
 | `test/stress-test.js` | 12 | 压测 S 组压「量」：并发/预算/配额/熔断/缓存容量/长跑/极端参数/闸门对照/定时器 | `--expose-gc` | `node --expose-gc test/stress-test.js` |
 | `test/stress-round3.js` | 12 | 压测 T 组压「态」：跨档总预算、源级冷却与本地限速分离、片段翻转、闸门 8 组合矩阵、config 热更新、错误码注入、probe 并发、写满容量堆增长、档位串槽、熔断跨源污染 | `--expose-gc` | `node --expose-gc test/stress-round3.js` |
 | `test/candidate-audit-test.js` | 6 | 候选实证流程 | 本地 | `node test/candidate-audit-test.js` |
@@ -68,6 +69,6 @@ globalThis.__lxSourceConfig = {
 | Y | 残留死码 | 6 | 重复函数 72 个、只定义不用的常量、`debugger`、12 个错误码使用率、未用 `let`、导出面 | 同上 |
 | Z | 资源 | 5 | 加载 <50ms、重复加载堆增长、导出面 19 项、非法入库文件、无 >500KB 单文件（最大 203.45KB） | 同上 |
 
-- 覆盖分母：`git ls-files` 的 **49 个文件 / 14100 行**，未覆盖文件 **0**，矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)
+- 覆盖分母：`git ls-files` 的 **58 个文件 / 14145 行**，未覆盖文件 **0**，矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)
 - **六组在同一脚本内顺序执行，不支持只跑某一组**（传组名参数会被忽略，实测过）：要定位失败直接看输出行首的 `[U1]`…`[Z5]` 编号
 - **改完任何文件都要重跑**：U 组会因行数/BOM/新增文件而红；改文档后顺手把 `AUDIT_MATRIX.md` 的行数同步（`docs-audit` 不校验该表数字）

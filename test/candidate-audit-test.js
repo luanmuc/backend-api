@@ -12,12 +12,16 @@ let passed = 0;
 let failed = 0;
 
 function test(name, fn) {
+  // 输出带 [ID]，失败时能一眼定位是哪条（第四轮 M12）
+  const m = /^([A-Z]\d+[a-z]?)\s*(.*)$/.exec(String(name));
+  const id = m ? m[1] : String(name);
+  const title = m ? m[2] : '';
   try {
     fn();
-    console.log(`  ✅ ${name}`);
+    console.log(`  ✅ [${id}] ${title}`);
     passed++;
   } catch (e) {
-    console.log(`  ❌ ${name}: ${e.message}`);
+    console.log(`  ❌ [${id}] ${title}: ${e.message}`);
     failed++;
   }
 }

@@ -11,6 +11,11 @@ const rec = (id, name, ok, detail) => {
   out.push({ id, name, ok: !!ok, detail: String(detail || '') });
   console.log(`${ok ? '✓' : '✗'} [${id}] ${name}${detail ? ' — ' + String(detail).slice(0, 220) : ''}`);
 };
+// note：只登记事实、不构成断言的条目。用 `·` 输出，不计入通过/失败，
+// 避免"看起来全绿、其实这条永远是 true"（第四轮 M1 抓的就是这类）
+const note = (id, name, detail) => {
+  console.log(`· [${id}] ${name}${detail ? ' — ' + String(detail).slice(0, 220) : ''}`);
+};
 
 // ---------- A3 同名函数重复定义 ----------
 {
@@ -50,8 +55,9 @@ const rec = (id, name, ok, detail) => {
       empties.push(`L${line}`);
     }
   }
-  // 空 catch 允许（作为安全阀），但必须逐个确认不吞掉关键错误
-  rec('A5', '空 catch（安全阀，允许但需确认）', true, empties.length ? `${empties.length} 处：${empties.join(', ')}` : '无');
+  // 空 catch 允许（作为安全阀），但必须逐个确认不吞掉关键错误。
+  // 这是**信息登记**而非断言：登记数量本身无法证伪，故用 note（第四轮 M1）
+  note('A5', '空 catch 登记（安全阀，允许但需人工确认）', empties.length ? `${empties.length} 处：${empties.join(', ')}` : '无');
 }
 
 // ---------- A6 .then 无 .catch ----------
@@ -65,8 +71,9 @@ const rec = (id, name, ok, detail) => {
   }
   // A6 只做候选输出：单参 then 若其 Promise 被调用方（raceFirst/wrapExecute）挂载了 rejection handler，
 // 就不是缺陷。运行时证据：压测 G2「30 并发、未捕获拒绝=0」已证明无真实 unhandledRejection。
-  rec('A6', 'Promise .then 候选（已人工定性 / 调用方兜底）', true,
-    bad.length ? `${bad.length} 处候选：${bad.join(', ')}（L2344 为跨行双参 then；L2561 由 raceFirst 内部 catch）` : '无裸 then');
+// 同样是信息登记：候选列表本身不构成可证伪结论
+  note('A6', '.then 候选登记（已人工定性 / 调用方兜底）',
+    bad.length ? `${bad.length} 处候选：${bad.join(', ')}` : '无裸 then');
 }
 
 // ---------- A7 判据层魔法数字 ----------
@@ -161,10 +168,15 @@ function await0(p) { p.catch(() => {}); }
 
 // ---------- B1 调用点一致性 ----------
 {
-  const calls = (code.match(/request\s*\(/g) || []).length;
+  const calls = (code.match(/\brequest\s*\(/g) || []).length;
   const viaHttp = (code.match(/httpRequest\s*\(/g) || []).length;
-  const withCb = (code.match(/request\s*\([^;]{0,200}?\(err[^)]*\)\s*=>/gs) || []).length;
-  rec('B1', 'request 调用点形状一致', true, `request( ${calls} 处，其中经 httpRequest 封装 ${viaHttp} 次，裸回调 ${calls - viaHttp} 处`);
+  // 真判据：外呼只允许有一个物理发起点，且必须落在 httpRequest 函数体内。
+  // 若将来有人绕过封装直接裸调 lx.request，就会丢失超时/重试/脱敏 → 这条必须变红。
+  const httpDef = code.indexOf('function httpRequest');
+  const directIdx = code.search(/\brequest\s*\(/);
+  const inWrapper = httpDef >= 0 && directIdx > httpDef && directIdx < httpDef + 3000;
+  rec('B1', '外呼只经 httpRequest 唯一通道（无裸调）', calls === 1 && inWrapper,
+    `request( 共 ${calls} 处${calls ? `（位于 L${code.slice(0, directIdx).split('\n').length}）` : ''}，httpRequest 封装 ${viaHttp} 次，${inWrapper ? '发起点在封装体内' : '发起点不在封装体内'}`);
 }
 
 // ---------- B4 App 跨仓字段比对 ----------

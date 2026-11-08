@@ -57,6 +57,8 @@ const unhookLog = () => { console.log = origLog; console.warn = origWarn; };
 
 const res = [];
 const rec = (id, name, ok, detail) => { res.push({ id, ok: !!ok, name, detail: String(detail || '') }); origLog(`${ok ? '✓' : '✗'} [${id}] ${name}${detail ? ' — ' + String(detail).slice(0, 180) : ''}`); };
+// note：只登记事实、不构成断言（第四轮 M1 抓出的一批"写死 true"条目改走这里）
+const note = (id, name, detail) => origLog(`· [${id}] ${name}${detail ? ' — ' + String(detail).slice(0, 180) : ''}`);
 const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228908', songmid2: 'x' };
 
 (async () => {
@@ -170,7 +172,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     fresh(['suyinKuwo'], { breakerThreshold: 2, breakerCooldownMs: 500 });
     const m2 = load();
     // 冷却后重新加载模块会重置熔断，改为同一模块内等待
-    rec('L3', '熔断冷却后可恢复（模块内等待验证见 L3b）', true, '见 L3b');
+    note('L3', '熔断冷却恢复（结论由 L3b 承担，本条仅占位）', '见 L3b');
   }
   {
     // L3b：同一模块实例内，冷却后半开
@@ -208,14 +210,23 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   origLog('\n[M] 限速与并发');
   {
     fresh(['suyinKuwo'], { maxConcurrency: 1 });
-    scene = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data: { url: 'https://audio.test/a.mp3' } }), delay: 400 });
+    // mock 同构第①条：非 binary 的 1KB 探针也走 request，音频直链必须回音频，否则判 410
+    const m1url = 'https://audio.test/a.mp3';
+    scene = (u) => (u.includes('audio.test')
+      ? { ...okAudio(), delay: 20 }
+      : { ...json({ code: 200, data: { url: m1url } }), delay: 300 });
     probeFn = okAudio;
     reset();
-    const p1 = req('flac', { ...GOOD, songmid: 'm1a' }).catch(() => 'ERR');
+    const p1 = req('flac', { ...GOOD, songmid: 'm1a' }).then(v => ({ ok: 1, v }), e => ({ ok: 0, code: e.code || e.message }));
     await new Promise(r => setTimeout(r, 60));
-    const p2 = req('flac', { ...GOOD, songmid: 'm1b' }).catch(() => 'ERR');
-    await Promise.all([p1, p2]);
-    rec('M1', '单源并发达上限 → 本轮跳过（不排队堆积）', true, `并发上限=1，两路并发均返回（跳过者给明确错误码）；总外呼=${total()}`);
+    const p2 = req('flac', { ...GOOD, songmid: 'm1b' }).then(v => ({ ok: 1, v }), e => ({ ok: 0, code: e.code || e.message }));
+    const [r1, r2] = await Promise.all([p1, p2]);
+    // 真判据（原为写死 true）：并发上限=1 时，两路都必须有明确结果——
+    // 要么交付成功，要么带 code 失败；不许出现"返回了但既没 url 也没 code"的静默空转。
+    const hasResult = (r) => r.ok ? !!(r.v && r.v.url) : !!r.code;
+    const okN = [r1, r2].filter(r => r.ok).length;
+    rec('M1', '并发达上限时两路都有明确结果（无静默空转）', hasResult(r1) && hasResult(r2) && okN >= 1,
+      `r1=${r1.ok ? 'OK' : r1.code} r2=${r2.ok ? 'OK' : r2.code}；总外呼=${total()}`);
 
     fresh(['suyinKuwo'], { rateWindowMax: 2, rateWindowMs: 1000 });
     scene = () => json({ data: { url: 'https://audio.test/a.mp3' } }); probeFn = okAudio;
@@ -235,11 +246,14 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     // 实测更正：3 次网络失败后 1s 内外呼=0 —— 这是**源级退避/失败缓存生效**（设计行为），
     // 不是并发计数泄漏。退避时长由 rateLimitBackoffMs 控制（默认 ≤5min，PARAM_LIMITS 上限 5min），
     // 有界、不会永久占满。
-    rec('M4', '异常路径后进入有界退避而非永久占满', (typeof m4r === 'number' || true) && total() >= 0,
-      `失败 3 次后 1s 内外呼=${total()}（退避生效，时长上限 5min）；并发上限未泄漏——退避结束即恢复`);
+    // 原判据是 `(typeof m4r === 'number' || true) && total() >= 0` —— 恒真（第四轮 M1 抓出）。
+    // 真判据：失败 3 次后立刻重试必须被退避挡住（外呼=0），证明"退避"这一层真的存在；
+    // 上界由 PARAM_LIMITS.rateLimitBackoffMs(max 5min) + g-meta 静态守着。
+    rec('M4', '异常路径后进入有界退避（重试被挡住，非永久占满）', total() === 0,
+      `失败 3 次后立即重试的外呼=${total()}（=0 表示退避生效）；退避上限 5min 由 PARAM_LIMITS 恒定`);
 
     // M5 跳过时给明确码
-    rec('M5', '限速跳过给出明确错误码（非静默空转）', true, 'M1/M2 观测到 RATE_LIMIT / 明确异常，非 undefined');
+    note('M5', '限速跳过错误码（结论由 M1/M2 承担）', 'M1/M2 已观测到 RATE_LIMIT / 明确异常');
   }
 
   // ================= N 缓存容量 =================
@@ -260,13 +274,13 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     reset(); try { await req('flac', { ...GOOD, songmid: 'n2' + 0, name: 'N2歌0' }); } catch (e) { }
     rec('N2', 'failCache 容量 300 有界（不无限增长）', failCalls > 0, `305 首失败写入后总外呼=${failCalls}；重查最旧首外呼=${total()}`);
 
-    rec('N3', '淘汰后不误命中（重新走真实请求）', true, `N1/N2 均观测到淘汰后重新外呼`);
+    note('N3', '淘汰后不误命中（结论由 N1/N2 承担）', 'N1/N2 已观测到淘汰后重新外呼');
 
     fresh(['suyinKuwo']);
     const m = load();
     const ttlMap = { NOT_FOUND: 3600000, LINK_EXPIRED: null, PREVIEW_FRAGMENT: 30000 };
-    rec('N4', '三档失败 TTL 差异化存在且不互相覆盖', true,
-      '404→1h / 410→exp 缓存 / 新增 PREVIEW_FRAGMENT 30s、NOT_AUDIO 60s、STREAM_PLAYLIST 60s（代码静态确认，键位独立）');
+    note('N4', '三档失败 TTL 布局（静态登记，非行为断言）',
+      '404→1h / 410→exp 缓存 / PREVIEW_FRAGMENT 30s、NOT_AUDIO 60s、STREAM_PLAYLIST 60s，键位独立');
   }
 
   // ================= O 冷启动与短路 =================
@@ -277,7 +291,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     try { await req('flac', { ...GOOD, songmid: 'o1' }); } catch (e) { }
     rec('O1', '冷启动预热有上限，不拖慢首播', Date.now() - t0 < 8000, `首播耗时=${Date.now() - t0}ms（coldStartTimeoutMs=300）`);
 
-    rec('O2', '预热结果在 coldStartWarmTtlMs 内复用', true, '静态确认：预热表按源记录 usable + ttl，ttl 内不重复探测');
+    note('O2', '预热复用机制（静态登记，非行为断言）', '预热表按源记录 usable + ttl');
 
     fresh(['suyinKuwo'], { qualityShortCircuit: true, qualityShortCircuitSamples: 2 });
     scene = (u) => (u.includes('audio.test') ? okAudio() : json({ data: { url: 'https://audio.test/a.mp3' } }));
@@ -287,7 +301,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('O3', '质量短路开关可注入且不破坏正常交付', !!sc, `第3首交付=${sc && sc.type}`);
 
     fresh(['suyinKuwo'], { qualityShortCircuit: false });
-    rec('O4', '短路关闭时不影响降档链（防误判）', true, '开关关闭走完整降档链，与 C7 结论一致');
+    note('O4', '短路关闭时走完整降档链（结论由 C7 承担）', '与 C7 一致');
 
     fresh(['suyinKuwo'], { playDeadReviveMs: 1000 });
     scene = () => ({ error: 'ENOTFOUND' }); probeFn = () => ({ error: 'ENOTFOUND' });
@@ -311,7 +325,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
 
     const arr = [];
     for (let i = 0; i < 3; i++) arr.push({ id: 's' + i, score: 50, name: 's' + i });
-    rec('P2', '同分排序稳定（不依赖随机）', true, '静态确认 sortChainByHealth 以 score 降序 + 同分按原序（无 Math.random 参与）');
+    note('P2', '同分排序稳定（静态登记，非行为断言）', 'sortChainByHealth 以 score 降序 + 同分按原序，无 Math.random 参与');
 
     rec('P3', '健康快照字段与 App 消费对齐', !!one && (one.status !== undefined || one.state !== undefined || one.score !== undefined), one ? `字段=${Object.keys(one).slice(0, 6).join(',')}` : '无源快照');
 
