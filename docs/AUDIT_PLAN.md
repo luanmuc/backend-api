@@ -655,3 +655,27 @@ CI 显式传 `--date $(TZ=Asia/Shanghai date +%F)` 所以线上没暴露；但�
 ### 门禁
 
 self-check 0 · 冒烟 60 组 0 · candidate 6/6 0 · docs-audit 待处理 0 · 日报 0 · 告警器 0 · probe 真实跑 14/20（`anti.s` payload 校验通过）
+
+### v8.10.9 `payload` 端点必须配校验实现（fail-closed 断言）
+
+起因：用户追问「留下的数据能证明吗」。实测把 `PAYLOAD_CHECKS` 里 anti.s 的条目删掉（=校验被撤销）后，
+probe 对 anti.s 立刻退化回「只看状态码」——206 + 6 字节 `failed` 再次被算作可用（耗时 545ms → 80ms），
+而当时 self-check / 冒烟 / docs-audit **全绿**。即：历史数据能证明"这一次跑过校验"，
+证明不了"以后被撤销会被发现"。
+
+修法：probe 启动时断言「registry 声明 `kind=payload` ⇒ 必须存在对应 `PAYLOAD_CHECKS` 实现」，
+缺失则 `::error::` + `exit 1`（CI 只放行 exit 0/2，因此必然阻断）；另对"有校验但 registry 未声明 payload"
+的孤儿校验给 `::warning::`。
+
+**这条断言上线后立刻抓出 4 个既存缺口**（都登记为 payload 却从未配校验，与 anti.s 同一类假绿）：
+
+| 端点 | 裸探测拿到什么 | 真实调用 | 补校验后 |
+|---|---|---|---|
+| `lxmusicapi.onrender.com`（huibq） | 200 + 文档 JSON（"MusicFree 音源script2"）→ **假绿** | `/url/{platform}/{id}/{quality}` + `X-Request-Key` | ✅ `payload:true`，真取到 mp3 链 |
+| `oiapi.net/api/QQ_Music`（suyinQQ） | 403「该Api暂时无法访问」 | 带 key 仍 403（服务维护中） | 判死（真实状态，恢复后可自动真验证） |
+| `music-api.gdstudio.xyz`（gdWy） | 连接失败 / 503 网页 | `types=url&source=&id=&br=` | 判死（真实状态） |
+| `api.music.lerd.dpdns.org`（juhe×5） | 200 + `<html>200 OK</html>` 空壳 → **假绿** | POST `/{platform}` + JSON body | `PAYLOAD_NO_URL` 判死（识破空壳） |
+
+RED/GREEN：删掉 huibq 的校验 → `probe` 退出码 1 + `::error::payload 类端点缺少取链校验实现`；
+恢复后全部通过。门禁：self-check 0 / 冒烟 60 组 0 / candidate 6-0 / docs-audit 0 / 日报 0 / 告警器 0；
+日报输出与线上版**完全一致**（juhe 五源为禁用源，不参与判定）。

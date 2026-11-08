@@ -19,6 +19,7 @@ const https = require('https');
 // v8.10.5：端点清单单一真相（原本 probe 用正则抽、health-daily 另写手写映射表，已两次漂移）
 const {
   urls: registryUrls, byUrl: registryByUrl,
+  ENDPOINTS: registryEndpoints, // v8.10.9：fail-closed 断言要用 kind 字段
   WINDOW_DAYS, CONSECUTIVE_FAIL_DAYS, EXCLUDE_DOMAINS, // v8.10.5：常量单一来源
 } = require('./endpoint-registry.js');
 const { todayCN } = require('./cn-date.js'); // v8.10.6：北京日期单一真相（原为 probe 本地实现，health-daily 各算一份导致分叉）
@@ -314,6 +315,48 @@ const PAYLOAD_CHECKS = [
       return '';
     },
   },
+  {
+    // v8.10.9：huibq 裸 GET 返回 200 + 文档 JSON（"MusicFree 音源script2"）→ 假绿；
+    // 真实调用是 /url/{platform}/{id}/{quality}，且需 X-Request-Key（lx-source.js 里硬编码 share-v3）
+    key: 'lxmusicapi.onrender.com',
+    getUrl: async () => {
+      const r = await payloadFetch('https://lxmusicapi.onrender.com/url/kw/228908/128k', { headers: { 'X-Request-Key': 'share-v3' } });
+      try { const j = JSON.parse(r.body); if (j && typeof j.url === 'string' && /^https?:\/\//.test(j.url)) return j.url; } catch (e) {}
+      return '';
+    },
+  },
+  {
+    // v8.10.9：suyinQQ 裸 GET 恒 403（"该Api暂时无法访问"），裸探测与真实调用同结果；
+    // 带 key 才是真实调用形式，服务恢复后可真验证（key 与 lx-source.js 的 SUYIN_QQ_KEY 一致）
+    key: 'oiapi.net/api/QQ_Music',
+    getUrl: async () => {
+      const r = await payloadFetch('https://oiapi.net/api/QQ_Music?key=oiapi-ef6133b7-ac2f-dc7d-878c-d3e207a82575&type=json&br=128&n=1&songid=102065756');
+      try { const j = JSON.parse(r.body); if (j && typeof j.music === 'string' && /^https?:/.test(j.music)) return j.music; if (j && typeof j.url === 'string') return j.url; } catch (e) {}
+      return '';
+    },
+  },
+  {
+    // v8.10.9：gdWy 裸 GET 只拿到网页首页/503，真实调用需 types=url&source=&id=&br=
+    key: 'music-api.gdstudio.xyz',
+    getUrl: async () => {
+      const r = await payloadFetch('https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light&types=url&source=netease&id=186016&br=320');
+      const m = String(r.body || '').match(/https?:\/\/[^"'\s]+\.(?:mp3|flac|m4a)/i);
+      return m ? m[0] : '';
+    },
+  },
+  {
+    // v8.10.9：juhe 裸 GET 返回 "200 OK" 空壳 HTML（假绿）；真实调用是 POST /{platform} 带 JSON body
+    key: 'api.music.lerd.dpdns.org',
+    getUrl: async () => {
+      const r = await payloadFetch('https://api.music.lerd.dpdns.org/kw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ songId: '228908', quality: '128k', source: 'kw', interval: 200 }),
+      });
+      try { const j = JSON.parse(r.body); if (j && j.code === 200 && typeof j.data?.url === 'string') return j.data.url; } catch (e) {}
+      return '';
+    },
+  },
 ];
 
 async function runPayloadCheck(endpointUrl) {
@@ -378,6 +421,24 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   if (unregistered.length) {
     console.warn(`⚠️ 发现 ${unregistered.length} 个源码中未登记的端点（请补进 scripts/endpoint-registry.js）：`);
     for (const u of unregistered) console.warn(`   ${u.slice(0, 100)}`);
+  }
+
+  // v8.10.9：payload 类端点必须真的配了取链校验实现，否则 **fail-closed**。
+  // 起因（实测）：T2 修好后如果有人删掉 PAYLOAD_CHECKS 里 anti.s 的条目（=校验被撤销），
+  // 该端点会静默退化回「只看状态码」——206 + 6 字节 "failed" 再次被算作可用
+  // （耗时从 545ms 掉回 80ms），而当时 self-check / 冒烟 / docs-audit **全绿**，没有任何机制报错。
+  // 契约：registry 声明 kind=payload ⇒ 必须存在对应校验实现；缺失即视为配置错误，直接阻断。
+  const payloadKeys = PAYLOAD_CHECKS.map(c => c.key);
+  const missingCheck = registryEndpoints
+    .filter(e => e.kind === 'payload')
+    .filter(e => !payloadKeys.some(k => e.url.includes(k)));
+  if (missingCheck.length) {
+    console.error(`::error::payload 类端点缺少取链校验实现（会静默退化回假绿）：${missingCheck.map(e => e.url).join(', ')}`);
+    process.exit(1);
+  }
+  const orphanChecks = payloadKeys.filter(k => !registryEndpoints.some(e => e.kind === 'payload' && e.url.includes(k)));
+  if (orphanChecks.length) {
+    console.warn(`::warning::存在孤儿 payload 校验（registry 未声明为 payload，校验可能不再生效）：${orphanChecks.join(', ')}`);
   }
 
   // v8.0：用并发池替代 Promise.all——限制同时最多 CONCURRENCY 个请求
