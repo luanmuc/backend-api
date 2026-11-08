@@ -514,6 +514,29 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
       marked1 && marked2, `首次=${r1 && (r1.err || (marked1 ? '试听版' : '完整版'))} 二次=${got}`);
   }
 
+  // ================= W2 并发槽位必须守恒（变异测试 MU8 的存活项） =================
+  // inflightCount 是"该源正在飞"的计数，靠 finally 释放。变异体把这行删掉后，
+  // 8 个门禁全绿——因为没有一条用例在"连续的失败请求"之后还要求能再发一次。
+  // 泄漏的后果：maxConcurrency 槽位被永久占满，该源从第二次起就被本地限速静默跳过。
+  origLog('\n[W] 并发槽位守恒');
+  {
+    fresh(['suyinKuwo'], { maxConcurrency: 1, breakerThreshold: 999, rateWindowMax: 1e6 });
+    scene = () => ({ error: 'ECONNREFUSED' });
+    probeFn = () => ({ error: 'ECONNREFUSED' });
+    const seq = [];
+    for (let i = 0; i < 4; i++) {
+      let code = 'OK';
+      try {
+        const r = await req('flac', { ...GOOD, songmid: 'w2_' + i });
+        code = r ? 'DELIVERED' : 'EMPTY';
+      } catch (e) { code = e.code || 'ERR'; }
+      seq.push(code);
+    }
+    rec('W2', '每次请求结束都释放并发槽位（连续失败后仍能真正发出请求，不被本地限速挡死）',
+      seq.every(c => c === 'NETWORK_ERROR'),
+      `连续 4 次结果 ${seq.join('/')}（期望全是 NETWORK_ERROR；槽位泄漏会让第 2 次起变成限速/无源）`);
+  }
+
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);

@@ -67,7 +67,7 @@
 | `test/audit/b-logic.js` | 230 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/audit/d-func.js` | 232 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/audit/h-toggles.js` | 187 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | H1~H14/X (新增) |
-| `test/audit/e-extra.js` | 521 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/audit/e-extra.js` | 544 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/candidate-audit-test.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/lx-source-smoke-test.js` | 1558 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/stress-test.js` | 219 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
@@ -76,21 +76,23 @@
 | `docs/SCRIPTS.md` | 52 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/TESTING.md` | 74 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/CHANGELOG.md` | 35 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_MATRIX.md` | 102 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 103 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 338 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
-| `test/stress-round3.js` | 285 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T12 |
-| `test/audit/g-meta.js` | 291 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M13 |
+| `test/stress-round3.js` | 349 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
+| `test/audit/g-meta.js` | 314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14 |
 | `docs/audit-plans/round1.md` | 90 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/audit-plans/round2.md` | 186 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/audit-plans/round3.md` | 78 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
-| `docs/audit-plans/round4.md` | 162 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
+| `docs/audit-plans/round5.md` | 98 | .md | ✓ | ✓ | — | — | — | — | — | 五轮计划 |
+| `docs/audit-plans/round4.md` | 180 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
+| `test/mutation/run.js` | 149 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | MU1~MU8（变异测试） |
 ## 汇总
 
-- 文件总数：**63**（`git ls-files` 58 + 本轮新增 5：`test/audit/g-meta.js`、`docs/audit-plans/round1~4.md`）
-- 总行数：**15549**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**66**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js）
+- 总行数：**15942**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**63/63** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
-- H：行为断言脚本 **11** 个（冒烟 + a-static/b-logic/d-func/e-extra + **h-toggles** + f-repo + g-meta + 两代压测）
+- H：行为断言脚本 **12** 个（含 `test/mutation/run.js`）（冒烟 + a-static/b-logic/d-func/e-extra + **h-toggles** + f-repo + g-meta + 两代压测）
 - **未被任何维度覆盖的文件：0**
 - 口径说明：审计**执行时**分母是 49 个已被跟踪的文件；本轮新增的 9 个文件在**提交后复跑**中一并被 U/V/W/Y/Z 组扫到（`node test/audit/f-repo.js` → 50/0，rc=0）
 

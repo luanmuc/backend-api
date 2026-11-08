@@ -282,9 +282,32 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
       : `出口兜底 normalizeErrCode×${outs} lyric=${hasLyric} pic=${hasPic}`);
 }
 
+// ---------- M14 缓存写入唯一入口（D-20 的结构性守门） ----------
+// D-20 的根因不是「某处写错了」，而是「允许多处写」：handler 内层先写缓存、外层再验真，
+// 验真结果对已经写进去的条目毫无约束。修完只删了那三行，没有任何东西阻止下一个人再加回来
+// （加回来照样能过几乎所有行为用例，因为内层缓存命中的表现和正常交付一模一样）。
+// 所以这里守结构不变量：缓存只能有**一个**写点，且必须在 `await verifyDelivery` 之后。
+{
+  const t = read(SRC).split('\n');
+  const calls = [];
+  t.forEach((l, i) => {
+    if (!/setCachedUrl\(/.test(l)) return;
+    if (/^\s*(\/\/|\*|\/\*)/.test(l)) return;
+    if (/^function setCachedUrl\(/.test(l)) return; // 定义本身不算调用
+    calls.push(i + 1);
+  });
+  const verifyLine = t.findIndex((l) => /await verifyDelivery\(/.test(l)) + 1;
+  const onlyOne = calls.length === 1;
+  const afterVerify = onlyOne && calls[0] > verifyLine;
+  rec('M14', '缓存写入只有唯一入口，且在交付验真之后（防内层缓存回归）',
+    afterVerify,
+    `写点 ${calls.length} 处${calls.length ? '（行 ' + calls.join(',') + '）' : ''}，验真起于行 ${verifyLine}，` +
+    `${onlyOne ? (afterVerify ? '位于验真之后' : '仍在验真之前') : '存在多处写点'}`);
+}
+
 // ---------- 汇总 ----------
 const fail = out.filter((o) => !o.ok);
-console.log(`\n元审计（M1~M13）汇总：${out.length - fail.length} 通过 / ${fail.length} 失败`);
+console.log(`\n元审计（M1~M14）汇总：${out.length - fail.length} 通过 / ${fail.length} 失败`);
 if (fail.length) console.log('失败项：' + fail.map((f) => f.id).join(', '));
 // require.main 守卫：被 require 时不得杀调用方
 if (require.main === module) process.exit(fail.length ? 1 : 0);

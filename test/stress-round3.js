@@ -176,6 +176,36 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
       `溯音酷我外呼 ${per.map((p) => p.kw).join('/')}（期望 1/1/1；第 3 首若冷却失效会变 3），交付 ${per.map((p) => (p.ok ? (p.src || 'OK') : p.code)).join('/')}`);
   }
 
+  // ── T2c 冷却必须真的维持「分钟级」（变异测试 MU5 的存活项）────
+  // 全部用例只断言「冷却发生」，没人断言「冷却持续多久」。把 300000 改成 1000 后
+  // 所有门禁照样全绿——线上后果是同一个被风控的源 1 秒后就重新上链，冷却形同虚设。
+  // 这里用「1.5s 后仍在冷却」作下界（不引入 5 分钟等待，但足以杀掉数量级错误）。
+  {
+    fresh(['suyinKuwo', 'suyin163'], { breakerThreshold: 999, fragmentFallback: false, verifyDelivery: true });
+    const isFrag = (u) => String(u).includes('frag');
+    const fragAudio = () => audio(mp3(5.3), 'audio/mpeg', 84972);
+    const fullAudio = () => audio(flac(269.7), 'audio/flac', 55397039);
+    scene = (u) => {
+      const s = String(u);
+      if (s.includes('audio.test')) return isFrag(s) ? fragAudio() : fullAudio();
+      if (s.includes('/api/Kuwo')) return json({ code: 200, data: { url: 'https://audio.test/frag.mp3' } });
+      return json({ code: 0, data: { url: 'https://audio.test/ok.mp3' } });
+    };
+    probeFn = (u) => (isFrag(u) ? fragAudio() : fullAudio());
+    const KW = 'https://oiapi.net/api/Kuwo';
+    for (let i = 0; i < 2; i++) {
+      reset();
+      try { await req('128k', good('t2c_' + i)); } catch (e) { /* 两首都以片段收场，异常是预期 */ }
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+    reset();
+    let kw = 0;
+    try { await req('flac', good('t2c_late')); kw = counts[KW] || 0; } catch (e) { kw = counts[KW] || 0; }
+    rec('T2c', '冷却触发 1.5s 后该源仍被跳过（冷却不是秒级形同虚设）',
+      kw === 1,
+      `1.5s 后 flac 请求中溯音酷我外呼 ${kw} 次（期望 1＝只放行 128k 一档；冷却过期会变 3）`);
+  }
+
   // ── T5 片段 → 完整版翻转：缓存与标注是否跟着变 ────────────────
   {
     fresh(['suyinKuwo'], { breakerThreshold: 999, fragmentFallback: true, verifyDelivery: true });
