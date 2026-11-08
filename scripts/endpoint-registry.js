@@ -35,7 +35,9 @@ const ENDPOINTS = [
   { url: 'https://music.163.com/api/song/lyric', sources: [], label: 'wyLyric 网易歌词接口', kind: 'endpoint', toggleable: false, note: '官方公开接口' },
   { url: 'https://music.163.com/api/song/detail', sources: [], label: 'wyDetail 网易详情接口', kind: 'endpoint', toggleable: false, note: '官方公开接口' },
   { url: 'http://search.kuwo.cn/r.s', sources: [], label: 'kuwoSearch 酷我搜索接口', kind: 'endpoint', toggleable: false, note: '' },
-  { url: 'http://antiserver.kuwo.cn/anti.s', sources: ['kuwoOfficial'], kind: 'endpoint', note: '' },
+  // v8.10.7（T2）：改 payload —— 裸请求（含 Range）恒返回 206，缺参时正文是 6 字节 "failed"，
+  // 只看状态码会永远判活（历史 32/35 恒绿却从没真正监控过）；必须带参 convert_url 真实取链
+  { url: 'http://antiserver.kuwo.cn/anti.s', sources: ['kuwoOfficial'], kind: 'payload', note: '需带参 convert_url 取链才可判活' },
   { url: 'https://c.wwwweb.top', sources: ['ikun'], kind: 'payload', note: 'v8.1 迁移后的真实主端点；裸 GET 返回首页 200，需 payloadFetch 校验' },
   { url: 'http://nmobi.kuwo.cn/mobi.s', sources: ['helloworldKw'], kind: 'param', note: 'helloworldKw 通道①，真实调用为带参 convert_url_with_sign，裸 GET 恒 404' },
   { url: 'https://musicserver.haitangw.cc/v1/music/resolve-url', sources: ['helloworldKw'], kind: 'param', note: 'helloworldKw 通道②备用接口（lx-source.js:1360），非独立源；真实调用需 query 参数，裸 GET 恒 404' },

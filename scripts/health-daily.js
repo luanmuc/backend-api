@@ -41,8 +41,15 @@ function loadHistory() {
 
 /** 取某端点在某日为基准、往前 WINDOW_DAYS 天的窗口统计；无数据返回 null */
 function windowStats(entries, url, baseDate) {
-  const dates = [...new Set(entries.map(e => e.date))].filter(d => d <= baseDate).sort();
-  const window = dates.slice(-WINDOW_DAYS);
+  // v8.10.7（T6）：窗口改**日历日**（目标日往前 WINDOW_DAYS 天），不再取「最近 N 个有数据日」。
+  // 旧口径在断档时会把窗口偷偷拉长到两周前，用陈旧数据充当下"最近 7 天健康度"；
+  // 实测改日历日后断档场景参与判定数不变、也不会判死（窗口内无样本 → no-data，样本少 → 小样本规则兜底）。
+  const window = [];
+  for (let i = WINDOW_DAYS - 1; i >= 0; i--) {
+    const d = new Date(baseDate + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() - i);
+    window.push(d.toISOString().slice(0, 10));
+  }
   const recs = entries.filter(e => e.url === url && window.includes(e.date));
   if (!recs.length) return null;
 

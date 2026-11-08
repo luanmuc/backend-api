@@ -246,6 +246,20 @@ async function rangeOk(audioUrl) {
 // 每个取链型端点的真实调用（返回直链，交由 rangeOk 判定可播）
 const PAYLOAD_CHECKS = [
   {
+    // v8.10.7（T2）：anti.s 对**任何**请求都回 206（缺参正文是 6 字节 "failed"），
+    // 只判状态码必然永远假绿。改为带参 convert_url 取链：返回体是纯文本 URL（非 JSON），
+    // 用两个不同资源 id 兜底 —— 单个 rid 失效不该被判成"服务死亡"。
+    key: 'antiserver.kuwo.cn/anti.s',
+    getUrl: async () => {
+      for (const rid of ['MUSIC_228908', 'MUSIC_186016']) {
+        const r = await payloadFetch(`http://antiserver.kuwo.cn/anti.s?type=convert_url&rid=${rid}&format=mp3&response=url`);
+        const t = String(r.body || '').trim();
+        if (/^https?:\/\//.test(t)) return t;
+      }
+      return '';
+    },
+  },
+  {
     key: 'oiapi.net/api/Kuwo',
     getUrl: async () => {
       const r = await payloadFetch('https://oiapi.net/api/Kuwo?msg=' + encodeURIComponent('晴天 周杰伦') + '&n=1&br=9');
