@@ -25,6 +25,11 @@ const OUT_DIR = path.join(__dirname, '..', 'docs', 'health-daily');
 
 const MAX_FAIL_RATE = 50; // 故障率上限(%)：超过即需处理（v8.10.5 改名，原名 FAIL_RATE_THRESHOLD 语义反向，易被误改成 <50）
 const OBSERVE_MAX_RATE = 80; // 50%~80% 归入「观察」
+// v8.10.10：403/429 多半是巡检**出口 IP**（GitHub Actions 海外）被地区/风控拦截，不代表用户不可用
+// → 先降级「观察」；但设自动升级阈值，防止真挂了的 403 被永久降级而漏报
+const GEO_BLOCK_ESCALATE_DAYS = 5; // 403 类连续失败满 5 天 → 回升「需处理」
+const GEO_BLOCK_MIN_RATE = 20;     // 成功率 < 20%（样本 ≥ SMALL_SAMPLE）→ 回升「需处理」
+const isGeoBlocked = st => st.lastStatus === 403 || st.lastStatus === 429;
 const SMALL_SAMPLE = 20; // 样本 <20 时成功率仅作趋势参考
 const CHANGE_PP_THRESHOLD = 30; // 窗口成功率变化超过 30 个百分点算突变
 
@@ -119,6 +124,7 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
   L.push('> **不能回答什么**：这源现在能不能出链接——那归 `node scripts/source-audit.js`（逐源真实取链，按需跑）。');
   L.push('> **判定口径**：仅**启用中**的源参与判定；`param` 类端点（真实调用带参、裸探测恒 4xx）不参与；`payload` 类已做真实取链 + Range 校验。');
   L.push(`> **样本警示**：样本 <${SMALL_SAMPLE} 时成功率只作趋势参考；样本不足且未连续 ${CONSECUTIVE_FAIL_DAYS} 天全失败的，**一律不进「需处理」**。`);
+  L.push('> **巡检出口**：探测跑在 GitHub Actions（海外 IP）。`403`/`429` 多见于地区或风控拦截，**不等同于用户手机不可用**，故先归「观察」。');
   L.push(`> **今日未探测**：当天没有任何探测样本的端点不参与判定（\`--date\` 对应日无数据时不拿窗口旧数据顶替）。`);
   L.push('');
   if (gapDays > 0) {
@@ -167,7 +173,9 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
     L.push('| 源 | 端点 | 样本 | 成功率 | 连续失败 | 备注 |');
     L.push('|---|---|---|---|---|---|');
     for (const r of watch) {
-      const note = r.total < SMALL_SAMPLE ? '样本偏小，需继续累计' : '未达告警阈值';
+      const note = r.lastStatus === 403 || r.lastStatus === 429
+        ? `疑似出口 IP/风控拦截（${r.lastStatus}），非必然用户不可用；连续失败满 ${GEO_BLOCK_ESCALATE_DAYS} 天或成功率 <${GEO_BLOCK_MIN_RATE}% 会自动升级`
+        : (r.total < SMALL_SAMPLE ? '样本偏小，需继续累计' : '未达告警阈值');
       L.push(`| ${clean(r.label)} | \`${clean(r.url).slice(0, 46)}\` | ${r.total} | ${r.rate}% | ${r.consecutiveFail} 天 | ${note} |`);
     }
   }
@@ -282,6 +290,12 @@ function main() {
     // ② 小样本不得进 handle，除非已连续 3 天全失败（那说明真坏，不是抖动）（V18）
     else if (cur.total < SMALL_SAMPLE && cur.consecutiveFail < CONSECUTIVE_FAIL_DAYS)
       bucket = cur.rate < OBSERVE_MAX_RATE ? 'watch' : 'ok';
+    // ②.5 403/429 先归「观察」——可能是巡检出口被拦，不是用户手机不可用（v8.10.10）。
+    // 但连续失败满 GEO_BLOCK_ESCALATE_DAYS 天、或成功率低于 GEO_BLOCK_MIN_RATE（样本充足），仍回升「需处理」。
+    else if (isGeoBlocked(cur)
+      && cur.consecutiveFail < GEO_BLOCK_ESCALATE_DAYS
+      && !(cur.total >= SMALL_SAMPLE && cur.rate < GEO_BLOCK_MIN_RATE))
+      bucket = 'watch';
     // ③ 正式阈值：连续 3 天全失败，或故障率超上限
     else if (cur.consecutiveFail >= CONSECUTIVE_FAIL_DAYS || cur.rate < (100 - MAX_FAIL_RATE)) bucket = 'handle';
     else if (cur.rate < OBSERVE_MAX_RATE) bucket = 'watch';
