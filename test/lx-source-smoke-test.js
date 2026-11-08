@@ -1253,7 +1253,55 @@ async function test(name, fn) {
     assert.strictEqual(r.url, 'https://example.com/trim.mp3', '带首尾空白的上游 URL 必须 trim 后再交付，实际=' + JSON.stringify(r.url));
   }
 
-  console.log('\n冒烟测试完成：55 组用例');
+  console.log('[T56] v8.10.4 可播性校验超时不得被记成 410 死链（否则档位短路 6 小时）');
+  {
+    const mod = freshMod({});
+    mod.runtimeToggles.helloworldKw = true;
+    mockRoute = (u) => {
+      if (u.includes('nmobi.kuwo.cn')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' },
+          body: { code: 200, data: { url: 'https://example.com/hw.mp3', format: 'mp3' } }, delay: 2 };
+      }
+      if (u.includes('haitangw')) return { error: 'ECONNREFUSED', delay: 2 };
+      // 关键：拿到直链后做 Range 可播校验时「超时」——弱网场景
+      if (u.includes('example.com')) return { error: 'timeout', delay: 2 };
+      return { error: 'ECONNREFUSED', delay: 2 };
+    };
+    await requestUrl('kw', '128k', { name: '弱网', singer: 's', id: 'weak1', songmid: 'weak1', rid: 'weak1' }).catch(() => {});
+    await wait(150);
+    const q = mod.getBreaker('helloworldKw').byQuality['128k'] || {};
+    const fail = q.fail || 0;
+    assert.strictEqual(q.linkExpired || 0, 0,
+      '可播校验超时不得计入 linkExpired（旧实现会计，3 次即把该源该档短路 6 小时），实际=' + (q.linkExpired || 0));
+    assert.ok(fail >= 1 || mod.getBreaker('helloworldKw').failureCount >= 1,
+      '超时应按网络类失败计数（走 180s 熔断 + 半开探针自愈），实际 fail=' + fail);
+  }
+
+  console.log('[T57] v8.10.4 410 死链必须带 code，才能记 linkExpired / 走 1min 失败缓存');
+  {
+    const mod = freshMod({});
+    mod.runtimeToggles.helloworldKw = true;
+    mockRoute = (u) => {
+      if (u.includes('nmobi.kuwo.cn')) {
+        return { statusCode: 200, headers: { 'content-type': 'application/json' },
+          body: { code: 200, data: { url: 'https://example.com/dead.mp3', format: 'mp3' } }, delay: 2 };
+      }
+      if (u.includes('haitangw')) return { error: 'ECONNREFUSED', delay: 2 };
+      // 关键：直链返回 410（签名死链），而非超时
+      if (u.includes('example.com')) return { statusCode: 410, body: '', delay: 2 };
+      return { error: 'ECONNREFUSED', delay: 2 };
+    };
+    await requestUrl('kw', '128k', { name: '死链', singer: 's', id: 'dead1', songmid: 'dead1', rid: 'dead1' }).catch(() => {});
+    await wait(150);
+    const b = mod.getBreaker('helloworldKw');
+    const q = b.byQuality['128k'] || {};
+    assert.ok((q.linkExpired || 0) >= 1,
+      '410 死链必须计入 linkExpired（旧实现只把码写在 message 里、没设 e.code，被当成业务失败，档位短路判据永远不达标），实际=' + (q.linkExpired || 0));
+    assert.strictEqual(b.state, 'closed',
+      '410 属业务失败（源已正常响应），不应触发熔断，实际 state=' + b.state);
+  }
+
+  console.log('\n冒烟测试完成：57 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

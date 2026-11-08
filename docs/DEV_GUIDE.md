@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.10.3：全覆盖审计 15 项隐性缺陷全修（详见 §3.4 与版本表）+ v8.10.2 记账顺序修复（先验后记）+ 半开收口 + 用例真化 + v8.10.1 缓存 LRU delete 补修 + v8.10 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.10.4：可播校验错误码修复**；上一版 v8.10.3：全覆盖审计 15 项隐性缺陷全修（详见 §3.4 与版本表）+ v8.10.2 记账顺序修复（先验后记）+ 半开收口 + 用例真化 + v8.10.1 缓存 LRU delete 补修 + v8.10 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -27,7 +27,7 @@
 | ⑦ 注册表 + 调度 + 健康分 | 1762~2398 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback` |
 | ⑧ 上报 + 事件监听 | 2399~2603（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.10.3 基线（`lx-source.js` 共 2603 行）** 实测值，代码增删后需同步本表；表格覆盖全文（①～⑧ 首尾相接，无空白区）。
+> 行段为 **v8.10.4 基线（`lx-source.js` 共 2619 行）** 实测值，代码增删后需同步本表；表格覆盖全文（①～⑧ 首尾相接，无空白区）。
 
 ## 三、核心机制详解
 
@@ -273,6 +273,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | # | 任务 | 涉及仓库 | 实现要点 | 验收标准 | 状态 |
 |---|---|---|---|---|---|
 | **v8.1** | 候选实证半自动化（原 v10.3 前移并入） | 音源 | `scripts/candidate-audit.js`：输入候选脚本 URL → 自动抓取 + mock 加载验证 + 静态提取（API_BASE/音质表/actions/鉴权/可读性）→ 输出 Markdown 实证报告草案；混淆源标注需人工 | 新候选出实证报告草案；混淆源正确标注 | ✅ 已完成（2026-11-05） |
+| **v8.10.4** | 可播校验错误码修复：超时/网络异常不判死链 + LINK_EXPIRED 补 code | 竞速链路 + 断路器 | ①`isAudioPlayable` 超时/网络异常改抛原码（NETWORK_TIMEOUT/NETWORK_ERROR/SERVER_ERROR/RATE_LIMIT），仅 LINK_EXPIRED 仍返回 false 判死链 → 弱网改走 180s 熔断 + 半开探针自愈；②三处 LINK_EXPIRED 抛错补 `err.code`，使 410 真正计入 `byQuality.linkExpired`（档位短路判据）与 1min 失败缓存；冒烟 55→57 组（T56/T57），均 red-green 验证 |
 | **v8.10.3** | 全覆盖审计 15 项隐性缺陷全修 | 竞速链路 + 断路器 + 缓存 + 健康探测 + 文档 | 全覆盖审计修复（2026-11-07）：①`probeSingleSource` 形参 `cfg` 遮蔽全局 `cfg()`（huibq 唯一冷启动源探针 100% TypeError、请求从未发出）；②429 不再计入 `byQuality.fail`/成功率分母 + 半开遇 429 收口；③降档按**实交付音质**入缓存槽；④失败缓存命中还原代表性 `code`；⑤平台分组改由竞速链生成（消除手写清单漂移）；⑥探针通过一并复位断路器/限流；⑦末档预算上界显式钳制；⑧`validateUrl` 返回 `trim` 后 URL；⑨320k/128k 单档预算 4s→5s 对齐单源超时；⑩删死键 `raceOverallTimeoutMs`、暴露 `raceBudgetMs`；⑪huibq 假成功判据单点化并补进探针；⑫lingchuan 补 `platforms` 声明；⑬A19 备注 20→144；⑭冒烟新增 T50–T55（回退必红）共 55 组 | `node --check` + 冒烟 55 组全绿（T50–T55 回退必红） | ✅ 已完成并推送（2026-11-07，`47f527a`；计划回填 `79ffb01`） |
 | **v8.10** | 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容（5 条全做） | 竞速链路 + 健康探测 + 缓存 | 分档预算 flac6s/320k4s/128k4s + 末档保底 3s + 冷启动探针 30s 超时与豁免自动关闭 + 短路窗口 6h→1h + 高音质缓存分级 TTL（flac/320k 30min）+ 历史快照 60→144；USER_CONFIG 新增 5 键 | 冒烟 48 组全绿（v8.10.2 起 49 组） | ✅ 已完成（2026-11-06） |
 | **v8.8** | 竞速引擎改造（6 条全做） | 竞速链路 | `raceFirst` 改 launcher 分批错峰并发 + `raceDeadline` 跨档共享 12s + `isQualityHopeless` 档位短路（6h 探路）+ `warmUpColdStartSources` 冷启动预热与 8s 超时 + gdWy `batch:2` + `verifiedPending` 精确等待；USER_CONFIG 新增 7 键 | 冒烟 43 组全绿 | ✅ 已完成（2026-11-06） |
@@ -336,7 +337,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 > **前置**：所有改动先走 `AGENTS.md`「实证开发流程（强制）」验证链（L0 静态 → L1 模拟 → L2 接口实测 → L3 真机 → L4 回归）。本清单 = L4 回归的具体内容。
 
 1. **语法**：`node --check lx-source.js`；
-2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（55 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
+2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（57 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
 3. **平台抽查**（用 curl 复现各子源逻辑或直接装包实测）：
    - wy：《晴天》flac（走 gdWy）+ 免费歌 128k（走 suyin163/wyOuter）+ VIP 歌 128k（应失败不误报）；
    - kw：《难却(DJ细霖版)》flac/320k/128k 三档（重点：不匹配到片段版、URL 可 206 播放）；

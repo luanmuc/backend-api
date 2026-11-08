@@ -219,7 +219,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 |---|---|---|
 | 语法 | `node --check lx-source.js` | 通过 |
 | 项目自检 | `node scripts/self-check.js` | 通过（`@version` / `@description` 首行 / `logInfo` 三处同步 v8.10.3） |
-| 官方冒烟 | `node test/lx-source-smoke-test.js` | **55 组全绿，exit=0**（原 49 组 + 新增 T50–T55） |
+| 官方冒烟 | `node test/lx-source-smoke-test.js` | **57 组全绿，exit=0**（原 49 组 + T50–T55 + v8.10.4 新增 T56/T57） |
 
 ### 6.2 新增反向用例（回退必红）
 
@@ -281,22 +281,25 @@ T46 同步改造：原用 `raceBudgetMs: 1` 依赖「剩余预算恰为 0」，�
 
 - 29 处 `catch` 逐块核对：
   - 多数正确透传（`lastError` 累积 + `mergeLastCode` 结构化）
-  - **🟡（2026-11-08 复核后由 ⚪ 升级）** `isAudioPlayable()`（L909）把超时/网络错误一律判"不可播"，
-    调用方（L1334 / 1364 / 1607）据此抛 `LINK_EXPIRED`。实测链路后果：
-    1. `LINK_EXPIRED` 走 `recordBusinessFail`（不计 `failureCount`，**不触发熔断**）
-    2. 但会被计入 `byQuality.linkExpired`
-    3. 档位短路判据是 `(fail + linkExpired) >= qualityShortCircuitSamples(默认 3)`（L2240）
-       → 达标即把该源该音质档**短路 `qualityShortCircuitProbeMs`（默认 21600000 = 6 小时）**
-    对比正确语义：若按 `NETWORK_TIMEOUT` 计入熔断，冷却仅 `BREAKER_COOLDOWN_MS`（180000 = 3 分钟）后
-    就有半开探针自动恢复。**即弱网把"3 分钟可自愈"错当成"6 小时档位压制"**。
-    影响面：仅 helloworld / 溯音酷我的对应音质档，其他源仍在竞速链上 → 不会无声，
-    但高音质档成功率与耗时明显变差。
-    **修法（待实施）**：让 `isAudioPlayable` 在超时/网络异常时抛带 `NETWORK_TIMEOUT` / `NETWORK_ERROR` 码的错误，
-    调用方用 try/catch 区分「确定死链（206 之外的 410/403/404）」与「校验未完成（超时）」，后者不写 `linkExpired`。
-    反向用例：弱网连点 3 首 flac 后，该源 flac 档不应进入 6 小时短路（冒烟可加 T56）。
+  - **🟡（2026-11-08 二次复核升级，同日已修复 v8.10.4）** `isAudioPlayable()`（L909）把超时/网络错误一律判"不可播"，
+    调用方（L1344 / 1374 / 1617）据此抛 `LINK_EXPIRED`。
+    **第一次复核的因果链写错了**（原判"计入 `linkExpired` → 6 小时档位短路"）。实测纠正：那 3 处
+    `throw new Error(...)` **只把码写进 message、没有设 `.code`**，而竞速是按 `e.code` 分类的
+    （仅 `NETWORK_TIMEOUT`/`NETWORK_ERROR`/`SERVER_ERROR` 调 `recordFailure`，仅 `LINK_EXPIRED` 才写
+    `byQuality.linkExpired`），`code === undefined` 一律落 `else` → `recordBusinessFail`。真实后果是**双向失效**：
+    1. 超时被当成业务失败 → 不熔断、不冷却，坏源一直挂在链上，每次点歌白跑 2.5s 校验（弱网尤甚）
+    2. 410 死链也没被识别成 410 → `linkExpired` 永不计数，档位短路判据 `(fail+linkExpired)>=3` 永远不达标；
+       失败缓存也无法按 `LINK_EXPIRED` 走 1 分钟差异化 TTL
+    影响面：仅 helloworld（两通道）/ 溯音酷我的对应音质档，其他源仍在竞速链上 → 不会无声，但成功率与耗时变差。
+    **修法（v8.10.4 已实施）**：
+    ① `isAudioPlayable` 超时/网络异常改为抛出原错误码（`NETWORK_TIMEOUT`/`NETWORK_ERROR`/`SERVER_ERROR`/`RATE_LIMIT`），
+       仅 `LINK_EXPIRED` 仍返回 false 判死链 → 超时改走 180s 熔断 + 半开探针自愈
+    ② 三处 `LINK_EXPIRED` 抛错补 `err.code = ERROR_CODES.LINK_EXPIRED` → 410 才真正进死链短路与 1min 失败缓存
+    反向用例：**T56**（弱网超时不得记 `linkExpired`、必须按网络类计 fail）、**T57**（410 必须记 `linkExpired` 且不熔断），
+    均已做 red-green（回退修复 → 对应断言失败；恢复 → 57 组全绿）。
   - ~~btoa 失败 `return ''`~~ → **复核后撤回**：该函数实为 `xinghaiBackendToken()`（L1433），全仓仅 1 处定义、**零引用**（v8.4 已改为不发送自定义 X-Token，注释写明），属死代码，不构成缺陷
 - `config` 热更新有上下限校验（`PARAM_LIMITS`）、改熔断阈值重置计数、改 TTL 清缓存 → 正确
 - `isAudioPlayable` 仅 3 处调用（L1333/L1363/L1605），均在源内链切换，不污染全局熔断
 - 自带测试 `test/candidate-audit-test.js`：**6 通过 / 0 失败**
-- 自带测试 `test/lx-source-smoke-test.js`：**55 组全通过**（mock 宿主，不联网，`assert` 失败即非零退出）
+- 自带测试 `test/lx-source-smoke-test.js`：**57 组全通过**（v8.10.3 时 55 组，v8.10.4 增 T56/T57；mock 宿主，不联网，`assert` 失败即非零退出）
 - 补充机械检查：i18n 不可用于音源，改为核对 action 返回字段与 App 消费端一致（见 S 组）
