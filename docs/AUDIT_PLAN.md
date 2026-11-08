@@ -282,9 +282,11 @@ T46 同步改造：原用 `raceBudgetMs: 1` 依赖「剩余预算恰为 0」，�
 - 29 处 `catch` 逐块核对：
   - 多数正确透传（`lastError` 累积 + `mergeLastCode` 结构化）
   - ⚪ `isAudioPlayable()`（L909）把超时/网络错误一律判"不可播"——设计如此（注释明确），
-    仅在 helloworld/溯音源内做通道切换，不记熔断，影响局限为弱网多耗 2.5s
-  - ⚪ `buildXinghaiToken` 类函数 btoa 失败 `return ''`——后续必然失败但错误信息变成"签名无效"，诊断性差
+    仅在 helloworld/溯音源内做通道切换，不记熔断，影响局限为弱网多耗 2.5s。**结论：接受现状不改**
+    （改成"超时算可播"会让播放器拿到可能 404 的链接、把瞬时失败变成播放卡死，代价高于多耗 2.5s）
+  - ~~btoa 失败 `return ''`~~ → **复核后撤回**：该函数实为 `xinghaiBackendToken()`（L1433），全仓仅 1 处定义、**零引用**（v8.4 已改为不发送自定义 X-Token，注释写明），属死代码，不构成缺陷
 - `config` 热更新有上下限校验（`PARAM_LIMITS`）、改熔断阈值重置计数、改 TTL 清缓存 → 正确
 - `isAudioPlayable` 仅 3 处调用（L1333/L1363/L1605），均在源内链切换，不污染全局熔断
 - 自带测试 `test/candidate-audit-test.js`：**6 通过 / 0 失败**
-- 未跑：`test/lx-source-smoke-test.js`（联网 55 组冒烟，耗时与网络依赖，本轮跳过）
+- 自带测试 `test/lx-source-smoke-test.js`：**55 组全通过**（mock 宿主，不联网，`assert` 失败即非零退出）
+- 补充机械检查：i18n 不可用于音源，改为核对 action 返回字段与 App 消费端一致（见 S 组）
