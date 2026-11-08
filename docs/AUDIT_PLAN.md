@@ -430,7 +430,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 ## 4. 第三轮审计计划（U~Z 六组 · 全仓全覆盖）
 
 > **设计约束**：刻意避开前两轮 A~T 已测过的角度（A~I 九维 79 项、J~T 57 项），只补「文件级合规 / 文档与脚本契约 / 跨模块联动 / 死码与资源」这几层此前**完全没碰**的部分。
-> **覆盖口径**：以 `git ls-files` 的 **63 个 tracked 文件 / 15107 行** 作分母，逐个文件标注被哪一维审过，**未覆盖文件 0**。矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)，由脚本实测产出、不是手写清单。
+> **覆盖口径**：以 `git ls-files` 的 **63 个 tracked 文件 / 15338 行** 作分母，逐个文件标注被哪一维审过，**未覆盖文件 0**。矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)，由脚本实测产出、不是手写清单。
 > 实现：`test/audit/f-repo.js`（325 行，**50 条**断言，rc=0）。
 
 | 组 | 维度 | 断言 | 判据要点 |
