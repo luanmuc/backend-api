@@ -17,6 +17,7 @@ const path = require('path');
 const { ENDPOINTS, WINDOW_DAYS, CONSECUTIVE_FAIL_DAYS } = require('./endpoint-registry.js');
 // v8.10.5：开关解析抽成独立模块（probe 也要用：README_HEALTH 只对启用源出死源建议）
 const { parseToggles } = require('./source-toggles.js');
+const { todayCN } = require('./cn-date.js'); // v8.10.6：默认日期改北京（原 toISOString 是 UTC，本地 0~8 点会拿到昨天）
 
 const SRC = path.join(__dirname, '..', 'lx-source.js');
 const HISTORY_PATH = path.join(__dirname, '..', 'docs', 'probe-history.jsonl');
@@ -76,7 +77,23 @@ function windowStats(entries, url, baseDate) {
   };
 }
 
-/** 展示名：有源用源 id，工具类端点用 label */
+/**
+ * v8.10.6（T7）：某端点**自己**上一次有数据的日期（严格早于 targetDate）。
+ *
+ * 原实现取「全局日期集的倒数第二天」当所有端点的基准。一旦某端点中间几天缺样本
+ * （probe 部分失败、或该端点新登记），它拿不到"上次状态"→ lastOk=null → 真正的翻转
+ * （可用 → 失败）既不报 🔴，还会被降级成一句「窗口成功率 100% → 50%」的 pp 变化，
+ * 读的人只会以为"在缓慢变差"，而不知道"这个源已经直接坏掉了"。
+ */
+function prevDataDate(entries, url, targetDate) {
+  let best = null;
+  for (const e of entries) {
+    if (!e || !e.date || e.url !== url) continue;
+    if (e.date >= targetDate) continue; // 严格早于目标日
+    if (best === null || e.date > best) best = e.date;
+  }
+  return best;
+}
 function labelOf(ep) {
   return ep.sources && ep.sources.length ? ep.sources.join('/') : (ep.label || ep.url.slice(0, 40));
 }
@@ -87,7 +104,7 @@ function clean(s) {
 }
 
 // ---------- 渲染 ----------
-function render({ rows, changes, targetDate, prevDate, toggles, lineNo, dataThrough, gapDays }) {
+function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dataThrough, gapDays }) {
   const L = [];
   L.push(`# 健康日报 ${targetDate}`);
   L.push('');
@@ -101,7 +118,7 @@ function render({ rows, changes, targetDate, prevDate, toggles, lineNo, dataThro
     L.push(`> ⚠️ **数据断档**：${targetDate} 无探测数据，最近一次数据是 **${dataThrough}**（已 ${gapDays} 天未探测）。下面所有判定基于窗口内历史，**不代表今日状态**。`);
     L.push('');
   }
-  L.push(`> 对比基准：${prevDate || '无（历史不足）'} → ${targetDate}`);
+  L.push(`> 对比基准：${prevDateLabel || '无（历史不足）'} → ${targetDate}`);
   L.push('');
 
   // 今日变化
@@ -191,7 +208,9 @@ function main() {
   const args = process.argv.slice(2);
   const dateIdx = args.indexOf('--date');
   const outIdx = args.indexOf('--out');
-  const targetDate = dateIdx >= 0 ? args[dateIdx + 1] : new Date().toISOString().slice(0, 10);
+  // v8.10.6（F01 残留）：默认日期取**北京日期**。原 toISOString().slice(0,10) 是 UTC，
+  // 本地直接跑时北京 0~8 点会拿到"昨天"（CI 显式传 --date 才没暴露）
+  const targetDate = dateIdx >= 0 ? args[dateIdx + 1] : todayCN();
   const outPath = outIdx >= 0 ? args[outIdx + 1] : path.join(OUT_DIR, `${targetDate}.md`);
 
   const entries = loadHistory();
@@ -199,9 +218,15 @@ function main() {
 
   const { toggles, lineNo } = parseToggles();
 
-  // 前一有数据日（用于变化检测）
+  // v8.10.6（T7）：变化检测基准改为**按端点各取**自己上一有数据日（原为全局倒数第二天）
+  // allDates / dataThrough / gapDays 仍用全局——它们描述的是"整体探测有没有断档"，与单端点无关
   const allDates = [...new Set(entries.map(e => e.date))].filter(d => d <= targetDate).sort();
-  const prevDate = allDates.length >= 2 ? allDates[allDates.length - 2] : null;
+  const prevDates = new Map();
+  for (const ep of ENDPOINTS) prevDates.set(ep.url, prevDataDate(entries, ep.url, targetDate));
+  const prevSet = [...new Set([...prevDates.values()].filter(Boolean))].sort();
+  const prevDateLabel = prevSet.length === 0 ? null
+    : prevSet.length === 1 ? prevSet[0]
+    : `各端点各自基准（最早 ${prevSet[0]} ~ 最晚 ${prevSet[prevSet.length - 1]}）`;
   // v8.10.5：断档显式化——目标日与最近有数据日差几天，报告首屏必须说明（V28）
   const dataThrough = allDates.length ? allDates[allDates.length - 1] : null;
   const gapDays = dataThrough
@@ -222,18 +247,19 @@ function main() {
 
 
     // 变化检测：只对启用中的源报（关闭源的状态翻转没有动作价值，只会重新带来噪声）
-    if (prevDate && enabled) {
-      const prev = windowStats(entries, ep.url, prevDate);
-      if (prev && prevDate !== targetDate) {
+    const pDate = prevDates.get(ep.url); // v8.10.6：用该端点自己的上一有数据日作基准
+    if (pDate && enabled) {
+      const prev = windowStats(entries, ep.url, pDate);
+      if (prev) {
         const flip = prev.lastOk === true && cur.lastOk === false;
         const recover = prev.lastOk === false && cur.lastOk === true;
         const delta = Math.round((cur.rate - prev.rate) * 10) / 10;
         if (flip) {
-          changes.push({ text: `🔴 **${clean(labelOf(ep))}**：${prevDate} 可用 → ${targetDate} **失败**（${clean(cur.lastReason) || '-'}）` });
+          changes.push({ text: `🔴 **${clean(labelOf(ep))}**：${pDate} 可用 → ${targetDate} **失败**（${clean(cur.lastReason) || '-'}）` });
         } else if (recover) {
-          changes.push({ text: `🟢 **${clean(labelOf(ep))}**：${prevDate} 失败 → ${targetDate} **恢复**` });
+          changes.push({ text: `🟢 **${clean(labelOf(ep))}**：${pDate} 失败 → ${targetDate} **恢复**` });
         } else if (Math.abs(delta) >= CHANGE_PP_THRESHOLD) {
-          changes.push({ text: `${delta < 0 ? '🟡' : '🟢'} **${labelOf(ep)}**：窗口成功率 ${prev.rate}% → ${cur.rate}%（${delta > 0 ? '+' : ''}${delta}pp）` });
+          changes.push({ text: `${delta < 0 ? '🟡' : '🟢'} **${clean(labelOf(ep))}**：窗口成功率 ${prev.rate}% → ${cur.rate}%（${delta > 0 ? '+' : ''}${delta}pp，基准 ${pDate}）` });
         }
       }
     }
@@ -257,7 +283,7 @@ function main() {
     rows.push({ url: ep.url, sources: ep.sources, kind: ep.kind, label, bucket, skipReason, ...cur });
   }
 
-  const report = render({ rows, changes, targetDate, prevDate, toggles, lineNo, dataThrough, gapDays });
+  const report = render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dataThrough, gapDays });
 
   if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(outPath, report);
@@ -266,7 +292,10 @@ function main() {
   const summaryPath = outPath.replace(/\.md$/i, '') + '.json';
   const summary = {
     date: targetDate,
-    prevDate,
+    // v8.10.6（T7）：基准日按端点各算；全局字段保留兼容（各端点一致时给该日期，否则 null）
+    prevDate: prevSet.length === 1 ? prevSet[0] : null,
+    prevDateMode: prevSet.length <= 1 ? 'uniform' : 'per-endpoint',
+    prevDates: Object.fromEntries(prevDates),
     registered: ENDPOINTS.length,
     judged: rows.filter(r => r.bucket !== 'skip').length,
     handle: rows.filter(r => r.bucket === 'handle').map(r => ({

@@ -36,6 +36,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 > 本表 = 本仓库实测基线 + 生态交叉验证；端点级实时健康状态见 [README_HEALTH.md](./README_HEALTH.md)（`scripts/probe.js` 每日自动刷新）。
 > 口径：pdone 探测来自 CI 服务器 IP，与本仓库 IP 维度不同，分歧 ≠ 某一方错误（典型：溯音咪咕上游域名可用但本机 IP 被封）。
+> 日期口径：巡检日期一律按**北京日期**（`scripts/cn-date.js` 单一实现），与 CI cron（UTC 20:00 = 北京次日 04:00）对齐——否则日报里的"今天"会永远比实际早一天。
 
 | 平台 | 可用音质 | 主路子源 | 交叉验证 |
 |---|---|---|---|

@@ -21,6 +21,7 @@ const {
   urls: registryUrls, byUrl: registryByUrl,
   WINDOW_DAYS, CONSECUTIVE_FAIL_DAYS, EXCLUDE_DOMAINS, // v8.10.5：常量单一来源
 } = require('./endpoint-registry.js');
+const { todayCN } = require('./cn-date.js'); // v8.10.6：北京日期单一真相（原为 probe 本地实现，health-daily 各算一份导致分叉）
 const { parseToggles } = require('./source-toggles.js'); // v8.10.5：死源建议只对启用源
 
 const SRC = path.join(__dirname, '..', 'lx-source.js');
@@ -76,9 +77,7 @@ const PLATFORM_MAP = [
 
 /** v8.10.5：统一用**北京日期**（CI cron 0 20 UTC 触发时 UTC 日期比北京早一天，V7）
  *  旧实现用 toISOString() 写历史，而日报用 TZ=Asia/Shanghai 读 → 日报"当天"恒缺数据 */
-function todayCN() {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
-}
+// v8.10.6：todayCN 已收敛到 scripts/cn-date.js（与 health-daily 同源），此处不再本地定义
 
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');

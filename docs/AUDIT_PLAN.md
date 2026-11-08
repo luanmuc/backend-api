@@ -225,7 +225,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 | T4 | ❌ **未通过**（2 处） | 构造 6 类输入：①注释键 ignored ②引号值 ignored ③行内注释含冒号正确 ⑥CRLF 正确；④**嵌套对象把内层 `inner` 当源开关**；⑤**注释里一个未闭合 `{` 直接抛"花括号未闭合"** → 而 CI 里 health-daily 是 `\|\| true`，抛错后**当天没有日报但 CI 全绿**（静默失败） | P0（⑤）/ P2（④） |
 | T5 | ✅ 通过 | 把 `huibq` 改 `false` → 参与判定 10→9，且只在"未参与判定"段留说明行；把关闭的 `suyinQQ` 改 `true` → 立刻被纳入并报 4.3% / 4 天连败 | — |
 | T6 | ⚠️ **部分** | `windowStats` 的窗口是"最近 7 个**有数据日**"而非日历 7 天；probe 断档一周时窗口静默老化到更早数据，不告警 | P2 |
-| T7 | ⚠️ **部分** | `prevDate` 取**全局**前一有数据日，不是该端点的前一有数据日；当前每天全量探测影响小，若将来按端点分批探测会错位 | P2 |
+| T7 | ✅ **已修（v8.10.6）** | 新增 `prevDataDate()` 按端点取「严格早于目标日的最近有数据日」；变化检测与文案基准日都改用它，json 增 `prevDateMode`/`prevDates`。合成序列实测：改前只出 🟡 pp 变化（真正翻转漏报），改后出 🔴「11-01 可用 → 11-08 失败」；真实历史复跑 diff 为空 |
 | T8 | ❌ **未通过**（P0 假告警） | 合数据实测：`suyinKuwo` **仅 2 样本、0%** 就被判「需处理」，而报告首屏自己写着"样本 <20 只作趋势参考"。`SMALL_SAMPLE` 只用于观察桶的备注文案，**根本没参与分级** | P0 |
 | T9 | ✅ 通过 | md 首屏"登记 15 / 参与判定 10 / 需处理 1"与同名 `.json` 的 `registered`/`judged`/`handle` 完全一致 | — |
 | T10 | ✅ 通过（含实测） | 空 handle → 0 字节退出 0；非空 → 生成正文；CI 上**真实创建了 Issue #1**；"已有 open Issue 跳过"分支未单独实测 | — |
@@ -239,7 +239,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 3. **P1** T1：登记 changqing / nianxin 的 5 个模板端点（`kind: 'param'` + note 写明"模板需 {id}/{level}"），让日报至少显式说明这两个启用源未被覆盖。
 4. **P1** T11：把 T1 的双向差集固化为冒烟用例 T60（差集非空即失败）。
 5. **P1** T13：`docs-audit` 增加 `ruleCiStepCount`，校验 `ci.yml` 里"L1 冒烟测试（… N 组用例）"的 N。
-6. **P2** T2/T6/T7/T4④：`anti.s` 降为 param 或加 note；窗口改为日历日并显式标注断档；`prevDate` 改为按端点取；层级过滤避免嵌套被误解析。
+6. **P2** T2/T6/T4④：`anti.s` 降为 param 或加 note；窗口改为日历日并显式标注断档；层级过滤避免嵌套被误解析。
 7. **P1** T33 flaky：单独查竞速/预算耗尽的时序依赖。
 
 ### V 组 · 巡检子系统代码级与全链路全覆盖审计（v8.10.5，10 层 36 项）
@@ -543,3 +543,69 @@ T46 同步改造：原用 `raceBudgetMs: 1` 依赖「剩余预算恰为 0」，�
 - 自带测试 `test/candidate-audit-test.js`：**6 通过 / 0 失败**
 - 自带测试 `test/lx-source-smoke-test.js`：**57 组全通过**（v8.10.3 时 55 组，v8.10.4 增 T56/T57；mock 宿主，不联网，`assert` 失败即非零退出）
 - 补充机械检查：i18n 不可用于音源，改为核对 action 返回字段与 App 消费端一致（见 S 组）
+
+
+---
+
+## 附：T7 与 F01 残留（v8.10.6，2026-11-08 修复）
+
+用户问「T7 是啥意思」后复查代码，确认两条并修复。
+
+### T7 变化检测基准日取错层级
+
+`health-daily.js` 原实现：
+
+```js
+const allDates = [...new Set(entries.map(e => e.date))].filter(d => d <= targetDate).sort();
+const prevDate = allDates.length >= 2 ? allDates[allDates.length - 2] : null;   // 全局倒数第二天
+```
+
+`prevDate` 对**所有端点**是同一个值。若某端点中间几天缺样本（probe 部分失败、端点新登记），
+它拿不到"上次状态"（`lastOk=null`），于是：
+
+- 真正的翻转（可用 → 失败）**不报 🔴**
+- 还会掉进 `Math.abs(delta) >= 30` 分支，报成 `🟡 窗口成功率 100% → 50%（-50pp）`
+- 读的人只会以为"在缓慢变差"，不知道"这个源已经直接坏了"
+
+**RED 取证**（隔离副本合成历史 `U2: 11-01 可用 / 11-07 无样本 / 11-08 失败`）：
+
+```
+## 今日变化
+- 🟡 helloworldKw：窗口成功率 100% → 50%（-50pp）     ← 翻转被降级，且不含基准日
+```
+
+**修法**：新增 `prevDataDate(entries, url, targetDate)` 按端点各取基准；变化检测、文案、json 全部改用它；
+各端点基准不一致时，日报的「对比基准」行显式标注区间（`各端点各自基准（最早 … ~ 最晚 …）`），不再用一个日期冒充全部。
+
+**GREEN 同一场景**：
+
+```
+## 今日变化
+- 🔴 helloworldKw：2026-11-01 可用 → 2026-11-08 失败（HTTP 502）    ← 翻转被正确捕获
+```
+
+**无回归证明**：用真实 `probe-history.jsonl`（20 端点每天全量、基准日唯一）重生成 2026-11-08 日报，
+与远端 CI 生成版 **`diff` 为空**（含对比基准行仍是 `2026-11-07`）。
+
+### F01 残留：health-daily 默认日期仍走 UTC
+
+`health-daily.js:194` 的默认值 `new Date().toISOString().slice(0, 10)` 是 UTC。
+CI 显式传 `--date $(TZ=Asia/Shanghai date +%F)` 所以线上没暴露；但本地直接跑脚本时，北京 0~8 点会拿到"昨天"。
+
+修法：新建 `scripts/cn-date.js` 导出 `todayCN()`（`Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Shanghai'})`），
+`probe.js` 与 `health-daily.js` 共用，日期实现收敛为单一真相。
+
+边界验证（旧写法 vs 新写法）：
+
+| 北京时刻 | 旧(UTC) | 新(北京) | 结论 |
+|---|---|---|---|
+| 2026-11-09 00:10 | 2026-11-08 | 2026-11-09 | 旧写法差一天 ✗ |
+| 2026-11-09 07:50 | 2026-11-08 | 2026-11-09 | 旧写法差一天 ✗ |
+| 2026-11-09 08:10 | 2026-11-09 | 2026-11-09 | 一致 |
+| 2026-11-09 23:50 | 2026-11-09 | 2026-11-09 | 一致 |
+
+`probe.js --quick` 真实跑通：14/20 可用、历史追加 `2026-11-08`、README 表日期同步 `2026-11-08`。
+
+### 门禁
+
+`self-check` 0 · 冒烟 60 组 0 · candidate 6/6 0 · docs-audit 待处理 0 · health-alert 0（按 CI 位置参数调用）
