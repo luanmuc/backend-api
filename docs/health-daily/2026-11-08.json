@@ -1,7 +1,7 @@
 {
   "date": "2026-11-08",
   "prevDate": "2026-11-07",
-  "registered": 15,
+  "registered": 20,
   "judged": 10,
   "handle": [
     {
@@ -11,8 +11,8 @@
       ],
       "url": "https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light",
       "kind": "payload",
-      "rate": 30.4,
-      "total": 23,
+      "rate": 29.2,
+      "total": 24,
       "consecutiveFail": 2,
       "reason": "HTTP 403"
     }
@@ -21,9 +21,11 @@
     {
       "label": "xinghaiBackend",
       "url": "https://yy.zddyr.top/lx/api/",
-      "rate": 73.9,
-      "total": 23
+      "rate": 75,
+      "total": 24
     }
   ],
-  "changes": []
+  "changes": [
+    "🔴 **suyinKuwo**：2026-11-07 可用 → 2026-11-08 **失败**（PAYLOAD_DEAD）"
+  ]
 }
