@@ -447,3 +447,18 @@
 {"date":"2026-11-07","url":"https://c.wwwweb.top","ok":true,"status":200,"time":1594,"reason":"OK"}
 {"date":"2026-11-07","url":"http://nmobi.kuwo.cn/mobi.s","ok":false,"status":404,"time":452,"reason":"HTTP 404"}
 {"date":"2026-11-07","url":"https://musicserver.haitangw.cc/v1/music/resolve-url","ok":false,"status":404,"time":1822,"reason":"HTTP 404"}
+{"date":"2026-11-08","url":"https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light","ok":false,"status":403,"time":98,"reason":"HTTP 403"}
+{"date":"2026-11-08","url":"https://oiapi.net/api/QQ_Music","ok":false,"status":403,"time":1075,"reason":"HTTP 403"}
+{"date":"2026-11-08","url":"https://oiapi.net/api/Music_163","ok":true,"status":200,"time":1177,"reason":"OK"}
+{"date":"2026-11-08","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":3241,"reason":"OK"}
+{"date":"2026-11-08","url":"https://api.xcvts.cn/api/music/migu","ok":false,"status":206,"time":1628,"reason":"PAYLOAD_NO_URL"}
+{"date":"2026-11-08","url":"https://lxmusicapi.onrender.com","ok":true,"status":200,"time":930,"reason":"OK"}
+{"date":"2026-11-08","url":"https://api.music.lerd.dpdns.org","ok":true,"status":200,"time":157,"reason":"OK"}
+{"date":"2026-11-08","url":"https://yy.zddyr.top/lx/api/","ok":true,"status":200,"time":790,"reason":"OK"}
+{"date":"2026-11-08","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":1267,"reason":"OK"}
+{"date":"2026-11-08","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":1094,"reason":"OK"}
+{"date":"2026-11-08","url":"http://search.kuwo.cn/r.s","ok":false,"status":0,"time":588,"reason":"ETIMEDOUT"}
+{"date":"2026-11-08","url":"http://antiserver.kuwo.cn/anti.s","ok":false,"status":0,"time":502,"reason":"ETIMEDOUT"}
+{"date":"2026-11-08","url":"https://c.wwwweb.top","ok":true,"status":200,"time":2230,"reason":"OK"}
+{"date":"2026-11-08","url":"http://nmobi.kuwo.cn/mobi.s","ok":false,"status":0,"time":502,"reason":"ETIMEDOUT"}
+{"date":"2026-11-08","url":"https://musicserver.haitangw.cc/v1/music/resolve-url","ok":false,"status":404,"time":1681,"reason":"HTTP 404"}
