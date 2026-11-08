@@ -1,6 +1,29 @@
 {
   "date": "2026-11-08",
   "prevDate": "2026-11-07",
+  "prevDateMode": "uniform",
+  "prevDates": {
+    "https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light": "2026-11-07",
+    "https://oiapi.net/api/QQ_Music": "2026-11-07",
+    "https://oiapi.net/api/Music_163": "2026-11-07",
+    "https://oiapi.net/api/Kuwo": "2026-11-07",
+    "https://api.xcvts.cn/api/music/migu": "2026-11-07",
+    "https://lxmusicapi.onrender.com": "2026-11-07",
+    "https://api.music.lerd.dpdns.org": "2026-11-07",
+    "https://yy.zddyr.top/lx/api/": "2026-11-07",
+    "https://music.163.com/api/song/lyric": "2026-11-07",
+    "https://music.163.com/api/song/detail": "2026-11-07",
+    "http://search.kuwo.cn/r.s": "2026-11-07",
+    "http://antiserver.kuwo.cn/anti.s": "2026-11-07",
+    "https://c.wwwweb.top": "2026-11-07",
+    "http://nmobi.kuwo.cn/mobi.s": "2026-11-07",
+    "https://musicserver.haitangw.cc/v1/music/resolve-url": "2026-11-07",
+    "http://175.27.166.236/kgqq/qq.php?type=mp3&id={id}&level={level}": null,
+    "https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}": null,
+    "https://music.haitangw.cc/kgqq/kg.php?type=mp3&id={id}&level={level}": null,
+    "https://music.nxinxz.com/kgqq/tx.php?id={id}&level={level}&type=mp3": null,
+    "https://music.163.com/song/media/outer/url?id={id}.mp3": null
+  },
   "registered": 20,
   "judged": 10,
   "handle": [
@@ -11,8 +34,8 @@
       ],
       "url": "https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light",
       "kind": "payload",
-      "rate": 29.2,
-      "total": 24,
+      "rate": 28,
+      "total": 25,
       "consecutiveFail": 2,
       "reason": "HTTP 403"
     }
@@ -21,11 +44,12 @@
     {
       "label": "xinghaiBackend",
       "url": "https://yy.zddyr.top/lx/api/",
-      "rate": 75,
-      "total": 24
+      "rate": 72,
+      "total": 25
     }
   ],
   "changes": [
-    "🔴 **suyinKuwo**：2026-11-07 可用 → 2026-11-08 **失败**（PAYLOAD_DEAD）"
+    "🔴 **suyinKuwo**：2026-11-07 可用 → 2026-11-08 **失败**（PAYLOAD_DEAD）",
+    "🔴 **xinghaiBackend**：2026-11-07 可用 → 2026-11-08 **失败**（HTTP 429）"
   ]
 }
