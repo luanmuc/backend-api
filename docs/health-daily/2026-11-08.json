@@ -31,24 +31,24 @@
     {
       "label": "gdWy",
       "url": "https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light",
-      "rate": 24.1,
-      "total": 29
+      "rate": 23.3,
+      "total": 30
     },
     {
       "label": "suyinKuwo",
       "url": "https://oiapi.net/api/Kuwo",
-      "rate": 79.3,
-      "total": 29
+      "rate": 76.7,
+      "total": 30
     },
     {
       "label": "xinghaiBackend",
       "url": "https://yy.zddyr.top/lx/api/",
-      "rate": 75.9,
-      "total": 29
+      "rate": 76.7,
+      "total": 30
     }
   ],
   "changes": [
-    "🔴 **suyinKuwo**：2026-11-07 可用 → 2026-11-08 **失败**（PAYLOAD_DEAD）",
-    "🔴 **kuwoOfficial**：2026-11-07 可用 → 2026-11-08 **失败**（PAYLOAD_DEAD）"
+    "🔴 **suyin163**：2026-11-07 可用 → 2026-11-08 **失败**（PAYLOAD_NO_URL）",
+    "🔴 **suyinKuwo**：2026-11-07 可用 → 2026-11-08 **失败**（PAYLOAD_NO_URL）"
   ]
 }
