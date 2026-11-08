@@ -242,7 +242,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 6. **P2** T2/T6/T7/T4④：`anti.s` 降为 param 或加 note；窗口改为日历日并显式标注断档；`prevDate` 改为按端点取；层级过滤避免嵌套被误解析。
 7. **P1** T33 flaky：单独查竞速/预算耗尽的时序依赖。
 
-### V 组 · 巡检子系统代码级与全链路全覆盖审计（v8.10.6，10 层 36 项）
+### V 组 · 巡检子系统代码级与全链路全覆盖审计（v8.10.5，10 层 36 项）
 
 > T 组审的是"它说的话可不可信"（行为级）。V 组补的是"代码本身错没错 + 链路每一段是否闭合"（代码级 + 全链路）。
 > 起因：T 组 5 通过 / 5 未通过之后，用户指出"没审到代码"——结论正确，但漏掉一类：**口径没错、代码层面有错**。
@@ -396,6 +396,35 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 | 13 | P1 | 漏登记回归用例（T60） | V31(T11) |
 | 14 | P2 | `FAIL_RATE_THRESHOLD` 改名消除反向语义 | V3 |
 | 15 | P2 | `appendHistory` 改原子写（临时文件+rename） | V29 |
+
+**执行结果（2026-11-08，15 条全部完成，改动暂未提交/推送，等用户拍板）**
+
+| # | 状态 | 主要改动 | 验证方式与结果 |
+|---|---|---|---|
+| 1 | ✅ | `probe.js`：新增 `todayCN()`，`appendHistory` 与 README `todayStr` 都用北京日期 | 同时刻对比 `toISOString`=2026-11-08 / 北京=2026-11-09；实跑 history 末条 `date=2026-11-08`、README 表日期同步 |
+| 2 | ✅ | `health-daily.js`：`windowStats` 增 `todayCount`，当天 0 样本归 `no-today`；日报列「今日未探测」并计入统计行 | 删掉 suyinKuwo 当日样本 → 参与判定 10→9，输出「**今日未探测**（窗口内最近数据 2026-11-07），不作今日判定」 |
+| 3 | ✅ | `health-daily.js`：`total < SMALL_SAMPLE && consecutiveFail < 3` 只进观察 | 构造 2 样本 0% → 落「观察」表并注「样本偏小，需继续累计」，`handle` 表 0 条 |
+| 4 | ✅ | 新建 `scripts/source-toggles.js`（剥注释+配平+行内多键）；CI 去 `\|\| true` | red-green：注释含未闭合 `{` 旧**抛错**/新 20 键；嵌套对象旧 21 键（多 `inner`）/新 20 键；行内 5 键（juhe 五兄弟）旧漏 4 键/新全取 |
+| 5 | ✅ | CI `git add` 补 `README.md`；`self-check.js` 加"写回清单必须含 5 个产物"规则 | red-green：从 `git add` 删掉 `README.md` → 自检 exit 1；恢复 → exit 0 |
+| 6 | ✅ | `probe.js` 死源建议按 `SOURCE_TOGGLES` 过滤 | 实跑 README_HEALTH：已关闭的 `oiapi.net/api/QQ_Music`、`xcvts.cn/api/music/migu` 在建议中出现次数 = 0 |
+| 7 | ✅ | `health-daily.js` + `health-alert.js` 新增 `clean()` | 构造 `a\|b 换行\n第二行` → 输出 `a\|b 换行 第二行`（竖线转义、换行压平，表格不被拆） |
+| 8 | ✅ | `health-alert.js`：缺参/缺文件/`handle` 非数组 → `exit 1` | 四场景：不存在文件 exit=1、handle=string exit=1（报"实际 string"）、空 handle exit=0、真实 json exit=0 |
+| 9 | ✅ | `health-daily.js` 清理覆盖 `.md` + `.json` | 造 3 个 90 天前文件（2 md + 1 json）→ 全部清掉，残留 0 |
+| 10 | ✅ | `ci.yml`：recheck / probe / health-daily / push / ecosystem 五处 | probe 只放行 exit 2（其余 `::error` + 非 0）；health-daily 去 `\|\| true` 失败即红；其余写 `GITHUB_STEP_SUMMARY`；YAML 解析通过 |
+| 11 | ✅ | `health-daily.js`：`dataThrough`/`gapDays` + 首屏警示 | 删掉 11-06~11-08 数据 → 首屏输出「⚠️ **数据断档**：2026-11-08 无探测数据，最近一次数据是 **2026-11-05**（已 3 天未探测）」 |
+| 12 | ✅ | `endpoint-registry.js` 导出 `WINDOW_DAYS`/`CONSECUTIVE_FAIL_DAYS`/`EXCLUDE_DOMAINS`，probe 与 health-daily 改为引用；`PLATFORM_MAP` 加漂移自检 | registry 取值 7 / 3；probe 实跑无 `PLATFORM_MAP` 告警（关键词全部能命中登记端点） |
+| 13 | ✅ | 新增冒烟 T60：每个启用源必须有登记端点 | red-green：加用例后立即红，揪出 `wyOuter` 零登记（另补 changqing×3/nianxin×1）；补齐后 60 组全绿 |
+| 14 | ✅ | `MAX_FAIL_RATE` 替换 `FAIL_RATE_THRESHOLD` | 语义改为"故障率上限"，判定式 `rate < 100 - MAX_FAIL_RATE` 与注释一致 |
+| 15 | ✅ | `appendHistory` 先合并清理、写 `.tmp` 再 `rename` | 实跑：history 524→当日追加、清理行数与日志一致，无半截文件 |
+
+> 门禁（改动后实跑）：`self-check` rc=0 ｜ 冒烟 60 组 rc=0 ｜ `candidate-audit` 6/6 rc=0 ｜ `docs-audit --dry-run` 待处理 0 ｜ 日报 `--date 2026-11-08` 正常生成（登记 20 端点 / 参与判定 10）。
+
+**真实验证阶段（2026-11-08 提交前）另外发现并修掉两条**
+
+| 项 | 问题 | 修法 | 证据 |
+|---|---|---|---|
+| T33 flaky | T46「末档保底」用例用 `flac/320k: 1ms` 预算；mock 同步返回若落在同一毫秒，`Date.now() >= deadline` 不成立 → 320k 被真实交付 → 断言随机失败（此前连跑 5 次未复现） | 预算改 `-1`，deadline 恒在过去，预算耗尽判定变确定性 | 连跑 **12 次**全绿 |
+| exit 2 语义 | probe 的 `exit 2` 实际条件是「**所有**平台主路同时全挂」；原代码注释写「某平台主路全挂」，CI 注释写「有端点失败」——两处都与 `PLATFORM_MAP.every(...)` 不符，会误导排障 | 注释与 CI 文案改准；行为不变（单平台/零散失败仍 exit 0，由健康日报「需处理」覆盖，避免每天红灯麻木） | 全量 probe 实跑 rc=0（6 端点失败，非全挂）|
 
 ## 4. 统计
 

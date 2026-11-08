@@ -251,6 +251,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 |---|---|---|---|
 | v28 | 自动健康日报 | CI 每日汇总各源 7 日成功率/均时/健康分（v17 归因口径）写入 `docs/health-daily/`；连续 3 天真故障率超阈值的源自动生成"摘除建议" | 日报自动生成可读；摘除建议与 v26.1 摘死源机制互为补充 |
 | v28.1 | 健康日报重写（v8.10.5，脚本级） | ①端点清单改由 `scripts/endpoint-registry.js` 单一维护，probe 正则抽取降级为**漂移校验**（源码有、表未登记则告警）②只对 `SOURCE_TOGGLES === true` 的源判定，关闭源静默归档 ③`param` 类端点（裸探测缺参恒 4xx）不参与判定 ④与前一有数据日做变化检测，只报翻转/成功率突变 ⑤每条结论给动作出口（改哪个文件的哪个开关） | L1 冒烟 T58（sources 与 SOURCE_TOGGLES 对齐）/ T59（登记表不得残留源码已删端点）；同一份数据摘除建议 7 条 → 1 条；告警通道：`需处理` 非空时开 GitHub Issue（本仓 Issues 2026-11-08 启用），Issues 不可用则退化为 step 失败触发邮件 |
+| v28.2 | 巡检链路可信度修复（v8.10.5 续，脚本级） | ①**时间口径统一**：probe 写历史与 README 日期改用北京日期（原 UTC——CI cron `0 20` UTC 触发时，历史记 day N、日报查 N+1，"当天"恒缺数据）；历史写入改**原子写**（临时文件 + rename）②**今日无样本不冒充判定**：当天 0 样本的端点归 `no-today` 不参与判定，数据断档在首屏显式警告 ③**小样本不进「需处理」**（除非已连败 3 天）④`reason` 的换行/竖线净化，防打断 Markdown 表格 ⑤告警器输入异常 `exit 1`（原缺文件/handle 非数组都静默 `exit 0`）⑥90 天清理覆盖 `.json`（原只清 `.md`，孤儿堆积）⑦**登记补全**：changqing×3 / nianxin×1 / wyOuter 共 5 条；新增 T60「启用源零登记即红」⑧CI 不再 `|| true` 吞错（probe 只放行 exit 2、health-daily 失败即红、recheck/push/ecosystem 写 job 摘要），`git add` 补 `README.md` 并由自检规则锁死 ⑨`docs-audit` 纳入 ci.yml 组数校验 | 日报"参与判定"随真实样本变化；README 音源表能真正提交；任一巡检脚本崩溃 CI 必红；启用源不再对日报失明 |
 
 ### v29 系列 — App 配合的音源能力（两仓库协同，按需推进，需 App 配合）
 
@@ -338,7 +339,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 > **前置**：所有改动先走 `AGENTS.md`「实证开发流程（强制）」验证链（L0 静态 → L1 模拟 → L2 接口实测 → L3 真机 → L4 回归）。本清单 = L4 回归的具体内容。
 
 1. **语法**：`node --check lx-source.js`；
-2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（59 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
+2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（60 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
 3. **平台抽查**（用 curl 复现各子源逻辑或直接装包实测）：
    - wy：《晴天》flac（走 gdWy）+ 免费歌 128k（走 suyin163/wyOuter）+ VIP 歌 128k（应失败不误报）；
    - kw：《难却(DJ细霖版)》flac/320k/128k 三档（重点：不匹配到片段版、URL 可 206 播放）；

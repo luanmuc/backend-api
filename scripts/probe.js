@@ -17,23 +17,22 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 // v8.10.5：端点清单单一真相（原本 probe 用正则抽、health-daily 另写手写映射表，已两次漂移）
-const { urls: registryUrls, byUrl: registryByUrl } = require('./endpoint-registry.js');
+const {
+  urls: registryUrls, byUrl: registryByUrl,
+  WINDOW_DAYS, CONSECUTIVE_FAIL_DAYS, EXCLUDE_DOMAINS, // v8.10.5：常量单一来源
+} = require('./endpoint-registry.js');
+const { parseToggles } = require('./source-toggles.js'); // v8.10.5：死源建议只对启用源
 
 const SRC = path.join(__dirname, '..', 'lx-source.js');
 const OUT = path.join(__dirname, '..', 'README_HEALTH.md');
 const HIST_DIR = path.join(__dirname, '..', 'docs');
 const HIST_FILE = path.join(HIST_DIR, 'probe-history.jsonl');
-const HISTORY_DAYS = 7; // v4.0：近 7 日成功率窗口
+const HISTORY_DAYS = WINDOW_DAYS; // v8.10.5：不再本文件硬编码，取 endpoint-registry 的单一值
 const CONCURRENCY = 5; // v8.0：并发池——同时最多 5 个请求，避免被风控封 IP
-const DEAD_STREAK_THRESHOLD = 3; // v4.0：连续失败天数阈值
+const DEAD_STREAK_THRESHOLD = CONSECUTIVE_FAIL_DAYS; // v8.10.5：同上，单一来源
 
-// v8.2：永久失效域名排除清单——这些端点域名已不可解析（服务方放弃），源本身默认关闭且需配置/卡密，
-// 探测只会产出永远红灯的噪音（2026-11-06 起 10 天零成功）。保留常量便于未来恢复，但不再进巡检。
-const EXCLUDE_DOMAINS = [
-  'music-dl.sayqz.com',   // 星海备份（xinghaiBackup:false）：域名不可解析，保留常量便于恢复
-  'api.lingchuan.com',    // 聆川（lingchuan:false，需配置）：域名不可解析，配置也救不回
-  // v8.5：移除 api.ikunshare.com——ikun 已于 v8.1 复活（域名迁移 c.wwwweb.top、公益版免卡密）且 v8.3 默认开启，不再是死域名
-];
+// v8.2/v8.10.5：永不探测的域名已收敛到 endpoint-registry.js 的 EXCLUDE_DOMAINS（单一真相）
+
 const UA_POOL = [ // v8.0：UA 池轮换，降低被风控概率
   'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -75,6 +74,12 @@ const PLATFORM_MAP = [
   },
 ];
 
+/** v8.10.5：统一用**北京日期**（CI cron 0 20 UTC 触发时 UTC 日期比北京早一天，V7）
+ *  旧实现用 toISOString() 写历史，而日报用 TZ=Asia/Shanghai 读 → 日报"当天"恒缺数据 */
+function todayCN() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+}
+
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
 const quick = args.includes('--quick');
@@ -83,23 +88,28 @@ const quick = args.includes('--quick');
 // v8.0：30 天滚动清理——只保留近 30 天数据，防止文件无限增长
 const HISTORY_RETENTION_DAYS = 30;
 function appendHistory(results) {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = todayCN(); // v8.10.5：北京日期，与 health-daily 的 --date 同源
   const lines = results.map(r => JSON.stringify({ date, url: r.url, ok: r.ok, status: r.status, time: r.time, reason: r.reason }));
   if (!fs.existsSync(HIST_DIR)) fs.mkdirSync(HIST_DIR, { recursive: true });
-  fs.appendFileSync(HIST_FILE, lines.join('\n') + '\n');
-  // v8.0：清理 30 天前的旧数据
+  // v8.10.5：改为**原子写**——先合并+清理，写临时文件再 rename。
+  // 旧实现是「append 到正式文件 → 再全量重写」，两步之间崩溃会留下半截文件（V29）。
+  const allLines = fs.existsSync(HIST_FILE)
+    ? fs.readFileSync(HIST_FILE, 'utf8').split('\n').filter(l => l.trim())
+    : [];
+  const merged = allLines.concat(lines);
   const cutoff = new Date(Date.now() - HISTORY_RETENTION_DAYS * 864e5).toISOString().slice(0, 10);
-  const allLines = fs.readFileSync(HIST_FILE, 'utf8').split('\n').filter(l => l.trim());
   const kept = [];
-  for (const line of allLines) {
+  for (const line of merged) {
     try {
       const r = JSON.parse(line);
       if (r.date >= cutoff) kept.push(line);
     } catch (e) { kept.push(line); } // 解析失败的行保留（防丢数据）
   }
-  if (kept.length < allLines.length) {
-    fs.writeFileSync(HIST_FILE, kept.join('\n') + '\n');
-    console.log(`历史清理：${allLines.length} 行 → ${kept.length} 行（删除 ${allLines.length - kept.length} 行 ${HISTORY_RETENTION_DAYS} 天前旧数据）`);
+  const tmp = HIST_FILE + '.tmp';
+  fs.writeFileSync(tmp, kept.join('\n') + '\n');
+  fs.renameSync(tmp, HIST_FILE);
+  if (kept.length < merged.length) {
+    console.log(`历史清理：${merged.length} 行 → ${kept.length} 行（删除 ${merged.length - kept.length} 行 ${HISTORY_RETENTION_DAYS} 天前旧数据）`);
   }
   return date;
 }
@@ -340,6 +350,11 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   // 避免新源主通道悄悄脱离巡检（历史上已两次因白名单漏关键词导致漏检）
   const endpoints = registryUrls();
   if (!endpoints.length) { console.error('端点登记表为空（scripts/endpoint-registry.js）'); process.exit(1); }
+  // v8.10.5：平台清单（PLATFORM_MAP.endpointKeys）是第三份手写清单，加漂移自检（V12）
+  for (const p of PLATFORM_MAP) {
+    const miss = p.endpointKeys.filter(k => !endpoints.some(u => u.includes(k)));
+    if (miss.length) console.warn(`⚠️ PLATFORM_MAP「${p.name}」有 ${miss.length} 个关键词在登记表里找不到端点：${miss.join(', ')}`);
+  }
   const unregistered = extractEndpoints(src).filter(u => !registryByUrl().has(u));
   if (unregistered.length) {
     console.warn(`⚠️ 发现 ${unregistered.length} 个源码中未登记的端点（请补进 scripts/endpoint-registry.js）：`);
@@ -367,9 +382,19 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   // v4.0：追加本次结果到历史 + 近7日成功率列
   const today = appendHistory(results);
   const hist = aggregateHistory();
+  let toggles = {};
+  try { toggles = parseToggles().toggles; }
+  catch (e) { console.warn(`⚠️ 开关解析失败（${e.message}），死源建议不做启用过滤`); }
   const dead = collectDeadSources(hist, results)
     // v8.10.5：param 类端点裸探测必 4xx，不是"死源"，不进摘除建议
-    .filter(d => { const reg = registryByUrl().get(d.url); return !reg || reg.kind !== 'param'; });
+    .filter(d => { const reg = registryByUrl().get(d.url); return !reg || reg.kind !== 'param'; })
+    // v8.10.5：只对**启用中**的源出摘除建议（V16）——旧实现在这里不分开关，
+    // 已关闭的 suyinQQ / suyinMigu 一直被建议"摘除"，与日报口径矛盾。
+    .filter(d => {
+      const reg = registryByUrl().get(d.url);
+      if (!reg || reg.toggleable === false || !reg.sources.length) return true; // 工具类端点照常
+      return reg.sources.some(s => toggles[s] === true);
+    });
 
   // v8.0：平台级健康汇总——按 PLATFORM_MAP 分组统计
   function platformSummary() {
@@ -450,7 +475,7 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   // v8.0：自动更新 README.md 里的"音源可用性"表格（日期 + 状态 + 原因标注）
   const README = path.join(__dirname, '..', 'README.md');
   const readmeContent = fs.readFileSync(README, 'utf8');
-  const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const todayStr = todayCN(); // v8.10.5：北京日期（V8）
 
   // v8.0：原因标注——把 HTTP 状态码翻译成可读的原因
   function reasonLabel(status, reason) {
@@ -507,8 +532,10 @@ ${tableRows}
     console.log(`已自动更新 README.md 音源可用性表格（日期 ${todayStr}）`);
   }
 
-  // v8.0：退出码优化——只有"某平台主路全挂"才 exit(2)，单个备用源失败不退出
-  // 避免每天 CI 都是红色的，用户麻木了反而忽略真正紧急的问题
+  // v8.0 退出码语义（v8.10.5 更正注释：此前写"某平台主路全挂"，与下面的 every 不符）
+  //   exit 2 = **所有**平台主路同时全挂（真紧急）；exit 1 = 脚本/登记表异常；exit 0 = 其余
+  // 任单平台全挂、或零散端点失败都**不**退出，避免每天 CI 红灯导致麻木——
+  // 单平台问题由健康日报的「需处理」表与告警 Issue 覆盖。
   const allPlatformsDown = PLATFORM_MAP.every(p => {
     if (!p.endpointKeys.length) return false; // 没有独立源的平台跳过
     return p.endpointKeys.every(key => {

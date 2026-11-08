@@ -133,6 +133,12 @@ function ruleSmokeWide() {
   align('docs/AGENTS.md', /L1 冒烟 (\d+) 组/, () => `L1 冒烟 ${n} 组`, 'L1 冒烟组数');
   align('docs/DEV_GUIDE.md', /（(\d+) 组：加载防御/, () => `（${n} 组：加载防御`, '测试清单组数');
   align('README.md', /共 (\d+) 组/, () => `共 ${n} 组`, 'README 冒烟组数');
+  // v8.10.5：T13 —— ci.yml 此前完全不在校验范围，L1 step 名里的「59 组用例」实际早已 60 组。
+  // CI 是执行方，它写的组数与真实用例数不一致时，人看 CI 绿灯会以为旧数是对的。
+  align('.github/workflows/ci.yml', /(\d+) 组用例/, () => `${n} 组用例`, 'CI 冒烟组数');
+  if (!read('.github/workflows/ci.yml').includes('test/lx-source-smoke-test.js')) {
+    report.push('❌ [.github/workflows/ci.yml] ci.yml 没有调用冒烟测试，L1 等于没跑');
+  }
 }
 
 // ── 规则 7：lx-source.js 总行数 + 行段表末段边界（EOF 段）──────────────

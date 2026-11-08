@@ -1037,7 +1037,10 @@ async function test(name, fn) {
     const saved46 = globalThis.__lxSourceConfig;
     // v8.10.3：改为显式分档预算（flac/320k 各 1ms 必败，128k 走 3s 保底）——旧写法 raceBudgetMs:1 依赖“剩余预算恰为 0”，
     // 结果受 per-quality 默认值影响而不确定（默认 320k 预算从 4s 提到 5s 后本用例一度交付 320k）
-    globalThis.__lxSourceConfig = { raceBudgetMs: 3000, raceBudgetPerQuality: { flac: 1, '320k': 1, '128k': 5000, flac24bit: 1 }, raceBudgetFloorMs: 3000, raceBatchStaggerMs: 100, maxConcurrency: 100, rateWindowMax: 100000 };
+    // v8.10.5：改用 **-1** 而非 1ms —— 1ms 时 raceDeadline = now+1，mock 同步返回若落在同一毫秒，
+    // `Date.now() >= deadline` 不成立 → 320k 被真实交付 → 断言随机失败（T33 flaky 的根因）。
+    // -1 使 raceDeadline 恒在过去，预算耗尽判定变成确定性，与本机快慢无关。
+    globalThis.__lxSourceConfig = { raceBudgetMs: 3000, raceBudgetPerQuality: { flac: -1, '320k': -1, '128k': 5000, flac24bit: -1 }, raceBudgetFloorMs: 3000, raceBatchStaggerMs: 100, maxConcurrency: 100, rateWindowMax: 100000 };
     delete require.cache[require.resolve(SRC)];
     require(SRC);
     resetMock();
@@ -1348,7 +1351,22 @@ async function test(name, fn) {
     }
   }
 
-  console.log('\n冒烟测试完成：59 组用例');
+  console.log('[T60] v8.10.5 每个**启用中**的源都必须至少有一个登记端点（防"启用的源完全脱离巡检"）');
+  {
+    const pathx = require('path');
+    const { ENDPOINTS } = require(pathx.join(__dirname, '..', 'scripts', 'endpoint-registry.js'));
+    const { parseToggles } = require(pathx.join(__dirname, '..', 'scripts', 'source-toggles.js'));
+    const { toggles } = parseToggles(pathx.join(__dirname, '..', 'lx-source.js'));
+    const covered = new Set(ENDPOINTS.flatMap(ep => ep.sources || []));
+    const enabled = Object.keys(toggles).filter(s => toggles[s] === true);
+    const blind = enabled.filter(s => !covered.has(s));
+    // 为什么要有这条：v8.10.5 删掉登记表一条记录时冒烟仍然退出 0（漏登记无任何保护），
+    // 而 changqingVip / nianxinVip 两个启用源正是因为漏登记，日报对它们长期失明。
+    assert.strictEqual(blind.length, 0,
+      '以下启用源没有任何登记端点，日报对它们完全失明：' + blind.join(', '));
+  }
+
+  console.log('\n冒烟测试完成：60 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

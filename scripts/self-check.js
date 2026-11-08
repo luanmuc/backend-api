@@ -70,6 +70,24 @@ if (fs.existsSync(roadmapPath)) {
   }
 } else fail('docs/ITERATION_ROADMAP.md 不存在');
 
+// 5) v8.10.5：巡检自动写回的文件必须都在 CI 的 git add 清单里
+//    背景（V14/V15）：probe 每天整段重写 README.md 的「音源可用性」表格，但 CI 的 git add 清单里没有 README.md，
+//    于是那段表格永远提交不上去 —— 本地看着是新的，仓库里停在 2026-11-06。同类漏项不能再靠人眼。
+{
+  const wfPath = path.join(__dirname, '..', '.github', 'workflows', 'ci.yml');
+  if (!fs.existsSync(wfPath)) fail('.github/workflows/ci.yml 不存在');
+  else {
+    const wf = fs.readFileSync(wfPath, 'utf-8');
+    const addLine = (wf.match(/^\s*git add .*$/m) || [''])[0];
+    if (!addLine) fail('ci.yml 找不到 `git add` 行');
+    else {
+      for (const f of ['README_HEALTH.md', 'README.md', 'docs/probe-history.jsonl', 'docs/health-daily/', 'docs/candidate-status.md']) {
+        if (addLine.indexOf(f) === -1) fail('CI 写回清单缺少 ' + f + '（该文件会被巡检产出/改写，但永远不会被提交）');
+      }
+    }
+  }
+}
+
 if (failed) {
   console.error('发布前自检未通过，阻断发布。');
   process.exit(1);

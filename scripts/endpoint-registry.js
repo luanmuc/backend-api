@@ -39,6 +39,15 @@ const ENDPOINTS = [
   { url: 'https://c.wwwweb.top', sources: ['ikun'], kind: 'payload', note: 'v8.1 迁移后的真实主端点；裸 GET 返回首页 200，需 payloadFetch 校验' },
   { url: 'http://nmobi.kuwo.cn/mobi.s', sources: ['helloworldKw'], kind: 'param', note: 'helloworldKw 通道①，真实调用为带参 convert_url_with_sign，裸 GET 恒 404' },
   { url: 'https://musicserver.haitangw.cc/v1/music/resolve-url', sources: ['helloworldKw'], kind: 'param', note: 'helloworldKw 通道②备用接口（lx-source.js:1360），非独立源；真实调用需 query 参数，裸 GET 恒 404' },
+  // v8.10.5：长青/念心的直链模板此前**完全没登记**——而这两个源 SOURCE_TOGGLES 都是 true，
+  // 等于日报对它们全程失明（V 组 T1）。模板需 {id}/{level}，裸探测恒 404，故归 param。
+  { url: 'http://175.27.166.236/kgqq/qq.php?type=mp3&id={id}&level={level}', sources: ['changqingVip'], kind: 'param', note: '长青 tx/wy 共用主机（lx-source.js:128-129）；需 {id}/{level} 且源方按 IP 放行，裸探测恒 404' },
+  { url: 'https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}', sources: ['changqingVip'], kind: 'param', note: '长青 kw 模板（lx-source.js:130）；需 {id}/{level}' },
+  { url: 'https://music.haitangw.cc/kgqq/kg.php?type=mp3&id={id}&level={level}', sources: ['changqingVip'], kind: 'param', note: '长青 kg/mg 共用主机（lx-source.js:131-132）；需 {id}/' },
+  { url: 'https://music.nxinxz.com/kgqq/tx.php?id={id}&level={level}&type=mp3', sources: ['nianxinVip'], kind: 'param', note: '念心 tx/wy/kw/kg/mg 全部模板共用该主机（lx-source.js:136-140）；需 {id}/{level}' },
+  // v8.10.5：T60 抓出来的又一个漏登记——wyOuter 是启用源，却长期没有任何登记端点。
+  // 官方 outer 模板必须带真实歌曲 id，裸探测恒 404，故同属 param（不参与存活判定，但生日历必须可见）。
+  { url: 'https://music.163.com/song/media/outer/url?id={id}.mp3', sources: ['wyOuter'], kind: 'param', note: 'wyOuter 官方 outer 直连模板（lx-source.js:116）；需真实歌曲 id，裸探测恒 404' },
 ];
 
 // 明确不登记（保留说明，避免后人以为是漏项）：
@@ -63,4 +72,13 @@ function sourcesOf(url) {
   return hit ? hit.sources : [];
 }
 
-module.exports = { ENDPOINTS, byUrl, urls, sourcesOf };
+// v8.10.5：巡检共用常量收敛到这里（此前 probe 与 health-daily 各自定义一份同值常量，改一处不改另一处即口径分叉，V13）
+const WINDOW_DAYS = 7;           // 成功率统计窗口（按有数据日计）
+const CONSECUTIVE_FAIL_DAYS = 3; // 连续失败天数阈值
+// v8.10.5：永不探测的域名（此前 probe 内另有一份 EXCLUDE_DOMAINS，与本文件"明确不登记"清单是两套，V11）
+const EXCLUDE_DOMAINS = [
+  'music-dl.sayqz.com', // 星海备份：域名不可解析
+  'api.lingchuan.com',  // 聆川：不可解析且需配置
+];
+
+module.exports = { ENDPOINTS, byUrl, urls, sourcesOf, WINDOW_DAYS, CONSECUTIVE_FAIL_DAYS, EXCLUDE_DOMAINS };
