@@ -298,6 +298,29 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | **自建 API 网关（v14.0 方向）** | 需一台服务器，违反"无服务器"定位；触发条件维持：第三方源月度失效 ≥2 次 或 用户确认可长期维护服务器 |
 | **fish（鱼源，fish_music v1.9.0，v27.1 候选）** | 2026-10-29 三层实证判否：① 加载层 OK——完全混淆源码（131KB/7 行，字符串全加密，静态零可读），mock lx 宿主运行时加载成功，上报 kw/wy/kg/tx/mg 五平台（musicUrl only，kw/tx 含 flac24bit）；② wy 链路脱节——后端 haitangw（`music.haitangw.cc/.net`）接口活着且返回**真实可用 FLAC 直链**（本机直测：HTTP 206、`audio/x-flac`、魔数 `fLaC` 校验通过），但 fish 脚本拿到后**不采用**，继续请求网易官方 `player/url`（2026-10-29 被 -462 验证码风控拦截，`url:null`）→ 酷我搜索跨源匹配失败（`strict cross-source match failed: no match`），wy 晴天/演员均如此；③ kw 链路校验失败——`convert_url_with_sign` 接口 16 连发（4 source×4 音质档）全部真实返回 url（2000kflac→flac、320kmp3→mp3），但 fish 内部判定 `kw nuoweida failed: no url`（请求 flac24bit 被服务器降级 128k，音质校验不匹配）。结论：**脚本取链逻辑与其后端协议脱节**（后端响应格式/音质期望不符），端到端不可用；pdone 健康表"可用"= 服务器 IP 直测后端接口，不等于脚本可用。**判否删除，不接入** |
 
+---
+
+### 2026-11-08 全网生态扫描重评
+
+> 背景：candidate-status.md 自动探测到 hyw 后端恢复、huanyin 需人工核查 → 启动重评。
+
+**重评结论：两个候选均维持判否，没有新的可接入源。**
+
+| 候选 | 原判否原因 | 重评结论 |
+|---|---|---|
+| **hyw（HYWmusic v1.2.0）** | 后端 502 | 后端已恢复（http/https 103.79.184.97=HTTP 200），但首页显示**需要卡密**（"卡密总数/登录控制台"），非免费公益源 → 维持判否 |
+| **huanyin（幻音 v3）** | 主域名 DNS 失效 + 咪咕 502 | 主域名 music-dl.sayqz.com DNS 仍失效；业务接口 api.xcvts.cn 已接入（suyinMigu）→ 无新增量，维持判否 |
+
+**新发现但无法接入的源：**
+| 候选 | 原因 |
+|---|---|
+| CHKSZ API（api.chksz.com） | 需要 apikey（付费服务），返回 401 "缺少 apikey 参数" |
+| pdone / 洛雪科技独家音源 | 代码完全混淆加密（变量名 Unicode 乱码），私有 API 服务器 lxmusics/lx-music-api-server，非开源 |
+| SixYin（六音） | 官网 www.sixyin.com 是软件下载站，不是音乐 API 服务 |
+| 汽水音乐（qs） | 星海支持，但需单独开发新平台，当前 5 平台已够用 |
+
+**核心结论：我们已经把能接入的、免费的、长期稳定的独立 API 后端都接入了（10 个）。剩下的要么需要付费/卡密，要么是聚合音源（我们已经有它们的后端了），要么是小项目随时可能挂。**
+
 ### 候选接入记录（实证通过，已接入）
 
 | 候选 | 实证过程 | 接入方式 |
