@@ -29,15 +29,16 @@ jobs:
           node-version: 20
       - name: L0 语法检查
         run: node --check lx-source.js
-      - name: L1 冒烟测试（mock lx 宿主，57 组用例）
+      - name: L1 冒烟测试（mock lx 宿主，59 组用例）
         run: node test/lx-source-smoke-test.js
       - name: L1.1 candidate-audit 专项测试（v8.1）
         run: node test/candidate-audit-test.js
       # v5.0：发布前自检门——版本串同步/actions声明/README与ROADMAP同步，任一失败阻断
       - name: L2 发布前自检门（版本串/action声明/文档同步）
         run: node scripts/self-check.js
-      - name: 巡检脚本语法
-        run: node --check scripts/probe.js
+      - name: 巡检脚本语法（v8.10.5：覆盖 scripts 下全部脚本，新增脚本自动纳入）
+        run: |
+          for f in scripts/*.js; do node --check "$f" || exit 1; done
 
   # ---------- v2.0：每日端点巡检 + 健康表写回 ----------
   probe:
@@ -45,6 +46,7 @@ jobs:
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'release' }}
     permissions:
       contents: write
+      issues: write   # v8.10.5：巡检告警需创建 Issue（GitHub 会给 owner 发通知，这是唯一的推送通道）
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -66,6 +68,24 @@ jobs:
           git add README_HEALTH.md docs/probe-history.jsonl docs/health-daily/ docs/candidate-status.md
           git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录+v8.0健康日报 [自动]" -q || echo "健康表无变化，跳过提交"
           git push origin HEAD:${GITHUB_REF_NAME} || echo "push 失败（无权限/冲突时忽略，巡检产物仍在 Actions 日志）"
+
+      - name: 巡检告警（需处理项非空才开 Issue，避免刷屏）
+        # v8.10.5：日报此前只写入仓库、无任何通知，等于档案。这里把"需处理"变成一条 GitHub Issue，
+        # 由 GitHub 通知 owner。限定：仅 schedule/dispatch；同一日期已有未关闭 Issue 则跳过。
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DAY=$(TZ=Asia/Shanghai date +%F)
+          F="docs/health-daily/${DAY}.json"
+          [ -f "$F" ] || { echo "ℹ️ 无汇总文件，跳过告警"; exit 0; }
+          node scripts/health-alert.js "$F" > /tmp/alert.md
+          if [ ! -s /tmp/alert.md ]; then echo "✅ 需处理 0 条，不告警"; exit 0; fi
+          if gh issue list --state open --search "巡检告警 ${DAY} in:title" --json number -q '.[].number' 2>/dev/null | grep -q .; then
+            echo "ℹ️ 今日告警 Issue 已存在，跳过"; exit 0
+          fi
+          gh issue create --title "[巡检告警] ${DAY}" --body-file /tmp/alert.md \
+            || echo "⚠️ 建 Issue 失败（无 issues 权限或配额），告警正文见本 step 日志"
 
   # ---------- v7.0：每周生态扫描（pdone 健康表交叉，产出新候选/失效清单）----------
   ecosystem:

@@ -16,6 +16,8 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+// v8.10.5：端点清单单一真相（原本 probe 用正则抽、health-daily 另写手写映射表，已两次漂移）
+const { urls: registryUrls, byUrl: registryByUrl } = require('./endpoint-registry.js');
 
 const SRC = path.join(__dirname, '..', 'lx-source.js');
 const OUT = path.join(__dirname, '..', 'README_HEALTH.md');
@@ -333,8 +335,16 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
 
 (async () => {
   const src = fs.readFileSync(SRC, 'utf8');
-  const endpoints = extractEndpoints(src);
-  if (!endpoints.length) { console.error('未提取到端点'); process.exit(1); }
+  // v8.10.5：端点清单改由 scripts/endpoint-registry.js 单一维护；
+  // 源码正则抽取降级为"漂移校验"——源码里有、登记表没有的 URL 打印告警，
+  // 避免新源主通道悄悄脱离巡检（历史上已两次因白名单漏关键词导致漏检）
+  const endpoints = registryUrls();
+  if (!endpoints.length) { console.error('端点登记表为空（scripts/endpoint-registry.js）'); process.exit(1); }
+  const unregistered = extractEndpoints(src).filter(u => !registryByUrl().has(u));
+  if (unregistered.length) {
+    console.warn(`⚠️ 发现 ${unregistered.length} 个源码中未登记的端点（请补进 scripts/endpoint-registry.js）：`);
+    for (const u of unregistered) console.warn(`   ${u.slice(0, 100)}`);
+  }
 
   // v8.0：用并发池替代 Promise.all——限制同时最多 CONCURRENCY 个请求
   // v8.5：端点探活 + 取链型端点二次校验（真实取链 + Range 可播）
@@ -357,7 +367,9 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
   // v4.0：追加本次结果到历史 + 近7日成功率列
   const today = appendHistory(results);
   const hist = aggregateHistory();
-  const dead = collectDeadSources(hist, results);
+  const dead = collectDeadSources(hist, results)
+    // v8.10.5：param 类端点裸探测必 4xx，不是"死源"，不进摘除建议
+    .filter(d => { const reg = registryByUrl().get(d.url); return !reg || reg.kind !== 'param'; });
 
   // v8.0：平台级健康汇总——按 PLATFORM_MAP 分组统计
   function platformSummary() {
@@ -395,6 +407,9 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
     const h = hist[r.url];
     let tag = r.ok ? '✅ 可用' : '❌ 失败';
     if (r.ok && h && h.streak > 0) tag = '🟡 已恢复观察中';
+    // v8.10.5：param 类端点（真实调用带参、裸探测恒 4xx）不判失败，避免健康表长期挂红误导
+    const reg = registryByUrl().get(r.url);
+    if (reg && reg.kind === 'param' && !r.ok) tag = '⚪ 不适用（需带参）';
     const reason = r.reason.length > 40 ? r.reason.slice(0, 40) + '…' : r.reason;
     const rateCell = h ? `${Math.round(h.rate * 100)}% (${h.ok}/${h.days}天)` : '—';
     lines.push(`| \`${r.url.slice(0, 70)}${r.url.length > 70 ? '…' : ''}\` | ${tag} | ${r.status || '-'} | ${r.time} | ${rateCell} | ${reason} |`);

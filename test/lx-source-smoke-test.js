@@ -1301,7 +1301,54 @@ async function test(name, fn) {
       '410 属业务失败（源已正常响应），不应触发熔断，实际 state=' + b.state);
   }
 
-  console.log('\n冒烟测试完成：57 组用例');
+  console.log('[T58] v8.10.5 端点登记表的每个 sources 都必须与 SOURCE_TOGGLES 对齐（防新增源漏登记）');
+  {
+    const fsx = require('fs');
+    const pathx = require('path');
+    const { ENDPOINTS } = require(pathx.join(__dirname, '..', 'scripts', 'endpoint-registry.js'));
+    const srcx = fsx.readFileSync(pathx.join(__dirname, '..', 'lx-source.js'), 'utf8');
+    const start = srcx.indexOf('const SOURCE_TOGGLES = {');
+    assert.ok(start > 0, 'SOURCE_TOGGLES 必须存在');
+    const open = srcx.indexOf('{', start);
+    let depth = 0;
+    let end = -1;
+    for (let i = open; i < srcx.length; i++) {
+      if (srcx[i] === '{') depth++;
+      else if (srcx[i] === '}') { depth--; if (!depth) { end = i; break; } }
+    }
+    const clean = srcx.slice(open + 1, end).replace(/\/\/[^\n]*/g, '');
+    const keys = new Set();
+    const re = /([A-Za-z_$][\w$]*)\s*:\s*(true|false)/g;
+    let m;
+    while ((m = re.exec(clean))) keys.add(m[1]);
+    assert.ok(keys.size >= 15, 'SOURCE_TOGGLES 解析出的开关数异常：' + keys.size);
+    for (const ep of ENDPOINTS) {
+      if (ep.toggleable === false) continue;
+      for (const sid of ep.sources) {
+        assert.ok(keys.has(sid), '端点 ' + ep.url + ' 的源 ' + sid + ' 不在 SOURCE_TOGGLES 中（新增源必须同步开关，否则日报无法判定启用状态）');
+      }
+    }
+  }
+
+  console.log('[T59] v8.10.5 登记表不得残留源码已删除的端点（ikun 旧端点假警报教训）');
+  {
+    const fsx = require('fs');
+    const pathx = require('path');
+    const { ENDPOINTS } = require(pathx.join(__dirname, '..', 'scripts', 'endpoint-registry.js'));
+    const srcx = fsx.readFileSync(pathx.join(__dirname, '..', 'lx-source.js'), 'utf8');
+    // 必须剥注释 + 剔掉 logInfo/console 文案行：源码注释与 @description 日志文案里仍写着
+    // 「域名迁移 api.ikunshare.com → c.wwwweb.top」的历史说明，直接 includes 会假通过（T59 首版实测就栽在这）
+    const live = srcx.replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n').map(l => (/^\s*\/\//.test(l) ? '' : l))
+      .filter(l => !/logInfo\(|console\./.test(l))
+      .join('\n');
+    for (const ep of ENDPOINTS) {
+      const host = ep.url.replace(/^https?:\/\//, '').split('/')[0];
+      assert.ok(live.includes(host), '登记表端点 ' + ep.url + ' 的主机 ' + host + ' 已不在 lx-source.js 的运行时引用中出现——疑似废弃端点（域名迁移后未清理），请从 scripts/endpoint-registry.js 删除');
+    }
+  }
+
+  console.log('\n冒烟测试完成：59 组用例');
   if (process.exitCode) console.error('存在失败用例');
   process.exit(process.exitCode || 0);
 })();

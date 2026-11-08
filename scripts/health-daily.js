@@ -1,50 +1,67 @@
 #!/usr/bin/env node
 /**
- * v8.0 自动健康日报：读取 probe-history.jsonl，按端点聚合近 7 日成功率/均时，
- * 连续 3 天真故障率超阈值的源生成"摘除建议"，输出 Markdown 日报到 docs/health-daily/。
+ * v8.10.5 健康日报（重写）
  *
- * 用法：node scripts/health-daily.js [--date YYYY-MM-DD] [--out docs/health-daily/YYYY-MM-DD.md]
- * 每日 CI 定时跑，或手动执行。
+ * 从「每天全量重列 + 对所有端点出摘除建议」改为「变化检测 + 分级 + 动作出口」：
+ *   1. 端点清单与源归属读 scripts/endpoint-registry.js（单一真相，不再手写第二份映射表）
+ *   2. 启用状态从 lx-source.js 的 SOURCE_TOGGLES 解析（不另存一份开关清单）
+ *   3. 只对**启用中**的源出「需处理」；已关闭源静默归档
+ *   4. param 类端点（裸探测缺参恒 4xx）不参与判定，避免 helloworld 这类假警报
+ *   5. 与前一有数据日对比，只有发生翻转/突变才进「今日变化」
+ *   6. 每条结论给出可执行动作（改哪个文件的哪个开关）
+ *
+ * 用法：node scripts/health-daily.js [--date YYYY-MM-DD] [--out PATH]
  */
 const fs = require('fs');
 const path = require('path');
+const { ENDPOINTS } = require('./endpoint-registry.js');
 
+const SRC = path.join(__dirname, '..', 'lx-source.js');
 const HISTORY_PATH = path.join(__dirname, '..', 'docs', 'probe-history.jsonl');
 const OUT_DIR = path.join(__dirname, '..', 'docs', 'health-daily');
 
-// 端点 → 源名称映射（前缀匹配，与 lx-source.js SOURCE_HANDLERS 对应）
-const ENDPOINT_MAP = [
-  ['https://music-api.gdstudio.xyz/api.php', 'gdWy (GD Studio 网易)'],
-  ['http://antiserver.kuwo.cn/anti.s', 'kuwoOfficial (酷我官方直连)'],
-  ['http://nmobi.kuwo.cn/mobi.s', 'helloworldKw (helloworld kw)'],
-  ['http://search.kuwo.cn/r.s', 'kuwoSearch (酷我搜索)'],
-  ['https://musicserver.haitangw.cc/v1/music/resolve-url', 'helloworldHtw (haitangw v1)'],
-  ['https://oiapi.net/api/Kuwo', 'suyinKuwo (溯音酷我)'],
-  ['https://oiapi.net/api/Music_163', 'suyin163 (溯音163)'],
-  ['https://oiapi.net/api/QQ_Music', 'suyinQQ (溯音QQ)'],
-  ['https://api.xcvts.cn/api/music/migu', 'suyinMigu (溯音咪咕)'],
-  ['https://yy.zddyr.top/lx/api/', 'xinghaiBackend (星海后端)'],
-  ['https://music-dl.sayqz.com/api/', 'xinghaiBackup (星海备)'],
-  ['https://api.music.lerd.dpdns.org', 'juheKw/juheTx/juheWy/juheKg/juheMg (Juhe 聚合)'],
-  ['https://api.lingchuan.com/v1', 'lingchuan (聆川)'],
-  ['https://lxmusicapi.onrender.com', 'huibq (Huibq)'],
-  ['https://api.ikunshare.com', 'ikun (ikun)'],
-  ['https://music.163.com/api/song/detail', 'wyDetail (网易 detail)'],
-  ['https://music.163.com/api/song/lyric', 'wyLyric (网易歌词)'],
-  ['https://img2.kuwo.cn/', 'kwPic (酷我封面模板)'],
-  ['https://github.com/luanmuc/backend-api/releases', 'githubReleases (GitHub Release)'],
-];
+const WINDOW_DAYS = 7;
+const FAIL_RATE_THRESHOLD = 50; // 真故障率 > 50% 视为需处理
+const CONSECUTIVE_FAIL_DAYS = 3; // 连续 3 天全失败
+const OBSERVE_MAX_RATE = 80; // 50%~80% 归入「观察」
+const SMALL_SAMPLE = 20; // 样本 <20 时成功率仅作趋势参考
+const CHANGE_PP_THRESHOLD = 30; // 窗口成功率变化超过 30 个百分点算突变
 
-function mapEndpointName(url) {
-  for (const [prefix, name] of ENDPOINT_MAP) {
-    if (url.startsWith(prefix)) return name;
+// ---------- 从 lx-source.js 解析启用状态（生产真相） ----------
+function parseToggles() {
+  const src = fs.readFileSync(SRC, 'utf8');
+  const start = src.indexOf('const SOURCE_TOGGLES = {');
+  if (start < 0) throw new Error('lx-source.js 中未找到 SOURCE_TOGGLES，无法判定启用状态');
+  const open = src.indexOf('{', start);
+  let depth = 0;
+  let end = -1;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') {
+      depth--;
+      if (!depth) { end = i; break; }
+    }
   }
-  return url.slice(0, 50);
+  if (end < 0) throw new Error('SOURCE_TOGGLES 花括号未闭合');
+
+  const blockStartLine = src.slice(0, open + 1).split('\n').length;
+  const toggles = {};
+  const lineNo = {};
+  src.slice(open + 1, end).split('\n').forEach((raw, i) => {
+    const clean = raw.replace(/\/\/.*$/, '');
+    const re = /([A-Za-z_$][\w$]*)\s*:\s*(true|false)/g;
+    let m;
+    while ((m = re.exec(clean))) {
+      toggles[m[1]] = m[2] === 'true';
+      lineNo[m[1]] = blockStartLine + i;
+    }
+  });
+  const count = Object.keys(toggles).length;
+  if (count < 15) throw new Error(`SOURCE_TOGGLES 只解析出 ${count} 个开关，疑似解析失败`);
+  return { toggles, lineNo };
 }
 
-const FAIL_RATE_THRESHOLD = 0.5; // 真故障率超 50% 触发摘除建议
-const CONSECUTIVE_FAIL_DAYS = 3; // 连续 3 天
-
+// ---------- 历史聚合 ----------
 function loadHistory() {
   if (!fs.existsSync(HISTORY_PATH)) return [];
   return fs.readFileSync(HISTORY_PATH, 'utf8')
@@ -53,124 +70,220 @@ function loadHistory() {
     .filter(Boolean);
 }
 
-function aggregate(entries, days = 7) {
-  // 按 url 分组
-  const byUrl = {};
-  for (const e of entries) {
-    if (!byUrl[e.url]) byUrl[e.url] = [];
-    byUrl[e.url].push(e);
-  }
-  // 取最近 N 天的日期集合
-  const allDates = [...new Set(entries.map(e => e.date))].sort();
-  const recentDates = allDates.slice(-days);
-  const recentSet = new Set(recentDates);
+/** 取某端点在某日为基准、往前 WINDOW_DAYS 天的窗口统计；无数据返回 null */
+function windowStats(entries, url, baseDate) {
+  const dates = [...new Set(entries.map(e => e.date))].filter(d => d <= baseDate).sort();
+  const window = dates.slice(-WINDOW_DAYS);
+  const recs = entries.filter(e => e.url === url && window.includes(e.date));
+  if (!recs.length) return null;
 
-  const results = [];
-  for (const [url, recs] of Object.entries(byUrl)) {
-    const recent = recs.filter(r => recentSet.has(r.date))
-      .sort((a, b) => a.date.localeCompare(b.date)); // 按日期升序，确保取最新
-    if (!recent.length) continue;
-    const total = recent.length;
-    const success = recent.filter(r => r.ok).length;
-    const fail = total - success;
-    const rate = total ? (success / total * 100).toFixed(1) : '0.0';
-    const avgTime = recent.length
-      ? Math.round(recent.reduce((s, r) => s + (r.time || 0), 0) / recent.length)
-      : 0;
-    // 连续失败天数（从最新一天往前数）
-    const byDate = {};
-    for (const r of recent) {
-      if (!byDate[r.date]) byDate[r.date] = { ok: 0, fail: 0 };
-      if (r.ok) byDate[r.date].ok++; else byDate[r.date].fail++;
-    }
-    const datesSorted = Object.keys(byDate).sort();
-    let consecutiveFail = 0;
-    for (let i = datesSorted.length - 1; i >= 0; i--) {
-      const d = byDate[datesSorted[i]];
-      if (d.ok === 0) consecutiveFail++;
-      else break;
-    }
-    // 摘除建议：连续 N 天全失败 或 近 N 天真故障率超阈值
-    const failRate = total ? fail / total : 0;
-    const shouldFlag = consecutiveFail >= CONSECUTIVE_FAIL_DAYS || failRate > FAIL_RATE_THRESHOLD;
-    results.push({
-      url,
-      name: mapEndpointName(url),
-      total, success, fail,
-      rate: parseFloat(rate),
-      avgTime,
-      consecutiveFail,
-      failRate: parseFloat((failRate * 100).toFixed(1)),
-      shouldFlag,
-      latestStatus: recent[recent.length - 1]?.ok ? '✅' : '❌',
-    });
+  const total = recs.length;
+  const success = recs.filter(r => r.ok).length;
+  const rate = Math.round((success / total) * 1000) / 10;
+
+  const byDate = {};
+  for (const r of recs) {
+    if (!byDate[r.date]) byDate[r.date] = { ok: 0, fail: 0 };
+    if (r.ok) byDate[r.date].ok++; else byDate[r.date].fail++;
   }
-  return { results, recentDates };
+  const sorted = Object.keys(byDate).sort();
+  let consecutiveFail = 0;
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (byDate[sorted[i]].ok === 0) consecutiveFail++;
+    else break;
+  }
+
+  const latest = entries.filter(e => e.url === url && e.date === baseDate).sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    total, success, rate, consecutiveFail,
+    avgTime: Math.round(recs.reduce((s, r) => s + (r.time || 0), 0) / total),
+    lastOk: latest.length ? latest[latest.length - 1].ok : null,
+    lastStatus: latest.length ? latest[latest.length - 1].status : 0,
+    lastReason: latest.length ? latest[latest.length - 1].reason : '',
+    reasons: [...new Set(recs.filter(r => !r.ok).map(r => r.reason))],
+  };
 }
 
-function renderReport({ results, recentDates }, targetDate) {
-  const lines = [];
-  lines.push(`# 健康日报 ${targetDate}`);
-  lines.push('');
-  lines.push(`> 统计窗口：近 ${recentDates.length} 天（${recentDates[0]} ~ ${recentDates[recentDates.length - 1]}）`);
-  lines.push(`> 生成脚本：\`scripts/health-daily.js\`（v8.0）`);
-  lines.push(`> 数据口径：probe-history.jsonl 记录的是端点 GET 探测结果，**不等于实际取链行为**（部分源取链为 POST 带参数）；摘除建议为参考，最终以 L2 实测为准。`);
-  lines.push('');
-  lines.push('## 端点状态总览');
-  lines.push('');
-  lines.push('| 端点 | 名称 | 样本 | 成功率 | 均时 | 连续失败 | 最新状态 |');
-  lines.push('|---|---|---|---|---|---|---|');
-  // 按成功率升序（差的在前）
-  results.sort((a, b) => a.rate - b.rate);
-  for (const r of results) {
-    const flag = r.shouldFlag ? ' ⚠️' : '';
-    lines.push(`| \`${r.url.slice(0, 40)}\` | ${r.name}${flag} | ${r.total} | ${r.rate}% | ${r.avgTime}ms | ${r.consecutiveFail}天 | ${r.latestStatus} |`);
-  }
-  lines.push('');
-  // 摘除建议
-  const flagged = results.filter(r => r.shouldFlag);
-  if (flagged.length) {
-    lines.push('## ⚠️ 摘除建议');
-    lines.push('');
-    lines.push('以下端点近窗口真故障率超阈值或连续多天失败，建议评估关闭/摘除：');
-    lines.push('');
-    for (const r of flagged) {
-      const reason = r.consecutiveFail >= CONSECUTIVE_FAIL_DAYS
-        ? `连续 ${r.consecutiveFail} 天全失败`
-        : `近 ${r.total} 次成功率仅 ${r.rate}%`;
-      lines.push(`- **${r.name}**（\`${r.url.slice(0, 50)}\`）：${reason}，均时 ${r.avgTime}ms`);
-    }
+/** 展示名：有源用源 id，工具类端点用 label */
+function labelOf(ep) {
+  return ep.sources && ep.sources.length ? ep.sources.join('/') : (ep.label || ep.url.slice(0, 40));
+}
+
+// ---------- 渲染 ----------
+function render({ rows, changes, targetDate, prevDate, toggles, lineNo }) {
+  const L = [];
+  L.push(`# 健康日报 ${targetDate}`);
+  L.push('');
+  L.push('> **能回答什么**：端点还活不活着、成功率有没有突变、哪个源刚变坏（有连续日序列）。');
+  L.push('> **不能回答什么**：这源现在能不能出链接——那归 `node scripts/source-audit.js`（逐源真实取链，按需跑）。');
+  L.push('> **判定口径**：仅**启用中**的源参与判定；`param` 类端点（真实调用带参、裸探测恒 4xx）不参与；`payload` 类已做真实取链 + Range 校验。');
+  L.push(`> **样本警示**：样本 <${SMALL_SAMPLE} 时成功率只作趋势参考，不能当精确值。`);
+  L.push('');
+  L.push(`> 对比基准：${prevDate || '无（历史不足）'} → ${targetDate}`);
+  L.push('');
+
+  // 今日变化
+  L.push('## 今日变化');
+  L.push('');
+  if (!changes.length) {
+    L.push('无异常变化，全部端点状态与前一有数据日一致。');
   } else {
-    lines.push('## ✅ 无需摘除');
-    lines.push('');
-    lines.push('所有端点近窗口成功率正常，无摘除建议。');
+    for (const c of changes) L.push(`- ${c.text}`);
   }
-  lines.push('');
-  return lines.join('\n');
+  L.push('');
+
+  // 需处理
+  const handle = rows.filter(r => r.bucket === 'handle');
+  L.push('## 需处理（启用源）');
+  L.push('');
+  if (!handle.length) {
+    L.push('无。启用中的源没有达到告警阈值。');
+  } else {
+    L.push('| 源 | 端点 | 样本 | 成功率 | 连续失败 | 最近原因 | 动作 |');
+    L.push('|---|---|---|---|---|---|---|');
+    for (const r of handle) {
+      const ids = r.sources.join('/');
+      const act = r.kind === 'payload'
+        ? `先跑 \`node scripts/source-audit.js\` 确认取链，再决定 \`SOURCE_TOGGLES.${r.sources[0]}: true → false\`（lx-source.js:${lineNo[r.sources[0]] || '?'}）`
+        : `改 \`SOURCE_TOGGLES.${r.sources[0]}: true → false\`（lx-source.js:${lineNo[r.sources[0]] || '?'}）`;
+      L.push(`| ${ids} | \`${r.url.slice(0, 46)}\` | ${r.total} | ${r.rate}% | ${r.consecutiveFail} 天 | ${r.lastReason || '-'} | ${act} |`);
+    }
+  }
+  L.push('');
+
+  // 观察
+  const watch = rows.filter(r => r.bucket === 'watch');
+  L.push('## 观察（启用源，暂不动作）');
+  L.push('');
+  if (!watch.length) {
+    L.push('无。');
+  } else {
+    L.push('| 源 | 端点 | 样本 | 成功率 | 连续失败 | 备注 |');
+    L.push('|---|---|---|---|---|---|');
+    for (const r of watch) {
+      const note = r.total < SMALL_SAMPLE ? '样本偏小，需继续累计' : '未达告警阈值';
+      L.push(`| ${r.label} | \`${r.url.slice(0, 46)}\` | ${r.total} | ${r.rate}% | ${r.consecutiveFail} 天 | ${note} |`);
+    }
+  }
+  L.push('');
+
+  // 正常
+  const okRows = rows.filter(r => r.bucket === 'ok');
+  L.push('## 正常');
+  L.push('');
+  L.push(okRows.length
+    ? okRows.map(r => `\`${r.url.slice(0, 42)}\`（${r.label} ${r.rate}%，${r.total} 样本）`).join('、')
+    : '无。');
+  L.push('');
+
+  // 未参与判定
+  const skipped = rows.filter(r => r.bucket === 'skip');
+  L.push('## 未参与判定');
+  L.push('');
+  if (!skipped.length) {
+    L.push('无。');
+  } else {
+    for (const r of skipped) {
+      if (r.skipReason === 'param') {
+        L.push(`- \`${r.url.slice(0, 50)}\`（${r.label}）：真实调用需带参，裸探测 404 属正常，不参与判定`);
+      } else {
+        L.push(`- \`${r.url.slice(0, 50)}\`（${r.label}）：源已关闭（\`SOURCE_TOGGLES=false\`），静默不告警`);
+      }
+    }
+  }
+  L.push('');
+  L.push('---');
+  L.push('');
+  L.push(`参与判定 ${rows.filter(r => r.bucket !== 'skip').length} 个端点 / 登记 ${ENDPOINTS.length} 个；需处理 ${handle.length} 条；今日变化 ${changes.length} 条。`);
+  L.push('');
+  return L.join('\n');
 }
 
+// ---------- 主流程 ----------
 function main() {
   const args = process.argv.slice(2);
   const dateIdx = args.indexOf('--date');
   const outIdx = args.indexOf('--out');
   const targetDate = dateIdx >= 0 ? args[dateIdx + 1] : new Date().toISOString().slice(0, 10);
-  const outPath = outIdx >= 0 ? args[outIdx + 1]
-    : path.join(OUT_DIR, `${targetDate}.md`);
+  const outPath = outIdx >= 0 ? args[outIdx + 1] : path.join(OUT_DIR, `${targetDate}.md`);
 
   const entries = loadHistory();
-  if (!entries.length) {
-    console.error('probe-history.jsonl 无数据');
-    process.exit(1);
+  if (!entries.length) { console.error('probe-history.jsonl 无数据'); process.exit(1); }
+
+  const { toggles, lineNo } = parseToggles();
+
+  // 前一有数据日（用于变化检测）
+  const allDates = [...new Set(entries.map(e => e.date))].filter(d => d <= targetDate).sort();
+  const prevDate = allDates.length >= 2 ? allDates[allDates.length - 2] : null;
+
+  const rows = [];
+  const changes = [];
+
+  for (const ep of ENDPOINTS) {
+    const cur = windowStats(entries, ep.url, targetDate);
+    if (!cur) {
+      // 端点已登记但窗口内无样本：可能是 probe 未跑到（不静默吞掉，明确标未覆盖）
+      rows.push({ url: ep.url, sources: ep.sources, kind: ep.kind, label: labelOf(ep), bucket: 'skip', skipReason: 'no-data' });
+      continue;
+    }
+    const enabled = ep.toggleable === false ? true : ep.sources.some(s => toggles[s] === true);
+
+
+    // 变化检测：只对启用中的源报（关闭源的状态翻转没有动作价值，只会重新带来噪声）
+    if (prevDate && enabled) {
+      const prev = windowStats(entries, ep.url, prevDate);
+      if (prev && prevDate !== targetDate) {
+        const flip = prev.lastOk === true && cur.lastOk === false;
+        const recover = prev.lastOk === false && cur.lastOk === true;
+        const delta = Math.round((cur.rate - prev.rate) * 10) / 10;
+        if (flip) {
+          changes.push({ text: `🔴 **${labelOf(ep)}**：${prevDate} 可用 → ${targetDate} **失败**（${cur.lastReason}）` });
+        } else if (recover) {
+          changes.push({ text: `🟢 **${labelOf(ep)}**：${prevDate} 失败 → ${targetDate} **恢复**` });
+        } else if (Math.abs(delta) >= CHANGE_PP_THRESHOLD) {
+          changes.push({ text: `${delta < 0 ? '🟡' : '🟢'} **${labelOf(ep)}**：窗口成功率 ${prev.rate}% → ${cur.rate}%（${delta > 0 ? '+' : ''}${delta}pp）` });
+        }
+      }
+    }
+
+    // 分级
+    const label = labelOf(ep);
+    let bucket;
+    let skipReason;
+    if (ep.kind === 'param') { bucket = 'skip'; skipReason = 'param'; }
+    else if (!enabled) { bucket = 'skip'; skipReason = 'disabled'; }
+    else if (cur.consecutiveFail >= CONSECUTIVE_FAIL_DAYS || cur.rate < (100 - FAIL_RATE_THRESHOLD)) bucket = 'handle';
+    else if (cur.rate < OBSERVE_MAX_RATE) bucket = 'watch';
+    else bucket = 'ok';
+
+    rows.push({ url: ep.url, sources: ep.sources, kind: ep.kind, label, bucket, skipReason, ...cur });
   }
-  const { results, recentDates } = aggregate(entries);
-  const report = renderReport({ results, recentDates }, targetDate);
+
+  const report = render({ rows, changes, targetDate, prevDate, toggles, lineNo });
 
   if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(outPath, report);
-  console.log(`✅ 日报已生成: ${outPath}`);
-  console.log(`   ${results.length} 个端点，${results.filter(r => r.shouldFlag).length} 个建议摘除`);
 
-  // v8.0：90 天滚动清理——只保留近 90 天日报，防止文件无限堆积
+  // v8.10.5：同时写机器可读汇总（CI 告警步骤读它，避免用正则解析 Markdown —— 那是脆弱的）
+  const summaryPath = outPath.replace(/\.md$/i, '') + '.json';
+  const summary = {
+    date: targetDate,
+    prevDate,
+    registered: ENDPOINTS.length,
+    judged: rows.filter(r => r.bucket !== 'skip').length,
+    handle: rows.filter(r => r.bucket === 'handle').map(r => ({
+      label: r.label, sources: r.sources, url: r.url, kind: r.kind,
+      rate: r.rate, total: r.total, consecutiveFail: r.consecutiveFail, reason: r.lastReason,
+    })),
+    watch: rows.filter(r => r.bucket === 'watch').map(r => ({ label: r.label, url: r.url, rate: r.rate, total: r.total })),
+    changes: changes.map(c => c.text),
+  };
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2) + '\n');
+  const handle = rows.filter(r => r.bucket === 'handle').length;
+  console.log(`✅ 日报已生成: ${outPath}`);
+  console.log(`   登记 ${ENDPOINTS.length} 端点 / 参与判定 ${rows.filter(r => r.bucket !== 'skip').length}；需处理 ${handle} 条；今日变化 ${changes.length} 条`);
+
+  // 90 天滚动清理
   const RETENTION_DAYS = 90;
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 864e5);
   const oldFiles = fs.readdirSync(OUT_DIR)
@@ -179,9 +292,7 @@ function main() {
       const d = new Date(f.replace('.md', ''));
       return !isNaN(d) && d < cutoff;
     });
-  for (const f of oldFiles) {
-    fs.unlinkSync(path.join(OUT_DIR, f));
-  }
+  for (const f of oldFiles) fs.unlinkSync(path.join(OUT_DIR, f));
   if (oldFiles.length) console.log(`   清理 ${oldFiles.length} 个 ${RETENTION_DAYS} 天前旧日报`);
 }
 
