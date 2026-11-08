@@ -81,11 +81,24 @@ jobs:
           [ -f "$F" ] || { echo "ℹ️ 无汇总文件，跳过告警"; exit 0; }
           node scripts/health-alert.js "$F" > /tmp/alert.md
           if [ ! -s /tmp/alert.md ]; then echo "✅ 需处理 0 条，不告警"; exit 0; fi
+          # 1) 先写进本次 run 的摘要页（Actions 页面直接可见，不依赖仓库功能开关）
+          { echo "## 巡检告警"; cat /tmp/alert.md; } >> "$GITHUB_STEP_SUMMARY"
+
+          # 2) Issues 通道：本仓实测 Issues 功能是关闭的（gh 报 "repository has disabled issues"），
+          #    所以这里做两级降级——Issues 可用则开 Issue（可讨论、可关闭、有邮件）；
+          #    不可用则**有意让本 step 失败**，靠 GitHub 的 job 失败邮件把告警推给 owner。
+          #    注意：失败发生在本 job 末尾，此前的巡检产物提交已完成，不影响数据落库。
           if gh issue list --state open --search "巡检告警 ${DAY} in:title" --json number -q '.[].number' 2>/dev/null | grep -q .; then
-            echo "ℹ️ 今日告警 Issue 已存在，跳过"; exit 0
+            echo "ℹ️ 今日告警 Issue 已存在，跳过（不重复刷）"; exit 0
           fi
-          gh issue create --title "[巡检告警] ${DAY}" --body-file /tmp/alert.md \
-            || echo "⚠️ 建 Issue 失败（无 issues 权限或配额），告警正文见本 step 日志"
+          if gh issue create --title "[巡检告警] ${DAY}" --body-file /tmp/alert.md 2>/tmp/gh.err; then
+            echo "✅ 已创建告警 Issue"
+          else
+            echo "⚠️ Issue 通道不可用："; cat /tmp/gh.err
+            echo "→ 降级为失败通知（这是有意失败，用于触发 GitHub 邮件告警）"
+            cat /tmp/alert.md
+            exit 1
+          fi
 
   # ---------- v7.0：每周生态扫描（pdone 健康表交叉，产出新候选/失效清单）----------
   ecosystem:
