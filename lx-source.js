@@ -154,7 +154,7 @@ const SOURCE_TOGGLES = {
   wyOuter: true,        // 网易云官方outer直连：固定128k免费歌直链(实测可用)
   kuwoOfficial: true,   // 酷我官方直连：固定128k真实mp3(实测可用，无第三方)
   suyin163: true,       // 溯音163：免费歌真实128k直链，VIP歌url:null自动跳过
-  gdWy: true,           // GD Studio：wy flac/320k高音质优先源(限5min50次，仅高音质链用)
+  gdWy: false,          // GD Studio：wy flac/320k高音质源(限5min50次，2026-11-08实测75%时间403配额用完，默认关闭省竞速预算，用户需要可手动开)
   xinghaiBackend: true, // 星海后端主域：kw 高音质双源(v1.0，与溯音酷我并列flac/320k) + 128k 兜底(与酷我官方并列)
   helloworldKw: true,   // v7.0：helloworld(kw) 生态候选——convert_url_with_sign 直链 128k/320k/flac 三档全端到端实证通过(2026-10-29)，默认开启参与 kw 链竞速
   // ---- 默认关闭（接口失效/需配置，可自行开启） ----
