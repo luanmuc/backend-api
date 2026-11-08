@@ -14,7 +14,7 @@
 | **X** 联动 | 跨模块消费链接通（片段码↔巡检、日报↔README_HEALTH、开关↔源码默认、CI↔脚本存在） | f-repo X1~X9 |
 | **Y** 死码 | 无重复函数、无只定义不用的常量、无 debugger、错误码全被使用、无未用 let | f-repo Y1~Y6 |
 | **Z** 资源 | 加载 <50ms、重复加载堆增长可控、导出面完整、无非法入库文件、无超大文件 | f-repo Z1~Z5 |
-| **H** 行为 | 取链/降档/验真/缓存/熔断/限速/冷却/探针等运行时行为 | a-static 12 / b-logic 30 / d-func 30 / e-extra 57 / 冒烟 67 / 压测 12 |
+| **H** 行为 | 取链/降档/验真/缓存/熔断/限速/冷却/探针等运行时行为 | a-static 12 / b-logic 30 / d-func 30 / e-extra 62 / 冒烟 67 / 压测 12 |
 
 ## 覆盖矩阵
 
@@ -27,7 +27,7 @@
 | `docs/AGENTS.md` | 187 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AUDIT_PLAN.md` | 505 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_RESULTS.md` | 684 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_RESULTS.md` | 732 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/DEV_GUIDE.md` | 469 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 61 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -66,7 +66,7 @@
 | `test/audit/a-static.js` | 206 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/audit/b-logic.js` | 230 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/audit/d-func.js` | 232 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
-| `test/audit/e-extra.js` | 467 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/audit/e-extra.js` | 491 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/candidate-audit-test.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/lx-source-smoke-test.js` | 1558 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/stress-test.js` | 219 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
@@ -86,7 +86,7 @@
 ## 汇总
 
 - 文件总数：**63**（`git ls-files` 58 + 本轮新增 5：`test/audit/g-meta.js`、`docs/audit-plans/round1~4.md`）
-- 总行数：**15015**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 总行数：**15087**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**63/63** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 - H：行为断言脚本 **10** 个（冒烟 + a-static/b-logic/d-func/e-extra + f-repo + g-meta + 两代压测）

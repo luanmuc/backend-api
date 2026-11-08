@@ -460,8 +460,32 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('T3', '日志不整段转储上游响应体（防超大日志）', maxLen < 2000, `最长日志=${maxLen} 字符`);
   }
 
+  // ================= U 上游 HTTP 状态码映射（V8 覆盖率扫出的零执行分支） =================
+  // O 组覆盖率实测：httpRequest 的 5xx/429/410/404/>=400 五个分支在全部 10 个入口里未执行过。
+  // 这里按真实状态码注入，验证「码型正确 + 错误对象真的带 code」（不只看 message）。
+  origLog('\n[U] 上游 HTTP 错误码映射');
+  {
+    const cases = [
+      [500, 'SERVER_ERROR', 'HTTP 500'],
+      [410, 'LINK_EXPIRED', 'HTTP 410'],
+      [404, 'NOT_FOUND', 'HTTP 404'],
+      [429, 'RATE_LIMIT', '被限流'],
+      [403, 'NETWORK_ERROR', 'HTTP 403'],
+    ];
+    for (const [st, code, hint] of cases) {
+      fresh(['suyinKuwo']);
+      scene = () => ({ statusCode: st, headers: { 'content-type': 'text/plain' }, body: 'err' });
+      probeFn = () => ({ error: 'ENOTFOUND' });
+      let e0 = null;
+      try { await req('128k', { ...GOOD, songmid: 'u' + st }); } catch (e) { e0 = e; }
+      const ok = !!e0 && e0.code === code && String(e0.message).includes(hint);
+      rec('U' + st, `HTTP ${st} → ${code} 且错误对象带 code`, ok,
+        e0 ? `code=${JSON.stringify(e0.code)} msg=${String(e0.message).slice(0, 80)}` : '竟然成功（应被拒）');
+    }
+  }
+
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
-  origLog(`\n第二轮审计（J~T）汇总：${pass} 通过 / ${fail} 失败`);
+  origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);
   process.exit(fail ? 1 : 0);
 })();

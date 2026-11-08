@@ -368,7 +368,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 1. **语法**：`node --check lx-source.js`；
 2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（67 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
 2b. **审计与压测（放行前必跑，以退出码为准）**：
-   - `node test/audit/{a-static,b-logic,d-func,e-extra,f-repo,g-meta}.js` → 10 / 30 / 30 / 50 / 50 / 12 条断言（`a-static` 另有 2 条、`e-extra` 另有 7 条 `· note` 信息登记，不计通过/失败）
+   - `node test/audit/{a-static,b-logic,d-func,e-extra,f-repo,g-meta}.js` → 10 / 30 / 30 / 55 / 50 / 12 条断言（`a-static` 另有 2 条、`e-extra` 另有 7 条 `· note` 信息登记，不计通过/失败；`e-extra` 的 55 含 O 组补的 5 条上游 HTTP 状态码映射）
    - `node --expose-gc test/stress-test.js`（S 组压量，12 条）、`node --expose-gc test/stress-round3.js`（T 组压态，12 条）、`node test/candidate-audit-test.js`（6 条）
    - **`g-meta` 是元审计**：查断言是否恒真、引用的导出名是否真实存在、脚本顶层 `process.exit` 是否有 `require.main` 守卫。**改过任何审计脚本后必须跑它**，否则可能把写死 true 的伪断言当成绿字
    - 明细与判据原则见 [`TESTING.md`](./TESTING.md)

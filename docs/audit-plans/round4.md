@@ -157,6 +157,6 @@ M1 改真判据后首跑红：`r1=LINK_EXPIRED r2=RATE_LIMIT；总外呼=12`。
 
 ### 7.4 数字口径（以实测为准）
 
-`git ls-files` = **58 文件 / 14145 行**（新增 `test/audit/g-meta.js`、`docs/audit-plans/round4.md` 后被跟踪）。
+`git ls-files` = **63 文件 / 15087 行**（新增 `test/audit/g-meta.js`、`docs/audit-plans/round4.md` 后被跟踪）。
 
-断言实测：`a-static` 10(+2 note) / `b-logic` 30 / `d-func` 30 / `e-extra` 50(+7 note) / `f-repo` 50 / `g-meta` 12 / 冒烟 67 组 / `stress-test` 12 / `stress-round3` 12。
+断言实测：`a-static` 10(+2 note) / `b-logic` 30 / `d-func` 30 / `e-extra` 55(+7 note) / `f-repo` 50 / `g-meta` 12 / 冒烟 67 组 / `stress-test` 12 / `stress-round3` 12。

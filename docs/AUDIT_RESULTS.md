@@ -609,7 +609,7 @@ S 组压**量**（并发数、容量、长跑、极端参数）；T 组压**态*
 
 - `node test/audit/f-repo.js` → **50 通过 / 0 失败，rc=0**
 - `node --expose-gc test/stress-round3.js` → **12 通过 / 0 失败，rc=0**
-- 覆盖矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)：**58 个 tracked 文件 / 14100 行（第三轮时点口径；第四轮后 63 / 15015），未覆盖文件 0**
+- 覆盖矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)：**58 个 tracked 文件 / 14100 行（第三轮时点口径；第四轮后 63 / 15087），未覆盖文件 0**
 - 本轮**不 commit、不推送**（用户明确）
 
 ## 七、第四轮：元审计（审审计本身，2026-11-08）
@@ -678,7 +678,55 @@ M1 改成真判据后首跑红：`r1=LINK_EXPIRED r2=RATE_LIMIT；总外呼=12`�
 ### 7.5 第四轮门禁最终态（真实退出码）
 
 - `node test/audit/a-static.js` → **10 通过 / 0 失败（+2 note），rc=0**
-- `node test/audit/e-extra.js` → **50 通过 / 0 失败（+7 note），rc=0**
+- `node test/audit/e-extra.js` → **55 通过 / 0 失败（+7 note），rc=0**（含 O 组补的 U500~U403 五条）
 - `node test/audit/f-repo.js` → **50 通过 / 0 失败，rc=0**
 - `node test/audit/g-meta.js` → **12 通过 / 0 失败，rc=0**
-- 覆盖矩阵：**63 个 tracked 文件 / 15015 行，未覆盖 0**
+- 覆盖矩阵：**63 个 tracked 文件 / 15087 行，未覆盖 0**
+
+## 八、第四轮 O 组：V8 原生覆盖率（谁从来没被执行过）
+
+用 `NODE_V8_COVERAGE` 跑全部 10 个入口（smoke / a-static / b-logic / d-func / e-extra / f-repo / g-meta / stress-test / stress-round3 / candidate-audit-test，全 rc=0），采集 39 份 coverage json（3.0M）。
+
+判定口径（第一版写错过）：**不能用「包含该行的任意 range」**——外层全文件 range 的 count>0 会把所有行判成已执行（首版就得出「未执行 0 行」的假结论）。正确做法是取**覆盖该行行首 offset 的最内层（最窄）range** 的 count。
+
+### 8.1 数字
+
+| 口径 | 可计行 | 未执行 | 占比 |
+|---|---|---|---|
+| 代码行（非空非注释） | 2480 | **1186** | 47.8% |
+| 严格口径（再排除纯结构行与函数声明行） | 1811 | **829** | 45.8% |
+
+未执行区间 **208 段**；推算函数 137 个，其中 **115 个函数有未执行行**。
+
+### 8.2 三分类（决定「补不补」）
+
+**① 纯兜底/防御（可接受，不补测）**：`buildProbeConfig`（84 行，给每个源写死探针配置，只有对应源被探测才走到自己那段）、`canExecute` 返回 false 的分支、`getSourceStats`/`getHealthSnapshot` 的展示兜底。
+
+**② 真实可达但没测（真缺口，本轮重点）**：
+
+| 函数 | 未执行行 | 具体没跑到的内容 |
+|---|---|---|
+| `httpRequest` | 22 | HTTP 500 / 429 / 410 / 404 / `>=400` 五个错误分支——**错误码映射半边从未被测** |
+| `truthQ` | 34 | 音质协商降档日志、`noteQualityCeiling`、`mergeLastCode`+`e.detail` 数组展开、`successCache.getExpired` 过期缓存兜底 |
+| `verifyDelivery` | 21 | 放行分支、`probe.code` 透传 throw、playlist/html/json 三类非音频判定、`verifyMinOriginalSec` 时长闸门 |
+| `realQuality` | 20 | 实交付音质回填 `deliveryQualityMap.set`、半开试探被本地节流拦下退回熔断、`recordRateLimit`、`NETWORK_TIMEOUT` 分支、`qStat.linkExpired` 计数 |
+| `sniffAudioBytes` | 18 | 空 body 分支、`<html`/`<!DOCTYPE` 判定、MP3 Xing 时长反算、bitrate 回填、收尾 `return out` |
+| `recordBusinessFail` | 12 | **整函数从未被调用**：版权失败计数、`q.req++/q.businessFail++`、半开→重新熔断 |
+| `normalizeDurationSec` | 36 | 时长归一的大部分输入形态（`m:ss` / 纯秒 / 带单位） |
+| `normalizeKeyword` | 33 | 关键词归一的大部分形态（繁简 / 符号 / 全半角） |
+| `getUrlWithFallback` | 16 | 两个 `PARAM_ERROR` 抛出（无效平台 / 无效歌曲信息） |
+
+**③ 未启用源整条处理链（开关打开才会走到，但仍属未测）**：`juheGetUrl` 35、`helloworldKwGetUrl` 21、`xinghaiBackendGetUrl` 20、`suyinQQGetUrl` 19、`kuwoOfficialSearch` 16、`lingchuanGetUrl` 15、`gdWyGetUrl` 14、`suyinMiguGetUrl` 14、`kuwoPicSearch` 14。这些源默认 `false`，全部测试只开 `suyinKuwo`——**一旦用户手动打开某个源，那条链路是零验证的**。
+
+### 8.3 本轮因覆盖率补的断言（e-extra U 组）
+
+挑第 ② 类里最危险的一项落地：`httpRequest` 五个状态码分支零执行，而「throw 时忘了给错误对象赋 code」是本仓反复出现的缺陷类型。按真实状态码注入，验证**码型正确 + 错误对象真的带 `code`**：
+
+- U500 → `SERVER_ERROR`、U410 → `LINK_EXPIRED`、U404 → `NOT_FOUND`、U429 → `RATE_LIMIT`、U403 → `NETWORK_ERROR`
+- 结果 **5/5 通过**，`e-extra` 由 50 条升到 **55 通过 / 0 失败**
+
+过程中又抓到**自己判据的一处错**：U429 首跑红，因为 429 的文案是「被限流」而非「HTTP 429」——判据假设错了，不是产品缺陷。改 hint 后转绿。与 7.2 的 M1 同类：**先定性、再改判据**。
+
+### 8.4 结论
+
+「三轮全绿」实际只覆盖 **45.8% 的有效代码行**，且集中在 `suyinKuwo` 单源 happy path。覆盖率数字**不用于设阈值**（设阈值会诱导后续写空壳断言凑数），只作为缺口地图：上表第 ② 类是下一轮靶子，第 ③ 类应随「开关打开」补最小用例。
