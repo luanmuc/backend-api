@@ -1698,7 +1698,8 @@ async function kuwoOfficialGetUrl(platform, songId, quality, songInfo) {
     throw new Error(`${ERROR_CODES.MISMATCH}: 酷我官方匹配结果与目标歌曲不符`);
   }
   const url = await kuwoOfficialConvert(match.rid);
-  setCachedUrl(cacheKey, url, "128k");
+  // v8.12（D-20）：删除内层写缓存——此处 URL 未经验真，片段会被当完整音频缓存，
+  // 且缓存命中处的验真在上游异常时 fail-open，用户复播直接吃 5 秒片段。缓存统一由外层（验真后）写。
   return url;
 }
 
@@ -1993,7 +1994,8 @@ async function suyinKuwoGetUrl(songInfo, quality) {
           suyinExpiredErr.code = ERROR_CODES.LINK_EXPIRED; // v8.10.4：同上，必须设 code
           throw suyinExpiredErr;
         }
-        setCachedUrl(cacheKey, httpsUrl, String(quality || "128k").toLowerCase());
+        // v8.12（D-20）：删除内层写缓存——isAudioPlayable 只验「能播」，不验时长/完整度，
+        // 片段 URL 会因此进入 30min/6h 成功缓存，绕过外层验真闸门。统一由外层验真后写。
         return httpsUrl;
       }
     } catch (e) { lastError = e; }
@@ -2022,7 +2024,7 @@ async function suyinMiguGetUrl(songInfo) {
           ? res.musicInfo
           : (typeof res.musicInfo?.url === "string" ? res.musicInfo.url : null);
         if (!miguUrl || !HTTP_URL_REGEX.test(miguUrl)) throw new Error(`${ERROR_CODES.SERVER_ERROR}: 溯音咪咕未返回可用的音频直链(字段结构待上游恢复后验证)`);
-        setCachedUrl(cacheKey, miguUrl, "128k");
+        // v8.12（D-20）：同上，未验真不入缓存
         return miguUrl;
       }
     } catch (e) { lastError = e; }

@@ -484,6 +484,36 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     }
   }
 
+  // ================= W 片段缓存证据通道（D-13 回退抽样的补测） =================
+  // D-13 修复的核心：上游已拿不到片段证据时，靠「该歌该档历史片段 URL」继续交付试听版。
+  // 旧场景（T5/T6）每次都能拿到当轮片段证据（hasFragDetail 恒成立），
+  // 所以删掉 `|| hasFragCache` 也没人红。这里必须在**同一模块实例**内做两次请求：
+  // fresh() 会重载模块、清空 fragmentUrlMap，跨实例连缓存都没了就不是这条通道了。
+  origLog('\n[W] 片段缓存证据通道');
+  {
+    const fragBytes = () => Buffer.concat([mp3(5.3), Buffer.alloc(1200)]);
+    const fragAudio = () => audio(fragBytes(), 'audio/mpeg', 84972);
+    let frag = true;
+    fresh(['suyinKuwo'], { breakerThreshold: 999, fragmentFallback: true, verifyDelivery: true });
+    scene = (u) => {
+      if (!frag) return { error: 'ECONNREFUSED' };
+      return String(u).includes('audio.test')
+        ? fragAudio()
+        : json({ code: 200, data: { url: 'https://audio.test/frag.mp3' } });
+    };
+    probeFn = () => (frag ? fragAudio() : { error: 'ECONNREFUSED' });
+    let r1 = null, r2 = null;
+    try { r1 = await req('flac', { ...GOOD, songmid: 'w1frag' }); } catch (e) { r1 = { err: e.code, msg: e.message }; }
+    const marked1 = !!r1 && String(r1.subSourceName || '').includes('试听版');
+    // 第二次：上游彻底不可用，details 里不可能再有 PREVIEW_FRAGMENT，只能靠 hasFragCache
+    frag = false;
+    try { r2 = await req('flac', { ...GOOD, songmid: 'w1frag' }); } catch (e) { r2 = { err: e.code, msg: e.message }; }
+    const marked2 = !!r2 && String(r2.subSourceName || '').includes('试听版');
+    const got = r2 && (r2.err ? 'err:' + r2.err : (marked2 ? '试听版' : '完整版'));
+    rec('W1', '上游已无片段证据时，靠历史缓存片段仍交付试听版（不让复播变成没声）',
+      marked1 && marked2, `首次=${r1 && (r1.err || (marked1 ? '试听版' : '完整版'))} 二次=${got}`);
+  }
+
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);

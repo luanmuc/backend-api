@@ -261,9 +261,30 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
     bad.length ? '无 ID 输出: ' + bad.join(', ') : '全部脚本输出含 [ID]');
 }
 
+// ---------- M13 错误码前缀契约（D-09 回退抽样的补测） ----------
+// D-09 的修复不是逐处赋 code，而是「出口用 normalizeErrCode 按 message 前缀回填」。
+// 因此真正的守门点是：**message 的码前缀必须永远由 ERROR_CODES 常量拼出**——
+// 文案可以随便改，「ERROR_CODES.X: 」这一段不会随文案漂移，回填才永远认得出来。
+{
+  const t = read(SRC);
+  const badPrefix = [];
+  t.split('\n').forEach((l, i) => {
+    if (!/throw new Error\(/.test(l)) return;
+    if (/^\s*(\/\/|\*|\/\*)/.test(l)) return; // 注释/文档行不算
+    if (!/\$\{ERROR_CODES\./.test(l)) badPrefix.push((i + 1) + ': ' + l.trim().slice(0, 64));
+  });
+  const outs = (t.match(/normalizeErrCode\(/g) || []).length;
+  const hasLyric = /getLyricForPlatform\([^)]*\)\.catch\(err => Promise\.reject\(normalizeErrCode/.test(t);
+  const hasPic = /getPicForPlatform\([^)]*\)\.catch\(err => Promise\.reject\(normalizeErrCode/.test(t);
+  rec('M13', 'throw 的码前缀由 ERROR_CODES 拼出，三个 action 出口都有 normalizeErrCode 兜底',
+    badPrefix.length === 0 && outs >= 3 && hasLyric && hasPic,
+    badPrefix.length ? '无前缀 throw: ' + badPrefix.slice(0, 3).join(' | ')
+      : `出口兜底 normalizeErrCode×${outs} lyric=${hasLyric} pic=${hasPic}`);
+}
+
 // ---------- 汇总 ----------
 const fail = out.filter((o) => !o.ok);
-console.log(`\n元审计（M1~M12）汇总：${out.length - fail.length} 通过 / ${fail.length} 失败`);
+console.log(`\n元审计（M1~M13）汇总：${out.length - fail.length} 通过 / ${fail.length} 失败`);
 if (fail.length) console.log('失败项：' + fail.map((f) => f.id).join(', '));
 // require.main 守卫：被 require 时不得杀调用方
 if (require.main === module) process.exit(fail.length ? 1 : 0);

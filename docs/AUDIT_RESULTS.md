@@ -892,12 +892,54 @@ err.code = hit || fallback || NETWORK_ERROR;
 
 `qs.size >= 1` 改回 `>= 3` 后 T2/T3 仍绿，因为 T2 场景对每首歌把三档都跑了一遍，`qs.size` 能涨到 3，旧阈值照样满足。而 v8.11.1 引入「跳过已知片段源」后，**线上同源同歌只跑 1 档**，`qs.size` 恒为 1，旧阈值永远达不到——这正是该修复要解决的场景，测试却没复现。
 
-### 12.4 三条盲区的修法（下一步）
+### 12.4 三条盲区已补测并完成双向验证（2026-11-09）
 
-| 盲区 | 修法 |
-|---|---|
-| D-09 | `g-meta` 加 M13：静态扫描 `throw new Error(\`${ERROR_CODES.X}...\`)` 且同一语句块内无 `.code =` 赋值的位置，要求为 0；再补一条行为断言：把「message 前缀不匹配任何码」的 err 喂给 `normalizeErrCode`，断言落到 fallback 而非错分类 |
-| D-13 | 新增场景：先让该源对同一首歌产出片段证据并落缓存，再清掉本轮详细证据（只留缓存），断言仍返回 `PREVIEW_FRAGMENT` 而不是 `NOT_FOUND` |
-| D-14 | 在 T2 加「首档即跳过」变体：第二首歌第一次请求就因 `已判定片段源` 跳过其余档（`qs.size=1`），断言源级冷却仍触发 |
+| ID | 手段 | 首跑 | 反向注入 | 还原 |
+|---|---|---|---|---|
+| **M13** | `g-meta` 静态扫描：①每处 `throw new Error` 的 message 必须以 `${ERROR_CODES.` 开头（注释行排除）；②`normalizeErrCode` 仍在 `musicUrl/lyric/pic` 三出口调用 | 13 通过 / 0 失败 | 加一行无前缀 throw → 红；删 lyric 出口兜底 → 红 | 绿，rc=0 |
+| **W1** | `e-extra`：同一模块实例内两次请求同一首歌——第一次上游给片段（写入 `fragmentUrlMap`），第二次上游全挂（details 里不可能再有 `PREVIEW_FRAGMENT`），断言两次都交付「试听版」 | 56 通过 / 0 失败 | 删 `\|\| hasFragCache` → 红（二次变 `NETWORK_ERROR`） | 绿，rc=0 |
+| **T2b** | `stress-round3`：前两首请求 128k（天然只 1 档，`qs.size=1`）制造跨歌证据，第三首请求 flac；冷却生效时只放行 128k 一档（共 1 次外呼） | 13 通过 / 0 失败 | `qs.size >= 1` 改回 `>= 3` → 红（外呼 1/1/**3**） | 绿，rc=0 |
+
+M13 的基线数据：全仓 `throw new Error` **70** 处，其中带 `${ERROR_CODES.` 前缀 **69** 处，
+唯一的例外是 L104 的注释行（已被注释排除规则过滤）。所以「码前缀由常量拼出」这条契约当前**零违规**，
+可以当真门禁用——文案怎么改都不会把码前缀改坏。
+
+W1/T2b 都在首跑时暴露了判据设计错误，按纪律先定性再改判据：
+- W1 最初假设片段兜底会抛 `PREVIEW_FRAGMENT`，实际是**返回带「试听版」标注的成功对象**；且 `fresh()` 会重载模块清空 `fragmentUrlMap`，跨实例测不出缓存通道——两次请求必须落在同一实例。
+- T2b 最初假设「冷却后该源外呼为 0」，实际冷却策略**只放行 128k 一档**，用 128k 请求时外呼恒为 1，测不出差异；改用 flac 请求才把「1 次（冷却）」与「3 次（三档全问）」区分开。
+
+### 12.5 补测过程中挖出的新缺陷 D-20：内层缓存把「片段」写成「完整版」
+
+**这是本轮最有价值的产出**——不是补测的副产品，而是一条直接影响用户听感的链路缺陷。
+
+起因：W1 第二次请求返回 `{"url":"https://audio.test/frag.mp3","type":"flac","subSource":"","subSourceName":""}`，
+即**同一个 5.3 秒片段 URL，被当作 FLAC 完整音频交付，且没有任何「试听版」标注**。加临时 trace 后定位到：
+
+```
+TRACE write kw_..._flac  q=flac  src=undefined  url=https://audio.test/frag.mp3  | from suyinKuwoGetUrl
+TRACE write kw_..._320k  q=320k  src=undefined  url=https://audio.test/frag.mp3  | from suyinKuwoGetUrl
+TRACE write kw_..._128k  q=128k  src=undefined  url=https://audio.test/frag.mp3  | from suyinKuwoGetUrl
+TRACE cacheHit kw_..._flac  q=flac  src=undefined
+```
+
+完整链路：
+
+1. `suyinKuwoGetUrl` 取到 CDN 链接后只做 `isAudioPlayable`（**只验「能播」，不验时长/完整度**），通过后立刻 `setCachedUrl` 写入三档缓存，`source` 为空；
+2. 同一首歌的三个 handler 内层缓存（`kuwoOfficial` L1701、`suyinKuwo` L1996、`suyinMigu` L2025）都在验真之前写；
+3. 外层 `getUrlWithFallback` 的 `verifyDelivery`（L2481）确实识别了片段，第一次正确地标了「试听版」——但**缓存已经被内层写好**；
+4. 用户复播：缓存命中路径（L2738）会再验真，但验真对**网络异常是 fail-open**（拿不到字节就放行），上游一抖就直接交付缓存里的片段，标成 `flac`、无「试听版」。
+
+这正好解释了用户截图里「音质 FLAC + 只有 5 秒」的现象，也解释了 T5 为什么一直是假绿：T5 的判据是
+`!subSourceName.includes('试听版')`，而缓存命中返回的 `subSourceName` 是**空字符串**，同样不含「试听版」，
+于是「片段被缓存当完整版交付」被误判成「源恢复后交付真实版」。
+
+**修复**：三处内层 `setCachedUrl` 全部删除，缓存统一由外层（`verifyDelivery` 之后，且带真实音质与子源）写。
+代价只是缓存 miss 时多一次上游搜索（原本也要发），收益是片段再也不可能进入 30min/6h 缓存。
+
+**验证**：W1 转绿（两次都是「试听版」）；把 suyinKuwo 内层 `setCachedUrl` 加回去 → W1 立刻红（二次变「完整版」）；
+`lx-source.js` md5 由 `3894f40e…` 变为 `b47d204e83ff6e3b3f26885a2f125cdf`（源码净变化 −3 行 +9 行注释，净 +6 行）。
+
+**为什么四轮审计没抓到**：前三轮都按「缓存双入口」查（成功缓存 + 过期兜底两处），
+没查**handler 自己写的第三入口**；而第三入口写的 URL 恰恰是唯一没验真过的。
 
 未覆盖的 5 条说明：D-02（初始化顺序，回退不改变可观测行为）、D-03（写日志，无断言）、D-07 / D-17（死代码与死常量，删了没有功能影响，回退无法观测）、D-19（文档计数口径，属 f-repo 静态判据而非运行时行为）——这 5 条不具备「回退可变红」的前提，不列为本轮缺口。

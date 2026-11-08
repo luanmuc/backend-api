@@ -142,6 +142,40 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
       `成功 ${out.filter(Boolean).length}/100，耗时 ${ms}ms，外呼 ${total()} 次（理想 1，最差 100）`);
   }
 
+  // ── T2b「每首只跑 1 档」下跨歌冷却仍必须触发（D-14 回退抽样的补测）────
+  // D-14 把门槛从「qs.size>=3」改成「>=1」，理由是线上引入「跳过已知片段源」后
+  // 同源同歌只跑一档，qs.size 恒为 1。可 T2 用 flac 请求跑满三档，qs.size 能到 3，
+  // 旧阈值照样满足 → 删掉修复也绿。这里用 128k 请求（天然只 1 档）复现线上真实形状。
+  {
+    fresh(['suyinKuwo', 'suyin163'], { breakerThreshold: 999, fragmentFallback: false, verifyDelivery: true });
+    const isFrag = (u) => String(u).includes('frag');
+    const fragAudio = () => audio(mp3(5.3), 'audio/mpeg', 84972);
+    const fullAudio = () => audio(flac(269.7), 'audio/flac', 55397039);
+    scene = (u) => {
+      const s = String(u);
+      if (s.includes('audio.test')) return isFrag(s) ? fragAudio() : fullAudio();
+      if (s.includes('/api/Kuwo')) return json({ code: 200, data: { url: 'https://audio.test/frag.mp3' } });
+      return json({ code: 0, data: { url: 'https://audio.test/ok.mp3' } });
+    };
+    probeFn = (u) => (isFrag(u) ? fragAudio() : fullAudio());
+    const KW = 'https://oiapi.net/api/Kuwo';
+    const per = [];
+    for (let i = 0; i < 3; i++) {
+      reset();
+      try {
+        // 前两首用 128k（天然只 1 档，qs.size=1）；第三首用 flac——冷却生效时 flac/320k
+        // 两档被跳过、只放行 128k 一档（共 1 次外呼）；冷却没生效则会三档全问（3 次）
+        const r = await req(i < 2 ? '128k' : 'flac', good('t2b_' + i));
+        per.push({ ok: !!r, kw: counts[KW] || 0, src: (r && r.subSource) || '' });
+      } catch (e) {
+        per.push({ ok: false, code: e.code, kw: counts[KW] || 0 });
+      }
+    }
+    rec('T2b', '每首歌只请求 1 档（qs.size=1）时，同源 2 首都片段仍触发源级冷却（第 3 首不再问该源）',
+      per[0].kw === 1 && per[1].kw === 1 && per[2].kw === 1,
+      `溯音酷我外呼 ${per.map((p) => p.kw).join('/')}（期望 1/1/1；第 3 首若冷却失效会变 3），交付 ${per.map((p) => (p.ok ? (p.src || 'OK') : p.code)).join('/')}`);
+  }
+
   // ── T5 片段 → 完整版翻转：缓存与标注是否跟着变 ────────────────
   {
     fresh(['suyinKuwo'], { breakerThreshold: 999, fragmentFallback: true, verifyDelivery: true });
