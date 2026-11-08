@@ -630,6 +630,10 @@ CI 显式传 `--date $(TZ=Asia/Shanghai date +%F)` 所以线上没暴露；但�
 历史 35 条样本里 32 条 `ok=true` —— 看着 91% 健康，实际**从未被真正监控过**。
 
 **修法**：`kind` → `payload`，`PAYLOAD_CHECKS` 加带参取链 + 正则 + `rangeOk` 真下载三重校验。
+另外给 `appendHistory` 补写 `payload` 字段（v8.10.8）：原先只落盘 date/url/ok/status/time/reason，
+`--json` 里的 payload 在写历史时丢失，导致「这次是真带参取链校验过、还是只看了状态码」无法从数据区分。
+改后走 `PAYLOAD_CHECKS` 的端点会留下 `"payload":true/false`（实测今日 155 条样本中 6 条带该字段，
+端点恰为 anti.s / c.wwwweb.top / oiapi.net / yy.zddyr.top / api.xcvts.cn）。
 改后 `node scripts/probe.js --json` 输出 `{"ok":true,"status":206,"payload":true}`。
 
 **一处必须如实说明**：我原以为「用两个不同 rid 兜底，单 id 失效不该判死」，实测发现该接口**根本不校验 rid**

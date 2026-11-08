@@ -88,7 +88,13 @@ const quick = args.includes('--quick');
 const HISTORY_RETENTION_DAYS = 30;
 function appendHistory(results) {
   const date = todayCN(); // v8.10.5：北京日期，与 health-daily 的 --date 同源
-  const lines = results.map(r => JSON.stringify({ date, url: r.url, ok: r.ok, status: r.status, time: r.time, reason: r.reason }));
+  // v8.10.8：把 payload 校验结果一并写进历史（有则写、无则略）。
+  // 否则「这个端点这次是真带参取链校验过，还是只看了状态码」在历史里无法区分——
+  // 将来若某个 payload 校验被改回去，没人能立刻从数据里看出来（T2 的可追溯性补口）。
+  const lines = results.map(r => JSON.stringify({
+    date, url: r.url, ok: r.ok, status: r.status, time: r.time, reason: r.reason,
+    ...(r.payload === undefined ? {} : { payload: r.payload }),
+  }));
   if (!fs.existsSync(HIST_DIR)) fs.mkdirSync(HIST_DIR, { recursive: true });
   // v8.10.5：改为**原子写**——先合并+清理，写临时文件再 rename。
   // 旧实现是「append 到正式文件 → 再全量重写」，两步之间崩溃会留下半截文件（V29）。
