@@ -121,7 +121,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | wyOuter | wy | 128k | ✅ 官方 outer 直连 | （官方接口，无第三方域名） | ✅ |
 | kuwoOfficial | kw | 128k | ✅ 自研 | img1.kwcdn.kuwo.cn 失效 / nmobi.kuwo.cn 异常 | ⚠️ 酷我 CDN 系不稳 → 强化 D3 双源 |
 | suyin163 | wy | 128k | ✅ | oiapi.net = 可用 | ✅ |
-| gdWy | wy | flac/320k | ✅ 高音质链 | music-api.gdstudio.xyz = 可用 | ✅ |
+| gdWy | wy | flac/320k | ✅ 高音质链 | music-api.gdstudio.xyz：**国产出口可用、海外 IP 恒 403**（按出口 IP 拦截） | ⛔ **默认关闭**（v8.10.4+，commit `39a0fa8`）：限 5min/50 次、实测 75% 时间 403，关闭以省竞速预算 |
 | xinghaiBackend | kw | 128k/320k/flac | ✅ 三档 | zddyr.top = 可用 | ✅（v1.0 已接入：E10 实测四档 code 200/206 可播/ID3 对应；URL http→https 升级） |
 | changqingVip / nianxinVip | kw | 128k | ✅ 302 直链 | music.nxinxz.com(念心) = 可用；musicapi.haitangw.net / 175.27.166.236 / music.haitangw.cc(长青) = 异常 | ⚠️ 念心独立验证可用；长青系整体"异常"，与"长青仅 kw 可用"吻合 |
 | suyinQQ | tx | — | ❌ 关闭 | oiapi.net 可用（源 API 活着） | ⚠️ 上游活着，是接口级 -403 → 有机会恢复 |
@@ -355,7 +355,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | mg 真源恢复（溯音咪咕/Juhe mg） | mg 真源 | ❌ **已判否**（2026-10-29 实测：溯音 502 IP 封禁未解除、Juhe mg 400）；mg 平台走溯音酷我搜索兜底 | 见"已判否的候选" |
 | yunmge（云萌阁） | kw 备胎 | ❌ 已判否（2026-10-29）：Gitee 组织仅 PHP 短视频解析仓库，无音乐上游、需服务器 | 旧 P1-1 候选，已实证移除 |
 | 溯音QQ 上游修复 | tx 恢复 | ⏳ 跟踪中（触发驱动） | `oiapi.net/api/QQ_Music` 连续 5 天 403（2026-11-01 进死源建议）；Music_163/Kuwo 仍可用 |
-| gdWy 主端点波动 | wy 核心源监控 | 🟡 监测中（2026-11-06：近 10 日可用率 4/10，60% 403） | music-api.gdstudio.xyz；连续 ≥3 天失败升级为迭代任务（v4.0 流程）；batch:2 降后批已隔离低可用率影响 |
+| gdWy 主端点波动 | wy 核心源监控 | ⛔ **已默认关闭**（2026-11-08）：近 10 日可用率 4/10、60% 403；限 5min/50 次配额常耗尽。重开前需先确认配额与出口 | music-api.gdstudio.xyz；连续 ≥3 天失败升级为迭代任务（v4.0 流程）；batch:2 降后批已隔离低可用率影响 |
 | helloworldKw 备用通道 | kw 备胎 | 🟡 监测中（resolve-url 404，0/4 天） | 主通道 convert_url_with_sign 仍可用；备用通道失效不阻断 |
 | 酷我官方 CDN 稳定化 | kuwoOfficial 加固 | 🟡 监测中 | kwcdn/nmobi 异常（nmobi 404）；已有多路兜底稀释风险 |
 | xm（汽水音乐） | 新平台扩展 | ❌ **已判否**（2026-10-29 三层实证：无接口/App 空壳/无歌源渠道） | 见"已判否的候选" |

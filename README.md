@@ -39,7 +39,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 平台 | 可用音质 | 主路子源 | 交叉验证 |
 |---|---|---|---|
-| 网易云 wy | 128k / 320k / flac | 溯音163 / wyOuter / gdWy | oiapi.net ❌ PAYLOAD_NO_URL；music.163.com ✅；music-api.gdstudio.xyz ❌ 403 被封 |
+| 网易云 wy | 128k / 320k（gdWy 关闭后 flac 需另开） | 溯音163 / wyOuter / ~~gdWy~~（**默认关闭**：国产出口可用、海外 IP 恒 403，且限 5min/50 次） | oiapi.net ❌ PAYLOAD_NO_URL；music.163.com ✅；music-api.gdstudio.xyz ❌ 403 被封 |
 | 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v1.0） | oiapi.net ❌ PAYLOAD_NO_URL；yy.zddyr.top ✅；search.kuwo.cn ✅；antiserver.kuwo.cn ✅；nmobi.kuwo.cn ❌ HTTP 404 |
 | QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | oiapi.net ❌ 403 被封 |
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | —（无独立源，走 kw 兜底） |
