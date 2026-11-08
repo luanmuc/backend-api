@@ -36,8 +36,16 @@ test/                  # 冒烟用例
 # 语法检查（每次改动后必跑）
 node --check lx-source.js
 
-# 冒烟测试（固化在 test/，60 组用例）
+# 冒烟测试（固化在 test/，67 组用例）
 node test/lx-source-smoke-test.js
+
+# 分轮审计（a 静态 12 / b 逻辑 30 / d 功能 30 / e 二轮 57 / f 全仓 U~Z 50，共 179 项）
+node test/audit/a-static.js && node test/audit/b-logic.js && node test/audit/d-func.js
+node test/audit/e-extra.js && node test/audit/f-repo.js
+
+# 压测（S 组压「量」，T 组压「态」，都必须 --expose-gc）
+node --expose-gc test/stress-test.js
+node --expose-gc test/stress-round3.js
 
 # 发布自检（版本/actions/README/ROADMAP 三向同步，推送前必跑）
 node scripts/self-check.js
@@ -108,7 +116,7 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 ```bash
 git fetch origin && git log HEAD..origin/master --oneline  # 检查远端是否有其他账号新提交，有则先 pull --rebase
 node --check lx-source.js       # L0 语法
-node test/lx-source-smoke-test.js  # L1 冒烟 60 组
+node test/lx-source-smoke-test.js  # L1 冒烟 67 组
 node scripts/self-check.js      # 发布自检：@version 与 @description/logInfo/README/ROADMAP 同步，任一失败阻断发布
 ```
 
@@ -151,7 +159,7 @@ node scripts/self-check.js      # 发布自检：@version 与 @description/logIn
 
 ### L1 模拟环境盲区自查（每次冒烟前过一遍）
 - `console`：Node 有、移动端无（D11）→ 日志类改动必须加宿主防御；
-- `setTimeout/clearTimeout`：移动端可用（本仓库已用 8 处 `setTimeout` + 4 处 `clearTimeout`）；
+- `setTimeout/clearTimeout`：移动端可用（本仓库已用 9 处 `setTimeout` + 4 处 `clearTimeout`）；
 - 内置属性冻结：`Array.prototype.push = ...` 无效，但可扩展新属性；
 - `lx.utils` 部分能力：zlib 未实现、buffer 仅 base64/hex/utf8、aes 仅 cbc/ecb。
 

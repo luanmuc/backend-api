@@ -25,9 +25,9 @@
 | ⑤ 歌曲信息与匹配工具 | 1373~1535 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey` |
 | ⑥ 音源实现 | 1536~2151 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
 | ⑦ 注册表 + 调度 + 健康分 | 2152~2932 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback` |
-| ⑧ 上报 + 事件监听 | 2933~3139（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ⑧ 上报 + 事件监听 | 2930~3136（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.11.1 基线（`lx-source.js` 共 3139 行）** 实测值，代码增删后需同步本表；表格覆盖全文（①～⑧ 首尾相接，无空白区）。
+> 行段为 **v8.11.1 基线（`lx-source.js` 共 3136 行）** 实测值，代码增删后需同步本表；表格覆盖全文（①～⑧ 首尾相接，无空白区）。
 
 ## 三、核心机制详解
 
@@ -366,7 +366,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 > **前置**：所有改动先走 `AGENTS.md`「实证开发流程（强制）」验证链（L0 静态 → L1 模拟 → L2 接口实测 → L3 真机 → L4 回归）。本清单 = L4 回归的具体内容。
 
 1. **语法**：`node --check lx-source.js`；
-2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（60 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
+2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（67 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
 3. **平台抽查**（用 curl 复现各子源逻辑或直接装包实测）：
    - wy：《晴天》flac（走 gdWy）+ 免费歌 128k（走 suyin163/wyOuter）+ VIP 歌 128k（应失败不误报）；
    - kw：《难却(DJ细霖版)》flac/320k/128k 三档（重点：不匹配到片段版、URL 可 206 播放）；

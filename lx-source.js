@@ -84,8 +84,6 @@ const SOURCE_MAX_CONCURRENCY = 2;    // v4.0：单源最大并发数（超限本
 const RATE_WINDOW_MS = 3000;         // v4.0：滑动窗口限速窗口(3s)
 const RATE_WINDOW_MAX = 5;           // v4.0：窗口内最大请求数（超限本轮跳过）     // 熔断冷却 3分钟
 const RETRY_TIMES = 1;                  // 网络错误重试次数(v1.0:2→1，避免重试放大)
-const RACE_OVERALL_TIMEOUT_MS = 6000;   // fallbackRace 整体超时(v1.0新增)
-const RACE_MATCH_WAIT_MS = 600;         // v3.0：未校验源首个成功后的等待窗口——给已验证源(内部做songInfoMatch)机会，防"快但错歌"抢答
 
 const ERROR_CODES = {
   NETWORK_TIMEOUT: 'NETWORK_TIMEOUT',
@@ -145,7 +143,6 @@ const TIMEOUT_CONFIG = { search: 3000, parse: 5000, default: 5000 }; // v1.0: pa
 // API 端点
 // GD Studio（实测：仅网易云 netease，br=999→真实flac/br=320→320k/br=128→128k；免费公共服务，5分钟50次限制，仅用于wy高音质链，不进128k兜底竞速）
 const GD_API = "https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light";
-const XINGHAI_BACKUP_API = "https://music-dl.sayqz.com/api/"; // 实测：域名不可解析，已失效（保留常量便于恢复）
 // 溯音系（实测：仅 Kuwo 可用；QQ -403维护中；163 免费歌恢复可用；咪咕 502 IP限制）
 const SUYIN_QQ_API = "https://oiapi.net/api/QQ_Music";
 const SUYIN_QQ_KEY = "oiapi-ef6133b7-ac2f-dc7d-878c-d3e207a82575";

@@ -106,4 +106,4 @@ if (failed) {
   process.exit(1);
 }
 console.log('自检通过：@version=' + verHeader + '，actions 齐全，README/ROADMAP 同步。');
-process.exit(0);
+if (require.main === module) process.exit(0);
