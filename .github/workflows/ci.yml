@@ -27,7 +27,7 @@ jobs:
           node-version: 20
       - name: L0 语法检查
         run: node --check lx-source.js
-      - name: L1 冒烟测试（mock lx 宿主，32 组用例）
+      - name: L1 冒烟测试（mock lx 宿主，57 组用例）
         run: node test/lx-source-smoke-test.js
       - name: L1.1 candidate-audit 专项测试（v8.1）
         run: node test/candidate-audit-test.js
