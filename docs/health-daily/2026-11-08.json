@@ -26,31 +26,29 @@
   },
   "registered": 20,
   "judged": 10,
-  "handle": [
+  "handle": [],
+  "watch": [
     {
       "label": "gdWy",
-      "sources": [
-        "gdWy"
-      ],
       "url": "https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light",
-      "kind": "payload",
-      "rate": 25,
-      "total": 28,
-      "consecutiveFail": 2,
-      "reason": "HTTP 403"
-    }
-  ],
-  "watch": [
+      "rate": 24.1,
+      "total": 29
+    },
+    {
+      "label": "suyinKuwo",
+      "url": "https://oiapi.net/api/Kuwo",
+      "rate": 79.3,
+      "total": 29
+    },
     {
       "label": "xinghaiBackend",
       "url": "https://yy.zddyr.top/lx/api/",
-      "rate": 75,
-      "total": 28
+      "rate": 75.9,
+      "total": 29
     }
   ],
   "changes": [
     "🔴 **suyinKuwo**：2026-11-07 可用 → 2026-11-08 **失败**（PAYLOAD_DEAD）",
-    "🔴 **kuwoSearch 酷我搜索接口**：2026-11-07 可用 → 2026-11-08 **失败**（ETIMEDOUT）",
-    "🔴 **kuwoOfficial**：2026-11-07 可用 → 2026-11-08 **失败**（ETIMEDOUT）"
+    "🔴 **kuwoOfficial**：2026-11-07 可用 → 2026-11-08 **失败**（PAYLOAD_DEAD）"
   ]
 }
