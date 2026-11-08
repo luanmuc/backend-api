@@ -281,9 +281,19 @@ T46 同步改造：原用 `raceBudgetMs: 1` 依赖「剩余预算恰为 0」，�
 
 - 29 处 `catch` 逐块核对：
   - 多数正确透传（`lastError` 累积 + `mergeLastCode` 结构化）
-  - ⚪ `isAudioPlayable()`（L909）把超时/网络错误一律判"不可播"——设计如此（注释明确），
-    仅在 helloworld/溯音源内做通道切换，不记熔断，影响局限为弱网多耗 2.5s。**结论：接受现状不改**
-    （改成"超时算可播"会让播放器拿到可能 404 的链接、把瞬时失败变成播放卡死，代价高于多耗 2.5s）
+  - **🟡（2026-11-08 复核后由 ⚪ 升级）** `isAudioPlayable()`（L909）把超时/网络错误一律判"不可播"，
+    调用方（L1334 / 1364 / 1607）据此抛 `LINK_EXPIRED`。实测链路后果：
+    1. `LINK_EXPIRED` 走 `recordBusinessFail`（不计 `failureCount`，**不触发熔断**）
+    2. 但会被计入 `byQuality.linkExpired`
+    3. 档位短路判据是 `(fail + linkExpired) >= qualityShortCircuitSamples(默认 3)`（L2240）
+       → 达标即把该源该音质档**短路 `qualityShortCircuitProbeMs`（默认 21600000 = 6 小时）**
+    对比正确语义：若按 `NETWORK_TIMEOUT` 计入熔断，冷却仅 `BREAKER_COOLDOWN_MS`（180000 = 3 分钟）后
+    就有半开探针自动恢复。**即弱网把"3 分钟可自愈"错当成"6 小时档位压制"**。
+    影响面：仅 helloworld / 溯音酷我的对应音质档，其他源仍在竞速链上 → 不会无声，
+    但高音质档成功率与耗时明显变差。
+    **修法（待实施）**：让 `isAudioPlayable` 在超时/网络异常时抛带 `NETWORK_TIMEOUT` / `NETWORK_ERROR` 码的错误，
+    调用方用 try/catch 区分「确定死链（206 之外的 410/403/404）」与「校验未完成（超时）」，后者不写 `linkExpired`。
+    反向用例：弱网连点 3 首 flac 后，该源 flac 档不应进入 6 小时短路（冒烟可加 T56）。
   - ~~btoa 失败 `return ''`~~ → **复核后撤回**：该函数实为 `xinghaiBackendToken()`（L1433），全仓仅 1 处定义、**零引用**（v8.4 已改为不发送自定义 X-Token，注释写明），属死代码，不构成缺陷
 - `config` 热更新有上下限校验（`PARAM_LIMITS`）、改熔断阈值重置计数、改 TTL 清缓存 → 正确
 - `isAudioPlayable` 仅 3 处调用（L1333/L1363/L1605），均在源内链切换，不污染全局熔断
