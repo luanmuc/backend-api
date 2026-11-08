@@ -9,7 +9,7 @@
 
 ## 5.1 MUT：变异测试，用「杀不杀得死」量化断言强度
 
-不靠人想场景，而是**机器改代码，看门禁能不能发现**。（已落地：`test/mutation/run.js`，8 个算子；首跑 5/8 killed，补齐 T2c/W2 后全量 8/8——详见 `docs/AUDIT_RESULTS.md` §12.6）
+不靠人想场景，而是**机器改代码，看门禁能不能发现**。（已落地：`test/mutation/run.js`，9 个算子；首跑 5/8 killed，补齐 T2c/W2/W2(MEM) 后全量 9/9——详见 `docs/AUDIT_RESULTS.md` §12.6）
 
 - 工具：`test/mutation/run.js`（新增，只读仓库 + 在 `/tmp` 生成变异副本，不改工作区）
 - 变异算子（对 `lx-source.js` 逐条施加，每轮只施加一个）：

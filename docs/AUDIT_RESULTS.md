@@ -966,3 +966,34 @@ TRACE cacheHit kw_..._flac  q=flac  src=undefined
 变异测试真正的价值不在这个 8 分的分数，而在它把"断言够不够强"从主观判断变成了可执行、可复跑的数字：
 以后每加一个算子（阈值 ±1、条件反转、常量改值、删副作用、顺序颠倒……），漏掉的就会直接显形。
 
+### 12.7 MEM 组落地：记忆表加上限 + 内存占用可观测（第五轮 5.5）
+
+侦察确认的事实（**不是**"6 个 Map 都没上限"这么笼统）：
+- `successCache` / `failCache` 有 LRU 上限（500 / 300）——本来就有；
+- `breakerMap` / `previewCooldownMap` / `playDeadStreak` / `playDeadDeadline` / `inflightCount` / `lastUsedAt` / `reqTimestamps` 按 **sourceId** 建键（≤21 源），天然有界；
+- `fragmentHandlerSongsMap.mids` 在 `size >= 2` 时 `clear()`，不是无界；
+- **真正只增不删的是 4 张按歌曲累积的表**：`deliveryQualityMap`（无 TTL 无 delete 无上限）、`fragmentSourceMap` / `qualityCeilingMap` / `fragmentUrlMap`（有 TTL，但**靠"读取时顺手删"收尸**——从不被读的条目永久驻留）。
+
+改动（`lx-source.js` 3138 → 3173 行）：
+
+| 项 | 内容 |
+|---|---|
+| `boundedMapSet(map, key, value)` | 带上限写入，超限淘汰**最早插入**一条（Map 迭代顺序即插入顺序），4 张表 5 处写入点全部改走它 |
+| 上限可配 | 新增 `memoryMapMax`（默认 2000、`PARAM_LIMITS` 上限 20000），同时登记 `ALLOWED_KEYS` 与 `USER_CONFIG` |
+| 跨歌证据 | `mids` 加 `HANDLER_MIDS_MAX`（200）防御上限 |
+| 可观测 | `getHealthSnapshot()._memory` 输出 7 张表的条目数 + `limit`；`createLRUCache` 补 `size()` |
+
+**断言（e-extra MEM1~MEM3，57 → 60 项）与双向验证**
+
+| ID | 断言 | 首跑 | 注入后 |
+|---|---|---|---|
+| MEM1 | `memoryMapMax=5` + 8 首不同歌 → `_memory.deliveryQuality === 5`、`limit === 5` | 绿（5/5） | 把 `if (map.size > max)` 改成 `if (false)` → **条目变 8 → 红** |
+| MEM2 | 被淘汰的那首重播仍能正常交付（淘汰只影响记忆，不伤害功能） | 绿 | — |
+| MEM3 | `_memory` 的 7 个计数字段 + `limit` 全部是数字 | 绿 | — |
+
+**过程中我自己踩的两个坑（记录在案）**
+1. 第一版只加了 `cfg('memoryMapMax', 2000)`，忘了在 `USER_CONFIG` 里做 `__lxSourceConfig` 注入声明 → MEM1 首跑 `limit=2000`、条目 8，**上限根本没生效**。这正是 D-09 那类"配置开关静默失效"的老坑，被自己的断言当场抓住。
+2. 补注入行时把 `playDeadReviveMs` 行尾的逗号弄丢，`node --check` 直接 SyntaxError。
+
+**未做（有意）**：没有把 `fragmentSourceMap / qualityCeilingMap / fragmentUrlMap` 的"读取时清过期"改成定时清理——目前上限淘汰已经兜住了最坏情况（条目不超上限），再叠一层定时器会引入新的生命周期复杂度，收益不抵风险。
+

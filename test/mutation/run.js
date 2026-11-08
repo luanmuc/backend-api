@@ -73,6 +73,12 @@ const MUTANTS = [
     to: 'return null; // mutant: gate off',
   },
   {
+    id: 'MU9',
+    name: '记忆表上限失效（不淘汰最旧条目）',
+    from: '  if (map.size > max) {',
+    to: '  if (false) {',
+  },
+  {
     id: 'MU8',
     name: '不释放并发计数（inflight 永久占位）',
     from: 'inflightCount.set(handler.id, Math.max((inflightCount.get(handler.id) || 0) - 1, 0));',

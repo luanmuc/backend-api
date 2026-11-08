@@ -537,6 +537,38 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
       `连续 4 次结果 ${seq.join('/')}（期望全是 NETWORK_ERROR；槽位泄漏会让第 2 次起变成限速/无源）`);
   }
 
+  // ================= MEM 记忆表容量（第五轮 MEM 组）=================
+  // 过去只有 successCache/failCache 有上限，四张按歌曲累积的表只增不删。
+  // 这里用 memoryMapMax=5 + 8 首歌把上限压到可见范围：条目数必须停在 5，
+  // 且被淘汰的歌仍能正常交付（淘汰只影响"记忆"，不伤害功能）。
+  origLog('\n[MEM] 记忆表容量与淘汰');
+  {
+    const MOD = fresh(['suyinKuwo'], { memoryMapMax: 5, breakerThreshold: 999, rateWindowMax: 1e6 });
+    const fullAudio = () => audio(Buffer.concat([mp3(269.7), Buffer.alloc(1200)]), 'audio/mpeg', 10300000);
+    scene = (u) => (String(u).includes('audio.test') ? fullAudio() : json({ code: 200, data: { url: 'https://audio.test/a.mp3' } }));
+    probeFn = () => fullAudio();
+    const ids = [];
+    for (let i = 0; i < 8; i++) {
+      try {
+        const r = await req('128k', { ...GOOD, songmid: 'mem_' + i });
+        ids.push(r && r.url ? 'OK' : 'EMPTY');
+      } catch (e) { ids.push(e.code || 'ERR'); }
+    }
+    const mem = MOD.getHealthSnapshot()._memory || {};
+    rec('MEM1', '记忆表条目数受 memoryMapMax 约束（8 首歌 + 上限 5 → 只留 5 条）',
+      mem.deliveryQuality === 5 && mem.limit === 5,
+      `deliveryQuality=${mem.deliveryQuality} limit=${mem.limit}（8 次结果 ${ids.join('/')}）`);
+    let again = 'ERR';
+    try {
+      const r = await req('128k', { ...GOOD, songmid: 'mem_0' });
+      again = r && r.url ? 'OK' : 'EMPTY';
+    } catch (e) { again = e.code || 'ERR'; }
+    rec('MEM2', '条目被淘汰后旧歌仍能正常交付（淘汰不伤害功能）', again === 'OK', `重播第 1 首结果 ${again}`);
+    const keys = ['successCache', 'failCache', 'deliveryQuality', 'fragmentSource', 'qualityCeiling', 'fragmentUrl', 'handlerSongs', 'limit'];
+    rec('MEM3', '健康快照暴露全部记忆表条目数（长跑内存占用可观测）',
+      keys.every((k) => typeof mem[k] === 'number'), `_memory 键 ${Object.keys(mem).join(',')}`);
+  }
+
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);

@@ -54,7 +54,9 @@ const USER_CONFIG = {
   coldStartWarmEnabled: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.coldStartWarmEnabled : undefined, // v8.8：冷启动预热开关(缺省 true)
   qualityShortCircuitSamples: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitSamples) || 3, // v8.8：档位短路样本门槛
   qualityShortCircuitProbeMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitProbeMs) || 3600000, // v8.10：短路放行探路间隔(1h，原 6h 太长)
-  playDeadReviveMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.playDeadReviveMs) || 300000        // v7.0：播放摘除后半开试探冷却期(5min)
+  playDeadReviveMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.playDeadReviveMs) || 300000,        // v7.0：播放摘除后半开试探冷却期(5min)
+  // 五轮 MEM：记忆表条目上限（与 ALLOWED_KEYS/PARAM_LIMITS 同步登记；漏了这行注入会静默失效）
+  memoryMapMax: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.memoryMapMax) || 2000,
 };
 // v5.0：运行参数读取（USER_CONFIG 缺失/空值时回退默认）
 function cfg(key, def) {
@@ -75,6 +77,12 @@ const QUALITY_CEILING_TTL_MS = 21600000; // 能力备档 6 小时
 const FAIL_CACHE_TTL_MS = 300000;       // 5分钟 失败缓存（v1.0 起按失败类型差异化：见 getFailCached）
 const CACHE_MAX_SIZE = 500;
 const FAIL_CACHE_MAX_SIZE = 300;
+// 五轮 MEM：按歌曲累积的表过去只有 successCache / failCache 有容量上限，
+// deliveryQualityMap / fragmentSourceMap / qualityCeilingMap / fragmentUrlMap 四张表
+// 只增不删（后三张靠"读取时顺手删过期"收尸，从不被读的条目会永久驻留）。
+// 单条很小，但"永不释放 + 依赖访问才清理"是结构性风险，统一加最旧淘汰上限。
+const MEMORY_MAP_MAX = 2000;              // 按歌曲累积表上限（约 500 首 × 4 档）
+const HANDLER_MIDS_MAX = 200;             // 每源跨歌证据 Set 上限（判冷却只需最近几首）
 const HTTP_URL_REGEX = /^https?:\/\//i;
 const BREAKER_THRESHOLD = 3;            // 连续失败熔断阈值
 const BREAKER_COOLDOWN_MS = 180000;
@@ -684,8 +692,22 @@ function createLRUCache(maxSize, ttl) {
     // v30.1：清空所有缓存（配置热更新时调用，让新 TTL 立即生效）
     clear() {
       map.clear();
-    }
+    },
+    // 五轮 MEM：暴露条目数供健康快照观测（此前只有写入/读取，无任何容量可观测口径）
+    size() { return map.size; }
   };
+}
+
+// 五轮 MEM：带上限的 Map 写入，超限淘汰最早插入的一条（Map 迭代顺序即插入顺序）。
+// 上限读 cfg('memoryMapMax')，默认 MEMORY_MAP_MAX、硬顶 20000（PARAM_LIMITS 校验）。
+function boundedMapSet(map, key, value) {
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+  const max = Math.max(1, Number(cfg('memoryMapMax', MEMORY_MAP_MAX)) || MEMORY_MAP_MAX);
+  if (map.size > max) {
+    const oldest = map.keys().next().value;
+    if (oldest !== undefined) map.delete(oldest);
+  }
 }
 const successCache = createLRUCache(CACHE_MAX_SIZE, cfg('cacheTtlMs', CACHE_TTL_MS));
 // v1.0：失败缓存 LRU 不再用固定5min TTL——过期由 getFailCached 按失败类型差异化判断(404→1h/410→1min/网络错误不缓存)
@@ -1264,7 +1286,7 @@ function rememberFragmentSource(platform, songInfo, handlerId, quality) {
   let entry = fragmentSourceMap.get(key);
   if (!entry || ts - entry.ts > FRAGMENT_SOURCE_TTL_MS) {
     entry = { sources: new Set(), bySource: new Map(), ts };
-    fragmentSourceMap.set(key, entry);
+    boundedMapSet(fragmentSourceMap, key, entry);
   }
   entry.ts = ts;
   entry.sources.add(handlerId);
@@ -1278,13 +1300,14 @@ function rememberFragmentSource(platform, songInfo, handlerId, quality) {
   let hEntry = fragmentHandlerSongsMap.get(handlerId);
   if (!hEntry || ts - hEntry.ts > FRAGMENT_SOURCE_TTL_MS) {
     hEntry = { mids: new Set(), ts };
-    fragmentHandlerSongsMap.set(handlerId, hEntry);
+    boundedMapSet(fragmentHandlerSongsMap, handlerId, hEntry);
   }
   hEntry.ts = ts;
   // v8.11.1（二轮审计 C9a 打点实测修正）：v8.11.1 引入「跳过已知片段源」后，同源同歌首档判定片段即跳过
   // 其余档，qs.size 恒为 1，旧 `>= 3` 永远达不到 → 源级冷却事实上永不触发（实测 mapKeys 恒为空）。
   // 改为「该源对该歌出现过任一档片段即计入跨歌证据」；单歌仍不足以判源级限流，下面仍要求 ≥2 首不同歌。
   if (qs.size >= 1) hEntry.mids.add(midKey);
+  if (qs.size > HANDLER_MIDS_MAX) { const firstMid = qs.values().next().value; if (firstMid !== undefined) qs.delete(firstMid); }
   if (hEntry.mids.size >= 2) {
     const songCount = hEntry.mids.size;
     hEntry.mids.clear();
@@ -1314,7 +1337,7 @@ function getDeliveryQuality(handlerId, platform, songInfo, quality) {
 // 能力备档：记录该歌实际最高可得档，下次直接从该档起
 function noteQualityCeiling(platform, songInfo, achievedQuality) {
   const key = `${platform}|${getHashOrMid(songInfo)}`;
-  qualityCeilingMap.set(key, { quality: achievedQuality, ts: Date.now() });
+  boundedMapSet(qualityCeilingMap, key, { quality: achievedQuality, ts: Date.now() });
 }
 function getQualityCeiling(platform, songInfo) {
   const key = `${platform}|${getHashOrMid(songInfo)}`;
@@ -2219,6 +2242,17 @@ function getHealthSnapshot() {
   // v30.1：兜底平台选健康分最高的（不再是第一个）
   healthyPlatforms.sort((a, b) => b.avgScore - a.avgScore);
   snapshot._fallbackPlatform = healthyPlatforms[0]?.platform || null;
+  // 五轮 MEM：缓存/记忆表的条目数（长跑内存占用的唯一可观测口径，供巡检与断言读取）
+  snapshot._memory = {
+    successCache: successCache.size(),
+    failCache: failCache.size(),
+    deliveryQuality: deliveryQualityMap.size,
+    fragmentSource: fragmentSourceMap.size,
+    qualityCeiling: qualityCeilingMap.size,
+    fragmentUrl: fragmentUrlMap.size,
+    handlerSongs: [...fragmentHandlerSongsMap.values()].reduce((n, e) => n + (e && e.mids ? e.mids.size : 0), 0),
+    limit: Math.max(1, Number(cfg('memoryMapMax', MEMORY_MAP_MAX)) || MEMORY_MAP_MAX)
+  };
   return snapshot;
 }
 
@@ -2498,10 +2532,10 @@ async function wrapExecute(handler, platform, songInfo, quality) {
       const reqQ = String(quality || "").toLowerCase();
       if (realQuality !== reqQ) {
         // 旁路记录实交付音质，供 getUrlWithFallback 把标签改成真话（请求 flac 实得 128k 时界面不能写 FLAC）
-        deliveryQualityMap.set(`${handler.id}|${platform}|${mid}|${reqQ}`, realQuality);
+        boundedMapSet(deliveryQualityMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realQuality);
         logInfo(`[${handler.name}] 实交付音质与请求档不符: 请求[${quality || "128k"}] → 实得[${realQuality}]`);
       } else {
-        deliveryQualityMap.set(`${handler.id}|${platform}|${mid}|${reqQ}`, realQuality);
+        boundedMapSet(deliveryQualityMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realQuality);
       }
     }
     recordSuccess(handler.id, Date.now() - startTime, quality);
@@ -2543,7 +2577,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
       if (e.code === ERROR_CODES.PREVIEW_FRAGMENT) {
         rememberFragmentSource(platform, songInfo, handler.id, quality);
         if (e.fragmentUrl) {
-          fragmentUrlMap.set(`${platform}|${getHashOrMid(songInfo)}|${String(quality || "").toLowerCase()}`,
+          boundedMapSet(fragmentUrlMap, `${platform}|${getHashOrMid(songInfo)}|${String(quality || "").toLowerCase()}`,
             { url: e.fragmentUrl, quality: e.fragmentQuality || String(quality || "128k").toLowerCase(), source: handler.id, name: handler.name, ts: Date.now() });
         }
       }
@@ -3012,7 +3046,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       "breakerThreshold", "breakerCooldownMs", "rateLimitBackoffMs",
       "maxConcurrency", "rateWindowMs", "rateWindowMax",
       "healthCheckIntervalMs", "raceMatchWaitMs",
-      "allFailShortTtlMs", "playDeadReviveMs", "raceBudgetMs"];
+      "allFailShortTtlMs", "playDeadReviveMs", "raceBudgetMs", "memoryMapMax"];
     // v30.1：每个参数的合理上下限（防极端值触发上游风控/雪崩）
     const PARAM_LIMITS = {
       cacheTtlMs: { max: 7 * 24 * 3600 * 1000 },        // 最大 7 天
@@ -3027,6 +3061,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       healthCheckIntervalMs: { min: 60 * 1000 },        // 最小 1 分钟（防频繁探测）
       raceBudgetMs: { max: 15 * 1000 },                     // v8.10.3：总预算（死键 raceOverallTimeoutMs 已移除，唯一真相）
       raceMatchWaitMs: { max: 5 * 1000 },               // 最大 5 秒
+      memoryMapMax: { min: 1, max: 20000 },              // 五轮 MEM：记忆表条数上限（默认 2000）
       allFailShortTtlMs: { max: 10 * 60 * 1000 },       // 最大 10 分钟
       playDeadReviveMs: { max: 2 * 3600 * 1000 },       // 最大 2 小时
     };
