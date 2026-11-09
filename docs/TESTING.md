@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> 10 个入口，**没有统一 runner**，逐条跑。断言实测：冒烟 67 组 + 审计 10/30/30/50/50/12 + 压测 12+12 = **132 条审计断言 + 24 条压测断言**（另有 9 条 `note` 信息登记，不计入通过/失败）。
+> **12 个入口**，**没有统一 runner**，逐条跑。断言实测：冒烟 67 组 + 审计 10/30/30/**88**/50/**14**/**6** + 压测 12+**14** = **228 条审计断言 + 26 条压测断言**（另有 `note` 信息登记，不计入通过/失败；`test/mutation/run.js` 是 12 个变异体，按「能否被门禁杀掉」记）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 一、入口总表
@@ -11,9 +11,9 @@
 | `test/audit/a-static.js` | 10(+2 note) | 静态：常量一致性、导出面、无死键、注释与代码对齐 | 读文件 | `node test/audit/a-static.js` |
 | `test/audit/b-logic.js` | 30 | 逻辑：闸门判据、降档链、缓存键、记账口径、冷却状态机 | mock 宿主 | `node test/audit/b-logic.js` |
 | `test/audit/d-func.js` | 30 | 功能：五平台取链、音质矩阵、订阅源、错误码、配置读写 | mock 宿主 | `node test/audit/d-func.js` |
-| `test/audit/e-extra.js` | 82(+7 note) | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏；四轮 U 组：上游 HTTP 500/410/404/429/403 码映射 | mock 宿主 | `node test/audit/e-extra.js` |
+| `test/audit/e-extra.js` | **88** | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏；四轮 U 组：上游 HTTP 500/410/404/429/403 码映射；六轮新增 G4b/G4c（同歌 5 并发只 1 次外呼、结果一致）+ G12a~G12d（星海备按 `PLATFORM_TO_XINGHAI_BACKUP` 过滤平台，mg/kg 不再白 push 必败源） | mock 宿主 | `node test/audit/e-extra.js` |
 | `test/audit/h-toggles.js` | 14 | 四轮新增：默认关闭/从未开启的源（helloworldKw·星海后端·酷我官方·Juhe×5·聆川·gdWy·溯音QQ·溯音咪咕·酷我封面·星海备）逐个开启后的最小可用性 | mock 宿主 | `node test/audit/h-toggles.js` |
-| `test/audit/f-repo.js` | 50 | 三轮新增：全仓 58 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
+| `test/audit/f-repo.js` | 50 | 三轮新增：全仓 **69** 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
 | `test/audit/g-meta.js` | 14 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
 | `test/stress-test.js` | 12 | 压测 S 组压「量」：并发/预算/配额/熔断/缓存容量/长跑/极端参数/闸门对照/定时器 | `--expose-gc` | `node --expose-gc test/stress-test.js` |
 | `test/stress-round3.js` | 14 | 压测 T 组压「态」：跨档总预算、源级冷却与本地限速分离、片段翻转、闸门 8 组合矩阵、config 热更新、错误码注入、probe 并发、写满容量堆增长、档位串槽、熔断跨源污染 | `--expose-gc` | `node --expose-gc test/stress-round3.js` |

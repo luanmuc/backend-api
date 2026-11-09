@@ -35,6 +35,7 @@
 | D-24 | 六 | **高** | App 一键更新「导新 → 删旧 → 切新」：新源加载失败且无备用时，旧源已被删掉，**回退不了** | 读 `setApiSource` 兜底链 | ✅ App `f9ba9108` |
 | D-25 | 六 | 低 | `await setApiSource(...)` 中 `setApiSource` 是同步 void，`await` 只是装饰，读起来像"等切源完成" | 类型声明 `apiInitPromise: [Promise<boolean>,…]` 本就未用 | ✅ App `f9ba9108` |
 | D-26 | 六 | 低 | `buildSourceChain` 挂星海备用 `platform !== "kg"`，但映射表 `{wy,tx,kw}` 没有 mg —— mg 每次白 push 一个必败源 | G12a 断言红：`mg 链=[xinghaiBackup]` | ✅ `ee7ebaf` |
+| D-27 | 六 | 一般 | **跨仓**：音源抛 12 个 `ERROR_CODES`，App `FAIL_CODE_ZH` 只映射 6 个，且 `NETWORK_TIMEOUT`/`RATE_LIMIT` 两个连码名都不同（App 写 `TIMEOUT`/`TOO_MANY_REQUESTS`）→ `FAIL_CODE_ZH[code] \|\| code` 把英文码直接显示给用户 | 逐码核对：旧代码 9/10 出英文码、新代码 12/12 中文（含反证） | ✅ App `ac89035f`（音源侧仅文档，见报告 §11.4b） |
 
 ## 2. 结论性事实（可复核，非"看起来对"）
 
