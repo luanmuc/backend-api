@@ -659,6 +659,30 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V19b', tSlow > tFast * 3 && tSlow > 600, `coldStartProbeTimeoutMs=800 → 探针 ${tSlow}ms 才放弃（应远大于 ${tFast}ms，证明该键真的可配）`);
   }
 
+  // ============ V20 缓存命中的音质标签必须回填真实档（T33） ============
+  // 历史脏条目：修复前按"请求档"写缓存槽，请求 flac 实给 128k 时这条 128k 被存进 flac 槽。
+  // 旧实现命中后直接信 cached.quality，于是把 128k 标成 FLAC，直到 6h TTL 到期。
+  console.log('\n[V20] 缓存命中回填真实音质：脏缓存不能继续说谎');
+  {
+    const mp3128 = (sec) => {
+      const b = Buffer.alloc(64);
+      b[0] = 0xFF; b[1] = 0xFB; b[2] = 0x90; b[3] = 0x64;
+      b.write('Xing', 36, 'ascii'); b.writeUInt32BE(1, 40);
+      b.writeUInt32BE(Math.round((sec * 44100) / 1152), 44);
+      return b;
+    };
+    const m = fresh(Object.assign({}, BASE_CFG, { verifyOnCacheHit: true }), ['kuwoOfficial']);
+    const S = SONG(9431);
+    const dirtyUrl = 'https://cdn.test/audio.test/dirty-128.mp3';
+    // 脏条目：flac 槽里存 128k 的内容，quality 却记成 flac
+    m.__debug.setCachedUrl(m.__debug.buildCacheKey('kw', S, 'flac'), dirtyUrl, 'flac', 'kuwoOfficial');
+    probeFault = () => audio(mp3128(269.7), 'audio/mpeg', 4315200);
+    fetchFault = () => { throw new Error('脏缓存命中后不应再外呼'); };
+    const r = await m.getUrlWithFallback('kw', S, 'flac');
+    rec('V20a', !!(r && r.url === dirtyUrl), `命中脏缓存（不走外呼），实得 url=${r && r.url ? 'ok' : '空'}`);
+    rec('V20b', !!(r && r.type === '128k'), `槽位=flac 但内容=128k → type 必须回填成 128k，实得 ${r && r.type}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);

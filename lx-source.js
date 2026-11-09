@@ -2838,19 +2838,34 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     // v8.11：缓存命中必须同样验真——旧实现直接返回，导致 6 小时缓存里若存着 5 秒片段，
     // 即便判据修好了，用户照样听 5 秒。#4 期最容易被漏掉的一环
     let cacheOk = true;
+    let realQ = "";   // T33：缓存命中同样要拿到真实档位，否则脏条目会一直把 128k 标成 flac
     if (cfg("verifyOnCacheHit", true)) {
       try {
         const v = await verifyDelivery(cached.url, { platform, handlerId: cached.source || "", quality, songInfo });
         if (v && v.ok === false) {
           cacheOk = false;
           logWarn(`[缓存校验] 内容不合格(${v.code})，清除该条并重新解析: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
+        } else if (v && v.quality) {
+          realQ = String(v.quality).toLowerCase();
         }
       } catch (e) {
         cacheOk = false;
         logDebug(`[缓存校验] 校验异常(${e.code || "?"})，清除该条: ${e.message}`);
       }
     }
-    if (cacheOk) return { url: cached.url, type: cached.quality || "128k", subSource: cached.source || "", subSourceName: SOURCE_HANDLERS[cached.source]?.name || "" };
+    if (cacheOk) {
+      // T33：验真已算出真实档位，就把它回填进标签与缓存——旧实现只信 cached.quality，
+      // 历史脏条目（修复前按请求档写槽：请求 flac 实给 128k → 128k 存进 flac 槽）会
+      // 一直显示 FLAC 直到 6h TTL 到期，属于"能纠正却不纠正"。
+      const tagQ = realQ || cached.quality || "128k";
+      const slotQ = String(cached.quality || "").toLowerCase();
+      // 注意：这里**不写缓存**（M14：缓存写入只允许唯一入口、且必须在验真之后）。
+      // 脏条目的槽位留给下一次正常写入修正；命中时每次都用验真结果纠正标签即可。
+      if (realQ && slotQ && realQ !== slotQ) {
+        logInfo(`[缓存回填] ${songInfo?.name || ""} 槽位[${cached.quality}]→实交付[${realQ}]，标签按真实档显示`);
+      }
+      return { url: cached.url, type: tagQ, subSource: cached.source || "", subSourceName: SOURCE_HANDLERS[cached.source]?.name || "" };
+    }
     successCache.delete(cacheKey);
   }
 
@@ -3251,7 +3266,7 @@ if (typeof module !== "undefined" && module.exports) {
     // v3.0：健康统计快照（App 健康面板/巡检消费）
     getHealthSnapshot
   };
-  // 测试钩子（只读快照，非枚举）：压测需要验证「纯判据」语义（如音质短路到期放行、
+  // 测试钩子（非枚举）：压测需要验证「纯判据」语义（如音质短路到期放行、
   // 单源探针超时），而端到端外呼层会被冷却/摘除/失败缓存多层叠加干扰（实测无法隔离）。
   // 非枚举可避免影响导出面断言；不暴露任何写能力给外部调用方。
   Object.defineProperty(module.exports, "__debug", {
@@ -3260,6 +3275,8 @@ if (typeof module !== "undefined" && module.exports) {
       qualitySkipProbeAt,
       probeSingleSource,
       sniffAudioBytes,
+      setCachedUrl,      // 供测试构造脏缓存（复现"槽位是 flac、内容是 128k"的历史条目）
+      buildCacheKey,
       breakerMap,
       playDeadStreak,
       qualityShortCircuitKey,
