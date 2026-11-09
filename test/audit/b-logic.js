@@ -92,7 +92,8 @@ const restoreTime = () => { Date.now = REAL; };
     ['44100Hz 269.7s', () => audio(flac(269.7, 44100), 'audio/flac', 55397039), 'PASS'],
     ['48000Hz 269.7s', () => audio(flac(269.7, 48000), 'audio/flac', 55397039), 'PASS'],
     ['总样本 0（无法定时长）', () => audio(flac(0, 44100, true), 'audio/flac', 55397039), 'PASS'],
-    ['截断头（只有 fLaC 4 字节）', () => audio(Buffer.from('fLaC'), 'audio/flac', 55397039), 'PASS'],
+    // D-29：4 字节的「头」连 STREAMINFO(34B) 都不到，不可能解码——必须拒绝，旧期望 PASS 是纵容假成功
+    ['截断头（只有 fLaC 4 字节）', () => audio(Buffer.from('fLaC'), 'audio/flac', 55397039), 'REJECT'],
   ]) {
     fresh(['suyinKuwo']); scene = oneSource(); probeFn = fn; reset();
     let pass = false, d = '';
@@ -105,7 +106,8 @@ const restoreTime = () => { Date.now = REAL; };
   console.log('\n[C3] MP3 Xing 帧数解析');
   for (const [name, fn, want] of [
     ['Xing 269.8s（与 271s 差 0.4%）', () => audio(mp3(269.8), 'audio/mpeg', 10792943), 'PASS'],
-    ['无 Xing 头（无法定时长）', () => audio(Buffer.from([0x49, 0x44, 0x33, 0x03]), 'audio/mpeg', 10792943), 'PASS'],
+    // D-29：ID3 头 10 字节 + 帧头 4 字节才够 16 字节门槛，4 字节同样不可播
+    ['无 Xing 头（无法定时长）', () => audio(Buffer.from([0x49, 0x44, 0x33, 0x03]), 'audio/mpeg', 10792943), 'RASS'],
     ['Xing 5.3s（片段）', () => audio(mp3(5.3), 'audio/mpeg', 84972), 'REJECT'],
   ]) {
     fresh(['suyinKuwo']); scene = oneSource(); probeFn = fn; reset();
