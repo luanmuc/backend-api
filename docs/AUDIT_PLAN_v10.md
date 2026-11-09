@@ -63,7 +63,7 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 
 | ID | 缺口 | 为什么算缺口（证据） | 验证方法 | 验收标准 |
 |---|---|---|---|---|
-| **G1** | CI 不跑审计脚本 | `.github/workflows/*.yml` 对 `test/audit/` 的引用数 = **0**；本地 13 项门禁只有 6 项在 CI | `grep -c "audit/" .github/workflows/*.yml` + 逐项对照 | 每项本地门禁都能在 CI 找到对应 step，或明确记录"故意不进 CI"及理由 |
+| **G1** | CI 不跑审计脚本 | `.github/workflows/*.yml` 对 `test/audit/` 的引用数 = **0**；本地 14 项门禁（口径见 §6.2：含 docs-audit；历史 13 项不含它）只有 6 项在 CI | `grep -c "audit/" .github/workflows/*.yml` + 逐项对照 | 每项本地门禁都能在 CI 找到对应 step，或明确记录"故意不进 CI"及理由 |
 | **G2** | 平台覆盖只有 kw | `req()` 默认 `source='kw'`，全部测试都用 kw 的歌；`wy/tx/mg/kg` 链路无断言 | 统计测试里各平台出现次数；对 wy/tx/mg 各构造一次取链 | 至少 wy、tx 各有一条真实取链断言，或记录"结构同 kw、风险可控"的代码依据 |
 | **G3** | 配置面只读键无回滚通道 | `USER_CONFIG` 39 键，`ALLOWED_KEYS` 15 键；`verifyDelivery` 等开关不可 App 写 | 对比两集合；确认"可关闭/可回滚"承诺的落地方式 | 明确哪些键属于"只能改脚本"，并把这句写进文档，不再声称"可回滚" |
 | **G4** | 同源并发写竞态 | 所有测试都是串行 `await`；`setCachedUrl` 单写点在并发下是否重复写未验 | `maxConcurrency=1e6` 下并发 5 个同歌请求，查缓存条目数与 upstream 外呼数 | 外呼数 ≤ 1 或明确记录"允许 N 次"的设计依据 |
@@ -128,6 +128,31 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 
 **执行顺序**：1 → 2 → 3 → 4 → 7 → 8。前三条是行为修复，各需独立验证；后三条是文档与验证补全。
 
+### 6.2 门禁口径（统一写 14 项）
+
+全仓此前两套说法并存：**13 项**（不含 `docs-audit`）与 **14 项**（含它）。两个数都对，差在 `docs-audit` 由独立 workflow（`.github/workflows/docs-audit.yml`，每周一）跑，不在 `ci.yml` 里。
+
+统一口径：**14 项**，逐项列出——
+
+| # | 门禁 | 脚本 | 进 ci.yml（本轮后） |
+|---|---|---|---|
+| 1 | 冒烟 | `test/lx-source-smoke-test.js`（67 组） | ✓ |
+| 2 | 静态 | `test/audit/a-static.js` | ✓ 本轮新增 |
+| 3 | 逻辑 | `test/audit/b-logic.js` | ✓ 本轮新增 |
+| 4 | 功能 | `test/audit/d-func.js` | ✓ 本轮新增 |
+| 5 | 扩展 | `test/audit/e-extra.js`（84 条） | ✓ 本轮新增 |
+| 6 | 仓库 | `test/audit/f-repo.js`（50 条） | ✓ 本轮新增 |
+| 7 | 元审计 | `test/audit/g-meta.js`（14 条） | ✓ 本轮新增 |
+| 8 | 开关 | `test/audit/h-toggles.js` | ✓ 本轮新增 |
+| 9 | 压测 | `test/stress-test.js`（12 条） | ✓ |
+| 10 | 第三轮压测 | `test/stress-round3.js`（14 条） | ✓ 本轮新增 |
+| 11 | 候选恢复 | `test/candidate-audit-test.js` | ✓ |
+| 12 | 自检门 | `scripts/self-check.js` | ✓ |
+| 13 | 变异 | `test/mutation/run.js`（12 变异体） | ✓ 夜间调度（本轮新增） |
+| 14 | 文档 | `scripts/docs-audit.js` | 独立 workflow（每周一） |
+
+以后写"全绿"必须带口径，避免 13/14 被当成回归。
+
 ### 6.1 销项记录（2026-11-09）
 
 | # | 编号 | 状态 | 提交 / 证据 |
@@ -135,9 +160,9 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | 1 | D-24 + D-25 | ✅ 已修 | App `f9ba9108`：顺序改「导新 → 切新并等 init(8s 上限) → 删旧」，`setApiSource` 返回 `apiInitPromise[0]`；tsc 无新增错误 |
 | 2 | C-1 | ✅ 已修 | 音源 `a57d593`：新增 `assertDeliverableUrl`，接入 3 处 `isAudioPlayable` 之前；`PARAM_ERROR` 补 1min TTL。复现对比：修前 `LINK_EXPIRED`，修后 `PARAM_ERROR` |
 | 3 | G4 | ✅ 已修 | 音源：`inflightUrl` 按 `platform\|quality\|songmid\|name\|singer\|duration` 合并并发；新断言 G4b/G4c（先红后绿：外呼 5→1，5/5 拿到 url） |
-| 4 | G1 | ⏳ 待做 | — |
+| 4 | G1 | ✅ 已修 | 音源 `0ee8c5e`：ci.yml 新增 L3/L4/L5 三步 + nightly mutation job；7 个审计脚本全部进 CI |
 | 5 | D-22 | ✅ 已修 | 前序提交 |
 | 6 | D-23 | ✅ 已修 | App `9c8ea039` |
-| 7 | 口径统一 | ⏳ 待做 | — |
-| 8 | 验证补全 | ⏳ 待做 | — |
+| 7 | 口径统一 | ✅ 已修 | v10 §6.2 给出 14 项逐项清单；第五轮报告注「不含 docs-audit」 |
+| 8 | 验证补全 | ✅ 完成 | PARAM_LIMITS 15/15 拦住；G9 数值 15/15 一致；G5 成功路径 200/600 次长跑缓存生效、超限淘汰不增长 |
 
