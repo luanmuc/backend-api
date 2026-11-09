@@ -45,7 +45,7 @@ const USER_CONFIG = {
   rateWindowMax: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.rateWindowMax) || 5,              // 窗口内请求上限
   healthCheckIntervalMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthCheckIntervalMs) || 600000, // 探测间隔(10min)
   raceMatchWaitMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceMatchWaitMs) || 600,         // verified 等待窗口
-  allFailShortTtlMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) || 30000,      // v6.0：全链网络类失败短缓存 TTL(补齐 v6.0 漏配键)
+  allFailShortTtlMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) ?? 30000,      // v6.0：全链网络类失败短缓存 TTL(补齐 v6.0 漏配键)
   raceBudgetMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBudgetMs) || 12000,          // v8.8：单次请求总预算(跨音质档共享)
   raceBudgetPerQuality: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBudgetPerQuality) || { flac: 6000, "320k": 5000, "128k": 5000, flac24bit: 6000 }, // v8.10：分档预算（防高音质吃满总预算饿死低档）
   raceBudgetFloorMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBudgetFloorMs != null) ? globalThis.__lxSourceConfig.raceBudgetFloorMs : 3000,     // v8.10：最后一档保底预算(防整次取链失败)
@@ -1493,6 +1493,16 @@ function isPreviewFragmentUrl(url) {
 
 // v1.0 P0-4 (D4)：时长归一化到秒（兼容 ms/秒混用：>5000 视为毫秒）
 function normalizeDurationSec(d) {
+  // v8.11.2（D-37，V32b/c 实测暴露）：源返回的时长常见 mm:ss / hh:mm:ss（如「4:29」），
+  // 旧实现只做 Number(d) → NaN → 0 → songInfoMatch 的「时长差>5s 拒绝」整段失效，
+  // 片段版（时长明显更短）会被当成完整版交付。先按冒号格式解析。
+  if (typeof d === "string" && d.indexOf(":") >= 0) {
+    const parts = d.split(":").map((x) => Number(String(x).trim()));
+    if (parts.some((x) => !Number.isFinite(x) || x < 0)) return 0;
+    if (parts.length === 2) return Math.round(parts[0] * 60 + parts[1]);
+    if (parts.length === 3) return Math.round(parts[0] * 3600 + parts[1] * 60 + parts[2]);
+    return 0;
+  }
   const v = Number(d);
   if (!Number.isFinite(v) || v <= 0) return 0;
   return v > 5000 ? Math.floor(v / 1000) : Math.round(v);
@@ -1524,7 +1534,8 @@ function parseMessageSongInfo(message) {
     if (line.startsWith("歌手：")) result.singer = line.replace("歌手：", "").trim();
     if (line.startsWith("专辑：")) result.album = line.replace("专辑：", "").trim();
     // v1.0 P0-4 (D4)：消息路径带时长时一并解析，供时长校验使用
-    if (line.startsWith("时长：")) result.duration = Number(line.replace("时长：", "").trim()) || 0;
+    // D-37：保留原始文本（可能是 mm:ss），交由 normalizeDurationSec 统一解析——旧实现这里就 Number() 掉了
+    if (line.startsWith("时长：")) result.duration = line.replace("时长：", "").trim();
   }
   return result.song ? result : null;
 }

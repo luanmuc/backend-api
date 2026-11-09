@@ -612,27 +612,34 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
         ? { statusCode: 500, headers: {}, body: 'cold' }   // 预热目标恒冷（onrender 冷态失败）
         : audio(271));
     };
+    // 预热是后台异步：固定 sleep 在负载下必然偶发（V18c 曾多次假红）。
+    // 改为「等到调用计数连续 3 次采样不变」再取值。
+    const settle = async (getter, budget = 2500) => {
+      let last = getter(), same = 0;
+      const t0 = Date.now();
+      while (Date.now() - t0 < budget) {
+        await sleep(25);
+        const cur = getter();
+        if (cur === last) { if (++same >= 3) return cur; } else { last = cur; same = 0; }
+      }
+      return getter();
+    };
 
     setup({ coldStartWarmEnabled: false });
     await invoke('kw', '128k', SONG(9301), 'v18a');
-    await sleep(80);
-    const w0 = callsOf(WARM);
+    const w0 = await settle(() => callsOf(WARM));
 
     setup({ coldStartWarmEnabled: true, coldStartWarmTtlMs: 600000 });
     await invoke('kw', '128k', SONG(9302), 'v18b');
-    await sleep(80);
-    const w1 = callsOf(WARM);
+    const w1 = await settle(() => callsOf(WARM));
     await invoke('kw', '128k', SONG(9303), 'v18c1');   // TTL 内再请求
-    await sleep(80);
-    const w2 = callsOf(WARM);
+    const w2 = await settle(() => callsOf(WARM));
 
     setup({ coldStartWarmEnabled: true, coldStartWarmTtlMs: 5 });
     await invoke('kw', '128k', SONG(9304), 'v18d1');
-    await sleep(80);
-    const w3 = callsOf(WARM);
+    const w3 = await settle(() => callsOf(WARM));
     await invoke('kw', '128k', SONG(9305), 'v18d2');   // TTL 已过期
-    await sleep(80);
-    const w4 = callsOf(WARM);
+    const w4 = await settle(() => callsOf(WARM));
 
     rec('V18a', w0 === 0, `coldStartWarmEnabled=false → 预热外呼 ${w0} 次（应 0）`);
     rec('V18b', w1 >= 1, `coldStartWarmEnabled=true → 预热外呼 ${w1} 次（应 >=1，否则 V18a 恒真）`);
@@ -1037,6 +1044,94 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     const n2 = Object.values(counts).reduce((a, b) => a + b, 0);
     rec('V31c', n2 === n1, `退避期内应直接跳过不再外呼（调用数 ${n1}→${n2}）`);
     rec('V31d', !!(e31b), `退避期内请求应失败（无可用源），实测 ${e31b ? String(e31b.code) : '意外成功'}`);
+  }
+
+  // ============ R5-C2 时长格式：mm:ss / hh:mm:ss 是否真的被解析 ============
+  console.log('\n[V32] 时长格式解析：响应用 mm:ss 时片段版应照样被拒');
+  {
+    const S32 = { name: '晴天', singer: '周杰伦', duration: 269700 };   // 269.7 秒
+    const run32 = async (durText) => {
+      const m = fresh(Object.assign({}, BASE_CFG, { verifyDelivery: false }), ['suyinKuwo']);  // 只测 songInfoMatch，不掺验真
+      fetchFault = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v32.mp3\n歌名：晴天\n歌手：周杰伦\n时长：${durText}` }) });
+      probeFault = () => audio(flac(269.7), 'audio/flac', 55397039);
+      try { return { r: await m.getUrlWithFallback('kw', S32, '128k') }; } catch (e) { return { err: e }; }
+    };
+    // 对照：数字时长 5（秒）→ 与 269.7 差 264s → 应拒绝
+    const num = await run32('5');
+    rec('V32a', !!(num.err), `数字时长 5 与 269.7 差 264s 应被拒（对照基准），实测 ${num.r ? '放行' : String(num.err.code)}`);
+    // mm:ss 时长 0:05（5 秒）→ 应与数字路径等效被拒
+    const mmss = await run32('0:05');
+    rec('V32b', !!(mmss.err), `mm:ss 0:05 应等效被拒（解析生效），实测 ${mmss.r ? '放行(m:m 未被解析)' : String(mmss.err.code)}`);
+    // hh:mm:ss 0:00:05
+    const hms = await run32('0:00:05');
+    rec('V32c', !!(hms.err), `hh:mm:ss 0:00:05 应等效被拒，实测 ${hms.r ? '放行(未被解析)' : String(hms.err.code)}`);
+    // 正例：mm:ss 4:29 与 269.7 差 0.7s → 应放行
+    const okMM = await run32('4:29');
+    rec('V32d', !!(okMM.r && okMM.r.url), `mm:ss 4:29 与 269.7 相符应放行，实测 ${okMM.r ? '放行' : '误拒 ' + String(okMM.err && okMM.err.code)}`);
+  }
+
+  // ============ R5-C3 FLAC 多 STREAMINFO（STREAMINFO 不在首个元数据块） ============
+  console.log('\n[V33] FLAC 解析：前置 PADDING 块时仍应找到 STREAMINFO');
+  {
+    const flacPadded = (sec, sr = 44100) => {
+      const b = Buffer.alloc(128);
+      b.write('fLaC', 0, 'ascii');
+      b[4] = 0x01; b.writeUIntBE(20, 5, 3);          // 块1：PADDING，len=20（非 STREAMINFO）
+      const p = 28;                                   // 块2 起点
+      b[p] = 0x80; b.writeUIntBE(34, p + 1, 3);       // 块2：STREAMINFO(untyped=0, last=1)，len=34
+      const q = p + 4 + 10;
+      b[q] = (sr >> 12) & 0xFF;
+      b[q + 1] = (sr >> 4) & 0xFF;
+      b[q + 2] = ((sr & 0x0F) << 4);
+      const total = Math.round(sec * sr);
+      b[q + 3] = 0x00;
+      b[q + 4] = (total >>> 24) & 0xFF;
+      b[q + 5] = (total >>> 16) & 0xFF;
+      b[q + 6] = (total >>> 8) & 0xFF;
+      b[q + 7] = total & 0xFF;
+      return b;
+    };
+    const S33 = { name: '晴天', singer: '周杰伦', duration: 269700 };
+    const run33 = async (audioResp) => {
+      const m = fresh(Object.assign({}, BASE_CFG, { verifyDelivery: true }), ['suyinKuwo']);
+      fetchFault = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v33.flac\n歌名：晴天\n歌手：周杰伦\n时长：269.7` }) });
+      probeFault = audioResp;
+      try { return { r: await m.getUrlWithFallback('kw', S33, '128k') }; } catch (e) { return { err: e }; }
+    };
+    const full = await run33(() => audio(flacPadded(269.7), 'audio/flac', 55397039));
+    rec('V33a', !!(full.r && full.r.url), `前置 PADDING 的 FLAC(269.7s) 应可交付，实测 ${full.r ? '通过' : String(full.err && full.err.code)}`);
+    const frag = await run33(() => audio(flacPadded(5), 'audio/flac', 55397039));
+    rec('V33b', !!(frag.err && String(frag.err.code) === 'PREVIEW_FRAGMENT'), `前置 PADDING 的 FLAC(5s) 仍应判片段（证明时长真被解析），实测 ${frag.r ? '放行(解析失败)' : String(frag.err && frag.err.code)}`);
+  }
+
+  // ============ R5-A2 短路/失败缓存类配置键 ============
+  console.log('\n[V34] allFailShortTtlMs：全失败短缓存期内是否真的不再外呼');
+  {
+    const S34 = { name: '晴天', singer: '周杰伦', duration: 269700 };
+    const m = fresh(Object.assign({}, BASE_CFG, { allFailShortTtlMs: 60000, failCacheExpiredMs: 20, failCacheNotFoundMs: 20 }), ['suyinKuwo']);
+    fetchFault = () => ({ error: 'ECONNRESET' });   // 网络类失败 → 全失败
+    probeFault = () => ({ error: 'ECONNRESET' });
+    let e1 = null;
+    try { await m.getUrlWithFallback('kw', S34, '128k'); } catch (e) { e1 = e; }
+    rec('V34a', !!(e1), `首次全失败应抛错，实测 ${e1 ? String(e1.code) : '意外成功'}`);
+    const n1 = Object.values(counts).reduce((a, b) => a + b, 0);
+    let e2 = null;
+    try { await m.getUrlWithFallback('kw', S34, '128k'); } catch (e) { e2 = e; }
+    const n2 = Object.values(counts).reduce((a, b) => a + b, 0);
+    rec('V34b', n2 === n1, `allFailShortTtlMs=60s 内再请求应直接命中失败缓存不再外呼（${n1}→${n2}）`);
+    rec('V34c', !!(e2), `短缓存期内仍应失败，实测 ${e2 ? String(e2.code) : '意外成功'}`);
+
+    // 对照：TTL 置 0（不缓存）→ 每次都要重新外呼
+    const m2 = fresh(Object.assign({}, BASE_CFG, { allFailShortTtlMs: 0, failCacheExpiredMs: 20, failCacheNotFoundMs: 20 }), ['suyinKuwo']);
+    fetchFault = () => ({ error: 'ECONNRESET' });
+    probeFault = () => ({ error: 'ECONNRESET' });
+    try { await m2.getUrlWithFallback('kw', S34, '128k'); } catch (e) { /* 期望失败 */ }
+    const n3 = Object.values(counts).reduce((a, b) => a + b, 0);
+    try { await m2.getUrlWithFallback('kw', S34, '128k'); } catch (e) { /* 期望失败 */ }
+    const n4 = Object.values(counts).reduce((a, b) => a + b, 0);
+    rec('V34d', n4 > n3, `allFailShortTtlMs=0 应不缓存、每次重新外呼（${n3}→${n4}）`);
   }
 
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
