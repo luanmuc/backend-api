@@ -1134,6 +1134,56 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V34d', n4 > n3, `allFailShortTtlMs=0 应不缓存、每次重新外呼（${n3}→${n4}）`);
   }
 
+  // ============ R5-A3 内部键：maxConcurrency / qualityShortCircuitSamples / raceBudgetMs ============
+  console.log('\n[V35] 内部键真生效：并发上限、短路样本数、竞速预算');
+  {
+    const S35 = { name: '晴天', singer: '周杰伦', duration: 269700, hash: 'H35AAA' };
+    const ok35 = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v35.mp3\n歌名：晴天\n歌手：周杰伦\n时长：269.7` }) });
+
+    // --- maxConcurrency：上限 1 时，第二个并发请求应被本地并发保护拦下 ---
+    const slowAudio = () => ({ delay: 400, resp: audio(flac(269.7), 'audio/flac', 55397039) });
+    const m1 = fresh(Object.assign({}, BASE_CFG, { maxConcurrency: 1, rateWindowMax: 100000 }), ['suyinKuwo']);
+    fetchFault = ok35;
+    probeFault = () => ({ delay: 400, statusCode: 206, headers: { 'content-range': 'bytes 0-1023/55397039', 'content-type': 'audio/flac' }, body: flac(269.7) });
+    const S35b = { name: '七里香', singer: '周杰伦', duration: 299000, hash: 'H35BBB' };
+    const pA = m1.getUrlWithFallback('kw', S35, '128k').then((r) => ({ ok: true, r })).catch((e) => ({ ok: false, e }));
+    await sleep(30);
+    const pB = m1.getUrlWithFallback('kw', S35b, '128k').then((r) => ({ ok: true, r })).catch((e) => ({ ok: false, e }));
+    const [rA, rB] = await Promise.all([pA, pB]);
+    rec('V35a', rA.ok === true, `maxConcurrency=1 时首个请求应成功，实测 ${rA.ok ? '成功' : String(rA.e && rA.e.code)}`);
+    rec('V35b', rB.ok === false && String(rB.e && rB.e.code) === 'RATE_LIMIT',
+      `并发超限的第二个应被 RATE_LIMIT 拦下，实测 ${rB.ok ? '放行(上限失效)' : String(rB.e && rB.e.code)}`);
+
+    // --- qualityShortCircuitSamples：样本数决定「几次失败才算该档不可救」 ---
+    const m2 = fresh(Object.assign({}, BASE_CFG, { qualityShortCircuit: true, qualityShortCircuitSamples: 2 }), ['suyinKuwo']);
+    m2.recordFailure('suyinKuwo', '128k'); m2.recordFailure('suyinKuwo', '128k');
+    const hop2 = m2.__debug.isQualityHopeless('suyinKuwo', '128k');   // 签名是 (sourceId, quality)
+    const m3 = fresh(Object.assign({}, BASE_CFG, { qualityShortCircuit: true, qualityShortCircuitSamples: 5 }), ['suyinKuwo']);
+    m3.recordFailure('suyinKuwo', '128k'); m3.recordFailure('suyinKuwo', '128k');
+    const hop5 = m3.__debug.isQualityHopeless('suyinKuwo', '128k');
+    rec('V35c', hop2 === true, `samples=2，2 次失败后应判该档不可救，实测 ${hop2}`);
+    rec('V35d', hop5 === false, `samples=5，2 次失败后不应判不可救（证明该键生效），实测 ${hop5}`);
+
+    // --- raceBudgetMs：预算大小必须真的决定放弃耗时（相对比较，不用绝对阈值） ---
+    const hangAudio = () => ({ delay: 1500, statusCode: 206, headers: { 'content-range': 'bytes 0-1023/55397039', 'content-type': 'audio/flac' }, body: flac(269.7) });
+    const timed = async (budget) => {
+      const m = fresh(Object.assign({}, BASE_CFG, { raceBudgetMs: budget, raceBudgetFloorMs: 100 }), ['suyinKuwo']);
+      fetchFault = ok35;
+      probeFault = hangAudio;
+      const t0 = Date.now();
+      try { await m.getUrlWithFallback('kw', S35, '128k'); } catch (e) { /* 预算耗尽应失败 */ }
+      return Date.now() - t0;
+    };
+    const fast = await timed(300);
+    const slowB = await timed(3000);
+    rec('V35e', slowB > fast + 200, `预算 300ms 放弃 ${fast}ms，预算 3000ms 放弃 ${slowB}ms（应后者明显更久）`);
+  }
+
+  // R5-A4 raceBatchStaggerMs：实测不可观测（三源全失败时总耗时被 matchWaitMs 等固定等待
+  // 完全支配，stagger=0 与 300 实测同为 803ms）。该键没有能隔离出来的行为差，
+  // 硬留断言只会得到恒真空转 —— 按「不做凑数」处理，已记录在 docs/PROGRESS_round5.md。
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);

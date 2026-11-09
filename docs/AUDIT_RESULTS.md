@@ -1737,3 +1737,21 @@ MU1~MU16 由既有门禁（stress-round3 / e-extra / b-logic / g-meta / a-static
 MU19 首轮**存活**，反查发现 V25b 其实没覆盖「节流处」的托底（state 直接置 half-open，
 canExecute 对 half-open 恒 false → 只走到熔断处）。补 V25c 后才杀死。
 一次存活的变异体，比十次全绿更能说明断言的真实覆盖边界。
+
+### 26.9 内部配置键可观测化：V35 五条（V 组 120→125）
+
+曾被判为「无独立可观测点」的三个内部键，实测后**两个确实能观测、一个确实不能**。
+
+| 键 | 观测手段 | 结论 |
+|---|---|---|
+| `maxConcurrency` | 上限=1 时并发第二个请求 → 应被 `RATE_LIMIT` 拦（V35a/b） | 可观测 ✓ |
+| `qualityShortCircuitSamples` | 用只读钩子 `isQualityHopeless` 差分 2 vs 5（V35c/d） | 可观测 ✓ |
+| `raceBudgetMs` | 挂起 1.5s 的音频源，预算 300 vs 3000 比较放弃耗时（V35e） | 可观测 ✓ |
+| `raceBatchStaggerMs` | 三源全失败、batchSize=1，比较总耗时 | **不可观测** ✗ |
+
+`raceBatchStaggerMs` 失败细节：stagger=0 与 300 实测**同为 803ms**，错峰间隔被
+`raceMatchWaitMs` 等固定等待完全支配，隔离不出行为差。该断言已删除并留注释说明，
+不放宽阈值凑绿——**硬留只会得到恒真空转**。
+
+顺带：`isQualityHopeless` 签名是 `(sourceId, quality)`，首轮误传成 `(platform, song, quality)`
+导致 V35c 假红，修正后通过。
