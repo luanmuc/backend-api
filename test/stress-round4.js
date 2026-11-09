@@ -595,6 +595,49 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
       `首轮 ${c1} 次外呼（真试过），第 4 次 ${c4}（应 0，累计失败后短路拦停）`);
   }
 
+  // ============ V18 冷启动预热三键 ============
+  // huibq 是唯一的 coldStart 源（onrender 免费实例冷态 30s+），首次进链时后台预热。
+  // 预热请求的 URL 固定带 /url/kw/228908/（预热素材歌号），可与主请求精确区分后计数。
+  console.log('\n[V18] 冷启动预热：开关要真生效，TTL 要真决定是否重预热');
+  {
+    const WARM = '/url/kw/228908';
+    const mk = (over) => Object.assign({}, BASE_CFG, {
+      failCacheNotFoundMs: 1, failCacheExpiredMs: 1, allFailShortTtlMs: 1, breakerThreshold: 100,
+    }, over);
+    const setup = (over) => {
+      fresh(mk(over), ['huibq']);
+      fetchFault = (u) => (/onrender/.test(u)
+        ? { statusCode: 500, headers: {}, body: 'cold' }   // 预热目标恒冷（onrender 冷态失败）
+        : audio(271));
+    };
+
+    setup({ coldStartWarmEnabled: false });
+    await invoke('kw', '128k', SONG(9301), 'v18a');
+    await sleep(80);
+    const w0 = callsOf(WARM);
+
+    setup({ coldStartWarmEnabled: true, coldStartWarmTtlMs: 600000 });
+    await invoke('kw', '128k', SONG(9302), 'v18b');
+    await sleep(80);
+    const w1 = callsOf(WARM);
+    await invoke('kw', '128k', SONG(9303), 'v18c1');   // TTL 内再请求
+    await sleep(80);
+    const w2 = callsOf(WARM);
+
+    setup({ coldStartWarmEnabled: true, coldStartWarmTtlMs: 5 });
+    await invoke('kw', '128k', SONG(9304), 'v18d1');
+    await sleep(80);
+    const w3 = callsOf(WARM);
+    await invoke('kw', '128k', SONG(9305), 'v18d2');   // TTL 已过期
+    await sleep(80);
+    const w4 = callsOf(WARM);
+
+    rec('V18a', w0 === 0, `coldStartWarmEnabled=false → 预热外呼 ${w0} 次（应 0）`);
+    rec('V18b', w1 >= 1, `coldStartWarmEnabled=true → 预热外呼 ${w1} 次（应 >=1，否则 V18a 恒真）`);
+    rec('V18c', w2 === w1, `coldStartWarmTtlMs=600s 内再请求 → 预热仍 ${w2} 次（应不重复预热）`);
+    rec('V18d', w4 > w3, `coldStartWarmTtlMs=5ms 过期后再请求 → 预热 ${w3}→${w4}（应重预热）`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);

@@ -1225,3 +1225,21 @@ return m && ERROR_CODES[m[1]] ? m[1] : NETWORK_ERROR;   // ERROR_CODES['SONG_MIS
 **压测脚本自身的缺陷（已修）**：`const CODES = () => fresh().ERROR_CODES` 会在 `isLegalCode` 每次被调用时**重新加载模块**，把 `counts` / 熔断 / 短路 / 缓存全部清零 —— 表现为外呼计数出现负数（`-5`）、短路永远积累不起来。改为测试开始前取一次快照。修后 51 条既有断言仍全绿，说明它们都以 `fresh` 起跑、不依赖跨调用累积，未造成假绿；但这类「辅助函数偷偷重置状态」的写法值得在其它测试里排查。
 
 **仍零覆盖的 3 个配置键**：`coldStartProbeTimeoutMs / coldStartWarmEnabled / coldStartWarmTtlMs`（冷启动预热三键，需控制 `coldStartWarmAt` 时间轴）。
+
+
+## §19 冷启动预热三键（2026-11-09）
+
+`huibq` 是唯一的 `coldStart` 源（跑 onrender 免费实例，冷态 30s+ 远超单源超时），首次进链时后台 fire-and-forget 预热。预热请求 URL 固定带 `/url/kw/228908/`（预热素材歌号），据此可与主请求精确区分计数。
+
+| 用例 | 条件 | 实测 |
+|---|---|---|
+| V18a | `coldStartWarmEnabled=false` | 预热外呼 **0** 次 |
+| V18b | `=true` | 预热外呼 **2** 次（多档各触发一次） |
+| V18c | `coldStartWarmTtlMs=600s` 内再请求 | 仍 **2** 次，不重复预热 |
+| V18d | `TTL=5ms` 过期后再请求 | **2 → 4**，重预热 |
+
+**反向验证**：把预热入口改成 `if (false)` → V18b/V18d 翻红（预热次数归 0）。
+
+**一个组合陷阱**：V18c 单独看会空转 —— 断言是 `w2 === w1`，预热整体失效时 `0 === 0` 也成立。它靠 V18b（`w1 >= 1`）锚定才有效。这类「相等型断言」必须配一条存在性断言，否则改坏上游就变成恒绿。
+
+**仍零覆盖**：`coldStartProbeTimeoutMs`（健康探测超时，属巡检探针链路，压测无该入口）；`qualityShortCircuitProbeMs` 的到期放行（被失败缓存干扰，见 §18）。
