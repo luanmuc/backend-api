@@ -139,9 +139,13 @@ const MUTANTS = [
   },
   {
     id: 'MU18',
-    name: '验真间隔阈值退回 || 读配置（0 被吞，D-35 保护）',
-    from: 'verifyDurGapSec: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurGapSec) ?? 15',
-    to: 'verifyDurGapSec: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurGapSec) || 15',
+    name: '验真比例阈值退回 || 读配置（0 被吞成 0.6，D-35 保护）',
+    // 原版此处变异 verifyDurGapSec，但那是等价变异体：判据是
+    // `ratio < 0.6 && gap > 15` 的 AND，能走到 gap 判据时 gap 必然远大于 15
+    // （实际 < 原曲 60% 时差值必然 > 24s），gap 传 0 与传 15 行为完全相同，无法区分。
+    // 改为变异 verifyDurRatio：配置 0（最严以外的合法值）会被 || 吞成 0.6，可观测。
+    from: 'verifyDurRatio: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurRatio) ?? 0.6',
+    to: 'verifyDurRatio: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurRatio) || 0.6',
     gates: ['test/stress-round4.js'],
   },
   {
@@ -149,6 +153,20 @@ const MUTANTS = [
     name: '去掉半开退回 open（节流路径卡死，D-34 保护）',
     from: 'revertHalfOpenOnSkip(handler.id); // D-34：同上，节流也在 try 之外抛',
     to: '// D-34 变异体：删掉半开退回',
+    gates: ['test/stress-round4.js'],
+  },
+  {
+    id: 'MU20',
+    name: '冒号时长解析回退成只 Number()（mm:ss 失效，D-37 保护）',
+    from: 'if (typeof d === "string" && d.indexOf(":") >= 0) {',
+    to: 'if (false) { // D-37 变异体：砍掉冒号格式解析',
+    gates: ['test/stress-round4.js'],
+  },
+  {
+    id: 'MU21',
+    name: 'allFailShortTtlMs 退回 || 读配置（0 被吞，D-38 保护）',
+    from: 'globalThis.__lxSourceConfig.allFailShortTtlMs) ?? 30000',
+    to: 'globalThis.__lxSourceConfig.allFailShortTtlMs) || 30000',
     gates: ['test/stress-round4.js'],
   },
 

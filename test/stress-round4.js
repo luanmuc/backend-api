@@ -881,7 +881,12 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
 
     // verifyMinOriginalSec / verifyDurGapSec：阈值放宽后同一片段应被放行
     const strict = await run26({ verifyDelivery: true, verifyMinOriginalSec: 90, verifyDurRatio: 0.6, verifyDurGapSec: 15 });
-    const loose = await run26({ verifyDelivery: true, verifyMinOriginalSec: 1, verifyDurRatio: 0, verifyDurGapSec: 0 });
+    // L1315 是 AND：`ratio < verifyDurRatio && gap > verifyDurGapSec` 同时成立才判片段。
+    // 因此 verifyDurGapSec=0 的语义是「任何绝对差都拒」（最严），不是「不设限」；
+    // 想放宽必须把 gap 放到比实际差值更大（这里差 264s，取 300）。
+    // 用 ratio=0.6（比例判据成立）+ gap=300（差异判据不成立）→ 只由 gap 决定放行，该键才被单独钉住。
+    // （若 gap 用 0，MU18 退回 || 时 V26f 仍绿 —— 这正是全量变异跑出 MU18 存活的原因。）
+    const loose = await run26({ verifyDelivery: true, verifyMinOriginalSec: 1, verifyDurRatio: 0.6, verifyDurGapSec: 300 });
     rec('V26e', !!(strict.err && String(strict.err.code) === 'PREVIEW_FRAGMENT'), `阈值收紧应拒片段，实测 ${strict.r ? '放行(失效)' : String(strict.err && strict.err.code)}`);
     rec('V26f', !!(loose.r && loose.r.url), `阈值放宽应放行同一片段，实测 ${loose.r ? '放行' : '仍拒绝 ' + String(loose.err && loose.err.code)}`);
   }
@@ -1146,7 +1151,7 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     const m1 = fresh(Object.assign({}, BASE_CFG, { maxConcurrency: 1, rateWindowMax: 100000 }), ['suyinKuwo']);
     fetchFault = ok35;
     probeFault = () => ({ delay: 400, statusCode: 206, headers: { 'content-range': 'bytes 0-1023/55397039', 'content-type': 'audio/flac' }, body: flac(269.7) });
-    const S35b = { name: '七里香', singer: '周杰伦', duration: 299000, hash: 'H35BBB' };
+    const S35b = { name: '晴天', singer: '周杰伦', duration: 269700, hash: 'H35BBB' };   // 同歌不同 hash：过歌信校验、避开同一缓存槽
     const pA = m1.getUrlWithFallback('kw', S35, '128k').then((r) => ({ ok: true, r })).catch((e) => ({ ok: false, e }));
     await sleep(30);
     const pB = m1.getUrlWithFallback('kw', S35b, '128k').then((r) => ({ ok: true, r })).catch((e) => ({ ok: false, e }));
@@ -1154,6 +1159,17 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V35a', rA.ok === true, `maxConcurrency=1 时首个请求应成功，实测 ${rA.ok ? '成功' : String(rA.e && rA.e.code)}`);
     rec('V35b', rB.ok === false && String(rB.e && rB.e.code) === 'RATE_LIMIT',
       `并发超限的第二个应被 RATE_LIMIT 拦下，实测 ${rB.ok ? '放行(上限失效)' : String(rB.e && rB.e.code)}`);
+
+    // 对照：上限放到 5 时，同样两个并发请求都应放行 —— 否则说明是「恒拦」而不是该键在起作用
+    const m1b = fresh(Object.assign({}, BASE_CFG, { maxConcurrency: 5, rateWindowMax: 100000 }), ['suyinKuwo']);
+    fetchFault = ok35;
+    probeFault = () => ({ delay: 400, statusCode: 206, headers: { 'content-range': 'bytes 0-1023/55397039', 'content-type': 'audio/flac' }, body: flac(269.7) });
+    const pC = m1b.getUrlWithFallback('kw', S35, '128k').then((r) => ({ ok: true })).catch((e) => ({ ok: false, e }));
+    await sleep(30);
+    const pD = m1b.getUrlWithFallback('kw', S35b, '128k').then((r) => ({ ok: true })).catch((e) => ({ ok: false, e }));
+    const [rC, rD] = await Promise.all([pC, pD]);
+    rec('V35f', rC.ok === true && rD.ok === true,
+      `maxConcurrency=5 时两个并发请求都应放行，实测 ${rC.ok ? 'OK' : String(rC.e && rC.e.code)} / ${rD.ok ? 'OK' : String(rD.e && rD.e.code)}`);
 
     // --- qualityShortCircuitSamples：样本数决定「几次失败才算该档不可救」 ---
     const m2 = fresh(Object.assign({}, BASE_CFG, { qualityShortCircuit: true, qualityShortCircuitSamples: 2 }), ['suyinKuwo']);

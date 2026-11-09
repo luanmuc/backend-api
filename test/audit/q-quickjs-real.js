@@ -10,7 +10,7 @@
  * 依赖：`npm i quickjs-emscripten`（或 `NODE_PATH=<装了它的 node_modules> node 本文件`）
  * 没装就 SKIP（不算失败），装了就必须过。
  *
- * 退出码：0 = 通过或跳过；1 = 断言失败。
+ * 退出码：0 = 通过；1 = 断言失败；3 = 依赖缺失（跳过 = 未验证，不算通过）。
  */
 const path = require('path');
 const fs = require('fs');
@@ -22,8 +22,9 @@ for (const p of ['quickjs-emscripten', process.env.QUICKJS_EMSCRIPTEN || '']) {
   try { getQuickJS = require(p).getQuickJS; break; } catch (e) { /* 继续试 */ }
 }
 if (!getQuickJS) {
-  console.log('⚠ [QR] 跳过：未安装 quickjs-emscripten（npm i quickjs-emscripten 后重跑）');
-  process.exit(0);
+  console.log('⚠ [QR] 未验证：未安装 quickjs-emscripten（npm i quickjs-emscripten 后重跑）');
+  console.log('   跳过不等于通过 —— 退出码 3，请勿把本次结果计入断言通过数。');
+  process.exit(3);
 }
 
 const src = fs.readFileSync(SRC, 'utf8');
