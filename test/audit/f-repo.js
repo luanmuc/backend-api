@@ -22,7 +22,8 @@ const rec = (id, name, ok, detail) => {
 const abs = p => path.join(ROOT, p);
 const read = p => fs.readFileSync(abs(p), 'utf8');
 const exists = p => fs.existsSync(abs(p));
-const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
+// core.quotepath=false：否则中文文件名会被转成 "\347\254..." 加引号，statSync 直接 ENOENT
+const files = execFileSync('git', ['-c', 'core.quotepath=false', 'ls-files'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
 const byExt = e => files.filter(f => f.endsWith(e));
 
 // ══ U 组：全文件静态合规 ══

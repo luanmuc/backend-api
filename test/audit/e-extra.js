@@ -593,10 +593,14 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     const fullAudio = () => audio(Buffer.concat([mp3(269.7), Buffer.alloc(1200)]), 'audio/mpeg', 10300000);
     scene = (u) => (String(u).includes('audio.test') ? fullAudio() : json({ code: 200, data: { url: 'https://audio.test/a.mp3' } }));
     probeFn = () => fullAudio();
+    // 判据必须区分"完整版"和"片段兜底成功"——fragmentFallback 开时，被判片段也会返回带 url 的成功对象，
+    // 只看 r.url 存在会把"误判片段"当成 OK（这正是 T5 假绿的老毛病）。
+    const lbl = (r) => (!r || !r.url ? 'EMPTY'
+      : (String(r.subSourceName || '').includes('试听版') ? 'PREVIEW' : 'OK'));
     let d0 = 'ERR';
     let d1 = 'ERR';
-    try { const r = await req('128k', { ...GOOD, songmid: 'edge_d0', duration: 0 }); d0 = r && r.url ? 'OK' : 'EMPTY'; } catch (e) { d0 = e.code || 'ERR'; }
-    try { const r = await req('128k', { ...GOOD, songmid: 'edge_d1', duration: undefined }); d1 = r && r.url ? 'OK' : 'EMPTY'; } catch (e) { d1 = e.code || 'ERR'; }
+    try { const r = await req('128k', { ...GOOD, songmid: 'edge_d0', duration: 0 }); d0 = lbl(r); } catch (e) { d0 = e.code || 'ERR'; }
+    try { const r = await req('128k', { ...GOOD, songmid: 'edge_d1', duration: undefined }); d1 = lbl(r); } catch (e) { d1 = e.code || 'ERR'; }
     rec('EDGE3', '原曲时长缺失(0/undefined)时完整音频不被误判为片段', d0 === 'OK' && d1 === 'OK', `duration=0 → ${d0}；duration=undefined → ${d1}`);
 
     // 音质大小写：全链都做 toLowerCase，请求大写不得分裂缓存键或判成未知档
@@ -605,7 +609,9 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
       const r = await req('FLAC', { ...GOOD, songmid: 'edge_up' });
       up = r && r.url ? `OK:${r.type || ''}` : 'EMPTY';
     } catch (e) { up = e.code || 'ERR'; }
-    rec('EDGE4', '音质大小写不分裂（FLAC 请求与 flac 等价）', String(up).indexOf('OK') === 0, `type=FLAC → ${up}`);
+    // 判据必须看交付档位的值，不能只看"是否交付成功"——
+    // 只看 OK 前缀时，把 fmt 比较改成大小写敏感后仍然绿（type 变成 FLAC 也还是 OK 开头）。
+    rec('EDGE4', '音质大小写不分裂（FLAC 请求交付 320k，不把大写档原样透传）', String(up) === 'OK:320k', `type=FLAC → ${up}`);
 
     // 纵深防御：校验层只挡"写入"，挡不住已经落盘的非法值 / 外部注入。
     // 这里直接注入 raceBudgetMs=NaN（等价于旧配置残留），要求 cfg 回落默认、请求照常交付。
