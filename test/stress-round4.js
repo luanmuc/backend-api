@@ -710,13 +710,27 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V21b', !!looseUrl,
       `兜底档（只带 name+duration）遇同一错歌手 → ${looseUrl ? '放行并交付该链接（会播出错歌）' : '拒绝(' + String(looseErr && looseErr.message).slice(0, 24) + ')'}`);
 
-    // V21c：放行可以，但必须留下可定位的痕迹（静态校验：日志语句必须存在且绑定在兜底档分支）
-    // 运行期捕获不可行——LOG_ENABLED 在模块加载期固化，fresh 传参不生效；故改为源码级守护，防止日志被误删。
-    const fs = require('fs');
-    const path = require('path');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'lx-source.js'), 'utf8');
-    const hasLog = /if \(!item\.strict\)[\s\S]{0,200}歌手未校验/.test(src);
-    rec('V21c', hasLog, `兜底档分支必须落「歌手未校验」日志语句，实得 ${hasLog ? '已存在' : '未找到'}`);
+    // V21c：放行可以，但必须留下可定位的痕迹——运行期断言「日志真的落到了 stdout」。
+    // 注意：safeConsole.log 是加载期 console.log.bind(console)，patch console.log 抓不到（已踩坑）；
+    // 但 bind 的原函数仍写 stdout，故改为捕获 process.stdout.write。
+    // 用全新歌名 + 动态回显，确保走真实解析而不是缓存命中。
+    const NM = '晴天晚风';
+    fetchFault2 = () => ({
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/w21c.mp3\n歌名：${NM}\n歌手：李四\n时长：271` }),
+    });
+    fetchFault = fetchFault2;
+    const chunks = [];
+    const origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (chunk, ...rest) => { chunks.push(String(chunk)); return origWrite(chunk, ...rest); };
+    let gotUrl = null;
+    try { gotUrl = await dbg.suyinKuwoGetUrl({ name: NM, singer: '周杰伦', duration: 271000 }, '128k'); }
+    catch (e) { /* 交付失败不影响本断言 */ }
+    process.stdout.write = origWrite;
+    const hitLog = chunks.filter((x) => x.includes('歌手未校验')).length;
+    rec('V21c', gotUrl && hitLog > 0,
+      `兜底档放行必须真落「歌手未校验」日志到 stdout，实得 ${gotUrl ? '已交付' : '未交付'} / 日志 ${hitLog} 条`);
   }
 
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
