@@ -56,7 +56,7 @@ const setLx = () => {
     version: '2.0.0', env: 'mobile',
     utils: { buffer: { from: (d, e) => Buffer.from(d, e), bufToString: (b, e) => b.toString(e) } },
     request(url, opts, cb) {
-      const u = String(url); const k = u.split('?')[0];
+      const u = String(url); const k = u;   // 保留 query：砍掉后无法按参数断言（如 suyinKuwo 的 br=1 档）
       counts[k] = (counts[k] || 0) + 1;
       const tmo = (opts && opts.timeout) || 99999;
       let r;
@@ -569,30 +569,42 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
   }
 
   // ============ V17 qualityShortCircuitProbeMs：连续失败后短路，到期放行探路 ============
-  // 语义：某源某档累计失败 >= qualityShortCircuitSamples(3) 且期间 0 成功 → 短路跳过该源该档；
+  // 语义：某源某档累计失败 >= qualityShortCircuitSamples(3) 且期间 0 成功 → 跳过该源该档；
   //       probeMs 到期放行一次探路，探路再失败则重新短路。
+  // 两个坑必须避开，否则断言空转：
+  //   ① 源级「播放摘除」（连续3次失败摘出竞速链）会独立造成 0 外呼，会把短路冒充成生效 → playDeadReviveMs 缩到 50ms；
+  //   ② 降档/多关键词会产生别的外呼，「总外呼 >=1」恒真 → 只看 flac 档（URL 里 br=1）的请求数。
   console.log('\n[V17] qualityShortCircuitProbeMs：短路要真拦截，到期要真放行');
   {
     fresh(Object.assign({}, BASE_CFG, {
       qualityShortCircuitSamples: 3, qualityShortCircuitProbeMs: 60,
       failCacheNotFoundMs: 1, failCacheExpiredMs: 1, allFailShortTtlMs: 1, cacheTtlMs: 1,
       breakerThreshold: 100, breakerCooldownMs: 100000,
+      // 源级「播放摘除」用 reviveMs=0 即时解除：PLAY_DEAD_STREAK=3 是硬编码常量改不了，
+      // 但摘除持续时长可配 —— 设 0 表示「刚摘就到期」，等于从未生效，才能把
+      // 「音质短路拦停」从「摘除拦停」里隔离出来（前两版分别设 50/极大都是错的）。
+      playDeadReviveMs: 0,
     }), ['suyinKuwo']);
     fetchFault = () => ({ statusCode: 500, headers: {}, body: 'boom' });  // 该源该档一直失败
-    const step = async (tag, ms) => {
-      await sleep(ms);
-      const c0 = totalCalls();
-      await invoke('kw', 'flac', SONG(9200), tag);
-      return totalCalls() - c0;
+    const FLAC = 'br=1';                       // suyinKuwo 的 flac 档 br=1（320k→5、128k→9）
+    const step = async (tag, songId) => {
+      await sleep(3);
+      const c0 = callsOf(FLAC);
+      await invoke('kw', 'flac', SONG(songId), tag);
+      return callsOf(FLAC) - c0;
     };
-    const c1 = await step('v17-1', 3);
-    const c2 = await step('v17-2', 3);
-    const c3 = await step('v17-3', 3);
-    const c4 = await step('v17-4', 3);
-    // 首轮就会因「多档 × 多关键词」产生多次失败，早已超过 3 次阈值，所以判据是「首轮真试过 + 之后被拦停」；
-    // probeMs 到期放行这条无法与失败缓存隔离验证（5xx 失败本身有 TTL 缓存），不假装覆盖，记入 AUDIT_RESULTS §18。
-    rec('V17a', c1 >= 3 && c4 === 0,
-      `首轮 ${c1} 次外呼（真试过），第 4 次 ${c4}（应 0，累计失败后短路拦停）`);
+    // 每首用不同歌号：失败缓存按歌存，短路 key 按「源:音质」存 —— 前者被换歌绕开，后者照旧累计
+    const c1 = await step('v17-1', 9200);
+    const c2 = await step('v17-2', 9201);
+    const c3 = await step('v17-3', 9202);
+    const c4 = await step('v17-4', 9203);
+    // ⚠ 不设为断言：c4===0 在「从不短路」的变异下同样成立（实测），说明 0 外呼来自
+    // 源级冷却/摘除/失败缓存这些叠加机制，不是音质短路。只作观测输出，不 pretending 覆盖。
+    console.log(`  · [V17a-观测] flac 档外呼：首轮 ${c1} 次 → 第 4 次 ${c4}（若为 0，注意可能由冷却/摘除造成，非短路）`);
+
+    await sleep(100);                          // probeMs=60，已过期
+    const c6 = await step('v17b', 9299);       // 新歌 + 短路已到期
+    console.log(`  · [V17b-观测] probeMs=60 到期后再请求 → flac 档 ${c6} 次外呼（放行后仍为 0 的情况实测存在，根因未定位）`);
   }
 
   // ============ V18 冷启动预热三键 ============
