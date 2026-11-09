@@ -57,6 +57,8 @@ jobs:
           node test/audit/h-toggles.js
       - name: L5 第三轮压力与并发（T1~T12）
         run: node --expose-gc test/stress-round3.js
+      - name: L5.1 第四轮压力测试（V 组 56 条：故障谱系/不变量/MISMATCH/阈值边界/配置面）
+        run: node --expose-gc test/stress-round4.js
       - name: 巡检脚本语法（v8.10.5：覆盖 scripts 下全部脚本，新增脚本自动纳入）
         run: |
           for f in scripts/*.js; do node --check "$f" || exit 1; done
@@ -70,7 +72,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: 变异测试（12 变异体 × 5 门禁，killed 率必须 100%）
+      - name: 变异测试（14 变异体，killed 率必须 100%）
         run: node test/mutation/run.js --full
 
   # ---------- v2.0：每日端点巡检 + 健康表写回 ----------

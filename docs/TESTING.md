@@ -3,6 +3,19 @@
 > **14 个入口**，**没有统一 runner**，逐条跑。断言实测：冒烟 67 组 + 审计 10/30/30/**89**/50/**14**/**6** + 压测 12/14/**56** = **229 条审计断言 + 82 条压测断言**（另有 QuickJS 真引擎 3 条，依赖未装则跳过、不计入；`note` 信息登记不计入；`test/mutation/run.js` 是 12 个变异体，按「能否被门禁杀掉」记）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
+## 〇、CI 覆盖（`.github/workflows/ci.yml`）
+
+三套压测**全部**在 CI 里跑，不是只在本地跑：
+
+| 步骤 | 门禁 | 断言 |
+|---|---|---|
+| L1.3 | `node --expose-gc test/stress-test.js` | 12（S 组，压量） |
+| L5 | `node --expose-gc test/stress-round3.js` | 14（T 组，压态） |
+| L5.1 | `node --expose-gc test/stress-round4.js` | 56（V 组，压判据） |
+| mutation job | `node test/mutation/run.js --full` | 14 个变异体，killed 率必须 100% |
+
+> 说明：`stress-round4` 曾长期缺席 CI（另两套早就在），2026-11-09 补入 L5.1。
+
 ## 一、入口总表
 
 | 入口 | 断言数 | 覆盖 | 依赖 | 命令 |

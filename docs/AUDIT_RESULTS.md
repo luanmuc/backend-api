@@ -1243,3 +1243,44 @@ return m && ERROR_CODES[m[1]] ? m[1] : NETWORK_ERROR;   // ERROR_CODES['SONG_MIS
 **一个组合陷阱**：V18c 单独看会空转 —— 断言是 `w2 === w1`，预热整体失效时 `0 === 0` 也成立。它靠 V18b（`w1 >= 1`）锚定才有效。这类「相等型断言」必须配一条存在性断言，否则改坏上游就变成恒绿。
 
 **仍零覆盖**：`coldStartProbeTimeoutMs`（健康探测超时，属巡检探针链路，压测无该入口）；`qualityShortCircuitProbeMs` 的到期放行（被失败缓存干扰，见 §18）。
+
+
+## §20 CI 门禁补齐与变异测试自身的假杀（2026-11-09）
+
+### 20.1 一处判断错误被纠正
+
+此前我判断「三套压测（12+14+56=82 条）都不在 CI」，核查 `.github/workflows/ci.yml` 后确认**这个判断是错的**：
+
+| 压测 | CI 步骤 | 状态 |
+|---|---|---|
+| `stress-test.js`（12） | L1.3 | 早就在 |
+| `stress-round3.js`（14） | L5 | 早就在 |
+| `stress-round4.js`（56） | — | **只有它没挂** |
+
+已补 `L5.1`（`node --expose-gc test/stress-round4.js`），YAML 校验通过（13 个步骤）。
+
+### 20.2 变异测试补两个变异体
+
+| 变异体 | 改坏什么 | 专属门禁 | 结果 |
+|---|---|---|---|
+| MU13 | 注掉 `songInfoMatch` 的歌手校验 | `stress-round4.js` | 真杀（V11a/V11d 翻红，exit=1） |
+| MU14 | 预热入口改 `if (false)` | `stress-round4.js` | 真杀（V18b/V18d 翻红） |
+
+`run.js` 增加了按变异体指定门禁（`m.gates`），避免只被压测杀的变异体去跑全部审计、把总耗时拖到一小时。
+
+### 20.3 变异测试自身的假杀（真缺陷）
+
+首轮 14 变异体跑出「13 killed / 0 survived / 1 skipped」，但两处结论都不可信：
+
+**① MU6 锚点失效。** D-30 修复改写了 `normalizeErrCode` 的赋值行（`hit || fallback || ...` → `hitKey ? ERROR_CODES[hitKey] : ...`），MU6 的 `from` 字符串再也匹配不上，直接被跳过。修锚点后实测：被 **e-extra + stress-round4** 杀掉。
+
+**② MU13/MU14 是假杀。** 复现时看到 `spawnSync ... ENOBUFS`、`signal=SIGTERM`、`status=null`。根因：`runGates` 的 `spawnSync` 用默认 `maxBuffer`（1MB），而 `stress-round4.js` 日志量远超；缓冲区溢出时 Node 杀掉子进程并返回 `status=null`，旧代码只判 `r.status !== 0` → **把信号杀当成断言判定**。
+
+修法三处：
+- `maxBuffer: 64 * 1024 * 1024`
+- `timeout: 180000 → 300000`
+- `status === null` 单列为 `UNCERTAIN`，**不计入 killed**
+
+修完复验 MU13：`status=1`、`signal=null`、V 组 54/2、失败编号 `V11a, V11d` —— 这才是断言真的发现了变异。
+
+**方法论**：变异测试的 kill 判定必须区分三种情况——断言失败（`status !== 0`）、进程被信号杀/超时（`status === null`）、锚点失配（`SKIPPED`）。只判 `status !== 0` 会把后两者都算成"门禁有效"，killed 率虚高。

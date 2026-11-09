@@ -63,7 +63,7 @@ const MUTANTS = [
   {
     id: 'MU6',
     name: '错误码归一失效（一律归 NETWORK_ERROR）',
-    from: 'err.code = hit || fallback || ERROR_CODES.NETWORK_ERROR;',
+    from: 'err.code = hitKey ? ERROR_CODES[hitKey] : (fallback || ERROR_CODES.NETWORK_ERROR);',
     to: 'err.code = ERROR_CODES.NETWORK_ERROR;',
   },
   {
@@ -102,6 +102,20 @@ const MUTANTS = [
     from: 'inflightCount.set(handler.id, Math.max((inflightCount.get(handler.id) || 0) - 1, 0));',
     to: 'void 0; // mutant: leak inflight',
   },
+  {
+    id: 'MU13',
+    name: '注掉同名错歌的歌手校验（songInfoMatch 不再比对 singer）',
+    from: 'if (songInfo?.singer && singer && !titleMatch(singer, songInfo.singer)) return false;',
+    to: 'if (false && songInfo?.singer && singer) return false;',
+    gates: ['test/stress-round4.js'],
+  },
+  {
+    id: 'MU14',
+    name: '关闭冷启动预热入口（coldStartWarmEnabled 恒不生效）',
+    from: "if (cfg('coldStartWarmEnabled', true)) warmUpColdStartSources(platform);",
+    to: 'if (false) warmUpColdStartSources(platform);',
+    gates: ['test/stress-round4.js'],
+  },
 ];
 
 function copyRepo() {
@@ -115,13 +129,22 @@ function copyRepo() {
 
 function runGates(repo, gates) {
   const killers = [];
+  const uncertain = [];
   for (const g of gates) {
-    const r = cp.spawnSync(process.execPath, [g], {
-      cwd: repo, timeout: 180000, encoding: 'utf8',
+    // maxBuffer 必须放大：压测脚本日志量远超默认 1MB，溢出会让 spawnSync 以 ENOBUFS/SIGTERM
+    // 杀掉进程并返回 status=null —— 那会被误判成「门禁发现」，即假杀。
+    const r = cp.spawnSync(process.execPath, ['--expose-gc', g], {
+      cwd: repo, timeout: 300000, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
     });
-    if (r.status !== 0) killers.push(path.basename(g, '.js'));
+    const name = path.basename(g, '.js');
+    if (r.status === null) {
+      // 被信号杀/超时/buffer 溢出：不是断言判定，不能算 killed
+      uncertain.push(`${name}(${r.signal || (r.error && r.error.code) || 'timeout'})`);
+    } else if (r.status !== 0) {
+      killers.push(name);
+    }
   }
-  return killers;
+  return { killers, uncertain };
 }
 
 function main() {
@@ -144,9 +167,11 @@ function main() {
         continue;
       }
       fs.writeFileSync(workSrc, original.replace(m.from, m.to));
-      const killers = runGates(WORK, gates);
+      const res = runGates(WORK, m.gates || gates);   // 变异体可指定专属门禁（只被压测杀的变异体不必跑全部审计）
+      const killers = res.killers;
       fs.writeFileSync(workSrc, original); // 每个变异体都从原版重来
-      rows.push({ id: m.id, name: m.name, status: killers.length ? 'KILLED' : 'SURVIVED', killers });
+      const status = killers.length ? 'KILLED' : (res.uncertain.length ? 'UNCERTAIN' : 'SURVIVED');
+      rows.push({ id: m.id, name: m.name, status, killers: killers.length ? killers : res.uncertain });
     }
   } finally {
     fs.writeFileSync(workSrc, original);
@@ -160,7 +185,8 @@ function main() {
   for (const r of rows) {
     const mark = r.status === 'KILLED' ? '✓' : (r.status === 'SURVIVED' ? '✗' : '·');
     const extra = r.status === 'KILLED' ? `被 ${r.killers.join(', ')} 杀掉`
-      : (r.status === 'SURVIVED' ? '无门禁发现（断言盲区）' : r.killers[0]);
+      : (r.status === 'SURVIVED' ? '无门禁发现（断言盲区）'
+        : (r.status === 'UNCERTAIN' ? `门禁未给出判定：${r.killers.join(', ')}` : r.killers[0]));
     console.log(`${mark} [${r.id}] ${r.name} — ${extra}`);
   }
   const pct = rows.length ? Math.round((killed / rows.length) * 100) : 0;
