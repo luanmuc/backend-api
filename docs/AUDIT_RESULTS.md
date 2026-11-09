@@ -1284,3 +1284,30 @@ return m && ERROR_CODES[m[1]] ? m[1] : NETWORK_ERROR;   // ERROR_CODES['SONG_MIS
 修完复验 MU13：`status=1`、`signal=null`、V 组 54/2、失败编号 `V11a, V11d` —— 这才是断言真的发现了变异。
 
 **方法论**：变异测试的 kill 判定必须区分三种情况——断言失败（`status !== 0`）、进程被信号杀/超时（`status === null`）、锚点失配（`SKIPPED`）。只判 `status !== 0` 会把后两者都算成"门禁有效"，killed 率虚高。
+
+### 20.4 复跑结果（修完假杀之后）
+
+`node test/mutation/run.js --full --strict`：
+
+```
+14 killed / 0 survived，killed 率 100%
+```
+
+| 变异体 | 杀掉它的门禁 |
+|---|---|
+| MU1 阈值 +1 | stress-round3 |
+| MU2 片段缓存通道 | e-extra |
+| MU3 片段证据不记录 | b-logic, e-extra, stress-round3 |
+| MU4 交付不入缓存 | a-static, b-logic, g-meta |
+| MU5 冷却时长量级错 | stress-round3 |
+| MU6 错误码归一失效 | e-extra |
+| MU7 关闭交付验真闸门 | b-logic, e-extra, stress-round3 |
+| MU8 并发计数不释放 | e-extra |
+| MU9 记忆表上限失效 | e-extra |
+| MU10 配置不防 NaN | e-extra |
+| MU11 5xx 不计熔断 | e-extra |
+| MU12 整链失败不写失败缓存 | a-static, e-extra |
+| **MU13 注掉歌手校验** | **stress-round4** |
+| **MU14 关闭预热入口** | **stress-round4** |
+
+零 skipped、零 uncertain。MU13/MU14 首次让 round4 成为独立杀器（此前 round4 不在任何变异体门禁集里）。
