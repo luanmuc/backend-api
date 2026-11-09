@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **12 个入口**，**没有统一 runner**，逐条跑。断言实测：冒烟 67 组 + 审计 10/30/30/**89**/50/**14**/**6** + 压测 12+**14** = **229 条审计断言 + 26 条压测断言**（另有 `note` 信息登记，不计入通过/失败；`test/mutation/run.js` 是 12 个变异体，按「能否被门禁杀掉」记）。
+> **13 个入口**，**没有统一 runner**，逐条跑。断言实测：冒烟 67 组 + 审计 10/30/30/**89**/50/**14**/**6** + 压测 12+**14** = **229 条审计断言 + 26 条压测断言**（另有 QuickJS 真引擎 3 条，依赖未装则跳过、不计入；`note` 信息登记不计入；`test/mutation/run.js` 是 12 个变异体，按「能否被门禁杀掉」记）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 一、入口总表
@@ -18,6 +18,7 @@
 | `test/stress-test.js` | 12 | 压测 S 组压「量」：并发/预算/配额/熔断/缓存容量/长跑/极端参数/闸门对照/定时器 | `--expose-gc` | `node --expose-gc test/stress-test.js` |
 | `test/stress-round3.js` | 14 | 压测 T 组压「态」：跨档总预算、源级冷却与本地限速分离、片段翻转、闸门 8 组合矩阵、config 热更新、错误码注入、probe 并发、写满容量堆增长、档位串槽、熔断跨源污染 | `--expose-gc` | `node --expose-gc test/stress-round3.js` |
 | `test/candidate-audit-test.js` | 6 | 候选实证流程 | 本地 | `node test/candidate-audit-test.js` |
+| `test/audit/q-quickjs-real.js` | 3（可选） | **真 QuickJS 引擎**跑：能否加载 / 宿主是否真没有 Buffer / 无 Buffer 下 JSON 假交付必须判 NOT_AUDIO（D-28 就靠它抓出） | 需 `quickjs-emscripten`，未装自动 SKIP | `NODE_PATH=<装了它的 node_modules> node test/audit/q-quickjs-real.js` |
 | `test/mutation/run.js` | 12 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（只读仓库，在 /tmp 副本上跑）；全量 12 killed / 0 survived | 本地 | `node test/mutation/run.js [--full] [--strict]` |
 
 ## 二、mock 宿主必须同构的四件事（不照做会出现假故障）
