@@ -1100,7 +1100,7 @@ NaN 恰好从三道门里全穿过去：
 
 要点摘录（详细证据见该报告）：
 
-- 第五轮 6 个提交（`7ae87f2` → `df1603c`），净增 938 行 / 11 文件，抓到 **D-20、D-21** 两个真实缺陷。
+- 第五轮 8 个提交（`7ae87f2` → `4f33d8b`），抓到 **D-20、D-21** 两个真实缺陷。
 - **18 条断言做过注入确认能红**（M13/M14/W1/W2/T2b/T2c/MEM1/MEM3/EDGE1/EDGE2/EDGE3/EDGE4/FAULT2/FAULT4b/FAULT4c/FAULT5/FAULT6/INV3），12 个变异体全部 killed。
 - **B 类补验结果**：7 条确认能红（EDGE1/EDGE3/EDGE4/FAULT2/FAULT5/FAULT6/MEM3，已升入 A 类），5 条判定不可注入（FAULT1、FAULT3、MEM2、INV2、INV5）。
 - **补验中又抓到两条空转**：EDGE3（`d0==="OK"` 分不清完整版与片段兜底）、EDGE4（只看 `OK` 前缀、不看档位值），均已收紧判据后重验。

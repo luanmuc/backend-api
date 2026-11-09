@@ -7,7 +7,7 @@
 >
 > 也就是说：**代码层不可信，断言层同样不可信**。第五轮不再继续"人工挑场景"，而是改成机械化的方式审断言。
 
-## 5.1 MUT：变异测试，用「杀不杀得死」量化断言强度
+## 5.1 MUT：变异测试，用「杀不杀得死」量化断言强度（**已落地**：`test/mutation/run.js` MU1~MU12，全量 12 killed / 0 survived；快组 10/12，MU1/MU5 由 stress-round3 守）
 
 不靠人想场景，而是**机器改代码，看门禁能不能发现**。（已落地：`test/mutation/run.js`，9 个算子；首跑 5/8 killed，补齐 T2c/W2/W2(MEM) 后全量 9/9——详见 `docs/AUDIT_RESULTS.md` §12.6）
 
@@ -46,7 +46,7 @@
 | INV5 | 幂等：同歌同档连续两次（无缓存）交付的 source 相同，或档位不降级 | 两次 fresh 对比 |
 | INV6 | 任何 `fragmentUrlMap` 命中都必须带「试听版」标注（不得当完整版） | 已实现（W1），扩到 320k/128k 档 |
 
-## 5.3 EDGE：边界与时间
+## 5.3 EDGE：边界与时间（**已落地** EDGE1~EDGE5，抓到 D-21 配置 NaN 漏洞；冷却/TTL ±1ms 与 `songmid` 含 `|` 见 §12.9 未做理由）
 
 四轮测的都是"正常值附近"，边界几乎没碰：
 
@@ -60,7 +60,7 @@
 | EDGE6 | 同名同歌手、duration 差 2 分钟的两首歌 | `buildCacheKey` 必须区分，否则交付错歌 |
 | EDGE7 | 冷却到期瞬间（`previewCooldownMap` 截止前 1ms / 后 1ms） | 前 1ms 跳过该源、后 1ms 恢复 |
 
-## 5.4 FAULT：故障注入（上游"不像正常错误"的失败）
+## 5.4 FAULT：故障注入（上游"不像正常错误"的失败）（**已落地** FAULT1~FAULT7b 共 8 条，其中 FAULT4b/4c/5/6 经注入验证，见 §12.10）
 
 现有 mock 只覆盖 `{error:'ECONNREFUSED'}`、`{statusCode:410}`、`{code:500}` 三类：
 
@@ -74,7 +74,7 @@
 | FAULT6 | 证书错误 `DEPTH_ZERO_SELF_SIGNED_CERT` | 同上 |
 | FAULT7 | mock 回调抛字符串（非 Error 对象） | `catch` 里读 `e.code` 不得触发 TypeError |
 
-## 5.5 MEM：长时运行与内存（本轮侦察已发现的缺口）
+## 5.5 MEM：长时运行与内存（本轮侦察已发现的缺口）（**已落地** MEM1~MEM3；4 张只增不删的表改为 `boundedMapSet` 上限淘汰，`_memory` 可观测）
 
 实测：`successCache` 有 LRU/TTL，但另外 **6 个 Map 只有 TTL、没有条数上限**，
 且 `fragmentUrlMap` 只在**读取时**才删过期条目——从不被读取的过期条目会永久驻留。
