@@ -795,6 +795,18 @@ function recordRateLimit(sourceId, quality) {
   }
   logDebug(`[${sourceId}] 429限流第${b.rateLimitCount}次，退避${cfg('rateLimitBackoffMs', RATE_LIMIT_BACKOFF_MS) / 1000}s${b.rateLimited ? '（已标记被限）' : ''}`);
 }
+// v8.11.2（D-34，V25b 实测暴露）：半开试探被「本地拦截」挡下时必须退回 open。
+// 旧实现只在 wrapExecute 的 catch（handler.fn 之后）里做这件事，但 canExecute/throttleCheck
+// 都在 try 之前抛 isThrottleSkip——catch 根本捕不到，状态就停在 half-open；
+// 而 canExecute 对 half-open 恒返回 false → 该源永久不被调用，只能重启救回（F-01 卡死）。
+function revertHalfOpenOnSkip(sourceId) {
+  const b = getBreaker(sourceId);
+  if (b.state === "half-open") {
+    b.state = "open";
+    b.lastFailureTime = Date.now();
+    logWarn(`断路器[${sourceId}] 半开试探被本地拦截，退回熔断等待下次冷却`);
+  }
+}
 function canExecute(sourceId) {
   const b = getBreaker(sourceId);
   // v4.0：限流退避期内跳过（源没坏，只是过载/风控）；退避结束自动恢复
@@ -2550,6 +2562,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     logDebug(`[断路器] ${handler.id} 处于${getBreaker(handler.id).state}状态，跳过`);
     // v6.0：熔断跳过打 isThrottleSkip 标记——catch 短路抛出，不再误记 recordRateLimit
     //（旧实现熔断期每轮跳过都虚增 rateLimitCount，App 面板限流计数被污染）
+    revertHalfOpenOnSkip(handler.id); // D-34：half-open 恒 false，必须退回 open 否则永久卡死
     const breakerSkip = new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]已熔断`);
     breakerSkip.isThrottleSkip = true;
     throw breakerSkip;
@@ -2557,6 +2570,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
   if (!throttleCheck(handler.id)) {
     // v6.0：本地并发/限速保护跳过——标记 isThrottleSkip：非上游429，不记限流统计、不污染成功率、
     // 不触发 30s 退避（旧实现误记 recordRateLimit，流量高峰会把源冤枉成"被限"）
+    revertHalfOpenOnSkip(handler.id); // D-34：同上，节流也在 try 之外抛
     const skipErr = new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]触发并发/限速保护，本轮跳过`);
     skipErr.isThrottleSkip = true;
     throw skipErr;
@@ -2607,12 +2621,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     if (e && e.isThrottleSkip) {
       // v8.10.2：半开收口——canExecute 放行一次后若被本地节流/熔断拦下，试探并未真正发生，
       // 状态不能停在 half-open（那里恒返回 false，该源会永久不被调用）；退回 open 重新等冷却
-      const b = getBreaker(handler.id);
-      if (b.state === "half-open") {
-        b.state = "open";
-        b.lastFailureTime = Date.now();
-        logWarn(`断路器[${handler.id}] 半开试探被本地节流拦下，退回熔断等待下次冷却`);
-      }
+      revertHalfOpenOnSkip(handler.id); // D-34：抽函数统一，三处收口行为一致
       throw e;
     }
     // v6.0：删除 catch 里的 inflightCount 递减——finally 已统一释放；
@@ -3298,6 +3307,10 @@ if (typeof module !== "undefined" && module.exports) {
       probeSingleSource,
       sniffAudioBytes,
       suyinKuwoSearch,   // 供测试验证 D-31
+      // v8.11.2（覆盖率补测）：健康巡检主流程 L572-626 整段此前零覆盖——runHealthCheck 未导出，
+      // 只能从定时器间接触发（初始延迟 60s），测试无法稳定驱动。此处只读导出（healthHistory 返回副本）。
+      runHealthCheck,
+      get healthHistory() { return healthHistory.slice(); },
       suyinKuwoGetUrl,   // 供测试验证 D-31 端到端：兜底档日志是否落
       setCachedUrl,      // 供测试构造脏缓存（复现"槽位是 flac、内容是 128k"的历史条目）
       buildCacheKey,

@@ -773,6 +773,65 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
       `previewUrlPreFilter=true 应拦下试听URL，实得 ${b.r ? '仍放行(预过滤失效)' : '拦下 ' + String(b.err && b.err.code)}`);
   }
 
+  // ============ V24 健康巡检（applyProbeResult L508-566 + runHealthCheck L572-626） ============
+  console.log('\n[V24] 健康巡检：自动关闭/自动启用/冷启动豁免/熔断复位/休眠/历史快照');
+  {
+    const m = fresh({}, null);
+    const T = m.runtimeToggles, P = m.probeState, idA = 'suyinKuwo';
+
+    T[idA] = true; P.failCount[idA] = 0;
+    m.applyProbeResult(idA, false);
+    rec('V24a', T[idA] === true, `失败1次不应关闭(实测 ${T[idA]})`);
+    m.applyProbeResult(idA, false);
+    rec('V24b', T[idA] === false, `连续失败2次应自动关闭(实测 ${T[idA]})`);
+
+    P.passCount[idA] = 0;
+    m.applyProbeResult(idA, true);
+    rec('V24c', T[idA] === false, `仅通过1次不应启用(实测 ${T[idA]})`);
+    m.applyProbeResult(idA, true);
+    rec('V24d', T[idA] === true, `连续通过2次应自动启用(实测 ${T[idA]})`);
+
+    const idC = 'huibq';
+    T[idC] = true; P.failCount[idC] = 0;
+    m.applyProbeResult(idC, false); m.applyProbeResult(idC, false);
+    rec('V24e', T[idC] === true, `冷启动源失败2次应保留启用(实测 ${T[idC]})`);
+
+    for (let i = 0; i < 3; i++) m.recordFailure(idA, '128k');
+    const st1 = m.getBreaker(idA).state;
+    m.applyProbeResult(idA, true);
+    const st2 = m.getBreaker(idA).state;
+    rec('V24f', st1 === 'open' && st2 === 'closed', `探测通过应复位熔断(实测 ${st1}→${st2})`);
+
+    P.deadCount[idA] = 0; P.sleeping[idA] = false;
+    for (let i = 0; i < 3; i++) m.applyProbeResult(idA, false);
+    rec('V24g', P.sleeping[idA] === true, `连续3轮失败应进入休眠(实测 ${P.sleeping[idA]})`);
+
+    const h0 = m.__debug.healthHistory.length;
+    await m.__debug.runHealthCheck();
+    rec('V24h', m.__debug.healthHistory.length === h0 + 1, `巡检应写1条历史快照(${h0}→${m.__debug.healthHistory.length})`);
+    rec('V24i', P.running === false, `巡检结束应释放 running 锁(实测 ${P.running})`);
+
+    const h1 = m.__debug.healthHistory.length;
+    await m.__debug.runHealthCheck(false);
+    rec('V24j', m.__debug.healthHistory.length === h1, `saveHistory=false 不应写历史(${h1}→${m.__debug.healthHistory.length})`);
+  }
+
+  // ============ V25 半开试探被本地节流拦下 → 退回熔断（L2605-2616） ============
+  console.log('\n[V25] 半开试探被本地节流拦下应退回 open（不得卡在 half-open）');
+  {
+    const m = fresh(Object.assign({}, BASE_CFG, { rateWindowMax: 1, rateWindowMs: 3000, breakerCooldownMs: 1 }), ['suyinKuwo']);
+    const S25 = { name: '晴天', singer: '周杰伦', duration: 269700 };
+    // 第 1 次正常请求：占满 rateWindowMax=1 的窗口
+    const ok1 = await m.getUrlWithFallback('kw', S25, '128k');
+    rec('V25a', !!(ok1 && ok1.url), '首请求成功（占满限流窗口）');
+    // 造半开且冷却已过 → canExecute 会放行一次试探
+    const b = m.getBreaker('suyinKuwo');
+    b.state = 'half-open'; b.lastFailureTime = Date.now() - 1000;
+    // 第 2 次：被本地节流拦下 → 应退回 open
+    try { await m.getUrlWithFallback('kw', S25, '128k'); } catch (e) { /* 期望失败 */ }
+    rec('V25b', b.state === 'open', `半开被节流拦下应退回 open，实测 ${b.state}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);
