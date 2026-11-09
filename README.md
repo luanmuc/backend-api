@@ -46,7 +46,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 | 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | api.xcvts.cn ❌ PAYLOAD_NO_URL |
 
 > **2026-11-09 补测**：oiapi.net（溯音酷我上游）真实外呼三测——搜索/解析都正常返回「歌名+歌手+音乐链接」，但链接本身 **2/3 立刻 410（0 字节）**（晴天 br=1、稻香 br=1 均 410；晴天 br=9 返回 206 + `fLaC` 头。**同日复测 br=9 又变成 206 + `ID3` 头，即 MP3 不是 FLAC**——同一个 9 档请求的交付格式会变）。带移动端 UA、http/https 都试过。对照：酷我官方 `nmobi.kuwo.cn` 同一时刻 **206 / `audio/x-flac`**。
-> 含义：tx / kg / mg 三平台只有溯音酷我这一个源，它的链接时效不稳定 → 这三个平台「点开大概率失败」。现状**如实失败**（报 `LINK_EXPIRED`、1 分钟后可重试），不做假交付；是否补源或隐藏平台见 `docs/AUDIT_PLAN_v10.md` §7。
+> 含义：tx / kg / mg 三平台只有溯音酷我这一个源，它的链接时效**逐次波动**——不能断言「大概率失败」：同日用真实 HTTP 跑端到端矩阵（`getUrlWithFallback`，五平台 × flac/128k 共 10 次），**10/10 全部交付成功**（kw 的 flac 由星海后端交付，其余四平台由溯音酷我交付）。现状**如实失败**（报 `LINK_EXPIRED`、1 分钟后可重试），不做假交付；是否补源或隐藏平台见 `docs/AUDIT_PLAN_v10.md` §7。
 
 > 详细对照表、缺陷与**各版本当前状态（以 docs/ITERATION_ROADMAP.md 与 DEV_GUIDE 为准）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。
 ## 版本历史
