@@ -733,6 +733,24 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
       `兜底档放行必须真落「歌手未校验」日志到 stdout，实得 ${gotUrl ? '已交付' : '未交付'} / 日志 ${hitLog} 条`);
   }
 
+  // ============ V22 全部源失败 → 过期缓存兜底（D-32） ============
+  console.log('\n[V22] 过期缓存兜底：全部失败时是否真能返回过期缓存');
+  {
+    const m = fresh(Object.assign({}, BASE_CFG, { cacheTtlMs: 120, cacheTtlHighQualityMs: 120, verifyOnCacheHit: false }), ['suyinKuwo']);
+    const S22 = { name: '晴天', singer: '周杰伦', duration: 269700 };
+    fetchFault = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v22.mp3\n歌名：晴天\n歌手：周杰伦\n时长：269.7` }) });
+    const r1 = await m.getUrlWithFallback('kw', S22, '128k');
+    const q1 = String(r1.type || '').toLowerCase();
+    await new Promise((res) => setTimeout(res, 400));
+    fetchFault = () => ({ error: 'ECONNRESET' });
+    let r2 = null, err2 = null;
+    try { r2 = await m.getUrlWithFallback('kw', S22, '128k'); } catch (e) { err2 = e; }
+    rec('V22a', !!(r1 && r1.url), `首次交付成功(${q1} = ${(r1 && r1.url || '').slice(-10)})`);
+    rec('V22b', !!(r2 && r2.url === r1.url),
+      `全部失败应返回过期缓存(${q1})，实得 ${r2 ? '返回 ' + String(r2.type) : '抛错 ' + String(err2 && err2.code)}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);

@@ -1619,13 +1619,22 @@ if (songInfo?.singer && singer && !titleMatch(singer, songInfo.singer)) return f
 
 取链流程先调 `getCachedUrl`（过期即删）→ 走到 L3026 `successCache.hasExpired(cacheKey)` 时条目已不存在 → **`hasExpired` 恒 false → 兜底分支永久不可达**。
 
-**修复尝试与回滚**：把两处改为「只报过期、不删除」后，V22 **仍然红**（依旧抛 `NETWORK_ERROR`），
-说明还存在第二层拦截（失败缓存 / `cacheKey` 与 `writeKey` 不一致 / 前置短路之一），本轮时间不足以定位。
+**第一层修复失败**：仅把两处改为「只报过期、不删除」后，V22 仍红（依旧 `NETWORK_ERROR`）。
 
-**处置**：两处改动**已完整回滚**，`lx-source.js` 保持原样；V22 未留在门禁里。
-宁可把缺陷写进文档，也不把一个没验证通过的「修复」留在代码里。
+**第二层拦截（已定位）**：兜底只查「请求档」槽 `buildCacheKey(platform, songInfo, quality)`，
+但缓存槽按**实交付音质**写（D-20 起就是如此）。V22 请求 128k、实交付 flac → 条目写在 **flac 槽**，
+兜底查 128k 槽永远查不到。两个缺陷叠加，该分支对「降档交付」场景永久不可达。
 
-**待办（D-32）**：定位第二层拦截 → 修 → 用 V22 做 red-green → 再加变异体看护。
+**修复（v8.11.2，三处）**：
+1. `createLRUCache.get()` 过期**不删除**，只返回 null；
+2. `getCachedUrl()` 过期**不删除**，仅视为 miss；
+3. 兜底改为**跨档查找**：遍历 `QUALITY_PRIORITY`，取不低于请求档的最优过期条目。
+
+**red-green（实测）**：
+- 撤销三处 → `V22b` 红（抛 `NETWORK_ERROR`）
+- 恢复 → `V22b` 绿（返回 flac 过期缓存）
+
+V 组 66 → **68**（V22a 首次交付成功 / V22b 全部失败返回过期缓存）。
 
 ### 26.4 结论
 

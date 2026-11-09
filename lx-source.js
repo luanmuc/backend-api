@@ -679,7 +679,9 @@ function createLRUCache(maxSize, ttl) {
     get(key) {
       const entry = map.get(key);
       if (!entry) return null;
-      if (Date.now() - entry.timestamp >= ttl) { map.delete(key); return null; }
+      // v8.11.2（D-32）：过期只报 null、不删除——否则下层 hasExpired() 永远查不到，
+      // 「全部源失败 → 过期缓存兜底」成死代码（V22 实测）。
+      if (Date.now() - entry.timestamp >= ttl) { return null; }
       map.delete(key);
       map.set(key, entry);
       return entry.value;
@@ -1563,7 +1565,7 @@ function getCachedUrl(cacheKey) {
   const isHighQuality = q === "flac" || q === "320k" || q === "flac24bit" || q === "hires";
   const ttl = isHighQuality ? cfg('cacheTtlHighQualityMs', 1800000) : cfg('cacheTtlMs', 21600000);
   if (entry.ts && (Date.now() - entry.ts) > ttl) {
-    successCache.delete(cacheKey); // 过期删除，下次重新取链
+    // v8.11.2（D-32）：不删除，仅视为 miss（删除会让过期兜底查不到）
     return null;
   }
   return entry;
@@ -3020,8 +3022,20 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   }
 
   // 4. 过期缓存兜底：仅当过期记录的实际音质不低于请求音质时才返回（防128k冒充flac）
-  if (successCache.hasExpired(cacheKey)) {
-    const expired = successCache.getExpired(cacheKey);
+  // v8.11.2（D-32）：原实现只查「请求档」槽，但槽位按**实交付音质**写（D-20），
+  // 请求 128k 实给 flac 时条目在 flac 槽 → 兜底永远查不到。改为跨档查找、取不低于请求档的最优条目。
+  let expired = null;
+  if (successCache.hasExpired(cacheKey)) expired = successCache.getExpired(cacheKey);
+  if (!expired) {
+    for (const eq of QUALITY_PRIORITY) {
+      if (qualityRank(eq) < qualityRank(quality)) continue;
+      const ek = buildCacheKey(platform, songInfo, eq);
+      if (!successCache.hasExpired(ek)) continue;
+      const e = successCache.getExpired(ek);
+      if (e && e.url) { expired = e; break; }
+    }
+  }
+  if (expired) {
     if (expired && expired.url) {
       if (qualityRank(expired.quality || "128k") >= qualityRank(quality)) {
         logWarn(`全部音源失败，返回过期缓存兜底(缓存音质${expired.quality}, 请求${quality})`);
