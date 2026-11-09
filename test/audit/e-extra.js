@@ -766,6 +766,10 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('FAULT8c', '面板「限流中」字段在串行退避期就能亮（rateLimitActive 与 rateLimited 是两件事）',
       snap8.rateLimitActive === true && (snap8.rateLimitUntil || 0) > Date.now() && snap8.rateLimited === false,
       `rateLimitActive=${snap8.rateLimitActive} 剩余=${Math.round(((snap8.rateLimitUntil || 0) - Date.now()) / 1000)}s rateLimited=${snap8.rateLimited}`);
+
+    // FAULT8d 未成断言：想构造「熔断(open) + 限流退避」共存，但 3 次 5xx 后该档已被
+    // qualityShortCircuit 短路（fail>=3 直接 1h 不外呼），半开 429 那条分支在 mock 里走不到。
+    // 代码里 half-open 遇 429 的收口是明确的，所以 App 侧按「熔断优先」处理，不依赖能用测试证明它。
   }
 
   // ================= INV 不变量（第五轮 5.2）=================
