@@ -67,7 +67,7 @@
 | `test/audit/b-logic.js` | 230 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/audit/d-func.js` | 232 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/audit/h-toggles.js` | 187 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | H1~H14/X (新增) |
-| `test/audit/e-extra.js` | 626 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/audit/e-extra.js` | 720 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/candidate-audit-test.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/lx-source-smoke-test.js` | 1558 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/stress-test.js` | 219 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
@@ -85,7 +85,7 @@
 | `docs/audit-plans/round3.md` | 78 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/audit-plans/round5.md` | 98 | .md | ✓ | ✓ | — | — | — | — | — | 五轮计划 |
 | `docs/audit-plans/round4.md` | 180 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
-| `test/mutation/run.js` | 162 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | MU1~MU10（变异测试） |
+| `test/mutation/run.js` | 174 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | MU1~MU12（变异测试） |
 ## 汇总
 
 - 文件总数：**66**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js）

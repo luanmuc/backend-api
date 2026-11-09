@@ -73,6 +73,18 @@ const MUTANTS = [
     to: 'return null; // mutant: gate off',
   },
   {
+    id: 'MU11',
+    name: '5xx 不计入熔断（服务端持续故障却永不切源）',
+    from: '        e.code === ERROR_CODES.SERVER_ERROR) {\n      recordFailure(handler.id, quality);',
+    to: '        false) {\n      recordFailure(handler.id, quality);',
+  },
+  {
+    id: 'MU12',
+    name: '整链失败不写短失败缓存（同歌重播反复白跑降级链）',
+    from: "setFailCached(failKey, lastFailCode, FAIL_CACHE_TTL_BY_CODE[lastFailCode] === 0 ? cfg('allFailShortTtlMs', 30000) : undefined);",
+    to: 'void 0;',
+  },
+  {
     id: 'MU10',
     name: '配置校验不防 NaN（NaN 可绕过 <=0 与上下限）',
     from: '|| !Number.isFinite(value) || value <= 0',

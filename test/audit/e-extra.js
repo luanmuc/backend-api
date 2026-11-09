@@ -619,6 +619,100 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('EDGE5', '外部注入 NaN 预算时实例不瘫痪（初始化兜底生效，请求照常交付）', nanOk === 'OK', `注入 raceBudgetMs=NaN → ${nanOk}`);
   }
 
+  // ================= FAULT 故障注入（第五轮 5.4）=================
+  // 只注入"上游一定会发生但 mock 从没模拟过"的形状：空 body、截断 JSON、超大 body、
+  // 5xx 连发、ENOTFOUND、证书错误、以及最阴的一条——上游抛的不是 Error 对象。
+  origLog('\n[FAULT] 故障注入');
+  {
+    const MOD = fresh(['suyinKuwo'], { breakerThreshold: 999, rateWindowMax: 1e6 });
+    const CODES = new Set(Object.keys(MOD.ERROR_CODES).map((k) => MOD.ERROR_CODES[k]));
+    const run1 = async (info, fn) => {
+      scene = fn;
+      probeFn = fn;
+      try {
+        const r = await req('128k', info);
+        return r && r.url ? 'OK' : 'EMPTY';
+      } catch (e) {
+        const code = e && e.code;
+        return code ? String(code) : 'NOCODE:' + String((e && e.message) || e).slice(0, 12);
+      }
+    };
+    const json = (o) => ({ statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
+
+    const f1 = await run1({ ...GOOD, songmid: 'f1' }, () => ({ statusCode: 200, headers: { 'content-type': 'application/json' }, body: '' }));
+    rec('FAULT1', 'HTTP 200 + 空 body 给出明确错误码（不交付空链接、不抛 TypeError）', CODES.has(f1), `结果 ${f1}`);
+
+    const f2 = await run1({ ...GOOD, songmid: 'f2' }, () => ({ statusCode: 200, headers: { 'content-type': 'application/json' }, body: '{"code":200,"data":{"url":"htt' }));
+    rec('FAULT2', 'JSON 截断给明确错误码（解析失败不得抛 TypeError）', CODES.has(f2), `结果 ${f2}`);
+
+    const bigPad = 'x'.repeat(10 * 1024 * 1024);
+    const bigAudio = () => audio(Buffer.concat([mp3(269.7), Buffer.alloc(1200)]), 'audio/mpeg', 10300000);
+    const f3 = await run1({ ...GOOD, songmid: 'f3' }, (u) => (String(u).includes('audio.test')
+      ? bigAudio()
+      : json({ code: 200, data: { url: 'https://audio.test/a.mp3' }, pad: bigPad })));
+    rec('FAULT3', '10MB 响应体不崩且仍能正常交付', f3 === 'OK', `结果 ${f3}`);
+
+    // 5xx 连发：每次都要归 SERVER_ERROR。注意用**三首不同歌**——
+    // 同一首歌连续失败会被 30s 全失败短缓存吸收（防止同歌每次重播白跑降级链），
+    // 这是设计行为；熔断累积要靠不同歌的真实失败。
+    const MOD4 = fresh(['suyinKuwo'], { breakerThreshold: 3, rateWindowMax: 1e6 });
+    const seq5 = [];
+    for (let i = 0; i < 3; i++) {
+      const st = [502, 503, 504][i];
+      const fn5 = () => ({ statusCode: st, headers: {}, body: '' });
+      scene = fn5;
+      probeFn = fn5;
+      try { const r = await req('128k', { ...GOOD, songmid: 'f5x' + i }); seq5.push(r && r.url ? 'OK' : 'EMPTY'); }
+      catch (e) { seq5.push(String((e && e.code) || 'NOCODE')); }
+    }
+    rec('FAULT4', '三首不同歌各遇 502/503/504，每次都归为 SERVER_ERROR', seq5.every((c) => c === 'SERVER_ERROR'), `序列 ${seq5.join('/')}`);
+
+    // 熔断：判据必须是"路器状态 open + 不再外呼"，
+    // 只看"返回什么码"或只看"不再外呼"都不够——短缓存与播放摘除都能同时满足后者。
+    const KW = 'https://oiapi.net/api/Kuwo';
+    const before = counts[KW] || 0;
+    let seq6 = 'NOCODE';
+    try { const r = await req('128k', { ...GOOD, songmid: 'f5y' }); seq6 = r && r.url ? 'OK' : 'EMPTY'; }
+    catch (e) { seq6 = String((e && e.code) || 'NOCODE'); }
+    const after = counts[KW] || 0;
+    const snap4 = MOD4.getHealthSnapshot()['suyinKuwo'] || {};
+    rec('FAULT4b', '三首不同歌连续 5xx 后该源被断路器熔断（state=open 且不再外呼）',
+      after === before && String(snap4.state) === 'open',
+      `外呼 ${before}→${after}，state=${snap4.state}，reqCount=${snap4.reqCount}，playDead=${snap4.playDead}，结果码 ${seq6}`);
+
+    // 雪崩保护：同一首歌 30s 内重复请求只打一次上游（短缓存生效），这是设计不是缺陷。
+    const MOD6 = fresh(['suyinKuwo'], { breakerThreshold: 999, rateWindowMax: 1e6 });
+    const fn6 = () => ({ statusCode: 503, headers: {}, body: '' });
+    scene = fn6;
+    probeFn = fn6;
+    const c0 = counts[KW] || 0;
+    try { await req('128k', { ...GOOD, songmid: 'f5z' }); } catch (e) { /* 期望失败 */ }
+    const c1 = counts[KW] || 0;   // 首次真的打上游
+    for (let i = 0; i < 2; i++) {
+      try { await req('128k', { ...GOOD, songmid: 'f5z' }); } catch (e) { /* 期望命中缓存失败 */ }
+    }
+    const c2 = counts[KW] || 0;
+    // 首次必须真打上游（c1>c0）；第二次起必须外呼为 0（短缓存生效）。
+    // 不断言"总共只打 1 次"——一次请求内部含降档与重试，次数不是 1。
+    rec('FAULT4c', '同一首歌失败后 30s 内重复请求不再外呼（全失败短缓存挡住雪崩）',
+      c1 > c0 && c2 === c1, `首次 +${c1 - c0}，重复两次后 +${c2 - c1}`);
+
+    const f5 = await run1({ ...GOOD, songmid: 'f5' }, () => ({ error: 'ENOTFOUND' }));
+    rec('FAULT5', 'DNS 解析失败归为 NETWORK_ERROR', f5 === String(MOD.ERROR_CODES.NETWORK_ERROR), `结果 ${f5}`);
+
+    const f6 = await run1({ ...GOOD, songmid: 'f6' }, () => ({ error: 'self signed certificate in certificate chain' }));
+    rec('FAULT6', '证书错误归为 NETWORK_ERROR（不是未知错误）', f6 === String(MOD.ERROR_CODES.NETWORK_ERROR), `结果 ${f6}`);
+
+    // 最阴的一条：上游抛的不是 Error 对象（字符串/纯对象）。httpRequest 里读 err.message，
+    // 若实现不当会变成 "NETWORK_ERROR: undefined" 甚至 TypeError 二次崩溃。
+    const f7 = await run1({ ...GOOD, songmid: 'f7' }, () => { throw 'upstream boom'; });
+    // 字符串赋值 err.code 无效，但出口必须有码——这里直接断言码存在且已知
+    rec('FAULT7', '上游抛非 Error 对象（字符串）仍产出已知错误码', CODES.has(f7), `结果 ${f7}`);
+
+    const f7b = await run1({ ...GOOD, songmid: 'f7b' }, () => { throw { reason: 'plain object' }; });
+    rec('FAULT7b', '上游抛纯对象（无 message）仍产出已知错误码', CODES.has(f7b), `结果 ${f7b}`);
+  }
+
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);
