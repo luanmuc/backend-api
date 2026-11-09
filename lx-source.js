@@ -3259,6 +3259,7 @@ if (typeof module !== "undefined" && module.exports) {
       isQualityHopeless,
       qualitySkipProbeAt,
       probeSingleSource,
+      sniffAudioBytes,
       breakerMap,
       playDeadStreak,
       qualityShortCircuitKey,

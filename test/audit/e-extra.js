@@ -906,6 +906,22 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
       wyIds.includes('xinghaiBackup'), `wy 链=[${wyIds.join(',')}]`);
   }
 
+  // ===== D-29 回归：0~16 字节空体必须判 empty（旧逻辑会把 206+0 字节当"验真通过"交付出去）=====
+  {
+    const m29 = fresh([], {});
+    const sniff = m29.__debug && m29.__debug.sniffAudioBytes;
+    const CT = { 'content-type': 'audio/mpeg' };
+    rec('D29a', '8 字节响应体判 empty（确定不可播，绝不交付）',
+      !!(sniff && sniff(Buffer.alloc(8), CT, 1024).kind === 'empty'),
+      '旧逻辑会把 206+0 字节当"验真通过"交付出去');
+    rec('D29b', '15 字节（边界内）判 empty',
+      !!(sniff && sniff(Buffer.alloc(15), CT, 1024).kind === 'empty'),
+      '16 是"装不下任何音频头"的下限');
+    rec('D29c', '16 字节（边界外）不判 empty，落到内容嗅探',
+      !!(sniff && sniff(Buffer.alloc(16, 0x41), CT, 1024).kind !== 'empty'),
+      '防止把下限写成 <= 或把有效音频误杀');
+  }
+
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);

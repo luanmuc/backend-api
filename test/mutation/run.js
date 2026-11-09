@@ -116,6 +116,20 @@ const MUTANTS = [
     to: 'if (false) warmUpColdStartSources(platform);',
     gates: ['test/stress-round4.js'],
   },
+  {
+    id: 'MU15',
+    name: '音质短路到期不放行（qualityShortCircuitProbeMs 形同虚设，该档永久被跳过）',
+    from: "if (Date.now() >= qualitySkipProbeAt.get(key)) { qualitySkipProbeAt.set(key, Date.now() + probeMs); return false; }",
+    to: 'if (Date.now() >= qualitySkipProbeAt.get(key)) { qualitySkipProbeAt.set(key, Date.now() + probeMs); return true; }',
+    gates: ['test/stress-round4.js'],
+  },
+  {
+    id: 'MU16',
+    name: '冷启动探针超时写死成 HEALTH_CHECK_TIMEOUT（coldStartProbeTimeoutMs 失效）',
+    from: "const probeTimeout = (h && h.coldStart) ? cfg('coldStartProbeTimeoutMs', 30000) : HEALTH_CHECK_TIMEOUT;",
+    to: 'const probeTimeout = HEALTH_CHECK_TIMEOUT;',
+    gates: ['test/stress-round4.js'],
+  },
 ];
 
 function copyRepo() {
@@ -152,6 +166,9 @@ function main() {
   const full = args.includes('--full');
   const strict = args.includes('--strict');
   const gates = full ? FAST_GATES.concat(SLOW_GATES) : FAST_GATES;
+  // --only=MU15,MU16 只跑指定变异体：单验证新加变异体时不必等 20 分钟全跑
+  const onlyArg = args.find((a) => a.startsWith('--only='));
+  const only = onlyArg ? onlyArg.slice('--only='.length).split(',').filter(Boolean) : [];
 
   const srcPath = path.join(ROOT, SRC);
   const original = fs.readFileSync(srcPath, 'utf8');
@@ -161,6 +178,7 @@ function main() {
 
   try {
     for (const m of MUTANTS) {
+      if (only.length && !only.includes(m.id)) continue;
       const hits = original.split(m.from).length - 1;
       if (hits !== 1) {
         rows.push({ id: m.id, name: m.name, status: 'SKIPPED', killers: [`锚点命中 ${hits} 次`] });
