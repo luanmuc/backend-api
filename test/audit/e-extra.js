@@ -569,6 +569,56 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
       keys.every((k) => typeof mem[k] === 'number'), `_memory 键 ${Object.keys(mem).join(',')}`);
   }
 
+  // ================= EDGE 边界与非法配置（第五轮 5.3）=================
+  // 配置校验只写了 `typeof value !== "number" || value <= 0`。NaN 的 typeof 是 number，
+  // 而 NaN <= 0 / NaN < min / NaN > max 全是 false —— 三道闸门同时失效。
+  origLog('\n[EDGE] 边界与非法配置');
+  {
+    fresh(['suyinKuwo'], { breakerThreshold: 999, rateWindowMax: 1e6 });
+    const cfgs = async (obj) => {
+      try {
+        const r = await call({ action: 'config', info: obj });
+        return (r && r.updated) || {};
+      } catch (e) { return { __err: e.code || 'ERR' }; }
+    };
+    const u1 = await cfgs({ raceBudgetMs: 0 });
+    const u2 = await cfgs({ raceBudgetMs: NaN });
+    const u3 = await cfgs({ cacheTtlMs: NaN });
+    rec('EDGE1', '非正数配置被拒（0 不写入）', !('raceBudgetMs' in u1), `写入 raceBudgetMs=0 → updated=${JSON.stringify(u1)}`);
+    rec('EDGE2', 'NaN 配置被拒（NaN 不得绕过 <=0 与上下限校验）',
+      !('raceBudgetMs' in u2) && !('cacheTtlMs' in u3),
+      `raceBudgetMs=NaN → ${JSON.stringify(u2)}；cacheTtlMs=NaN → ${JSON.stringify(u3)}`);
+
+    // 时长判据：原曲时长 0/undefined 属"不可判定"，必须放行（误杀代价高于听到片段）
+    const fullAudio = () => audio(Buffer.concat([mp3(269.7), Buffer.alloc(1200)]), 'audio/mpeg', 10300000);
+    scene = (u) => (String(u).includes('audio.test') ? fullAudio() : json({ code: 200, data: { url: 'https://audio.test/a.mp3' } }));
+    probeFn = () => fullAudio();
+    let d0 = 'ERR';
+    let d1 = 'ERR';
+    try { const r = await req('128k', { ...GOOD, songmid: 'edge_d0', duration: 0 }); d0 = r && r.url ? 'OK' : 'EMPTY'; } catch (e) { d0 = e.code || 'ERR'; }
+    try { const r = await req('128k', { ...GOOD, songmid: 'edge_d1', duration: undefined }); d1 = r && r.url ? 'OK' : 'EMPTY'; } catch (e) { d1 = e.code || 'ERR'; }
+    rec('EDGE3', '原曲时长缺失(0/undefined)时完整音频不被误判为片段', d0 === 'OK' && d1 === 'OK', `duration=0 → ${d0}；duration=undefined → ${d1}`);
+
+    // 音质大小写：全链都做 toLowerCase，请求大写不得分裂缓存键或判成未知档
+    let up = 'ERR';
+    try {
+      const r = await req('FLAC', { ...GOOD, songmid: 'edge_up' });
+      up = r && r.url ? `OK:${r.type || ''}` : 'EMPTY';
+    } catch (e) { up = e.code || 'ERR'; }
+    rec('EDGE4', '音质大小写不分裂（FLAC 请求与 flac 等价）', String(up).indexOf('OK') === 0, `type=FLAC → ${up}`);
+
+    // 纵深防御：校验层只挡"写入"，挡不住已经落盘的非法值 / 外部注入。
+    // 这里直接注入 raceBudgetMs=NaN（等价于旧配置残留），要求 cfg 回落默认、请求照常交付。
+    fresh(['suyinKuwo'], { raceBudgetMs: NaN, breakerThreshold: 999, rateWindowMax: 1e6 });
+    scene = (u) => (String(u).includes('audio.test') ? fullAudio() : json({ code: 200, data: { url: 'https://audio.test/a.mp3' } }));
+    probeFn = () => fullAudio();
+    let nanOk = 'ERR';
+    try { const r = await req('128k', { ...GOOD, songmid: 'edge_nan' }); nanOk = r && r.url ? 'OK' : 'EMPTY'; } catch (e) { nanOk = e.code || 'ERR'; }
+    // 注意：这一条实测由 USER_CONFIG 初始化时的 `|| 12000` 兜住（NaN||12000=12000），
+    // 不是 cfg 里那道 Number.isFinite 防线（那道防线无可独立观测的路径，属防御纵深）。
+    rec('EDGE5', '外部注入 NaN 预算时实例不瘫痪（初始化兜底生效，请求照常交付）', nanOk === 'OK', `注入 raceBudgetMs=NaN → ${nanOk}`);
+  }
+
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);

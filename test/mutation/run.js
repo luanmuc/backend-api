@@ -73,6 +73,12 @@ const MUTANTS = [
     to: 'return null; // mutant: gate off',
   },
   {
+    id: 'MU10',
+    name: '配置校验不防 NaN（NaN 可绕过 <=0 与上下限）',
+    from: '|| !Number.isFinite(value) || value <= 0',
+    to: '|| value <= 0',
+  },
+  {
     id: 'MU9',
     name: '记忆表上限失效（不淘汰最旧条目）',
     from: '  if (map.size > max) {',

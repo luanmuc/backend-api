@@ -61,7 +61,13 @@ const USER_CONFIG = {
 // v5.0：运行参数读取（USER_CONFIG 缺失/空值时回退默认）
 function cfg(key, def) {
   const v = USER_CONFIG[key];
-  return v === undefined || v === null || v === "" ? def : v;
+  if (v === undefined || v === null || v === "") return def;
+  // 五轮 EDGE（D-21）：NaN / Infinity 一律回落默认值。
+  // NaN 的 typeof 是 number，而 NaN <= 0、NaN < min、NaN > max 三个比较全为 false，
+  // 三道配置校验同时失效；一旦写入 USER_CONFIG（如 raceBudgetMs=NaN），
+  // 竞速预算恒为 NaN → 所有请求立即 NETWORK_TIMEOUT，直到进程重启。
+  if (typeof def === "number" && !Number.isFinite(v)) return def;
+  return v;
 }
 
 // ============================================================
@@ -3068,7 +3074,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
     const updated = {};
     for (const [key, value] of Object.entries(info)) {
       if (!ALLOWED_KEYS.includes(key)) continue;
-      if (typeof value !== "number" || value <= 0) continue;
+      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;  // 五轮 EDGE：NaN 会绕过下面三条比较
       // v30.1：上下限校验
       const limits = PARAM_LIMITS[key];
       if (limits) {

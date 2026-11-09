@@ -997,3 +997,46 @@ TRACE cacheHit kw_..._flac  q=flac  src=undefined
 
 **未做（有意）**：没有把 `fragmentSourceMap / qualityCeilingMap / fragmentUrlMap` 的"读取时清过期"改成定时清理——目前上限淘汰已经兜住了最坏情况（条目不超上限），再叠一层定时器会引入新的生命周期复杂度，收益不抵风险。
 
+### 12.8 EDGE 组：配置校验的 NaN 漏洞（D-21）
+
+EDGE 组第一条就抓到真缺陷，触发方式比预想的简单：**往配置里写一个 NaN**。
+
+`manageConfig` 的写入校验只有一行：
+```js
+if (typeof value !== "number" || value <= 0) continue;
+```
+NaN 恰好从三道门里全穿过去：
+
+| 判断 | NaN 的结果 | 是否拦下 |
+|---|---|---|
+| `typeof value !== "number"` | `typeof NaN === "number"` → false | ✗ |
+| `value <= 0` | `NaN <= 0` → false | ✗ |
+| `value < limits.min` | `NaN < 1` → false | ✗ |
+| `value > limits.max` | `NaN > 20000` → false | ✗ |
+
+**实测后果（比"值是 NaN"严重得多）**：`raceBudgetMs = NaN` 写入后，
+`Date.now() + NaN = NaN` → 每次请求的竞速预算都是 NaN → **该实例所有请求立即 `NETWORK_TIMEOUT`，直到进程重启**。
+这一条不是推测：本次 EDGE3/EDGE4 首跑双双变 `NETWORK_TIMEOUT`，就是被前面那次 NaN 写入拖累的连带证据。
+
+| 项 | 内容 |
+|---|---|
+| 影响面 | 所有数值型白名单键（`cacheTtlMs`、`rateWindowMax`、`breakerThreshold`、`raceBudgetMs`…），NaN 会同时绕过 `<=0` 与上下限 |
+| 修复 1（写入口） | 校验加 `!Number.isFinite(value)` → NaN/Infinity 直接 `continue` |
+| 修复 2（读出口，纵深） | `cfg()` 对数值型默认值做回落：`typeof def === "number" && !Number.isFinite(v) ? def : v` |
+| 双向验证 | 删掉修复 1 → EDGE2 立刻红（`{"raceBudgetMs":null}`）；恢复 → 绿 |
+
+**一处诚实的说明**：修复 2（`cfg` 里那道 `Number.isFinite`）**没有独立可观测路径能证明它在生效**——写入口已被修复 1 挡住、初始化入口本来就有 `|| 默认值`。
+实测"删掉修复 2"后 EDGE5 依旧绿，说明 EDGE5 真正验证的是初始化兜底，不是 `cfg` 那道防线。
+因此 EDGE5 的文案改成了它实际证明的东西（"实例不瘫痪"），`cfg` 那道防线保留但标注为**不可独立观测的纵深防御**，不当作已证明的修复。
+
+### 12.9 EDGE 组其余四条（都是"防护已在，防回归"）
+
+| ID | 断言 | 结果 |
+|---|---|---|
+| EDGE1 | 非正数配置被拒（`raceBudgetMs=0` → `updated={}`） | 绿（原有行为，加 NaN 修复后仍绿） |
+| EDGE3 | 原曲时长 `0`/`undefined` 时完整音频不被误判成片段（`realDur && origDur && origDur>=90` 三重短路） | 绿 |
+| EDGE4 | 音质大小写不分裂（`type:'FLAC'` 与 `flac` 等价，全链 `toLowerCase`） | 绿（`type=FLAC → OK:320k`，档位按源真实能力回落） |
+| EDGE5 | 外部注入 `raceBudgetMs=NaN` 时实例不瘫痪（初始化 `|| 默认` 兜底） | 绿 |
+
+**未覆盖、也不打算假装覆盖**：冷却到期瞬间的 ±1ms（`Date.now()` 不可控，只能靠"1.5s 后仍在冷却"下界近似，已在 T2c）；TTL 精确 ±1ms（同理，改用 `cacheTtlMs` 注入 + sleep 近似）；`songmid` 含 `|`（缓存键是拼接串，但从当前分段结构看撞键需要 mid 与 quality 同时错位，构造成本高、现实收益低，暂列观察项）。
+
