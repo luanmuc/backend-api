@@ -142,6 +142,7 @@ const FAIL_CACHE_TTL_BY_CODE = {
   [ERROR_CODES.NOT_FOUND]: 60 * 60 * 1000,        // 404/无版权/搜索无结果 → 1小时
   [ERROR_CODES.MISMATCH]: 60 * 60 * 1000,          // 歌信息不匹配(近1h内重查意义低) → 1小时
   [ERROR_CODES.LINK_EXPIRED]: 60 * 1000,           // 410 签名死链 → 1分钟
+  [ERROR_CODES.PARAM_ERROR]: 60 * 1000,            // v8.11.2：上游返回非法URL(非http/https) → 1分钟（脏数据会很快恢复）
   // v8.11：交付真实性类——只缓存很短时间，且片段按音质档分键，避免 flac 失败连坐 128k
   [ERROR_CODES.PREVIEW_FRAGMENT]: 30 * 1000,       // 试听片段 → 30秒
   [ERROR_CODES.NOT_AUDIO]: 60 * 1000,              // 非音频内容 → 1分钟
@@ -1494,6 +1495,20 @@ function parseMessageSongInfo(message) {
 const HUIBQ_FAIL_MSG_REGEX = /无法获取|获取失败|失败|错误|不存在|无效|error/i;
 function isHuibqFailMsg(msg) { return HUIBQ_FAIL_MSG_REGEX.test(String(msg || "")); }
 
+// v8.11.2（C-1）：交付前协议白名单断言。
+// 旧行为：上游给了 javascript:/data:/file: 时，先发请求判"不可播"，被归成
+// LINK_EXPIRED(CDN 410)——排障看到"签名URL已过期"，实际是协议非法。
+// 这里先判协议，非法直接 PARAM_ERROR，不进入验真。
+function assertDeliverableUrl(url, sourceName) {
+  const u = typeof url === "string" ? url.trim() : "";
+  if (!HTTP_URL_REGEX.test(u)) {
+    const err = new Error(`${ERROR_CODES.PARAM_ERROR}: ${sourceName}返回非法URL(非http/https)`);
+    err.code = ERROR_CODES.PARAM_ERROR;
+    throw err;
+  }
+  return u;
+}
+
 function validateUrl(url, sourceName) {
   if (!url || typeof url !== "string" || !url.trim()) throw new Error(`${ERROR_CODES.NOT_FOUND}: ${sourceName}返回空URL`);
   if (!HTTP_URL_REGEX.test(url.trim())) throw new Error(`${ERROR_CODES.PARAM_ERROR}: ${sourceName}非法URL格式`);
@@ -1761,7 +1776,7 @@ async function helloworldKwGetUrl(platform, songId, quality, songInfo) {
       const rawUrl = data.data.url;
       if (HTTP_URL_REGEX.test(rawUrl)) {
         // v6.0 同款：CDN 410 签名死链防御——Range 轻量校验可播才返回（不缓存、不计成功）
-        const httpsUrl = upgradeToHttps(rawUrl);
+        const httpsUrl = assertDeliverableUrl(upgradeToHttps(rawUrl), "helloworld");
         if (!await isAudioPlayable(httpsUrl, 2500)) {
           const helloworldErr = new Error(`${ERROR_CODES.LINK_EXPIRED}: helloworld签名URL不可播(CDN 410)`);
           helloworldErr.code = ERROR_CODES.LINK_EXPIRED; // v8.10.4：必须设 code——竞速按 e.code 分类，只写在 message 里会被当成业务失败
@@ -1791,7 +1806,7 @@ async function helloworldKwGetUrl(platform, songId, quality, songInfo) {
     });
     const d2 = res2?.body;
     if (d2 && typeof d2 === "object" && (Number(d2.code) === 0 || Number(d2.code) === 200) && typeof d2.url === "string" && d2.url.length > 0 && HTTP_URL_REGEX.test(d2.url)) {
-      const httpsUrl2 = upgradeToHttps(d2.url);
+      const httpsUrl2 = assertDeliverableUrl(upgradeToHttps(d2.url), "helloworld htw");
       if (!await isAudioPlayable(httpsUrl2, 2500)) {
         const helloworldHtwErr = new Error(`${ERROR_CODES.LINK_EXPIRED}: helloworld htw签名URL不可播(CDN 410)`);
         helloworldHtwErr.code = ERROR_CODES.LINK_EXPIRED; // v8.10.4：同上，必须设 code
@@ -2016,7 +2031,7 @@ async function suyinKuwoGetUrl(songInfo, quality) {
       if (url) {
         // v1.0 P0：解析出的酷我CDN链接必须Range可播，否则视为签名过期死链(410)，不缓存、不计成功，继续下一源
         // v1.0 P0-3 (D2)：先升级 https 再校验，确保返回的 https 直链真实可播
-        const httpsUrl = upgradeToHttps(url);
+        const httpsUrl = assertDeliverableUrl(upgradeToHttps(url), "溯音酷我");
         if (!await isAudioPlayable(httpsUrl, 2500)) {
           // v6.0：CDN 410 签名死链改用 LINK_EXPIRED 码——失败缓存走 1min 差异化 TTL（旧用 NOT_FOUND 缓存 1h，恢复要等近1小时才重试该歌）
           const suyinExpiredErr = new Error(`${ERROR_CODES.LINK_EXPIRED}: 溯音酷我签名URL已过期(CDN 410)，不可播`);
