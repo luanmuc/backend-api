@@ -2361,9 +2361,11 @@ function buildSourceChain(platform, quality) {
   if (t.juheMg && platform === "mg") push(SOURCE_HANDLERS.juheMg); // v4.0：Juhe mg 兜底
   // v4.0：Juhe kg——kg 平台专属新源（酷狗 hash 路由）
   if (t.juheKg && platform === "kg") push(SOURCE_HANDLERS.juheKg);
-  // 已知不可用：星海备域名 yy.zddyr.top 当前不可解析，默认关闭；开启后会在非 kg 平台作最后备胎（必败、白耗 1~5s）
-  // 若日后域名恢复，再评估是否把条件改为按 platforms 声明过滤
-  if (t.xinghaiBackup && platform !== "kg") push(SOURCE_HANDLERS.xinghaiBackup);
+  // 已知不可用：星海备域名 yy.zddyr.top 当前不可解析，默认关闭；开启后作最后备胎（必败、白耗 1~5s）
+  // v8.11.1：条件改为按 PLATFORM_TO_XINGHAI_BACKUP 声明过滤——旧条件只写了 !== "kg"，
+  // 但映射表 {wy,tx,kw} 里也没有 mg，导致 mg 平台每次都被 push 进来、必抛 PARAM_ERROR，
+  // 白等一次外呼。按映射表判定天然排掉 mg/kg，且以后加平台不会再漏。
+  if (t.xinghaiBackup && PLATFORM_TO_XINGHAI_BACKUP[platform]) push(SOURCE_HANDLERS.xinghaiBackup);
   // 长青/念心已在 kw 块内按 kw-only 顺序 push（maxQuality=128k，仅进kw 128k链）
   // v8.9：huibq 仅支持 kw/wy（2026-11-06 实测：tx/mg/kg 均返回"无法获取播放链接"，必败兜底白耗 1~1.5s）
   // v8.9：按 handler 的 platforms 能力声明过滤（单一真相，避免链构建与声明各写一份而漂移）
