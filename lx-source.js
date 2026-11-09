@@ -1123,8 +1123,14 @@ function parseMp3Info(buf) {
 function sniffAudioBytes(body, headers, totalBytes) {
   const ct = String((headers && headers["content-type"]) || "").toLowerCase();
   const out = { kind: "unknown", format: null, durationSec: null, bitrateKbps: null };
-  if (!body || !body.length) {
-    if (/audio|octet|mpeg|mp3|flac|ogg|aac|m4a/.test(ct)) out.kind = "audio";
+  // D-29：能拿到响应体、里面却没有任何字节（或短到装不下任何音频头），是**确定不可播**，
+  // 不是"拿不准"。旧逻辑在这里把 content-type 为 audio 的空体直接判成 audio ——
+  // 206 + 0 字节会被当成"验真通过"交付出去：用户点到的是 0 字节 URL，播放器必报错，
+  // 而音源认为成功、连失败缓存都不进，于是每次重试都重新外呼、每次都"成功"。
+  // 16 字节的下限依据：FLAC 的 STREAMINFO 至少 34 字节；ID3 标签头 10 字节 + 帧头 4 字节；
+  // MP3 单帧头 4 字节。任何真实音频文件的"开头 16 字节"都不可能短于这个量。
+  if (!body || body.length < 16) {
+    out.kind = "empty";
     return out;
   }
   // 1. 文本类优先判死
@@ -1268,9 +1274,10 @@ async function verifyDelivery(audioUrl, ctx = {}) {
   }
   if (!probe.ok) {
     const kind = probe.info && probe.info.kind;
-    if (kind === "playlist" || kind === "html" || kind === "json") {
+    if (kind === "playlist" || kind === "html" || kind === "json" || kind === "empty") {
       const code = kind === "playlist" ? ERROR_CODES.STREAM_PLAYLIST : ERROR_CODES.NOT_AUDIO;
-      return { ok: false, code, reason: `交付内容不是音频(${kind})` };
+      const why = kind === "empty" ? "交付内容为空(0~16 字节，不可能可播)" : `交付内容不是音频(${kind})`;
+      return { ok: false, code, reason: why };
     }
     return null; // 拿不准就放行（误杀代价高于听到片段）
   }
