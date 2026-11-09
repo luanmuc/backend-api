@@ -130,6 +130,28 @@ const MUTANTS = [
     to: 'const probeTimeout = HEALTH_CHECK_TIMEOUT;',
     gates: ['test/stress-round4.js'],
   },
+  {
+    id: 'MU17',
+    name: '缓存跨档命中回退（只查请求档，D-36 保护）',
+    from: 'let cached = getCachedUrl(cacheKey);\n  if (!cached) {',
+    to: 'let cached = getCachedUrl(cacheKey);\n  if (false) {',
+    gates: ['test/stress-round4.js'],
+  },
+  {
+    id: 'MU18',
+    name: '验真间隔阈值退回 || 读配置（0 被吞，D-35 保护）',
+    from: 'verifyDurGapSec: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurGapSec) ?? 15',
+    to: 'verifyDurGapSec: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurGapSec) || 15',
+    gates: ['test/stress-round4.js'],
+  },
+  {
+    id: 'MU19',
+    name: '去掉半开退回 open（节流路径卡死，D-34 保护）',
+    from: 'revertHalfOpenOnSkip(handler.id); // D-34：同上，节流也在 try 之外抛',
+    to: '// D-34 变异体：删掉半开退回',
+    gates: ['test/stress-round4.js'],
+  },
+
 ];
 
 function copyRepo() {
