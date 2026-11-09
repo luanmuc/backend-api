@@ -122,8 +122,15 @@ const ERROR_CODES = {
 function normalizeErrCode(err, fallback) {
   if (!err || err.code) return err;
   const msg = String(err.message || "");
-  const hit = Object.keys(ERROR_CODES).find(k => msg.startsWith(k + ":"));
-  err.code = hit || fallback || ERROR_CODES.NETWORK_ERROR;
+  // D-30：throw 处写的是「值」（`SONG_MISMATCH`），键名却是 `MISMATCH`（12 码里唯一键≠值）。
+  // 只按键名匹配会让它回落成 NETWORK_ERROR，连带三处一起错：
+  //   ① 用户/日志看到「网络错误」而真相是「搜索到的不是这首歌」；
+  //   ② FAIL_CACHE_TTL_BY_CODE[MISMATCH]=1h 永不生效，同一首错歌被反复重查重外呼；
+  //   ③ 熔断把业务失败当网络失败计数，用户点几首匹配不上的歌就能把健康源打进冷却。
+  const hitKey = Object.keys(ERROR_CODES).find(k => msg.startsWith(k + ":") || msg.startsWith(ERROR_CODES[k] + ":"));
+  // 赋「值」而不是键名：全仓比较一律是 `=== ERROR_CODES.X`（即值），
+  // 而 MISMATCH 的键名 `MISMATCH` ≠ 值 `SONG_MISMATCH`，只按键名匹配会双双落空。
+  err.code = hitKey ? ERROR_CODES[hitKey] : (fallback || ERROR_CODES.NETWORK_ERROR);
   return err;
 }
 
@@ -2756,7 +2763,13 @@ function buildQualityChain(requested) {
 function extractErrorCode(e) {
   if (e && e.code) return e.code;
   const m = String((e && e.message) || "").match(/^([A-Z_]+):/);
-  return m && ERROR_CODES[m[1]] ? m[1] : ERROR_CODES.NETWORK_ERROR;
+  if (!m) return ERROR_CODES.NETWORK_ERROR;
+  const prefix = m[1];
+  // 前缀可能写成键名（PARAM_ERROR）也可能写成值（SONG_MISMATCH）——两种都要认，
+  // 且一律返回「值」，与全仓 `=== ERROR_CODES.X` 的比较口径对齐（D-30）。
+  if (ERROR_CODES[prefix]) return ERROR_CODES[prefix];
+  const byValue = Object.keys(ERROR_CODES).find(k => ERROR_CODES[k] === prefix);
+  return byValue ? ERROR_CODES[byValue] : ERROR_CODES.NETWORK_ERROR;
 }
 
 // v8.8：档位短路——某源某音质档历史 success=0 且失败样本达标，则该档直接跳过该源

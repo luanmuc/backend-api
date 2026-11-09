@@ -122,7 +122,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const CODES = () => fresh().ERROR_CODES;
 const codeOf = (e) => (e && e.code) || '';
-const isLegalCode = (c) => Object.prototype.hasOwnProperty.call(CODES(), c);
+// 合法码按「值」判定：生产里 err.code 一律是 ERROR_CODES.X 的值，
+// 而 MISMATCH 的键名 `MISMATCH` ≠ 值 `SONG_MISMATCH`，按键名判会把合法码误判成非法（D-30 同源）。
+const isLegalCode = (c) => Object.values(CODES()).includes(c);
 
 /** 一次调用的统一结果规整：成功 → {url}，失败 → {code}，并把不变量检查塞进来 */
 async function invoke(platform, quality, song, tag) {
@@ -399,6 +401,74 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
       if (!(d >= 1)) leaked++;
     }
     rec('V10', leaked === 0, `20 次重新加载，每次首请求都必然外呼（>=1 次）；deltas=[${deltas.join(',')}]`);
+  }
+
+  // ============ V11 MISMATCH 闸门：strict 档不许把同名错歌交付出去 ============
+  // 设计要点：suyinKuwo 的关键词有 strict（歌名+歌手）与兜底（歌名）两种，
+  // 兜底档按设计「放宽歌手/专辑、只校歌名与时长」。所以不能只看最终结果，
+  // 而是用「第一轮故意给错歌、之后给正确歌」的口径：
+  //   闸门生效 → 错歌被拒、重试拿到正确链接；闸门失效 → 第一轮就直接把错歌交付。
+  console.log('\n[V11] MISMATCH：同名不同版本（翻唱/别的歌手）必须被拒，不许把错歌交出去');
+  {
+    const T = { name: '七里香', singer: '周杰伦', duration: 271000, songmid: 'mis1' };
+    const mk = (song, singer, durSec, url) => () => ({
+      statusCode: 200, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: 1, data: { song, singer, duration: durSec, url } }),
+    });
+    const right = mk('七里香', '周杰伦', 271, 'https://audio.test/right.flac');
+    const runFirstWrong = async (wrong, song, tag) => {
+      fresh(BASE_CFG, ['suyinKuwo']);
+      let n = 0;
+      fetchFault = () => (++n === 1 ? wrong() : right());
+      return invoke('kw', 'flac', song || T, tag);
+    };
+
+    const a = await runFirstWrong(mk('七里香', '费玉清', 271, 'https://audio.test/wrong1.flac'), T, 'v11a');
+    rec('V11a', a.kind === 'ok' && String(a.url || '').includes('right'),
+      `首轮给「同名不同歌手」→ 最终交付 ${a.url || a.code}（应是被拒后重试拿到的 right，而不是 wrong1）`);
+
+    const b = await runFirstWrong(mk('七里香', '周杰伦', 200, 'https://audio.test/wrong2.flac'), T, 'v11b');
+    rec('V11b', b.kind === 'ok' && String(b.url || '').includes('right'),
+      `首轮给「同名同歌手但时长差 71s」→ 最终交付 ${b.url || b.code}（应拒绝并重试拿到 right，而不是 wrong2）`);
+
+    const c = await runFirstWrong(right, T, 'v11c');
+    rec('V11c', c.kind === 'ok' && /^https?:\/\//.test(c.url || ''),
+      `首轮就给正确歌 → ${c.kind} ${c.url || ''}（正例必须成功，否则 a/b 可能是恒红）`);
+
+    const leaked = [a, b].some(x => String(x.url || '').includes('wrong'));
+    rec('V11d', !leaked, `错歌没有被交付出去（a=${a.url || a.code}, b=${b.url || b.code}）`);
+  }
+
+  // ============ V12 片段识别三阈值：只用默认值 + 边界样本（不覆盖 config） ============
+  // 判据源码：ratio < verifyDurRatio(0.6) **且** gap > verifyDurGapSec(15) 才判片段；
+  // 原曲 < verifyMinOriginalSec(90) 时整条判据不套用。三条件缺一都不该误判。
+  console.log('\n[V12] 片段识别三阈值：比率/绝对差/短原曲免判，逐条卡边界');
+  {
+    const totalOf = (sec) => Math.round(55397039 * sec / 269.7);
+    const flacAt = (sec) => audio(flac(sec), 'audio/flac', totalOf(sec));
+    const full = { name: '阈值边界歌', singer: '周杰伦', duration: 271000, songmid: 'dur1' };
+    const probeWith = async (sec, song, tag) => {
+      fresh(BASE_CFG, ['suyinKuwo']);
+      probeFault = () => flacAt(sec);
+      return invoke('kw', 'flac', song || full, tag);
+    };
+    const isFrag = (r) => r.kind === 'fail' && r.code === 'PREVIEW_FRAGMENT';
+
+    const r160 = await probeWith(160, full, 'v12a');
+    rec('V12a', isFrag(r160), `交付 160s / 原曲 271s（ratio 0.590，差 111s）→ ${r160.code || r160.kind}（应 PREVIEW_FRAGMENT）`);
+
+    const r170 = await probeWith(170, full, 'v12b');
+    rec('V12b', !isFrag(r170), `交付 170s（ratio 0.627 > 0.6，差 101s）→ ${r170.code || r170.kind}（比率够就不判：两条件是 AND）`);
+
+    const r258 = await probeWith(258, full, 'v12c');
+    rec('V12c', !isFrag(r258), `交付 258s（ratio 0.952，差 13s < 15s）→ ${r258.code || r258.kind}（差距不够就不判）`);
+
+    const shortSong = { name: '短原曲', singer: '周杰伦', duration: 80000, songmid: 'dur2' };
+    const rShort = await probeWith(40, shortSong, 'v12d');
+    rec('V12d', !isFrag(rShort), `原曲仅 80s（<90s 门槛）、交付 40s → ${rShort.code || rShort.kind}（短原曲不套用比率判据）`);
+
+    const r162 = await probeWith(162, full, 'v12e');
+    rec('V12e', isFrag(r162), `交付 162s（ratio 0.598 刚过 0.6 线，差 109s）→ ${r162.code || r162.kind}（证明比率侧真卡在 0.6）`);
   }
 
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);

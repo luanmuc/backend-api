@@ -1155,3 +1155,31 @@ ID3 标签头 10 + 帧头 4、MP3 帧头 4 字节——低于 16 字节无论何
 
 **方法论**：压测断言要覆盖「**状态码正确但内容为空/极短**」这一档。V1 的 150 组矩阵现已常驻，
 若有人回退这段判据，`emptyBody/truncLen/shortMp3` 三档会立刻重新变绿（=假成功），断言即红。
+
+
+## §15 D-30：错误码「键名/值」混用，MISMATCH 永久丢失（2026-11-09）
+
+**怎么发现**：补 V11（MISMATCH 覆盖）时断言先红，报出的码却是 `NETWORK_ERROR`。
+
+**根因**：`ERROR_CODES` 里 12 个码只有 `MISMATCH → 'SONG_MISMATCH'` 键≠值，而两处归一函数都按**键名**匹配：
+
+```js
+// 错（normalizeErrCode）
+const hit = Object.keys(ERROR_CODES).find(k => msg.startsWith(k + ":"));
+err.code = hit || fallback;            // ① 匹配 'MISMATCH:' 而 message 是 'SONG_MISMATCH:' ② 赋的是键名
+// 错（extractErrorCode）
+return m && ERROR_CODES[m[1]] ? m[1] : NETWORK_ERROR;   // ERROR_CODES['SONG_MISMATCH'] 为 undefined
+```
+
+**连带三处一起错**：
+1. 用户/日志看到「网络错误」，真相是「搜到的不是这首歌」；
+2. `FAIL_CACHE_TTL_BY_CODE[MISMATCH] = 1h` 永不生效 → 同一首错歌反复重查、反复外呼；
+3. 熔断把业务失败当网络失败计数 —— 源码注释明确「业务失败(MISMATCH等)不计入熔断」，实际却计入，用户点几首匹配不上的歌就能把健康源打进冷却。
+
+**修法**：两处统一「认键名也认值、一律赋**值**」，与全仓 `=== ERROR_CODES.X` 的比较口径对齐。修后实测 `code=SONG_MISMATCH`。
+
+**同源测试缺陷**：V 组 `isLegalCode` 也用键名判定（`hasOwnProperty(CODES(), 'SONG_MISMATCH')` 为 false），会把合法码误判成非法 —— 11 个码键值同名，一直没暴露。已改按 `Object.values` 判定。
+
+### D-31（取舍记录，未改代码）：兜底档放宽歌手是有意设计
+`suyinKuwoGetUrl` 的兜底关键词用 `strict=false`，只传 `{name, duration}`，**丢 singer**（注释写明「歌手/专辑可放宽，但歌名与时长必须一致」）。后果：flac 档拒了同名错歌，降档到兜底档仍会放行，用户最终可能听到翻唱。
+未擅自收紧（歌手写法差异在真实源很常见，收紧会大面积误拒）。V11 改用「首轮给错歌、之后给正确歌」的口径，精确验证 strict 档闸门生效（首错被拒 → 交付正确链接）。是否收紧兜底档待拍板。
