@@ -42,9 +42,36 @@ jobs:
       # v5.0：发布前自检门——版本串同步/actions声明/README与ROADMAP同步，任一失败阻断
       - name: L2 发布前自检门（版本串/action声明/文档同步）
         run: node scripts/self-check.js
+      # v8.11.2（G1）：审计脚本接入 CI。此前 7 个审计脚本只在本地跑，
+      # 22 条 A 级断言（注入能红）从未守过任何一次提交。
+      - name: L3 审计门禁（静态/逻辑/功能/扩展）
+        run: |
+          node test/audit/a-static.js
+          node test/audit/b-logic.js
+          node test/audit/d-func.js
+          node test/audit/e-extra.js
+      - name: L4 审计门禁（仓库/元审计/开关）
+        run: |
+          node test/audit/f-repo.js
+          node test/audit/g-meta.js
+          node test/audit/h-toggles.js
+      - name: L5 第三轮压力与并发（T1~T12）
+        run: node --expose-gc test/stress-round3.js
       - name: 巡检脚本语法（v8.10.5：覆盖 scripts 下全部脚本，新增脚本自动纳入）
         run: |
           for f in scripts/*.js; do node --check "$f" || exit 1; done
+
+  # ---------- v8.11.2（G1）：变异测试（只跑夜间与手动触发，全量 3~6 分钟） ----------
+  mutation:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 变异测试（12 变异体 × 5 门禁，killed 率必须 100%）
+        run: node test/mutation/run.js --full
 
   # ---------- v2.0：每日端点巡检 + 健康表写回 ----------
   probe:
