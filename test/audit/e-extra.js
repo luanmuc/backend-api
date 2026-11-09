@@ -835,6 +835,25 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('INV5', '同歌同档两次（全新实例）交付同一源', s1 === s2 && !!s1, `第一次=${s1} 第二次=${s2}`);
   }
 
+  // ================= G4b：同歌同档并发去重（第六轮 G4 落网关） =================
+  {
+    const m = fresh(['suyinKuwo']);
+    reset();
+    const okScene = (u) => String(u).includes('oiapi.net')
+      ? json({ code: 200, data: { url: 'https://audio.test/dup.mp3' } })
+      : audio(flac(269.7, 44100), 'audio/flac', 55397039);
+    scene = okScene;
+    probeFn = () => audio(flac(269.7, 44100), 'audio/flac', 55397039);
+    const song = { ...GOOD, songmid: 'g4dup' };
+    let dbg = '';
+    const ps = [1, 2, 3, 4, 5].map(() => req('128k', song).catch(e => { dbg = String((e && e.message) || e).slice(0, 120); return null }));
+    const vals = await Promise.all(ps);
+    const outbound = Object.keys(counts).filter(k => k.includes('oiapi.net')).reduce((a, k) => a + counts[k], 0);
+    rec('G4b', '同歌同档 5 并发 → 上游外呼应合并为 1 次', outbound === 1, `实际外呼=${outbound} 次`);
+    const urls = vals.map(v => v && v.url).filter(Boolean);
+    rec('G4c', '5 并发返回的一致可用（都拿到 url）', urls.length === 5, `拿到 ${urls.length}/5 err=${dbg}`);
+  }
+
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);

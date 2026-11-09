@@ -2780,6 +2780,18 @@ function warmUpColdStartSources(platform) {
   }
 }
 
+// v8.11.2（G4）：同歌同档并发合并。
+// 旧行为：同歌同档 5 个并发请求 → 上游外呼 5 次（inflightCount 只是计数，没有去重）。
+// 现在：相同 key 的并发请求共享第一个 Promise，上游只被真正打一次。
+const inflightUrl = new Map();
+const INFLIGHT_URL_MAX = 200; // 兜底：异常情况下不让这个 Map 无界增长
+
+function buildInflightKey(platform, songInfo, quality) {
+  const m = (songInfo && typeof songInfo === "object") ? songInfo : {};
+  const id = m.songmid || m.hash || m.musicId || m.copyrightId || m.id || "";
+  return `${platform}|${quality}|${id}|${m.name || ""}|${m.singer || ""}|${m.duration || 0}`;
+}
+
 async function getUrlWithFallback(platform, songInfo, quality) {
   if (!platform || typeof platform !== "string" || !PLATFORM_QUALITIES[platform]) {
     throw new Error(`${ERROR_CODES.PARAM_ERROR}: 无效的平台参数`);
@@ -3153,8 +3165,20 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
     paramErr.code = ERROR_CODES.PARAM_ERROR;
     return Promise.reject(paramErr);
   }
-  return getUrlWithFallback(source, info.musicInfo, info.type || (QUALITY_FIRST ? "flac" : "128k"))
+  const quality = info.type || (QUALITY_FIRST ? "flac" : "128k");
+  const key = buildInflightKey(source, info.musicInfo, quality);
+  if (inflightUrl.size > INFLIGHT_URL_MAX) inflightUrl.clear();
+  const prev = inflightUrl.get(key);
+  if (prev) {
+    logDebug(`[并发合并] ${key} 复用在途请求`);
+    return prev;
+  }
+  const task = getUrlWithFallback(source, info.musicInfo, quality)
     .catch(err => Promise.reject(normalizeErrCode(err)));
+  inflightUrl.set(key, task);
+  const done = () => { if (inflightUrl.get(key) === task) inflightUrl.delete(key); };
+  task.then(done, done);
+  return task;
 });
 
 send(EVENT_NAMES.inited, {

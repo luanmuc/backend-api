@@ -128,3 +128,16 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 
 **执行顺序**：1 → 2 → 3 → 4 → 7 → 8。前三条是行为修复，各需独立验证；后三条是文档与验证补全。
 
+### 6.1 销项记录（2026-11-09）
+
+| # | 编号 | 状态 | 提交 / 证据 |
+|---|---|---|---|
+| 1 | D-24 + D-25 | ✅ 已修 | App `f9ba9108`：顺序改「导新 → 切新并等 init(8s 上限) → 删旧」，`setApiSource` 返回 `apiInitPromise[0]`；tsc 无新增错误 |
+| 2 | C-1 | ✅ 已修 | 音源 `a57d593`：新增 `assertDeliverableUrl`，接入 3 处 `isAudioPlayable` 之前；`PARAM_ERROR` 补 1min TTL。复现对比：修前 `LINK_EXPIRED`，修后 `PARAM_ERROR` |
+| 3 | G4 | ✅ 已修 | 音源：`inflightUrl` 按 `platform\|quality\|songmid\|name\|singer\|duration` 合并并发；新断言 G4b/G4c（先红后绿：外呼 5→1，5/5 拿到 url） |
+| 4 | G1 | ⏳ 待做 | — |
+| 5 | D-22 | ✅ 已修 | 前序提交 |
+| 6 | D-23 | ✅ 已修 | App `9c8ea039` |
+| 7 | 口径统一 | ⏳ 待做 | — |
+| 8 | 验证补全 | ⏳ 待做 | — |
+
