@@ -709,6 +709,14 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     catch (e) { looseErr = e; }
     rec('V21b', !!looseUrl,
       `兜底档（只带 name+duration）遇同一错歌手 → ${looseUrl ? '放行并交付该链接（会播出错歌）' : '拒绝(' + String(looseErr && looseErr.message).slice(0, 24) + ')'}`);
+
+    // V21c：放行可以，但必须留下可定位的痕迹（静态校验：日志语句必须存在且绑定在兜底档分支）
+    // 运行期捕获不可行——LOG_ENABLED 在模块加载期固化，fresh 传参不生效；故改为源码级守护，防止日志被误删。
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'lx-source.js'), 'utf8');
+    const hasLog = /if \(!item\.strict\)[\s\S]{0,200}歌手未校验/.test(src);
+    rec('V21c', hasLog, `兜底档分支必须落「歌手未校验」日志语句，实得 ${hasLog ? '已存在' : '未找到'}`);
   }
 
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);

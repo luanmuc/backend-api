@@ -2062,6 +2062,11 @@ async function suyinKuwoGetUrl(songInfo, quality) {
         }
         // v8.12（D-20）：删除内层写缓存——isAudioPlayable 只验「能播」，不验时长/完整度，
         // 片段 URL 会因此进入 30min/6h 成功缓存，绕过外层验真闸门。统一由外层验真后写。
+        // D-31：兜底档(strict=false)丢 singer 后只剩歌名+时长校验，可能放行同名同时长的错歌手。
+        // 行为按既有取舍保留（有总比没有好），但必须留下可定位的痕迹，避免"悄悄放错歌"。
+        if (!item.strict) {
+          logInfo(`[兜底档] 歌手未校验（仅歌名+时长）: ${songInfo?.name || ""} ← 关键词「${item.keyword}」`);
+        }
         return httpsUrl;
       }
     } catch (e) { lastError = e; }
@@ -3275,7 +3280,8 @@ if (typeof module !== "undefined" && module.exports) {
       qualitySkipProbeAt,
       probeSingleSource,
       sniffAudioBytes,
-      suyinKuwoSearch,   // 供测试验证 D-31：兜底档丢 singer 的实际判定结果
+      suyinKuwoSearch,   // 供测试验证 D-31
+      suyinKuwoGetUrl,   // 供测试验证 D-31 端到端：兜底档日志是否落
       setCachedUrl,      // 供测试构造脏缓存（复现"槽位是 flac、内容是 128k"的历史条目）
       buildCacheKey,
       breakerMap,
