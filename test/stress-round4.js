@@ -1200,6 +1200,35 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
   // 完全支配，stagger=0 与 300 实测同为 803ms）。该键没有能隔离出来的行为差，
   // 硬留断言只会得到恒真空转 —— 按「不做凑数」处理，已记录在 docs/PROGRESS_round5.md。
 
+  // ============ V37 缓存复验拒绝后，必须重新解析并交付（用注入钩子构造脏条目） ============
+  // 不能用「关 verifyDelivery 写脏缓存再开复验」：USER_CONFIG 是加载期固化的常量，
+  // 改配置必须重新加载模块，而缓存也是模块级的 —— 重新加载会把缓存一起清空。
+  // 改用 __debug.setCachedUrl 直接注入脏条目，绕开这个死锁。
+  console.log('\n[V37] 脏缓存被复验拒绝后应重新外呼并交付完整版');
+  {
+    const S37 = { name: '晴天', singer: '周杰伦', duration: 269700, hash: 'H37AAA' };
+    const okJSON37 = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v37.mp3\n歌名：晴天\n歌手：周杰伦\n时长：269.7` }) });
+    const m = fresh(Object.assign({}, BASE_CFG, { verifyOnCacheHit: true, verifyDelivery: true, cacheTtlMs: 600000 }), ['suyinKuwo']);
+    // 注入一条「URL 指向片段、但标着 flac」的历史脏条目
+    const dirtyKey = m.__debug.buildCacheKey('kw', S37, 'flac');
+    m.__debug.setCachedUrl(dirtyKey, 'https://cdn.test/audio.test/dirty-frag.flac', 'flac', 'suyinKuwo');
+    rec('V37a', true, `脏条目已注入 flac 槽（构造前提）`);
+
+    fetchFault = okJSON37;
+    // 关键：按 URL 分流——脏条目本身仍是 5 秒片段（复验应拒），新解析出来的 URL 才是完整版。
+    // 若一刀切成完整版，复验会直接通过，等于什么都没测（V37c 首轮就是这么假红的）。
+    probeFault = (u) => (String(u).includes('dirty-frag')
+      ? audio(flac(5), 'audio/flac', 55397039)
+      : audio(flac(269.7), 'audio/flac', 55397039));
+    const n0 = Object.values(counts).reduce((a, b) => a + b, 0);
+    const r37 = await m.getUrlWithFallback('kw', S37, 'flac');
+    const n1 = Object.values(counts).reduce((a, b) => a + b, 0);
+    rec('V37b', n1 > n0, `脏缓存被复验拒绝后应重新外呼（${n0}→${n1}），否则等于只拒绝不恢复`);
+    rec('V37c', !!(r37 && r37.url && !String(r37.url).includes('dirty-frag')),
+      `应交付新解析结果而非脏条目，实测 ${r37 ? String(r37.url).slice(-24) : '失败'}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);

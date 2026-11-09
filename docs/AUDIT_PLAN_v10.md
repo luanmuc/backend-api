@@ -63,7 +63,7 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 > |---|---|---|
 > | 冒烟 | **67 组** | `lx-source-smoke-test.js` |
 > | 审计 | **249 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 92 / f-repo 50 / g-meta 14 / h-toggles 14 / candidate 6 / QuickJS 3 条**（QR 需装 quickjs-emscripten，缺依赖时退出码 3，不得计入通过）** 3 |
-> | 压测 | **152 条** | stress 12 / round3 14 / round4（V 组）126 |
+> | 压测 | **155 条** | stress 12 / round3 14 / round4（V 组）129 |
 > | 变异体 | **16 个** | MU1~MU16，killed 率 100% |
 > | **合计** | **249 条审计断言**（+ 151 压测 + 67 冒烟 = 467） | e-extra 的 92 已在 249 内，不再二次相加 |
 >
