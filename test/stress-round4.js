@@ -751,6 +751,28 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
       `全部失败应返回过期缓存(${q1})，实得 ${r2 ? '返回 ' + String(r2.type) : '抛错 ' + String(err2 && err2.code)}`);
   }
 
+  // ============ V23 isPreviewFragmentUrl 预过滤（L1473/L1811，默认关闭→整函数从未执行） ============
+  console.log('\n[V23] previewUrlPreFilter 差分：同一构造、只切开关');
+  {
+    const S23 = { name: '晴天', singer: '周杰伦', duration: 269700, rid: '228908' };
+    const mk = async (preFilter) => {
+      const m = fresh(Object.assign({}, BASE_CFG, { previewUrlPreFilter: preFilter }), ['helloworldKw']);
+      fetchFault = (u) => u.includes('mobi.s')
+        ? { statusCode: 200, headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ code: 200, data: { url: 'https://cdn.test/audio.test/preview-30s.mp3', format: 'mp3' } }) }
+        : { statusCode: 200, headers: { 'content-type': 'application/json' }, body: '{}' };
+      probeFault = () => audio(flac(269.7), 'audio/flac', 55397039);
+      try { return { r: await m.getUrlWithFallback('kw', S23, '128k') }; }
+      catch (e) { return { err: e }; }
+    };
+    const a = await mk(false);   // 默认关闭：放行
+    const b = await mk(true);    // 打开：拦下
+    rec('V23a', !!(a.r && String(a.r.url).includes('preview-30s')),
+      `previewUrlPreFilter=false 应放行试听URL，实得 ${a.r ? '放行' : '拦下 ' + String(a.err && a.err.code)}`);
+    rec('V23b', !(b.r && String(b.r.url).includes('preview-30s')),
+      `previewUrlPreFilter=true 应拦下试听URL，实得 ${b.r ? '仍放行(预过滤失效)' : '拦下 ' + String(b.err && b.err.code)}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);
