@@ -1716,3 +1716,24 @@ V32 差分：数字 `5` 与 269.7 差 264s → 拒（对照通过）；`0:05` / 
 
 **同批覆盖**：FLAC 前置 PADDING 块仍能找到 STREAMINFO（V33a/b）；全失败短缓存
 TTL 生效与 0 值不缓存（V34a~d）。
+
+### 26.8 推送前最后关口：全量变异 19/19（第五轮收尾）
+
+`node test/mutation/run.js --full --strict`：
+
+```
+变异测试（5 个门禁）汇总：19 killed / 0 survived，killed 率 100%
+```
+
+MU1~MU16 由既有门禁（stress-round3 / e-extra / b-logic / g-meta / a-static / stress-round4）杀死；
+本轮新增三只专门看护新修复：
+
+| 变异体 | 看护对象 | 杀它的门禁 |
+|---|---|---|
+| MU17 | D-36 缓存跨档命中（回退成只查请求档） | stress-round4 的 V30b |
+| MU18 | D-35 数值键 `??`（回退成 `||`） | stress-round4 的 V26f |
+| MU19 | D-34 半开节流退回（删掉收口调用） | stress-round4 的 V25c |
+
+MU19 首轮**存活**，反查发现 V25b 其实没覆盖「节流处」的托底（state 直接置 half-open，
+canExecute 对 half-open 恒 false → 只走到熔断处）。补 V25c 后才杀死。
+一次存活的变异体，比十次全绿更能说明断言的真实覆盖边界。
