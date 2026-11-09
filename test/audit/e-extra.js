@@ -717,6 +717,48 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
 
     const f7b = await run1({ ...GOOD, songmid: 'f7b' }, () => { throw { reason: 'plain object' }; });
     rec('FAULT7b', '上游抛纯对象（无 message）仍产出已知错误码', CODES.has(f7b), `结果 ${f7b}`);
+
+    // FAULT8：429 走独立的 recordRateLimit 分支——与 5xx 的 recordFailure 完全不同：
+    // 不计入熔断失败（failureCount 不动）、只做 30s 退避、连续 3 次标记 rateLimited。
+    // 之前这条分支从没被测过，只看"返回 RATE_LIMIT"分不清它到底走的是 recordFailure 还是 recordRateLimit。
+    const MOD8 = fresh(['suyinKuwo'], { rateWindowMax: 1e6, breakerThreshold: 3 });
+    const KW8 = 'https://oiapi.net/api/Kuwo';
+    const fn429 = () => ({ statusCode: 429, headers: {}, body: '' });
+    scene = fn429;
+    probeFn = fn429;
+    const seq8 = [];
+    const c8a = counts[KW8] || 0;
+    for (let i = 0; i < 3; i++) {
+      try { const r = await req('128k', { ...GOOD, songmid: 'f429_' + i }); seq8.push(r && r.url ? 'OK' : 'EMPTY'); }
+      catch (e) { seq8.push(String((e && e.code) || 'NOCODE')); }
+    }
+    const c8b = counts[KW8] || 0;
+    const snap8 = MOD8.getHealthSnapshot()['suyinKuwo'] || {};
+    let rF8 = 'NOCODE';
+    try { const r = await req('128k', { ...GOOD, songmid: 'f429_after' }); rF8 = r && r.url ? 'OK' : 'EMPTY'; }
+    catch (e) { rF8 = String((e && e.code) || 'NOCODE'); }
+    const c8c = counts[KW8] || 0;
+    rec('FAULT8', '连续 429 走独立限流分支（RATE_LIMIT + 不计熔断 + 退避期不外呼）',
+      seq8.every((c) => c === 'RATE_LIMIT') && (snap8.rateLimitCount || 0) >= 1
+        && String(snap8.state) !== 'open' && c8c === c8b,
+      `三次码 ${seq8.join('/')}；外呼 ${c8a}→${c8b}→${c8c}；rateLimited=${snap8.rateLimited} rateLimitCount=${snap8.rateLimitCount} state=${snap8.state} 第4首=${rF8}`);
+
+    // FAULT8b：`rateLimited` 标记的可达性。串行连发时它到不了——第一次 429 就把
+    // rateLimitUntil 推后 30s，后续请求被 canExecute 本地拦下（不算新的限流证据），
+    // 所以 rateLimitCount 停在 1。只有并发同时被上游拒才累积到 RATE_LIMIT_TRIP=3。
+    // 这条是为了证明"标记本身没写坏"，不是证明"串行也能标"。
+    const MOD8b = fresh(['suyinKuwo'], { rateWindowMax: 1e6, breakerThreshold: 3 });
+    scene = fn429;
+    probeFn = fn429;
+    const pend = [];
+    for (let i = 0; i < 3; i++) {
+      pend.push(req('128k', { ...GOOD, songmid: 'f429p_' + i }).then((r) => (r && r.url ? 'OK' : 'EMPTY')).catch((e) => String((e && e.code) || 'NOCODE')));
+    }
+    const seq8b = await Promise.all(pend);
+    const snap8b = MOD8b.getHealthSnapshot()['suyinKuwo'] || {};
+    rec('FAULT8b', '并发 3 路同时 429 才累积到「被限」标记（串行下 RATE_LIMIT_TRIP 不可达）',
+      (snap8b.rateLimitCount || 0) >= 3 && snap8b.rateLimited === true,
+      `并发码 ${seq8b.join('/')}；rateLimitCount=${snap8b.rateLimitCount} rateLimited=${snap8b.rateLimited} state=${snap8b.state}`);
   }
 
   // ================= INV 不变量（第五轮 5.2）=================
@@ -739,6 +781,28 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     const nameA = String((rA && rA.subSourceName) || '');
     rec('INV2', '交付的 subSource 必须在 buildSourceChain 结果里', !!subA && idsA.includes(subA),
       `subSource=${subA} subSourceName=${nameA} chain=[${idsA.join(',')}]`);
+
+    // INV2b：多源换源——优选源失败必须真的换到 backup，且 subSource 必须换成 backup 的 id。
+    // 这是 INV2 唯一无法覆盖的场景：单源链路下 subSource 必然等于 chain[0]，断言接近恒真。
+    const MODSwap = fresh(['suyinKuwo', 'helloworldKw'], { rateWindowMax: 1e6 });
+    const HW = 'https://audio.test/hw.mp3';
+    scene = (u) => {
+      const s = String(u);
+      if (s.includes('oiapi.net/api/Kuwo')) return json({ code: 500 });                  // 优选源整体失败
+      if (s.includes('nmobi.kuwo.cn')) return json({ code: 200, data: { url: HW } });    // backup 可用
+      if (s.includes('audio.test')) return audio(mp3Body(), 'audio/mpeg', 4310000);
+      return json({ code: 404 });
+    };
+    probeFn = scene;
+    const chainSwap = MODSwap.buildSourceChain('kw', '128k') || [];
+    const idsSwap = chainSwap.map((h) => h.id || h.name);
+    let rSwap = null;
+    try { rSwap = await req('128k', { ...GOOD, songmid: 'inv2b' }); } catch (e) { rSwap = null; }
+    const subSwap = String((rSwap && (rSwap.subSource || rSwap.source)) || '');
+    const uniqSwap = new Set(idsSwap).size === idsSwap.length && idsSwap.length >= 2;
+    rec('INV2b', '优选源失败后换到 backup 源（subSource 必须变成 backup 的 id）',
+      uniqSwap && !!rSwap && !!rSwap.url && subSwap === 'helloworldKw',
+      `subSource=${subSwap} url=${rSwap && rSwap.url ? '有' : '无'} chain=[${idsSwap.join(',')}]`);
 
     // INV3：交付 type 必须与实测字节一致（构造"请求 flac、上游只给 mp3"）
     let rB = null;
