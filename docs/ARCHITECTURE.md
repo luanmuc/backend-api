@@ -58,6 +58,19 @@ App → lx.on(EVENT_NAMES.request)
 | 质量短路 | `qualityCeiling[platform][quality]` 6h | 全部源该档历史 0 成功 → 短路降档 1h 探路 |
 | 缓存 | success LRU 500 / fail LRU 300 | 命中后 `get` 提序；超容量淘汰最旧；TTL 分档（flac/320k 30min，128k 6h） |
 
+## 四·补、运行期行为（2026-11-09 补记，此前未成文）
+
+这几个行为用户能直接感知（降档落到哪一档、源多久恢复、探测多频繁），但文档此前没写，容易被当成"实现随便定的"。
+
+| 行为 | 实值 | 位置 |
+|---|---|---|
+| 降档顺序 | `QUALITY_PRIORITY = ["flac24bit","flac","320k","128k"]`——请求档不可达时按此顺序向下探，到 128k 为止 | 常量区 |
+| 竞速批大小 | `raceBatchSize` 默认 **3**：同批并发 3 个源，批内先到先得；`batch>1` 的配额源（如 `gdWy`）排到后面 | `cfg('raceBatchSize', 3)` 两处调用 |
+| 探针休眠 | 某源连续 **3 轮**探测失败 → 休眠，不再每轮空打；每 **10 轮**做一次复活试探 | `PROBE_SLEEP_AFTER_DEAD=3` / `PROBE_WAKE_EVERY_ROUND=10` |
+| 次要源探测 | tier=secondary 的源每 **3 轮**才探一次（核心源每轮） | `PROBE_TIER_SECONDARY_INTERVAL=3` |
+
+> 说明：这些是代码事实，不是设计意图的转述。要改动它们，先看上面四个状态机的迁移条件。
+
 ## 五、账本口径（数字别混）
 
 | 账本 | 记什么 | 不记什么 |
