@@ -832,6 +832,42 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V25b', b.state === 'open', `半开被节流拦下应退回 open，实测 ${b.state}`);
   }
 
+  // ============ R5-A1 配置键真生效：验真族（verifyDelivery/truthfulQuality/阈值） ============
+  console.log('\n[V26] 配置键真生效：验真族');
+  {
+    const S26 = { name: '晴天', singer: '周杰伦', duration: 269700 };
+    const fragAudio = () => audio(flac(5), 'audio/flac', 55397039);   // 5 秒 = 片段
+    const okJSON = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v26.mp3\n歌名：晴天\n歌手：周杰伦\n时长：269.7` }) });
+    const run26 = async (cfg) => {
+      const m = fresh(Object.assign({}, BASE_CFG, cfg), ['suyinKuwo']);
+      fetchFault = okJSON; probeFault = fragAudio;
+      try { return { r: await m.getUrlWithFallback('kw', S26, '128k') }; } catch (e) { return { err: e }; }
+    };
+
+    // verifyDelivery：开 → 拒片段；关 → 不验真直接放行
+    const on = await run26({ verifyDelivery: true });
+    rec('V26a', !!(on.err && String(on.err.code) === 'PREVIEW_FRAGMENT'),
+      `verifyDelivery=true 应拒 5 秒片段，实测 ${on.r ? '放行(失效)' : String(on.err && on.err.code)}`);
+    const off = await run26({ verifyDelivery: false });
+    rec('V26b', !!(off.r && off.r.url),
+      `verifyDelivery=false 应不验真直接放行，实测 ${off.r ? '放行' : '仍拒绝 ' + String(off.err && off.err.code)}`);
+
+    // truthfulQuality：真 → 标真实档；假 → 标请求档
+    const trueQ = await run26({ truthfulQuality: true, verifyDelivery: true, verifyMinOriginalSec: 1, verifyDurRatio: 0, verifyDurGapSec: 0 });
+    const fakeQ = await run26({ truthfulQuality: false, verifyDelivery: true, verifyMinOriginalSec: 1, verifyDurRatio: 0, verifyDurGapSec: 0 });
+    rec('V26c', !!(trueQ.r && String(trueQ.r.type).toLowerCase() !== '128k'),
+      `truthfulQuality=true 应回填真实音质(非请求档128k)，实测 ${trueQ.r ? trueQ.r.type : '失败'}`);
+    rec('V26d', !!(fakeQ.r && String(fakeQ.r.type).toLowerCase() === '128k'),
+      `truthfulQuality=false 应标请求档 128k，实测 ${fakeQ.r ? fakeQ.r.type : '失败'}`);
+
+    // verifyMinOriginalSec / verifyDurGapSec：阈值放宽后同一片段应被放行
+    const strict = await run26({ verifyDelivery: true, verifyMinOriginalSec: 90, verifyDurRatio: 0.6, verifyDurGapSec: 15 });
+    const loose = await run26({ verifyDelivery: true, verifyMinOriginalSec: 1, verifyDurRatio: 0, verifyDurGapSec: 0 });
+    rec('V26e', !!(strict.err && String(strict.err.code) === 'PREVIEW_FRAGMENT'), `阈值收紧应拒片段，实测 ${strict.r ? '放行(失效)' : String(strict.err && strict.err.code)}`);
+    rec('V26f', !!(loose.r && loose.r.url), `阈值放宽应放行同一片段，实测 ${loose.r ? '放行' : '仍拒绝 ' + String(loose.err && loose.err.code)}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);

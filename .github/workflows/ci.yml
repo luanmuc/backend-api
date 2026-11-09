@@ -57,7 +57,7 @@ jobs:
           node test/audit/h-toggles.js
       - name: L5 第三轮压力与并发（T1~T12）
         run: node --expose-gc test/stress-round3.js
-      - name: L5.1 第四轮压力测试（V 组 82 条：故障谱系/不变量/MISMATCH/阈值边界/配置面/兜底档实证）
+      - name: L5.1 第四轮压力测试（V 组 88 条：故障谱系/不变量/MISMATCH/阈值边界/配置面/兜底档实证）
         run: node --expose-gc test/stress-round4.js
       # v8.11.2（G2）：QuickJS 真引擎。此前该入口在本地因缺依赖 SKIP、且从未进 CI，
       # QR 组 3 条断言长期空转（rec 里 id 未定义的 bug 也因此藏了很久）。

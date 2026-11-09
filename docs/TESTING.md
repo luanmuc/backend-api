@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **14 个入口**，**没有统一 runner**，逐条跑。断言实测：冒烟 67 组 + 审计 10/30/30/**92**/50/**14**/**14**/**6** + 压测 12/14/**82** = **249 条审计断言（含 h-toggles 14 + QuickJS 3）+ 108 条压测断言**（QuickJS 3 条已计入上述 249；CI 的 L5.2 已强制装依赖，缺依赖会 SKIP；`note` 信息登记不计入；`test/mutation/run.js` 是 **16 个变异体**，按「能否被门禁杀掉」记）。
+> **14 个入口**，**没有统一 runner**，逐条跑。断言实测：冒烟 67 组 + 审计 10/30/30/**92**/50/**14**/**14**/**6** + 压测 12/14/**88** = **249 条审计断言（含 h-toggles 14 + QuickJS 3）+ 114 条压测断言**（QuickJS 3 条已计入上述 249；CI 的 L5.2 已强制装依赖，缺依赖会 SKIP；`note` 信息登记不计入；`test/mutation/run.js` 是 **16 个变异体**，按「能否被门禁杀掉」记）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 〇、CI 覆盖（`.github/workflows/ci.yml`）
@@ -11,7 +11,7 @@
 |---|---|---|
 | L1.3 | `node --expose-gc test/stress-test.js` | 12（S 组，压量） |
 | L5 | `node --expose-gc test/stress-round3.js` | 14（T 组，压态） |
-| L5.1 | `node --expose-gc test/stress-round4.js` | 82（V 组，压判据） |
+| L5.1 | `node --expose-gc test/stress-round4.js` | 88（V 组，压判据） |
 | mutation job | `node test/mutation/run.js --full` | 16 个变异体，killed 率必须 100% |
 
 > 说明：`stress-round4` 曾长期缺席 CI（另两套早就在），2026-11-09 补入 L5.1。
