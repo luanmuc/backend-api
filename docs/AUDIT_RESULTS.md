@@ -1198,3 +1198,18 @@ return m && ERROR_CODES[m[1]] ? m[1] : NETWORK_ERROR;   // ERROR_CODES['SONG_MIS
 `HUIBQ_API / HUIBQ_REQUEST_KEY / LINGCHUAN_API` 都是硬编码字符串常量，不是配置项，所以这两个判断永远为假、不可达，`CONFIG_ERROR` 的「未配置」语义实际不生效。属无害的防御性写法；若真要支持「未配置降级」，需先把它们改成从 `__lxSourceConfig` 读取。
 
 **仍零覆盖的配置键（7 个）**：`coldStartProbeTimeoutMs / coldStartWarmEnabled / coldStartWarmTtlMs / logEnabled / qualityShortCircuitProbeMs / raceBatchSize / xinghaiDeviceId`。
+
+
+## §17 配置面补测：敏感字段脱敏与日志开关（2026-11-09）
+
+补 V14/V15，覆盖此前零提及的 `xinghaiDeviceId`、`logEnabled`。
+
+**V14 配置读接口脱敏（安全类）**
+- `getConfig()`（`action:"config"` 无参）返回前把 `ikunApiKey / lingchuanApiKey / xinghaiDeviceId` 替换成 `***已设置***`，实测 dump 中三个密钥串一个都不出现。
+- 写模式只接受 `ALLOWED_KEYS` 白名单（不含任何卡密键），传 `{ikunApiKey:'hacked'}` 后回读仍是原值 → 不能通过写接口篡改凭证。
+
+**V15 logEnabled**
+- `false` → 运行期 0 条 `[聚合音源]` 日志；`true` → 有输出。
+- 判据要点：`已加载` 横幅是 `require` 之后的**注册期一次性输出**，不受 `logEnabled` 管，必须从计数里排除，否则 `false` 分支永远「还剩 1 条」而误判成缺陷。
+
+**仍零覆盖的 5 个配置键**：`coldStartProbeTimeoutMs / coldStartWarmEnabled / coldStartWarmTtlMs / qualityShortCircuitProbeMs / raceBatchSize` —— 都涉及预热/短路/竞速的时序，需要单独设计用例。

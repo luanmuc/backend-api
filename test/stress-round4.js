@@ -485,6 +485,57 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
       `ikun 返回 code:403 → ${r.code || r.kind}（应为 CONFIG_ERROR，不能被归一吞成 NETWORK_ERROR）`);
   }
 
+  // ============ V14 配置读接口脱敏 + 写白名单 ============
+  // 卡密/设备ID 绝不能明文透出给前端；config 写模式只允许白名单键，防止被改成任意值。
+  console.log('\n[V14] 配置接口：敏感字段必须脱敏，且不能通过写接口篡改');
+  {
+    const SECRETS = { ikunApiKey: 'k-secret-abc', lingchuanApiKey: 'lc-secret', xinghaiDeviceId: 'dev-secret-xyz' };
+    fresh(Object.assign({}, BASE_CFG, SECRETS), ['suyinKuwo']);
+    const r = await handler({ action: 'config', source: 'kw', info: {} });
+    const dump = JSON.stringify(r || {});
+    rec('V14a', !dump.includes('k-secret-abc') && !dump.includes('lc-secret') && !dump.includes('dev-secret-xyz'),
+      `配置读接口不透出明文（dump 长度 ${dump.length}）`);
+    rec('V14b', r && r.ikunApiKey === '***已设置***' && r.xinghaiDeviceId === '***已设置***',
+      `已设置的敏感项返回「***已设置***」（ikunApiKey=${r && r.ikunApiKey}）`);
+
+    const w = await handler({ action: 'config', source: 'kw', info: { ikunApiKey: 'hacked-key' } });
+    const after = await handler({ action: 'config', source: 'kw', info: {} });
+    rec('V14c', !JSON.stringify(after || {}).includes('hacked-key'),
+      `写接口不许篡改卡密（写入结果 ${JSON.stringify(w || {}).slice(0, 60)}）`);
+  }
+
+  // ============ V15 logEnabled：关掉就必须真的不说话 ============
+  console.log('\n[V15] logEnabled：关日志要真静音，开日志要真有输出');
+  {
+    const logs = [];
+    const origLog = console.log;
+    console.log = function (...a) {
+      const line = a.map(String).join(' ');
+      if (line.includes('[聚合音源]')) logs.push(line);
+      origLog.apply(console, a);
+    };
+    try {
+      fresh(Object.assign({}, BASE_CFG, { logEnabled: false }), ['suyinKuwo']);
+      logs.length = 0;  // 「已加载」横幅是注册期一次性输出，不受 logEnabled 管，只统计运行期日志
+      fetchFault = () => audio(271);
+      await invoke('kw', '128k', SONG(9001), 'v15a');
+      // 「已加载」横幅是注册期一次性输出（logEnabled 不管它），只统计运行期日志
+      const runtime = logs.filter(l => !l.includes('已加载'));
+      const off = runtime.length;
+      const firstOff = (runtime[0] || '').slice(0, 80);
+      logs.length = 0;
+      fresh(Object.assign({}, BASE_CFG, { logEnabled: true }), ['suyinKuwo']);
+      logs.length = 0;
+      fetchFault = () => audio(271);
+      await invoke('kw', '128k', SONG(9002), 'v15b');
+      const on = logs.filter(l => !l.includes('已加载')).length;
+      rec('V15a', off === 0, `logEnabled=false → 聚合音源日志 ${off} 条（必须为 0）${off ? '｜首条=' + firstOff : ''}`);
+      rec('V15b', on > 0, `logEnabled=true → 聚合音源日志 ${on} 条（必须 >0，否则 V15a 恒真）`);
+    } finally {
+      console.log = origLog;
+    }
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);
