@@ -30,6 +30,11 @@
 | D-13 | 三 | 一般 | 片段兜底缺缓存通道（冷却跳过的歌无 `PREVIEW_FRAGMENT` 证据） | 同 D-12 | ✅ v8.11.1（`hasFragCache`） |
 | D-14 | 三 | 一般 | 跨歌冷却证据条件 `qs.size>=3` 在「跳过已知片段源」后几乎不可达 | 打点实测 `qs.size` 恒为 1 | ✅ v8.11.1（改 `>=1`，仍要求 ≥2 首不同歌） |
 | D-15 | 三 | 误判（已澄清） | 曾判「冷却未拦住请求」→ 实为**断言判据错**：把 128k 档的「接口+可播校验+探针」3 次 request 当成 3 次接口调用，且要求抛 `RATE_LIMIT`（实际抛 `PREVIEW_FRAGMENT`） | `LXCOOL` 打点：`until` 为未来、flac/320k 确被跳过、`API=1` | ✅ 判据已修正（非代码缺陷） |
+| D-22 | 六 | 一般 | `ARCHITECTURE.md` 说"15 个可写键"，实际另有 24 键只读（含 9 个闸门键）——文档口径与代码不符 | 逐键对 `USER_CONFIG` 39 键 | ✅ `44d80fb` |
+| D-23 | 六 | 一般 | App `trend` 注释写"上限 60"，音源侧 `HEALTH_HISTORY_MAX` 已是 144 | 跨仓对照 | ✅ App `9c8ea039` |
+| D-24 | 六 | **高** | App 一键更新「导新 → 删旧 → 切新」：新源加载失败且无备用时，旧源已被删掉，**回退不了** | 读 `setApiSource` 兜底链 | ✅ App `f9ba9108` |
+| D-25 | 六 | 低 | `await setApiSource(...)` 中 `setApiSource` 是同步 void，`await` 只是装饰，读起来像"等切源完成" | 类型声明 `apiInitPromise: [Promise<boolean>,…]` 本就未用 | ✅ App `f9ba9108` |
+| D-26 | 六 | 低 | `buildSourceChain` 挂星海备用 `platform !== "kg"`，但映射表 `{wy,tx,kw}` 没有 mg —— mg 每次白 push 一个必败源 | G12a 断言红：`mg 链=[xinghaiBackup]` | ✅ `ee7ebaf` |
 
 ## 2. 结论性事实（可复核，非"看起来对"）
 
