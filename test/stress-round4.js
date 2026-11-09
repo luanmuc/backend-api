@@ -868,6 +868,34 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V26f', !!(loose.r && loose.r.url), `阈值放宽应放行同一片段，实测 ${loose.r ? '放行' : '仍拒绝 ' + String(loose.err && loose.err.code)}`);
   }
 
+  // ============ R5-B 源专属错误分支与参数校验 ============
+  console.log('\n[V27] 源专属错误码：410/片段/搜索无结果/平台与ID校验');
+  {
+    const S27 = { name: '晴天', singer: '周杰伦', duration: 269700, hash: 'H27ABC' };
+
+    // 410 → LINK_EXPIRED（helloworld 通道①签名直链失效）
+    const m1 = fresh(Object.assign({}, BASE_CFG), ['helloworldKw']);
+    fetchFault = (u) => u.includes('mobi.s')
+      ? { statusCode: 410, headers: {}, body: 'gone' }
+      : { statusCode: 200, headers: {}, body: '{}' };
+    try { await m1.getUrlWithFallback('kw', S27, '128k'); } catch (e) { var e1 = e; }
+    rec('V27a', !!(e1 && String(e1.code) === 'LINK_EXPIRED'), `410 应归为 LINK_EXPIRED，实测 ${e1 && e1.code}`);
+
+    // 搜索无结果 → NOT_FOUND
+    const m2 = fresh(Object.assign({}, BASE_CFG), ['kuwoOfficial']);
+    fetchFault = () => ({ statusCode: 200, headers: {}, body: JSON.stringify({ code: 200, data: { total: '0', list: [] } }) });
+    try { await m2.getUrlWithFallback('kw', { name: '不存在的歌XZ', singer: '查无此人', duration: 1 }, '128k'); } catch (e) { var e2 = e; }
+    rec('V27b', !!(e2 && String(e2.code) === 'NOT_FOUND'), `搜索无结果应归为 NOT_FOUND，实测 ${e2 && e2.code}`);
+
+    // 说明：ikun 内的「非 kw/wy → PARAM_ERROR」对外不可达（它只注册在 kw/wy，平台不匹配时整源不进链），
+    // 故不写该断言——避免空转断言。
+
+    // 缺 ID：wy 官方无 id
+    const m4 = fresh(Object.assign({}, BASE_CFG), ['wyOuter']);
+    try { const r4 = await m4.getUrlWithFallback('wy', { name: '晴天', singer: '周杰伦', duration: 269700 }, '128k'); var r4ok = r4; } catch (e) { var e4 = e; }
+    rec('V27d', !!(e4 && String(e4.code) === 'PARAM_ERROR'), `wy 官方缺 ID 应 PARAM_ERROR，实测 ${e4 ? e4.code : '未报错(返回' + (r4ok && r4ok.url) + ')'}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);
