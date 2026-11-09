@@ -759,6 +759,13 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('FAULT8b', '并发 3 路同时 429 才累积到「被限」标记（串行下 RATE_LIMIT_TRIP 不可达）',
       (snap8b.rateLimitCount || 0) >= 3 && snap8b.rateLimited === true,
       `并发码 ${seq8b.join('/')}；rateLimitCount=${snap8b.rateLimitCount} rateLimited=${snap8b.rateLimited} state=${snap8b.state}`);
+
+    // FAULT8c：面板"限流中"必须能在串行退避期亮起来。这条守的是显示与行为的一致性——
+    // 退避期内该源确实不参与竞速，但 rateLimited（连续 3 次）永远为 false，
+    // 旧面板会一直显示"正常"。
+    rec('FAULT8c', '面板「限流中」字段在串行退避期就能亮（rateLimitActive 与 rateLimited 是两件事）',
+      snap8.rateLimitActive === true && (snap8.rateLimitUntil || 0) > Date.now() && snap8.rateLimited === false,
+      `rateLimitActive=${snap8.rateLimitActive} 剩余=${Math.round(((snap8.rateLimitUntil || 0) - Date.now()) / 1000)}s rateLimited=${snap8.rateLimited}`);
   }
 
   // ================= INV 不变量（第五轮 5.2）=================

@@ -2206,6 +2206,12 @@ function getHealthSnapshot() {
       // v4.0：限流状态（被限=连续429，App 显示"被限"而非"熔断"）
       rateLimited: !!getBreaker(id).rateLimited,
       rateLimitCount: getBreaker(id).rateLimitCount || 0,
+      // 第五轮审计：面板"限流中"必须能亮。rateLimited（连续 3 次被上游真拒）在串行使用中不可达——
+      // 第一次 429 就把 rateLimitUntil 推后 30s，后续请求被 canExecute 本地拦下、不构成新证据。
+      // 所以另给"当前是否处于退避期"的派生值供面板用，与"已被风控"这个强标记分开：
+      // rateLimitActive=true 表示"现在这个源不参与竞速"，rateLimited=true 表示"历史上被拒多次"。
+      rateLimitUntil: getBreaker(id).rateLimitUntil || 0,
+      rateLimitActive: (getBreaker(id).rateLimitUntil || 0) > Date.now(),
       // v6.0：最近成功交付音质（音质协商链降档后诊断用）
       lastQuality: getBreaker(id).lastQuality || null,
       // v7.0：健康分输出改 10 分制（0~10，一位小数）——内部评分仍为 0~1（排序/熔断逻辑不变），
