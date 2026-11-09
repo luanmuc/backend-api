@@ -828,7 +828,9 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     const b = m.getBreaker('suyinKuwo');
     b.state = 'half-open'; b.lastFailureTime = Date.now() - 1000;
     // 第 2 次：被本地节流拦下 → 应退回 open
-    try { await m.getUrlWithFallback('kw', S25, '128k'); } catch (e) { /* 期望失败 */ }
+    // D-36 后同歌同档会命中缓存、绕过 throttleCheck；用不同歌曲确保真的走到节流分支
+    const S25b = { name: '七里香', singer: '周杰伦', duration: 299000 };
+    try { await m.getUrlWithFallback('kw', S25b, '128k'); } catch (e) { /* 期望失败 */ }
     rec('V25b', b.state === 'open', `半开被节流拦下应退回 open，实测 ${b.state}`);
   }
 
@@ -894,6 +896,115 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     const m4 = fresh(Object.assign({}, BASE_CFG), ['wyOuter']);
     try { const r4 = await m4.getUrlWithFallback('wy', { name: '晴天', singer: '周杰伦', duration: 269700 }, '128k'); var r4ok = r4; } catch (e) { var e4 = e; }
     rec('V27d', !!(e4 && String(e4.code) === 'PARAM_ERROR'), `wy 官方缺 ID 应 PARAM_ERROR，实测 ${e4 ? e4.code : '未报错(返回' + (r4ok && r4ok.url) + ')'}`);
+  }
+
+  // ============ R5-C 音频格式嗅探（ogg/m4a/wav/播放列表/html/空体） ============
+  console.log('\n[V28] 格式嗅探：非 mp3 三格式 + 文本类判死');
+  {
+    const S28 = { name: '晴天', singer: '周杰伦', duration: 269700 };
+    const okJSON28 = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v28.bin\n歌名：晴天\n歌手：周杰伦\n时长：269.7` }) });
+    const run28 = async (audioResp) => {
+      const m = fresh(Object.assign({}, BASE_CFG, { verifyDelivery: true }), ['suyinKuwo']);
+      fetchFault = okJSON28; probeFault = audioResp;
+      try { return { r: await m.getUrlWithFallback('kw', S28, '128k') }; } catch (e) { return { err: e }; }
+    };
+    const oggB = () => { const b = Buffer.alloc(64); b.write('OggS', 0, 'ascii'); return b; };
+    const m4aB = () => { const b = Buffer.alloc(64); b.write('ftyp', 4, 'ascii'); return b; };
+    const wavB = () => { const b = Buffer.alloc(64); b.write('RIFF', 0, 'ascii'); return b; };
+    const m3uB = () => { const b = Buffer.from('#EXTM3U\n#EXTINF:10,\nhttp://x/a.mp3\n'); return b; };
+    const htmlB = () => Buffer.from('<html><body>404</body></html>');
+    const emptyB = () => Buffer.from('');
+
+    const rA = await run28(() => audio(oggB(), 'audio/ogg', 55397039));
+    rec('V28a', !!(rA.r && rA.r.url), `OggS 应识别为音频可交付，实测 ${rA.r ? '通过' : String(rA.err && rA.err.code)}`);
+    const rB = await run28(() => audio(m4aB(), 'audio/mp4', 55397039));
+    rec('V28b', !!(rB.r && rB.r.url), `ftyp(m4a) 应识别为音频可交付，实测 ${rB.r ? '通过' : String(rB.err && rB.err.code)}`);
+    const rC = await run28(() => audio(wavB(), 'audio/wav', 55397039));
+    rec('V28c', !!(rC.r && rC.r.url), `RIFF(wav) 应识别为音频可交付，实测 ${rC.r ? '通过' : String(rC.err && rC.err.code)}`);
+    const rD = await run28(() => audio(m3uB(), 'audio/mpegurl', 64));
+    rec('V28d', !!(rD.err && String(rD.err.code) === 'STREAM_PLAYLIST'), `#EXTM3U 应判 STREAM_PLAYLIST，实测 ${rD.r ? '放行(失效)' : String(rD.err && rD.err.code)}`);
+    const rE = await run28(() => audio(htmlB(), 'text/html', 64));
+    rec('V28e', !!(rE.err && String(rE.err.code) === 'NOT_AUDIO'), `<html> 应判 NOT_AUDIO，实测 ${rE.r ? '放行(失效)' : String(rE.err && rE.err.code)}`);
+    const rF = await run28(() => ({ statusCode: 206, headers: { 'content-range': 'bytes 0-0/0', 'content-type': 'audio/mpeg' }, body: emptyB() }));
+    rec('V28f', !!(rF.err && String(rF.err.code) === 'NOT_AUDIO'), `0 字节空体应判 NOT_AUDIO(不可播)，实测 ${rF.r ? '放行(失效)' : String(rF.err && rF.err.code)}`);
+
+    // MP3 无 Xing 头（VBR 缺 Xing/Info）→ 应回退用帧头码率估算，不能因缺 Xing 判成非音频
+    const mp3NoXing = () => {
+      const b = Buffer.alloc(64);
+      b[0] = 0xFF; b[1] = 0xFB; b[2] = 0x90; b[3] = 0x64;   // 128k 帧头，故意不写 Xing
+      return b;
+    };
+    const rG = await run28(() => audio(mp3NoXing(), 'audio/mpeg', 4315200));
+    rec('V28g', !!(rG.r && rG.r.url), `MP3 无 Xing 头应回退帧头估算仍可交付，实测 ${rG.r ? '通过' : String(rG.err && rG.err.code)}`);
+
+    // 时长 mm:ss 解析：4:29 与 269 应等效（都判 5 秒音频为片段），证明 mm:ss 被正确解析
+    const run28t = async (durText) => {
+      const m = fresh(Object.assign({}, BASE_CFG, { verifyDelivery: true }), ['suyinKuwo']);
+      fetchFault = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v28t.mp3\n歌名：晴天\n歌手：周杰伦\n时长：${durText}` }) });
+      probeFault = () => audio(flac(5), 'audio/flac', 55397039);
+      try { return { r: await m.getUrlWithFallback('kw', S28, '128k') }; } catch (e) { return { err: e }; }
+    };
+    const bySec = await run28t('269');
+    const byMMSS = await run28t('4:29');
+    rec('V28h', !!(bySec.err && String(bySec.err.code) === 'PREVIEW_FRAGMENT'), `秒数 269 应判片段，实测 ${bySec.r ? '放行' : String(bySec.err && bySec.err.code)}`);
+    rec('V28i', !!(byMMSS.err && String(byMMSS.err.code) === 'PREVIEW_FRAGMENT'), `mm:ss 4:29 应等效判片段（证明时长解析生效），实测 ${byMMSS.r ? '放行(解析失败)' : String(byMMSS.err && byMMSS.err.code)}`);
+  }
+
+  // ============ R5-D 缓存命中复验（verifyOnCacheHit 开/关差分） ============
+  console.log('\n[V29] 缓存命中的入参校验：脏缓存该不该被复验');
+  {
+    const S29 = { name: '晴天', singer: '周杰伦', duration: 269700 };
+    const okJSON29 = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v29.mp3\n歌名：晴天\n歌手：周杰伦\n时长：269.7` }) });
+
+    // 用 128k 真实交付（实交付档=请求档），确保命中写回的槽位就是 128k
+    // 注意：mp3128 是别处的局部 helper，此处自建同名构造，避免 ReferenceError 被包装成网络错误
+    const mp3_128 = (sec) => {
+      const b = Buffer.alloc(64);
+      b[0] = 0xFF; b[1] = 0xFB; b[2] = 0x90; b[3] = 0x64;
+      b.write('Xing', 36, 'ascii');
+      b.writeUInt32BE(1, 40);
+      b.writeUInt32BE(Math.round(sec * 44100 / 1152), 44);
+      return b;
+    };
+    const ok128 = () => audio(mp3_128(269.7), 'audio/mpeg', 4315200);
+    // verifyOnCacheHit=false：命中不复验 → 脏缓存照样交付
+    const mA = fresh(Object.assign({}, BASE_CFG, { verifyOnCacheHit: false, cacheTtlMs: 600000, cacheTtlHighQualityMs: 600000 }), ['suyinKuwo']);
+    fetchFault = okJSON29; probeFault = ok128;
+    await mA.getUrlWithFallback('kw', S29, '128k');
+    probeFault = () => audio(mp3_128(5), 'audio/mpeg', 4315200);   // 缓存变"脏"（现在是片段）
+    let hitA = null;
+    try { hitA = await mA.getUrlWithFallback('kw', S29, '128k'); } catch (e) { hitA = null; }
+    rec('V29a', !!(hitA && hitA.url), `verifyOnCacheHit=false 命中应直接交付(不复验)，实测 ${hitA && hitA.url ? '交付' : '被拒'}`);
+
+    // verifyOnCacheHit=true：命中复验 → 片段脏缓存应被拒
+    const mB = fresh(Object.assign({}, BASE_CFG, { verifyOnCacheHit: true, cacheTtlMs: 600000, cacheTtlHighQualityMs: 600000 }), ['suyinKuwo']);
+    fetchFault = okJSON29; probeFault = ok128;
+    await mB.getUrlWithFallback('kw', S29, '128k');
+    probeFault = () => audio(mp3_128(5), 'audio/mpeg', 4315200);
+    let eB = null;
+    try { await mB.getUrlWithFallback('kw', S29, '128k'); } catch (e) { eB = e; }
+    rec('V29b', !!(eB && String(eB.code) === 'PREVIEW_FRAGMENT'), `verifyOnCacheHit=true 命中复验应拒片段脏缓存，实测 ${eB ? String(eB.code) : '仍交付(复验失效)'}`);
+  }
+
+  // ============ R5-D2 缓存跨档命中（请求档 ≠ 实交付档） ============
+  console.log('\n[V30] 缓存命中：请求 128k 实给 flac 时第二次是否命中');
+  {
+    const S30 = { name: '晴天', singer: '周杰伦', duration: 269700 };
+    const okJSON30 = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v30.mp3\n歌名：晴天\n歌手：周杰伦\n时长：269.7` }) });
+    const totalCalls = () => Object.values(counts).reduce((a, b) => a + b, 0);
+    const m = fresh(Object.assign({}, BASE_CFG, { cacheTtlMs: 600000, cacheTtlHighQualityMs: 600000, verifyOnCacheHit: false }), ['suyinKuwo']);
+    fetchFault = okJSON30; probeFault = () => audio(flac(269.7), 'audio/flac', 55397039);  // 实交付 flac
+    const r1 = await m.getUrlWithFallback('kw', S30, '128k');
+    rec('V30a', !!(r1 && r1.url), '首次请求成功（实交付 flac，写入 flac 槽）');
+    const n1 = totalCalls();
+    const r2 = await m.getUrlWithFallback('kw', S30, '128k');   // 同一请求档再取
+    const n2 = totalCalls();
+    rec('V30b', n2 === n1, `第二次应命中缓存不再外呼（调用数 ${n1}→${n2}，差 ${n2 - n1}）`);
+    rec('V30c', !!(r2 && r2.url), '第二次应成功返回（命中返回缓存 URL）');
   }
 
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);

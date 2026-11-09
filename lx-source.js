@@ -2850,10 +2850,28 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     throw new Error(`${ERROR_CODES.PARAM_ERROR}: 无效的歌曲信息`);
   }
 
-  const cacheKey = buildCacheKey(platform, songInfo, quality);
+  let cacheKey = buildCacheKey(platform, songInfo, quality);
 
   // 1. 成功缓存命中（缓存值带实际音质）
-  const cached = getCachedUrl(cacheKey);
+  // v8.11.2（D-36，V30b 实测暴露）：缓存槽按**实交付音质**写（D-20 起），却按**请求音质**查——
+  // 请求 128k 实给 flac 时，条目在 flac 槽、查询走 128k 槽，同一请求永不命中，每次都重新外呼
+  // （全片段曲目更糟：每次都重跑三档再判失败）。与 D-32 兜底同理，按 QUALITY_PRIORITY
+  // 找「不低于请求档」的条目；请求档槽本身优先级最高，先查它。
+  let cached = getCachedUrl(cacheKey);
+  if (!cached) {
+    const reqQ36 = String(quality || "128k").toLowerCase();
+    for (const eq of QUALITY_PRIORITY) {
+      if (eq === reqQ36 || qualityRank(eq) < qualityRank(reqQ36)) continue;
+      const k36 = buildCacheKey(platform, songInfo, eq);
+      const c36 = getCachedUrl(k36);
+      if (c36 && c36.url) {
+        cached = c36;
+        cacheKey = k36;
+        logDebug(`[缓存跨档] ${songInfo?.name || ""} 请求[${reqQ36}]命中[${eq}]槽`);
+        break;
+      }
+    }
+  }
   if (cached && cached.url) {
     // v8.11：缓存命中必须同样验真——旧实现直接返回，导致 6 小时缓存里若存着 5 秒片段，
     // 即便判据修好了，用户照样听 5 秒。#4 期最容易被漏掉的一环
