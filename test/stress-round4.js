@@ -471,6 +471,20 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V12e', isFrag(r162), `交付 162s（ratio 0.598 刚过 0.6 线，差 109s）→ ${r162.code || r162.kind}（证明比率侧真卡在 0.6）`);
   }
 
+  // ============ V13 CONFIG_ERROR：配置/鉴权类失败必须报配置码，不能被归一吞成网络错误 ============
+  // 注：另外两处 `if (!HUIBQ_API)` / `if (!LINGCHUAN_API)` 是恒假死分支（常量硬编码、非配置项），
+  // 不可达故无法测；已记入 AUDIT_RESULTS §16 作为观察项，不在此假装覆盖。
+  console.log('\n[V13] CONFIG_ERROR：卡密失效要报配置类错误，而不是网络错误');
+  {
+    fresh(BASE_CFG, ['ikun']);
+    fetchFault = (u) => (/wwwweb|ikun/i.test(u)
+      ? { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 403, message: 'invalid api key' }) }
+      : { statusCode: 404, headers: {}, body: '' });
+    const r = await invoke('kw', '128k', SONG(8001), 'v13a');
+    rec('V13a', r.kind === 'fail' && r.code === CODES().CONFIG_ERROR,
+      `ikun 返回 code:403 → ${r.code || r.kind}（应为 CONFIG_ERROR，不能被归一吞成 NETWORK_ERROR）`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);

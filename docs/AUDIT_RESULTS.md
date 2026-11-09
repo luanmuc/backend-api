@@ -1183,3 +1183,18 @@ return m && ERROR_CODES[m[1]] ? m[1] : NETWORK_ERROR;   // ERROR_CODES['SONG_MIS
 ### D-31（取舍记录，未改代码）：兜底档放宽歌手是有意设计
 `suyinKuwoGetUrl` 的兜底关键词用 `strict=false`，只传 `{name, duration}`，**丢 singer**（注释写明「歌手/专辑可放宽，但歌名与时长必须一致」）。后果：flac 档拒了同名错歌，降档到兜底档仍会放行，用户最终可能听到翻唱。
 未擅自收紧（歌手写法差异在真实源很常见，收紧会大面积误拒）。V11 改用「首轮给错歌、之后给正确歌」的口径，精确验证 strict 档闸门生效（首错被拒 → 交付正确链接）。是否收紧兜底档待拍板。
+
+
+## §16 CONFIG_ERROR 补测：最后一个零覆盖错误码（2026-11-09）
+
+12 个错误码里 `MISMATCH` 已由 §15 补上，`CONFIG_ERROR` 是最后一个从未被任何断言触发的码。补 V13a：ikun 返回 `code:403` → 必须报 `CONFIG_ERROR`。
+
+**一个容易踩空的细节**：`ikunGetUrl` 判的是**响应体里的 `body.code`**，不是 HTTP 状态码。用 HTTP 403 + 空体会让 `Number(body.code)` 得 `NaN`，走 `SERVER_ERROR: ikun返回无效`，看起来像没覆盖到；必须 mock 成 200 + `{"code":403}`。
+
+**另两处是恒假死分支（观察项，不是缺陷）**：
+- `if (!HUIBQ_API || !HUIBQ_REQUEST_KEY)`（L1932）
+- `if (!LINGCHUAN_API)`（L1955）
+
+`HUIBQ_API / HUIBQ_REQUEST_KEY / LINGCHUAN_API` 都是硬编码字符串常量，不是配置项，所以这两个判断永远为假、不可达，`CONFIG_ERROR` 的「未配置」语义实际不生效。属无害的防御性写法；若真要支持「未配置降级」，需先把它们改成从 `__lxSourceConfig` 读取。
+
+**仍零覆盖的配置键（7 个）**：`coldStartProbeTimeoutMs / coldStartWarmEnabled / coldStartWarmTtlMs / logEnabled / qualityShortCircuitProbeMs / raceBatchSize / xinghaiDeviceId`。
