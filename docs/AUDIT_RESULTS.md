@@ -1071,3 +1071,26 @@ NaN 恰好从三道门里全穿过去：
 **FAULT7b 的诚实说明**：把 `String(err.message || "")` 改成 `err.message.includes(...)`（即撤掉对"非 Error 抛掷"的防御）后，FAULT7b **仍然是绿的**。
 说明异常在更外层就被归一成已知码，这条断言只证明**结果层**（用户拿到已知错误码、不会二次崩溃），**不能定位到 `httpRequest` 里那行防御**。文档保留它为"结果层保证"，不当成"那行代码已证明有效"。
 
+### 12.11 INV 不变量（六条）
+
+不指定路径，只守"永远为真"的性质，比"某场景返回某值"更抗重构。
+
+| ID | 不变量 | 状态 | 证据 |
+|---|---|---|---|
+| INV1 | 缓存只允许一个写点，且在 `verifyDelivery` 之后 | 已落地（M14 静态统计） | 注入内层 `setCachedUrl` → 红（"写点 2 处"） |
+| INV2 | 交付的 `subSource` 必须在 `buildSourceChain(platform, quality)` 结果里 | 已落地 | `subSource=suyinKuwo`、`chain=[suyinKuwo]` |
+| INV3 | 交付 `type` 必须与实测字节一致，不得照抄请求档 | 已落地 | 请求 `flac`、上游给 mp3 → 交付 `type=128k` |
+| INV4 | 请求结束后该源 inflight 归零（含异常/超时/竞速落败） | 已由 W2 覆盖 | `maxConcurrency=1` 下连 4 次失败仍是 `NETWORK_ERROR`（不释放则变 `RATE_LIMIT`） |
+| INV5 | 幂等：同歌同档两次（各自全新实例）交付同一源 | 已落地 | 两次均 `suyinKuwo` |
+| INV6 | 任何片段命中都必须带「试听版」标注 | 已由 W1 覆盖 | 两次请求均交付 `subSourceName` 含「试听版」 |
+
+**INV3 做了反向注入验证**：把 `quality: qualityFromDelivery(probe.info, ctx.quality)` 改成 `quality: ctx.quality`（即"忽略实测字节、直接标请求档"）→ 立刻红（`type=flac`）。
+这条断言直接指向 D-20 的修复成果：交付的音质标签现在来自真实字节，不是用户请求的档位。
+
+**两条必须标注的弱判据**：
+
+- **INV2** 只在单源链路下验证过（`chain` 长度 1），"交付源 ∈ 链"在这种场景下接近恒真。真正的检验需要多源链路里优选源失败、交付落到第二个源——本次没构造（`helloworldKw`/`kuwoOfficial` 的 mock 形状与 oiapi 不同，成本高）。
+- **INV5** 同理：同配置 + 单源，两次结果必然一致。它的价值不在于当下，而在于"以后若引入竞速随机性或负载均衡，这条能立刻抓住交付不稳定"。
+
+这两条按现状如实记为**弱判据**，不计入"已验证"的强证据里。
+

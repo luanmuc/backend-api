@@ -713,6 +713,47 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('FAULT7b', '上游抛纯对象（无 message）仍产出已知错误码', CODES.has(f7b), `结果 ${f7b}`);
   }
 
+  // ================= INV 不变量（第五轮 5.2）=================
+  // 不指定路径，只守"永远为真"的性质。首版判据一律先放宽 + 打印真实值，
+  // 看清实际形态后再收紧——本轮已经因为"凭想象写判据"错了两回。
+  origLog('\n[INV] 不变量');
+  {
+    const mp3Body = () => Buffer.concat([mp3(269.7), Buffer.alloc(1200)]);
+    const sceneOk = (u) => (String(u).includes('audio.test') ? audio(mp3Body(), 'audio/mpeg', 4310000) : json({ code: 200, data: { url: 'https://audio.test/a.mp3' } }));
+
+    // INV2：交付的 subSource 必须在 buildSourceChain 结果里
+    const MODA = fresh(['suyinKuwo'], { rateWindowMax: 1e6 });
+    scene = sceneOk;
+    probeFn = sceneOk;
+    const chainA = MODA.buildSourceChain('kw', '128k') || [];
+    const idsA = chainA.map((h) => h.id || h.name);
+    let rA = null;
+    try { rA = await req('128k', { ...GOOD, songmid: 'inv2' }); } catch (e) { rA = null; }
+    const subA = String((rA && (rA.subSource || rA.source)) || '');
+    const nameA = String((rA && rA.subSourceName) || '');
+    rec('INV2', '交付的 subSource 必须在 buildSourceChain 结果里', !!subA && idsA.includes(subA),
+      `subSource=${subA} subSourceName=${nameA} chain=[${idsA.join(',')}]`);
+
+    // INV3：交付 type 必须与实测字节一致（构造"请求 flac、上游只给 mp3"）
+    let rB = null;
+    try { rB = await req('flac', { ...GOOD, songmid: 'inv3' }); } catch (e) { rB = null; }
+    rec('INV3', '请求 flac 但字节是 mp3 时，交付 type 不得标记为 flac', !!rB && String(rB.type) !== 'flac',
+      `type=${rB && rB.type} subSourceName=${rB && rB.subSourceName}`);
+
+    // INV5：幂等——同歌同档两次（各自全新实例）交付的源一致
+    scene = sceneOk;
+    probeFn = sceneOk;
+    let i1 = null, i2 = null;
+    try { i1 = await req('128k', { ...GOOD, songmid: 'inv5' }); } catch (e) { i1 = null; }
+    fresh(['suyinKuwo'], { rateWindowMax: 1e6 });
+    scene = sceneOk;
+    probeFn = sceneOk;
+    try { i2 = await req('128k', { ...GOOD, songmid: 'inv5' }); } catch (e) { i2 = null; }
+    const s1 = String((i1 && i1.subSource) || '');
+    const s2 = String((i2 && i2.subSource) || '');
+    rec('INV5', '同歌同档两次（全新实例）交付同一源', s1 === s2 && !!s1, `第一次=${s1} 第二次=${s2}`);
+  }
+
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);
