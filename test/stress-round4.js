@@ -568,43 +568,33 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V16b', s3.length >= 2 && gap(s3) < 20, `batchSize=3 → 前两次取链间隔 ${gap(s3)}ms（应 <20，并发）`);
   }
 
-  // ============ V17 qualityShortCircuitProbeMs：连续失败后短路，到期放行探路 ============
-  // 语义：某源某档累计失败 >= qualityShortCircuitSamples(3) 且期间 0 成功 → 跳过该源该档；
-  //       probeMs 到期放行一次探路，探路再失败则重新短路。
-  // 两个坑必须避开，否则断言空转：
-  //   ① 源级「播放摘除」（连续3次失败摘出竞速链）会独立造成 0 外呼，会把短路冒充成生效 → playDeadReviveMs 缩到 50ms；
-  //   ② 降档/多关键词会产生别的外呼，「总外呼 >=1」恒真 → 只看 flac 档（URL 里 br=1）的请求数。
-  console.log('\n[V17] qualityShortCircuitProbeMs：短路要真拦截，到期要真放行');
+  // ============ V17 qualityShortCircuitProbeMs：短路判据的三条语义 ============
+  // 端到端测不通：外呼层叠了「播放摘除(PLAY_DEAD_STREAK=3 硬编码)」「源级冷却」「失败缓存」三层，
+  // 而且 500 属业务失败不计入短路统计 —— 七轮尝试里 V17a/V17b 的所有"红/绿"都与短路无关（详见 AUDIT_RESULTS §21）。
+  // 因此改用只读钩子 __debug 直接验证判据本身，这也是本仓第一个测试钩子。
+  console.log('\n[V17] qualityShortCircuitProbeMs：达标短路 / 到期放行 / 放行后重新短路');
   {
-    fresh(Object.assign({}, BASE_CFG, {
+    const m = fresh(Object.assign({}, BASE_CFG, {
       qualityShortCircuitSamples: 3, qualityShortCircuitProbeMs: 60,
-      failCacheNotFoundMs: 1, failCacheExpiredMs: 1, allFailShortTtlMs: 1, cacheTtlMs: 1,
-      breakerThreshold: 100, breakerCooldownMs: 100000,
-      // 源级「播放摘除」用 reviveMs=0 即时解除：PLAY_DEAD_STREAK=3 是硬编码常量改不了，
-      // 但摘除持续时长可配 —— 设 0 表示「刚摘就到期」，等于从未生效，才能把
-      // 「音质短路拦停」从「摘除拦停」里隔离出来（前两版分别设 50/极大都是错的）。
-      playDeadReviveMs: 0,
     }), ['suyinKuwo']);
-    fetchFault = () => ({ statusCode: 500, headers: {}, body: 'boom' });  // 该源该档一直失败
-    const FLAC = 'br=1';                       // suyinKuwo 的 flac 档 br=1（320k→5、128k→9）
-    const step = async (tag, songId) => {
-      await sleep(3);
-      const c0 = callsOf(FLAC);
-      await invoke('kw', 'flac', SONG(songId), tag);
-      return callsOf(FLAC) - c0;
-    };
-    // 每首用不同歌号：失败缓存按歌存，短路 key 按「源:音质」存 —— 前者被换歌绕开，后者照旧累计
-    const c1 = await step('v17-1', 9200);
-    const c2 = await step('v17-2', 9201);
-    const c3 = await step('v17-3', 9202);
-    const c4 = await step('v17-4', 9203);
-    // ⚠ 不设为断言：c4===0 在「从不短路」的变异下同样成立（实测），说明 0 外呼来自
-    // 源级冷却/摘除/失败缓存这些叠加机制，不是音质短路。只作观测输出，不 pretending 覆盖。
-    console.log(`  · [V17a-观测] flac 档外呼：首轮 ${c1} 次 → 第 4 次 ${c4}（若为 0，注意可能由冷却/摘除造成，非短路）`);
+    const dbg = m.__debug;
+    // 造出「该源该档 3 次失败、0 次成功」的达标状态
+    const br = m.getBreaker('suyinKuwo');
+    br.byQuality = { flac: { fail: 3, success: 0 } };
+    const KEY = dbg.qualityShortCircuitKey('suyinKuwo', 'flac');
 
-    await sleep(100);                          // probeMs=60，已过期
-    const c6 = await step('v17b', 9299);       // 新歌 + 短路已到期
-    console.log(`  · [V17b-观测] probeMs=60 到期后再请求 → flac 档 ${c6} 次外呼（放行后仍为 0 的情况实测存在，根因未定位）`);
+    rec('V17a', dbg.isQualityHopeless('suyinKuwo', 'flac') === true,
+      'fail=3/success=0 首次达标 → 判定短路（true）');
+    dbg.qualitySkipProbeAt.set(KEY, Date.now() - 1);           // 强制到期
+    rec('V17b', dbg.isQualityHopeless('suyinKuwo', 'flac') === false,
+      'probeMs 到期 → 放行一次（false，不再跳过该档）');
+    rec('V17c', dbg.isQualityHopeless('suyinKuwo', 'flac') === true,
+      '放行时已重置计时 → 下一次立刻重新短路（true）');
+40    // 未达标不短路（防止把"只失败 2 次"的源误摘）
+    br.byQuality = { flac: { fail: 2, success: 0 } };
+    dbg.qualitySkipProbeAt.delete(KEY);
+    rec('V17d', dbg.isQualityHopeless('suyinKuwo', 'flac') === false,
+      'fail=2 < samples=3 → 不短路（false）');
   }
 
   // ============ V18 冷启动预热三键 ============
@@ -648,6 +638,25 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V18b', w1 >= 1, `coldStartWarmEnabled=true → 预热外呼 ${w1} 次（应 >=1，否则 V18a 恒真）`);
     rec('V18c', w2 === w1, `coldStartWarmTtlMs=600s 内再请求 → 预热仍 ${w2} 次（应不重复预热）`);
     rec('V18d', w4 > w3, `coldStartWarmTtlMs=5ms 过期后再请求 → 预热 ${w3}→${w4}（应重预热）`);
+  }
+
+  // ============ V19 coldStartProbeTimeoutMs：冷启动源的探针超时要真放宽 ============
+  // 该键只在 probeSingleSource 里生效（h.coldStart 分支），点歌链路拿不到入口；
+  // 用同一个只读钩子直接调单源探针，用「请求挂起 1s」量出实际放弃耗时。
+  console.log('\n[V19] coldStartProbeTimeoutMs：冷启动源的探针超时必须按该键放宽');
+  {
+    const measure = async (timeoutCfg) => {
+      const m = fresh(Object.assign({}, BASE_CFG, { coldStartProbeTimeoutMs: timeoutCfg }), ['huibq']);
+      fetchFault = () => ({ delay: 1000 });   // 请求挂起 1s（超过任何合理超时）
+      const t0 = Date.now();
+      await m.__debug.probeSingleSource('huibq', { url: 'https://probe.test/x', check: () => true });
+      return Date.now() - t0;
+    };
+    const tFast = await measure(50);
+    const tSlow = await measure(800);
+    rec('V19a', tFast < 300, `coldStartProbeTimeoutMs=50 → 探针 ${tFast}ms 放弃（应 <300，证明确实读了该键）`);
+    // 用相对比较：若该键被写死成固定值，两条耗时会趋同（实测固定 6000 时都是 1000ms），V19b 必红
+    rec('V19b', tSlow > tFast * 3 && tSlow > 600, `coldStartProbeTimeoutMs=800 → 探针 ${tSlow}ms 才放弃（应远大于 ${tFast}ms，证明该键真的可配）`);
   }
 
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);

@@ -3251,4 +3251,18 @@ if (typeof module !== "undefined" && module.exports) {
     // v3.0：健康统计快照（App 健康面板/巡检消费）
     getHealthSnapshot
   };
+  // 测试钩子（只读快照，非枚举）：压测需要验证「纯判据」语义（如音质短路到期放行、
+  // 单源探针超时），而端到端外呼层会被冷却/摘除/失败缓存多层叠加干扰（实测无法隔离）。
+  // 非枚举可避免影响导出面断言；不暴露任何写能力给外部调用方。
+  Object.defineProperty(module.exports, "__debug", {
+    value: Object.freeze({
+      isQualityHopeless,
+      qualitySkipProbeAt,
+      probeSingleSource,
+      breakerMap,
+      playDeadStreak,
+      qualityShortCircuitKey,
+    }),
+    enumerable: false,
+  });
 }

@@ -1342,6 +1342,63 @@ return m && ERROR_CODES[m[1]] ? m[1] : NETWORK_ERROR;   // ERROR_CODES['SONG_MIS
 
 `counts` 用 `u.split('?')[0]` 做 key，导致**无法按 URL 参数维度做任何断言**（如 `br=1` 区分音质档）。已改为保留完整 URL。这是继「`CODES` 每次重载清零状态」「`spawnSync` ENOBUFS 假杀」之后，V 组测试基建的第三个自身缺陷。
 
-### 21.4 仍未覆盖（如实记录）
+### 21.4 结论：不是"测不了"，是"端到端测不了"
 
-`qualityShortCircuitProbeMs` 的到期放行，以及 `coldStartProbeTimeoutMs`（探针链路）。两者都需要一个「可注入的模拟时钟或单档探针入口」，当前压测链路拿不到。
+`qualityShortCircuitProbeMs` 的到期放行，以及 `coldStartProbeTimeoutMs`（探针链路）——两者的**判据本身**是可测的，测不了的是"从判据到外呼"这一段（被三层叠加挡住）。
+**下一步已按这个判断做**：加只读测试钩子、把覆盖降到判据层，见 §22。
+
+
+## §22 测试钩子 `__debug` 落地：补掉两个"端到端不可隔离"的缺口
+
+§21 证明端到端测不了之后，按"降级到判据层"的思路加了本仓**第一个测试钩子**，把两个缺口补成真断言（V 组 55 → **61**）。
+
+### 22.1 钩子设计
+
+```js
+Object.defineProperty(module.exports, "__debug", {
+  value: Object.freeze({
+    isQualityHopeless, qualitySkipProbeAt, probeSingleSource,
+    breakerMap, playDeadStreak, qualityShortCircuitKey,
+  }),
+  enumerable: false,
+});
+```
+
+四条约束，缺一不可：
+1. **非枚举** —— `Object.keys()` / 解构看不到它，不影响导出面断言（实测 `e-extra` S5 只校验 `exp.length >= 5`、`f-repo` Z3 是 `>= 10`，都是下限，加导出不破）。
+2. **冻结** —— 测试改不了钩子本身（只能改它暴露的 Map）。
+3. **只读能力** —— 只暴露观测与内部状态，不提供任何"改生产行为"的入口。
+4. **不拓宽外部攻击面** —— `__lxSourceConfig` 的键白名单不含 `__debug`，真实调用方（lx.request）无法触达。
+
+### 22.2 V17 重写为 4 条判据语义断言
+
+| 编号 | 断言 | 语义 |
+|---|---|---|
+| V17a | `isQualityHopeless(...) === true` | `fail=3/success=0` 首次达标 → 短路 |
+| V17b | `=== false` | `qualitySkipProbeAt` 强制到期 → 放行一次 |
+| V17c | `=== true` | 放行时已重置计时 → 下一次立刻重新短路 |
+| V17d | `=== false` | `fail=2 < samples=3` → 不短路 |
+
+**双向反向验证**（这是 §21 里那两条假断言缺的一步）：
+- 变异 A（到期 `return false` → `true`，即"永不放行"）→ **V17b 红**（58/1，失败编号 V17b）
+- 变异 B（首次 `return true` → `false`，即"从不短路"）→ **V17a 红**（58/1，失败编号 V17a）
+
+两个方向都成立，才说明这四条测的确实是短路判据。
+
+### 22.3 V19 新增：`coldStartProbeTimeoutMs` 2 条
+
+该键只在 `probeSingleSource` 的 `h.coldStart` 分支生效，点歌链路拿不到入口 —— 用同一钩子直接调单源探针，故障设成"请求挂起 1s"，量实际放弃耗时：
+
+| 编号 | 配置 | 实测 | 断言 |
+|---|---|---|---|
+| V19a | `=50` | 50ms 放弃 | `< 300` |
+| V19b | `=800` | 801ms 放弃 | `> tFast*3 && > 600` |
+
+**反向验证**（把 `cfg('coldStartProbeTimeoutMs', 30000)` 写死成 `HEALTH_CHECK_TIMEOUT`）→ **V19a/V19b 双红**（1001ms / 1000ms，两者趋同）。复原后 61/0。
+
+V19b 初版只写绝对阈值 `> 500`，在"写死成 6000"的变异下实测 1000ms 仍 >500 会**假绿**，故改为相对比较 —— 绝对阈值型断言在"改动使两值趋同"的场景下不可靠。
+
+### 22.4 顺带确认：V17 端到端失败的真实原因
+
+打点 `isQualityHopeless` 发现 `suyinKuwo:flac 无断路器记录` —— **短路从未达标**。原因是 V17 一直用 `statusCode: 500` 造故障，而 500 归入 `recordBusinessFail`，短路只统计 `fail + linkExpired`。改成 `{ error: 'ECONNRESET' }`（网络类）后才真正进入统计。
+**但即便如此端到端仍拿不到"放行后确有一次外呼"**（被摘除/冷却/失败缓存叠加），所以最终仍走判据层 —— 这条记录的是"故障类型也必须选对"，否则连带前面的绿色都是别的东西造成的。
