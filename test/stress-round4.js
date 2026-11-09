@@ -120,7 +120,10 @@ const rec = (id, ok, detail) => {
 };
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-const CODES = () => fresh().ERROR_CODES;
+// 错误码快照只取一次：原写法 `fresh().ERROR_CODES` 会在每次 isLegalCode 时重新加载模块，
+// 把 counts / 熔断 / 短路等全部状态清零——断言因此看不到真实累积，还出现过负数计数。
+let ERROR_CODES_SNAPSHOT = null;
+const CODES = () => (ERROR_CODES_SNAPSHOT || (ERROR_CODES_SNAPSHOT = fresh().ERROR_CODES));
 const codeOf = (e) => (e && e.code) || '';
 // 合法码按「值」判定：生产里 err.code 一律是 ERROR_CODES.X 的值，
 // 而 MISMATCH 的键名 `MISMATCH` ≠ 值 `SONG_MISMATCH`，按键名判会把合法码误判成非法（D-30 同源）。
@@ -144,6 +147,7 @@ async function invoke(platform, quality, song, tag) {
 const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duration: 271000, songmid: `st${i}` });
 
 (async () => {
+  ERROR_CODES_SNAPSHOT = fresh().ERROR_CODES;   // 测试开始前取一次，之后不再重载
   const origSetTimeout = globalThis.setTimeout;
   const origClearTimeout = globalThis.clearTimeout;
   const live = new Set();
@@ -534,6 +538,61 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     } finally {
       console.log = origLog;
     }
+  }
+
+  // ============ V16 raceBatchSize：批大小必须真改变并发节奏 ============
+  // 判据不看"外呼总数"（两种批大小都会把所有源试一遍），而是看**取链请求的时间间隔**：
+  // batchSize=1 → 下一个源必须等前一个 settle 才发出（间隔大）；batchSize>=3 → 几乎同时发出（间隔≈0）。
+  console.log('\n[V16] raceBatchSize：1 = 串行，3 = 并发');
+  {
+    const runBatch = async (bs, tag) => {
+      fresh(Object.assign({}, BASE_CFG, {
+        raceBatchSize: bs, raceBatchStaggerMs: 0, raceMatchWaitMs: 0,
+        raceBudgetMs: 1500, raceBudgetPerQuality: 1500, breakerThreshold: 100,
+      }), ['suyinKuwo', 'helloworldKw', 'kuwoOfficial']);
+      const stamps = [];
+      let n = 0;
+      fetchFault = (u) => {
+        if (!/audio\.test/.test(u)) stamps.push(Date.now());   // 只统计取链阶段，排除验真阶段
+        n++;
+        if (n === 1) return { statusCode: 500, headers: {}, body: 'boom' };  // 首个源失败，逼出下一个
+        return audio(271);
+      };
+      await invoke('kw', '128k', SONG(9100 + bs), tag);
+      return stamps;
+    };
+    const s1 = await runBatch(1, 'v16a');
+    const s3 = await runBatch(3, 'v16b');
+    const gap = (arr) => (arr.length >= 2 ? arr[1] - arr[0] : -1);
+    rec('V16a', s1.length >= 2 && gap(s1) >= 20, `batchSize=1 → 前两次取链间隔 ${gap(s1)}ms（应 >=20，串行）`);
+    rec('V16b', s3.length >= 2 && gap(s3) < 20, `batchSize=3 → 前两次取链间隔 ${gap(s3)}ms（应 <20，并发）`);
+  }
+
+  // ============ V17 qualityShortCircuitProbeMs：连续失败后短路，到期放行探路 ============
+  // 语义：某源某档累计失败 >= qualityShortCircuitSamples(3) 且期间 0 成功 → 短路跳过该源该档；
+  //       probeMs 到期放行一次探路，探路再失败则重新短路。
+  console.log('\n[V17] qualityShortCircuitProbeMs：短路要真拦截，到期要真放行');
+  {
+    fresh(Object.assign({}, BASE_CFG, {
+      qualityShortCircuitSamples: 3, qualityShortCircuitProbeMs: 60,
+      failCacheNotFoundMs: 1, failCacheExpiredMs: 1, allFailShortTtlMs: 1, cacheTtlMs: 1,
+      breakerThreshold: 100, breakerCooldownMs: 100000,
+    }), ['suyinKuwo']);
+    fetchFault = () => ({ statusCode: 500, headers: {}, body: 'boom' });  // 该源该档一直失败
+    const step = async (tag, ms) => {
+      await sleep(ms);
+      const c0 = totalCalls();
+      await invoke('kw', 'flac', SONG(9200), tag);
+      return totalCalls() - c0;
+    };
+    const c1 = await step('v17-1', 3);
+    const c2 = await step('v17-2', 3);
+    const c3 = await step('v17-3', 3);
+    const c4 = await step('v17-4', 3);
+    // 首轮就会因「多档 × 多关键词」产生多次失败，早已超过 3 次阈值，所以判据是「首轮真试过 + 之后被拦停」；
+    // probeMs 到期放行这条无法与失败缓存隔离验证（5xx 失败本身有 TTL 缓存），不假装覆盖，记入 AUDIT_RESULTS §18。
+    rec('V17a', c1 >= 3 && c4 === 0,
+      `首轮 ${c1} 次外呼（真试过），第 4 次 ${c4}（应 0，累计失败后短路拦停）`);
   }
 
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);

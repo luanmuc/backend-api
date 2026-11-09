@@ -1213,3 +1213,15 @@ return m && ERROR_CODES[m[1]] ? m[1] : NETWORK_ERROR;   // ERROR_CODES['SONG_MIS
 - 判据要点：`已加载` 横幅是 `require` 之后的**注册期一次性输出**，不受 `logEnabled` 管，必须从计数里排除，否则 `false` 分支永远「还剩 1 条」而误判成缺陷。
 
 **仍零覆盖的 5 个配置键**：`coldStartProbeTimeoutMs / coldStartWarmEnabled / coldStartWarmTtlMs / qualityShortCircuitProbeMs / raceBatchSize` —— 都涉及预热/短路/竞速的时序，需要单独设计用例。
+
+
+## §18 配置面补测（二）：raceBatchSize / qualityShortCircuit + 压测自身的重置缺陷
+
+**V16 raceBatchSize（2 条）**：判据不看外呼总数（两种批大小都会把所有源试一遍），而看**取链请求的时间间隔**。实测 `batchSize=1` → 前两次取链间隔 **202ms**（等前一个 settle 才发下一个）；`batchSize=3` → **0ms**（同时发出）。批大小真的在改变并发节奏。
+
+**V17 qualityShortCircuit（1 条）**：某源某档连续失败后必须被短路拦停 —— 首轮 13 次外呼，之后降到 0。
+`qualityShortCircuitProbeMs` 到期放行的正向验证**未做**：5xx 失败本身带 TTL 缓存，放行那一刻会被失败缓存挡住，无法把「短路到期」与「失败缓存」两个机制隔离开。不假装覆盖，列为待设计项。
+
+**压测脚本自身的缺陷（已修）**：`const CODES = () => fresh().ERROR_CODES` 会在 `isLegalCode` 每次被调用时**重新加载模块**，把 `counts` / 熔断 / 短路 / 缓存全部清零 —— 表现为外呼计数出现负数（`-5`）、短路永远积累不起来。改为测试开始前取一次快照。修后 51 条既有断言仍全绿，说明它们都以 `fresh` 起跑、不依赖跨调用累积，未造成假绿；但这类「辅助函数偷偷重置状态」的写法值得在其它测试里排查。
+
+**仍零覆盖的 3 个配置键**：`coldStartProbeTimeoutMs / coldStartWarmEnabled / coldStartWarmTtlMs`（冷启动预热三键，需控制 `coldStartWarmAt` 时间轴）。
