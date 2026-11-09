@@ -3275,6 +3275,7 @@ if (typeof module !== "undefined" && module.exports) {
       qualitySkipProbeAt,
       probeSingleSource,
       sniffAudioBytes,
+      suyinKuwoSearch,   // 供测试验证 D-31：兜底档丢 singer 的实际判定结果
       setCachedUrl,      // 供测试构造脏缓存（复现"槽位是 flac、内容是 128k"的历史条目）
       buildCacheKey,
       breakerMap,

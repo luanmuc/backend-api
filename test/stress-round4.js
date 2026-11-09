@@ -683,6 +683,34 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V20b', !!(r && r.type === '128k'), `槽位=flac 但内容=128k → type 必须回填成 128k，实得 ${r && r.type}`);
   }
 
+  // ============ V21 D-31：兜底档丢 singer 的实际后果（先把证据跑出来，再决定改不改） ============
+  // buildSearchKeywords 产三级关键词，末级 strict=false 只用歌名搜；suyinKuwoGetUrl 到该级时
+  // 传给 songInfoMatch 的是 { name, duration } —— songInfo.singer 为空，L1491 的歌手校验整条跳过。
+  console.log('\n[V21] 兜底档丢 singer：同名同时长不同歌手会不会被放行');
+  {
+    const m = fresh(Object.assign({}, BASE_CFG), ['suyinKuwo']);
+    const dbg = m.__debug;
+    const GOOD21 = { name: '晴天', singer: '周杰伦', duration: 271000 };
+    // 搜索接口返回：同名、同时长、但歌手是别人
+    const wrongReply = {
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: '音乐链接：https://cdn.test/audio.test/w21.mp3\n歌名：晴天\n歌手：李四\n时长：271' }),
+    };
+    fetchFault = () => wrongReply;
+
+    let strictThrew = null;
+    try { await dbg.suyinKuwoSearch('晴天周杰伦', 1, GOOD21); } catch (e) { strictThrew = e; }
+    rec('V21a', !!(strictThrew && String(strictThrew.message).includes(CODES().MISMATCH)),
+      `严格档（带歌手）遇错歌手 → 抛 MISMATCH，实得 ${strictThrew ? strictThrew.message.slice(0, 30) : '未抛'}`);
+
+    let looseUrl = null, looseErr = null;
+    try { looseUrl = await dbg.suyinKuwoSearch('晴天', 1, { name: GOOD21.name, duration: GOOD21.duration }); }
+    catch (e) { looseErr = e; }
+    rec('V21b', !!looseUrl,
+      `兜底档（只带 name+duration）遇同一错歌手 → ${looseUrl ? '放行并交付该链接（会播出错歌）' : '拒绝(' + String(looseErr && looseErr.message).slice(0, 24) + ')'}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);
