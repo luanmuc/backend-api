@@ -57,8 +57,14 @@ jobs:
           node test/audit/h-toggles.js
       - name: L5 第三轮压力与并发（T1~T12）
         run: node --expose-gc test/stress-round3.js
-      - name: L5.1 第四轮压力测试（V 组 56 条：故障谱系/不变量/MISMATCH/阈值边界/配置面）
+      - name: L5.1 第四轮压力测试（V 组 66 条：故障谱系/不变量/MISMATCH/阈值边界/配置面/兜底档实证）
         run: node --expose-gc test/stress-round4.js
+      # v8.11.2（G2）：QuickJS 真引擎。此前该入口在本地因缺依赖 SKIP、且从未进 CI，
+      # QR 组 3 条断言长期空转（rec 里 id 未定义的 bug 也因此藏了很久）。
+      - name: L5.2 QuickJS 真引擎（宿主无 Buffer，模拟 App 运行环境）
+        run: |
+          npm i quickjs-emscripten --no-save --silent
+          NODE_PATH=./node_modules node test/audit/q-quickjs-real.js
       - name: 巡检脚本语法（v8.10.5：覆盖 scripts 下全部脚本，新增脚本自动纳入）
         run: |
           for f in scripts/*.js; do node --check "$f" || exit 1; done

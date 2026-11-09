@@ -29,6 +29,19 @@
 | MU11 | 删 `finally` 释放 | 删 `inflightCount.set(...-1)` |
 | MU12 | 顺序颠倒 | `recordSuccess` 与 `validateUrl` 互换 |
 
+> **⚠ 编号口径区分（2026-11-09 补记）**：上表 MU1~MU12 是**变异算子**（怎么改）；
+> 落地脚本 `test/mutation/run.js` 里的 MU1~MU16 是**变异体实例**（改哪一处），两者共用 `MU` 前缀但**不是同一套编号**。
+> 当前实际 16 个实例：MU1~MU8 / MU9~MU12 对应上述算子；**MU13~MU16 为后期新增，均只由 `test/stress-round4.js` 看护**：
+>
+> | 实例 | 靶子 | 门禁 |
+> |---|---|---|
+> | MU13 | 注掉同名错歌的歌手校验 | stress-round4 |
+> | MU14 | 关闭冷启动预热入口 | stress-round4 |
+> | MU15 | 音质短路到期不放行 | stress-round4 |
+> | MU16 | 冷启动探针超时写死成 `HEALTH_CHECK_TIMEOUT` | stress-round4 |
+>
+> 全量复跑：**16 killed / 0 survived，100%**。
+
 - 判定：该变异跑 `a-static / b-logic / e-extra / g-meta / stress-round3` 任一非 0 → **killed**，全 0 → **survived**
 - 验收：初始跑一遍建立基线（预计 killed 55%~70%），**每一条 survived 都要落到具体断言缺口**，补完再跑，目标 killed ≥ 85%
 - 关键纪律：变异体不许"为通过而通过"——只允许补断言，不许放宽门禁

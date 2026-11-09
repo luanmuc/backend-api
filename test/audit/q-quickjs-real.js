@@ -28,7 +28,7 @@ if (!getQuickJS) {
 
 const src = fs.readFileSync(SRC, 'utf8');
 let pass = 0, fail = 0;
-const rec = (name, ok, detail) => {
+const rec = (id, ok, detail) => {
   if (ok) { pass++; console.log(`  ✓ [${id}] ${detail || ''}`); }
   else { fail++; console.log(`  ✗ [${id}] ${detail || ''}`); }
 };
