@@ -1228,7 +1228,15 @@ async function probeAudioDelivery(audioUrl, timeoutMs = 3000) {
     // v8.11.1（压测 G3 实测）：httpRequest 会把 `{`/`[` 开头的文本 body 自动 JSON.parse 成对象，
     // 旧逻辑传到 sniffAudioBytes 时 body 已不是字节 → kind 判成 unknown → 被"拿不准放行"放过去，
     // 结果交付一段 JSON 给播放器 = 点歌没声。这里直接判非音频。
-    if (body && typeof body === "object" && !Buffer.isBuffer(body)) {
+    // v8.12（D-28）：交付体类型判定不能裸用 Buffer——App 的 QuickJS 宿主只注入
+    // `lx.utils.buffer`，**没有全局 Buffer**。旧实现 `Buffer.isBuffer(body)` 在真机上抛
+    // ReferenceError，被下方 catch 归一成 NETWORK_ERROR，进而落进「网络错误拿不准放行」
+    // 分支，结果 JSON 假链接被当成功交付——这道交付真实性闸门在真机上等于失效
+    // （Node 里 Buffer 存在，228 条断言全绿，正好把这条掩盖掉）。
+    // 改用 ArrayBuffer.isView / Array.isArray 判断"是不是字节"：Node 的 Buffer 是
+    // Uint8Array 子类（isView=true），QuickJS 的 Uint8Array 同样成立，无 Buffer 也不炸。
+    const isByteView = Array.isArray(body) || (typeof ArrayBuffer !== "undefined" && typeof ArrayBuffer.isView === "function" && ArrayBuffer.isView(body));
+    if (body && typeof body === "object" && !isByteView) {
       return { ok: false, code: ERROR_CODES.NOT_AUDIO, reason: "交付内容是 JSON 对象而不是音频", info: { kind: "json", format: null, durationSec: null }, statusCode: status, totalBytes };
     }
     const info = sniffAudioBytes(body, res.headers, totalBytes);

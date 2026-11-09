@@ -349,17 +349,52 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('Q1', '无 ES2022+ 独有语法（Object.hasOwn 等）', q1, q1 ? '未使用 Object.hasOwn / Array.at' : '存在 ES2022+ API');
     const q2 = /Promise\.race/.test(src) && !/\bPromise\.any\b/.test(src);
     rec('Q2', 'Promise.race 可用、未用 Promise.any', q2, q2 ? 'race/finally 均 ES2018+，QuickJS 支持' : '使用了 Promise.any');
-    const q3 = /typeof Buffer/.test(src) || /Buffer\.isBuffer/.test(src);
-    rec('Q3', '有 Buffer 存在性判断（无 Buffer 环境可降级）', q3, q3 ? `命中 ${(src.match(/typeof Buffer/g) || []).length} 处 typeof Buffer 判断` : '未发现降级判断');
+    // 硬判据：源码里**不允许裸引用全局 Buffer**（App 的 QuickJS 宿主没有它，
+    // 旧判据 `typeof Buffer || Buffer.isBuffer` 用「或」——只要出现 Buffer.isBuffer 就绿，
+    // 结果把 L1231 的裸引用掩盖了一整轮。正确写法是 typeof Buffer !== 'undefined' 保护，
+    // 或者干脆用 ArrayBuffer.isView（无 Buffer 环境同样成立）。
+    const codeLines = src.split('\n').filter(l => !/^\s*\/\//.test(l) && !/^\s*\*/.test(l));
+    const q3 = !codeLines.some(l => /\bBuffer\s*\./.test(l));
+    rec('Q3', '不裸引用全局 Buffer（QuickJS 宿主没有它，用 ArrayBuffer.isView）', q3, q3 ? '非注释代码中无 Buffer.xxx' : '非注释代码中仍有 Buffer.xxx（无 Buffer 环境会抛 ReferenceError）');
     let noBufOk = true, noBufErr = '';
     try {
       const origBuf = globalThis.Buffer;
+      try { delete globalThis.Buffer; } catch (e) {}
       const m = fresh(['suyinKuwo']);
-      noBufOk = !!(m && m.SOURCE_TOGGLES);
-    } catch (e) { noBufOk = false; noBufErr = e.message; }
+      noBufOk = !!(m && m.SOURCE_TOGGLES) && (typeof globalThis.Buffer === 'undefined');
+      globalThis.Buffer = origBuf;
+    } catch (e) { noBufOk = false; noBufErr = e.message; globalThis.Buffer = origBuf; }
     rec('Q4', '无 utils.buffer 时加载不崩（复验 B2）', noBufOk, noBufErr || '加载成功');
     const q5 = !/AbortController|AbortSignal|fetch\(/.test(src);
     rec('Q5', '不依赖 fetch/AbortController（宿主不保证）', q5, q5 ? '仅用 lx.request + setTimeout' : '存在不可控 API');
+
+
+    // Q7（六轮新增，行为断言）：**真删掉 globalThis.Buffer** 跑一次交付验真。
+    // App 的 QuickJS 宿主只有 lx.utils.buffer，没有全局 Buffer；旧代码 L1231 裸用
+    // Buffer.isBuffer(body)，无 Buffer 时抛 ReferenceError → 被 catch 成 NETWORK_ERROR
+    // → 落进「网络错误拿不准放行」分支 → **JSON 假链接被当成功交付**。
+    // 断言要求：JSON 对象响应必须判 NOT_AUDIO（拦住），任何放行都算失败。
+    {
+      const m = fresh(['suyinKuwo']);
+      scene = (u) => u.includes('oiapi')
+        ? { statusCode: 200, headers: { 'content-type': 'application/json' }, body: { code: 1, message: '音乐链接：https://audio.test/x.flac' } }
+        : { statusCode: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-1023/3000000' }, body: 'ID3\u0003' };
+      probeFn = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' }, body: { url: '', br: 0, size: 0 } });
+      const savedBuf = globalThis.Buffer;
+      let q7ok = false, q7detail = '';
+      try {
+        try { delete globalThis.Buffer; } catch (e) {}
+        const r = await req('128k', { name: '晴天', singer: '周杰伦', duration: 269 });
+        if (r && r.url) { q7ok = false; q7detail = `放行了假链接 ${r.url}`; }
+        else { q7ok = false; q7detail = `未抛出、也未交付（code=${r && r.code}）`; }
+      } catch (e) {
+        q7ok = String(e.code || '').indexOf('NOT_AUDIO') >= 0;
+        q7detail = `抛 ${e.code}`;
+      } finally {
+        globalThis.Buffer = savedBuf; scene = null; probeFn = null;
+      }
+      rec('Q7', '无 Buffer(QuickJS) 环境下 JSON 假交付必须判 NOT_AUDIO，不能 fail-open 放行', q7ok, q7detail);
+    }
   }
 
   // ================= R 定时器与句柄 =================
