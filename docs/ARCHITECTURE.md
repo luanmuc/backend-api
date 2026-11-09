@@ -45,7 +45,7 @@ App → lx.on(EVENT_NAMES.request)
       ├ health → getHealthSnapshot()（只读，零外呼）
       ├ toggle → 校验 handlerId ∈ SOURCE_HANDLERS → 清 manualOff/probeState/deadCount + 重置熔断
       ├ probe  → 正在跑则 {running:true}，否则 runHealthCheck(false)
-      ├ config → 读（卡密脱敏）/ 写（14 个 ALLOWED_KEYS + 范围钳制；9 个闸门键不开放）
+      ├ config → 读（卡密脱敏）/ 写（15 个 ALLOWED_KEYS + 范围钳制；其余 24 键只读，含 9 个闸门键）
       └ trend  → {history, maxPoints}
 ```
 
