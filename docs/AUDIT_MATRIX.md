@@ -89,7 +89,7 @@
 | `docs/audit-plans/round3.md` | 78 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | .md | ✓ | ✓ | — | — | — | — | — | 五轮结算 |
 | `docs/audit-plans/round5.md` | 111 | .md | ✓ | ✓ | — | — | — | — | — | 五轮计划 |
-| `docs/audit-plans/round4.md` | 180 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
+| `docs/audit-plans/round4.md` | 234 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `test/mutation/run.js` | 262 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | MU1~MU12（变异测试） |
 | `.gitignore` | 1 | 其他 | ✓ | — | — | — | — | — | — | U13 编码扫描（本轮登记） |
 | `docs/AUDIT_PLAN_v10.md` | 197 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
@@ -104,7 +104,7 @@
 ## 汇总
 
 - 文件总数：**81**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**21088**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 总行数：**21142**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**63/63** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 - H：行为断言脚本 **12** 个（含 `test/mutation/run.js`）（冒烟 + a-static/b-logic/d-func/e-extra + **h-toggles** + f-repo + g-meta + 两代压测）
