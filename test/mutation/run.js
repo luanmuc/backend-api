@@ -39,8 +39,10 @@ const MUTANTS = [
   {
     id: 'MU2',
     name: '去掉片段缓存通道（hasFragDetail || hasFragCache → hasFragDetail）',
-    from: 'if (cfg("fragmentFallback", true) && (hasFragDetail || hasFragCache)) {',
-    to: 'if (cfg("fragmentFallback", true) && (hasFragDetail)) {',
+    // v8.11.5（F-01 后同步）：原锚点是 `... && (hasFragDetail || hasFragCache)`，F-01 给该条件
+    // 加了 `fragAnchor &&` 前提后锚点失配、MU2 变成「锚点命中 0 次」被跳过（等于少一道门禁）。
+    from: 'cfg("fragmentFallback", true) && fragAnchor && (hasFragDetail || hasFragCache)',
+    to: 'cfg("fragmentFallback", true) && fragAnchor && (hasFragDetail)',
   },
   {
     id: 'MU3',
