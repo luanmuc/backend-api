@@ -19,10 +19,10 @@
 | ① 常量配置 | `USER_CONFIG`（40 键）、`SOURCE_TOGGLES`（20 键）、错误码、`CODE_HINT`、超时预算 |
 | ② 开关与探测 | 开关真值解析、探针素材、冷启动预热 |
 | ③ 日志/缓存/断路器 | `logInfo/logWarn`、`createLRUCache`（success 500 / fail 300）、`getBreaker` |
-| ④ HTTP/判据/L0/L4 | `httpRequest` 重试、`normalizeErrCode`、1KB Range 探针、真实时长解析、交付验真；**v8.11.5**：L0 归一（`toBytes`/`kindOf`/`headerEvidence`）、L4 裁决（`ADMISSION_POLICY`/`admit`/`skipReason`/`clearSourceLedger`/`applyAdmission`） |
+| ④ HTTP/判据/L0/L4 | `httpRequest` 重试、`normalizeErrCode`、1KB Range 探针、真实时长解析、交付验真；**v8.11.5**：L0 归一（`toBytes`/`kindOf`/`headerEvidence`）、L4 裁决（`ADMISSION_POLICY`/`admit`/`skipReason`/`clearSourceLedger`/`applyAdmission`）；**v8.11.6** 收尾：`structuralSkipReason`（建链无副作用过滤）、`probeByHeaders`（HEAD 1500ms / 405 回退 GET 只取头） |
 | ⑤ 匹配工具 | `normalizeKeyword`、`getHashOrMid`、平台映射 |
 | ⑥ 源实现 | 20 个源 handler，各自 `getUrl` + 能力声明 |
-| ⑦ 注册表与调度 | `sourceConfig`、`buildSourceChain`、`fallbackRace`、`raceFirst`、`wrapExecute`（成功/失败都走 `admit`）、健康分、`getHealthSnapshot`；`getUrlWithFallback` 用 `attempts + noteAttempt + 末尾 admit` 出代表码 |
+| ⑦ 注册表与调度 | `sourceConfig`、`buildSourceChain`、`fallbackRace`、`raceFirst`、`wrapExecute`（成功/失败都走 `admit`）、健康分、`getHealthSnapshot`；`getUrlWithFallback` 用 `attempts + noteAttempt + 末尾 admit` 出代表码；`fallbackRace` 删 `mergeCode` 改 `attempts + admit({stage:'fallback'})`；`toggleSource` 开/关都清账 |
 | ⑧ 上报与事件 | `on(EVENT_NAMES.request)` action 分发、`inited` 上报、导出面 |
 
 > **行号只在一处维护**：起止行段见 [`DEV_GUIDE.md`](./DEV_GUIDE.md) §二（由 `docs-audit` 规则 7 校验末段边界）。本文件不再抄行号——两处都写必然漂移。

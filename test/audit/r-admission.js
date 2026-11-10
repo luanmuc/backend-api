@@ -400,6 +400,100 @@ need('A8', 'skipReason：健康源 null，被摘除源给出理由', () => {
       okAdm && after > before, `health=${d500.ledger && d500.ledger.health} failureCount ${before}→${after}`);
   }
 
+
+  // A16：buildSourceChain 的过滤必须与 skipReason 同一判据（play-dead 源不进链，恢复后回链）
+  {
+    const kwChain = () => (dbg.buildSourceChain ? dbg.buildSourceChain('kw', '128k') : []).map(h => h.id);
+    const toggleBefore = dbg.runtimeToggles.suyinKuwo;
+    dbg.runtimeToggles.suyinKuwo = true;
+    dbg.playDeadStreak.set('suyinKuwo', 3);
+    dbg.playDeadDeadline.set('suyinKuwo', Date.now());
+    const deadChain = kwChain();
+    const skipped = dbg.skipReason && dbg.skipReason('suyinKuwo');
+    dbg.playDeadStreak.delete('suyinKuwo');
+    dbg.playDeadDeadline.delete('suyinKuwo');
+    const liveChain = kwChain();
+    dbg.runtimeToggles.suyinKuwo = toggleBefore;
+    rec('A16', 'buildSourceChain 过滤与 skipReason 同源：play-dead 源不进链，恢复后回链',
+      !!dbg.buildSourceChain && !!skipped && skipped.reason === 'play-dead' &&
+      deadChain.indexOf('suyinKuwo') < 0 && liveChain.indexOf('suyinKuwo') >= 0,
+      `skip=${skipped && skipped.reason} deadHas=${deadChain.indexOf('suyinKuwo')} liveHas=${liveChain.indexOf('suyinKuwo')}`);
+  }
+
+
+  // A17：关源也必须清账（开/关对称）；关闭后立刻可从清空的账本重启
+  {
+    const fk = 'fail_kw|kw_651031866|flac';
+    dbg.setFailCached(fk, EC.NOT_FOUND, 3600000);
+    dbg.playDeadStreak.set('suyinKuwo', 3);
+    dbg.playDeadDeadline.set('suyinKuwo', Date.now());
+    const br = dbg.breakerMap.get('suyinKuwo') || {};
+    br.state = 'open'; br.failureCount = 2; br.rateLimited = true; br.rateLimitUntil = Date.now() + 60000;
+    dbg.breakerMap.set('suyinKuwo', br);
+    const hasToggle = typeof dbg.toggleSource === 'function';
+    const offRes = hasToggle ? dbg.toggleSource('suyinKuwo', false) : null;
+    const failLeft = Array.from(dbg.failCache.keys()).filter(k => k.includes('fail_kw')).length;
+    const streakLeft = dbg.playDeadStreak.get('suyinKuwo');
+    const brAfter = dbg.breakerMap.get('suyinKuwo') || {};
+    rec('A17', '关源也清账（失败缓存/摘除/熔断归零），开与关对称',
+      hasToggle && offRes && offRes.enabled === false && failLeft === 0 && streakLeft === undefined &&
+      brAfter.state === 'closed' && !brAfter.rateLimited && Number(brAfter.failureCount) === 0,
+      `toggleSource=${hasToggle} enabled=${offRes && offRes.enabled} failLeft=${failLeft} streak=${streakLeft} state=${brAfter.state} rateLimited=${brAfter.rateLimited}`);
+    if (hasToggle) dbg.toggleSource('suyinKuwo', true);
+  }
+
+
+  // A18：跨源聚合必须走 admit 的 codeRank——交付类 NOT_AUDIO 不得被业务类 NOT_FOUND 吞掉
+  {
+    const mkFail = (id, code, ev) => ({
+      id, name: id, maxQuality: '128k',
+      fn: async () => { const e = new Error(`${id}: ${code}`); e.code = code; e.evidence = ev; throw e; },
+    });
+    const chainA18 = [
+      mkFail('a18notfound', EC.NOT_FOUND, 'strong'),   // 业务类 rank 2，先到
+      mkFail('a18notaudio', EC.NOT_AUDIO, 'strong'),   // 交付类 rank 3，必须胜出
+    ];
+    let got = null;
+    try {
+      await dbg.fallbackRace(chainA18, 'kw', { songmid: 'A18' }, '128k', Date.now() + 4000);
+    } catch (e) { got = e; }
+    rec('A18', '跨源聚合按 codeRank 取代表码：NOT_AUDIO 不被 NOT_FOUND 吞',
+      !!got && got.code === EC.NOT_AUDIO && Array.isArray(got.detail) && got.detail.length >= 2,
+      `code=${got && got.code} detail=${got && got.detail && got.detail.length}`);
+  }
+
+
+  // A19：GET 无字节且头信息不足时，HEAD 补证（1500ms）——补到 audio 头才放行 medium
+  {
+    setStub((url, opts) => (opts && opts.method === 'HEAD')
+      ? { statusCode: 200, headers: { 'content-type': 'audio/mpeg', 'content-length': '1048576' }, body: null }
+      : { statusCode: 206, headers: {}, body: null });
+    const got = await dbg.probeAudioDelivery('https://audio.test/a19.mp3');
+    resetStub();
+    rec('A19', 'GET 无字节+头不足 → HEAD 补证放行(medium)，不再直接 ok:null',
+      !!dbg.probeByHeaders && got && got.ok === true && got.evidence === 'medium',
+      `hasHelper=${!!dbg.probeByHeaders} ok=${got && got.ok} evidence=${got && got.evidence} reason=${got && got.reason}`);
+  }
+
+
+  // A20：I6 硬约束全遍历——任何 verdict × 任何错误码，非 strong 证据 TTL 绝不 >60s、playDead 恒 false
+  {
+    const codes = Object.values(EC).filter(v => typeof v === 'string' && /^[A-Z_]+$/.test(v));
+    const verdicts = Object.keys(dbg.ADMISSION_POLICY);
+    let bad = [];
+    for (const v of verdicts) {
+      for (const c of codes) {
+        for (const ev of ['weak', 'medium']) {
+          const l = dbg.admissionLedger ? dbg.admissionLedger(v, c, ev) : null;
+          if (!l || Number(l.ttlMs || 0) > 60000 || l.playDead !== false) bad.push(`${v}/${c}/${ev}=${l && l.ttlMs}`);
+        }
+      }
+    }
+    rec('A20', '非 strong 证据全遍历：TTL 永不 >60s 且 playDead 恒 false',
+      !!dbg.admissionLedger && codes.length >= 8 && verdicts.length === 7 && bad.length === 0,
+      `has=${!!dbg.admissionLedger} codes=${codes.length} verdicts=${verdicts.length} bad=${bad.slice(0, 3).join(',')}(${bad.length})`);
+  }
+
   console.log(`\n===== R 组（L4 裁决层）汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (require.main === module) process.exit(fail ? 1 : 0);
 })();
