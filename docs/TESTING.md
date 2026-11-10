@@ -3,7 +3,7 @@
 > **19 个入口**，**没有统一 runner**，逐条跑。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 257**。
-> 断言实测：冒烟 **67 组** + 审计 **262 条**（10/30/30/**92**/**52**/**14**/**14**/**4**/**5**/**3** + QuickJS **3**）+ 压测 **159 条**（12/14/**133**）= **合计 488 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-10 实测）。
+> 断言实测：冒烟 **67 组** + 审计 **264 条**（10/30/30/**94**/**52**/**14**/**14**/**4**/**5**/**3** + QuickJS **3**）+ 压测 **159 条**（12/14/**133**）= **合计 490 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-10 实测）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 〇、CI 覆盖（`.github/workflows/ci.yml`）
@@ -27,7 +27,7 @@
 | `test/audit/a-static.js` | 10(+2 note) | 静态：常量一致性、导出面、无死键、注释与代码对齐 | 读文件 | `node test/audit/a-static.js` |
 | `test/audit/b-logic.js` | 30 | 逻辑：闸门判据、降档链、缓存键、记账口径、冷却状态机 | mock 宿主 | `node test/audit/b-logic.js` |
 | `test/audit/d-func.js` | 30 | 功能：五平台取链、音质矩阵、订阅源、错误码、配置读写 | mock 宿主 | `node test/audit/d-func.js` |
-| `test/audit/e-extra.js` | **92** | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏；四轮 U 组：上游 HTTP 500/410/404/429/403 码映射；六轮新增 G4b/G4c（同歌 5 并发只 1 次外呼、结果一致）+ G12a~G12d（星海备按 `PLATFORM_TO_XINGHAI_BACKUP` 过滤平台，mg/kg 不再白 push 必败源）+ **Q7**（真删 `globalThis.Buffer` 跑交付验真，JSON 假交付必须判 `NOT_AUDIO`，不得 fail-open 放行） | mock 宿主 | `node test/audit/e-extra.js` |
+| `test/audit/e-extra.js` | **94** | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏；四轮 U 组：上游 HTTP 500/410/404/429/403 码映射；六轮新增 G4b/G4c（同歌 5 并发只 1 次外呼、结果一致）+ G12a~G12d（星海备按 `PLATFORM_TO_XINGHAI_BACKUP` 过滤平台，mg/kg 不再白 push 必败源）+ **Q7**（真删 `globalThis.Buffer` 跑交付验真，JSON 假交付必须判 `NOT_AUDIO`，不得 fail-open 放行）+ **K4c~K4e**（v8.11.7 健康面板配置可管：布尔开关可写读回/非布尔拒写/数字参数白名单补齐） | mock 宿主 | `node test/audit/e-extra.js` |
 | `test/audit/p-gaps.js` | 4 | 六轮新增：通读发现的零覆盖点补测（P1 previewUrlPreFilter 开/关差值 · P2 FLAC 多 metadata 块遍历 · P3 MP3 无 Xing 按码率回填时长 · P4 探测连续 2 次通过才自动启用）；逐条反向改坏实现 → 全红后还原 | mock 宿主 + `__debug` | `node test/audit/p-gaps.js` |
 | `test/audit/q-dfix.js` | 5 | D 系列行为断言：Q1 half-open 遇 429 必须收口回 open（删收口段立刻红）；Q2 closed 态遇 429 只退避不熔断；Q3（v8.11.3）toggle 开启某源后该平台失败缓存必须失效——先红（仍 NOT_FOUND）后绿（none）；Q4（D-08）单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 `PARAM_ERROR`，不得兜底 1 号歌——先红（code=undefined）后绿 | 宿主桩 + `__debug` | `node test/audit/q-dfix.js` |
 | `test/audit/q2-dseries.js` | 3 | D 系列剩余行为断言：R1 D-06 布尔键 `??`（注入 false 必须取到 false）、R2 D-05 真键可写/死键忽略、R3 D-26 mg 链不得含星海备（kw 链必须含，防断言恒真）；三条均已注入回退验证会红 | 宿主桩 + `__debug.cfg` + `buildSourceChain` | `node test/audit/q2-dseries.js` |

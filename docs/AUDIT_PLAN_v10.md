@@ -32,13 +32,13 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | A 静态与语法 | 语法、编码、TODO、密钥、调试残留、文件非空、导出面 | `a-static.js` + `f-repo.js` U1~U13 | 10 + 13 | A |
 | B 框架与宿主 | lx 宿主契约、action 声明、EVENT 收发、生命周期 | `a-static.js` + `b-logic.js` | 10 + 30 | A |
 | C 核心逻辑 | 取链、降档、竞速、短路、预算 | `b-logic.js` | 30 | A |
-| D 功能与异常 | 歌词/封面/管理 action、异常归一 | `d-func.js` + `e-extra.js` | 30 + 82 | A |
+| D 功能与异常 | 歌词/封面/管理 action、异常归一 | `d-func.js` + `e-extra.js` | 30 + 94 | A |
 | E 性能与并发 | 加载耗时、并发上限、30 并发压测 | `stress-test.js` + `f-repo.js` Z | 12 | B |
 | F 安全 | 明文密钥、URL 校验、注入面 | `f-repo.js` U8 + 本轮 G6 | 1 + G6 | B |
 | G 交付真实性 | 1KB 验真、片段判据、音质回填、缓存单写点 | `e-extra.js` W1/INV3/M14 | 3 | A |
 | I 状态机 | 断路器 closed/open/half-open、休眠、playDead | `d-func.js` + `e-extra.js` FAULT4b | 3 | A |
 | J 记账口径 | 成功率分子分母、429 不计失败、byQuality | `e-extra.js` J1~J6 | 6 | B |
-| K 缓存身份 | 缓存键、分级 TTL、单写点、缓存命中验真 | `e-extra.js` K1~K7 + M14 | 8 | A |
+| K 缓存身份 | 缓存键、分级 TTL、单写点、缓存命中验真、配置可管（K4c~K4e） | `e-extra.js` K1~K7 + M14 | 11 | A |
 | L 竞速预算 | 总预算、分档预算、末档保底、错峰 | `e-extra.js` L1~L5 | 5 | B |
 | M 探活自愈 | 探针、健康分、休眠复醒 | `e-extra.js` M1~M4 + `g-meta.js` M1~M14 | 18 | A |
 | N 假成功 | 上游 code:0 但无链接、错歌、片段伪装完整 | `e-extra.js` N1~N2 | 2 | B |
@@ -56,17 +56,17 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | MEM 长时运行 | 表上限、淘汰后可用、快照可观测 | `e-extra.js` MEM1~MEM3 | 3 | 2A + 1B |
 | **X 裁决层（admission）** | 证据分级、codeRank、admit 单一入口、弱证据 TTL ≤60s、链过滤分层、关源对称清账 | `r-admission.js` | 23 | A |
 
-**合计**：279 条断言（256 + 23）+ 22 变异体 + 67 组冒烟 + 巡检自检。（**v8.11.6 口径**——含 v8.11.5/6 新增 L4 裁决层 X 组）
+**合计**：281 条断言（258 + 23）+ 22 变异体 + 67 组冒烟 + 巡检自检。（**v8.11.7 口径**——含 v8.11.5/6 L4 裁决层 X 组 + v8.11.7 配置可管 K4c~K4e）
 
 > ### 当前口径（2026-11-09 复算，以此为准）
 >
 > | 类别 | 数量 | 构成 |
 > |---|---|---|
 > | 冒烟 | **67 组** | `lx-source-smoke-test.js` |
-> | 审计 | **249 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 92 / f-repo 50 / g-meta 14 / h-toggles 14 / candidate 6 / QuickJS 3 条**（QR 需装 quickjs-emscripten，缺依赖时退出码 3，不得计入通过）** 3 |
+> | 审计 | **251 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / candidate 6 / QuickJS 3 条**（QR 需装 quickjs-emscripten，缺依赖时退出码 3，不得计入通过）** 3 |
 > | 压测 | **159 条** | stress 12 / round3 14 / round4（V 组）133 |
 > | 变异体 | **22 个** | MU1~MU22，`--full --strict` 下 killed 率必须 100% |
-> | **合计** | **258 条审计断言**（+ 159 压测 + 67 冒烟 = 484） | e-extra 的 92 已在 257 内，不再二次相加 |
+> | **合计** | **264 条审计断言**（+ 159 压测 + 67 冒烟 = 490） | e-extra 的 94 已在 264 内，不再二次相加 |
 >
 > **注意历史 232 的偏差**：旧口径 232 = 10+30+30+92+50+14+6，**漏算 h-toggles 14 与 QuickJS 3**。
 > 与其并列的「256 条断言」是 v10 当时的分项快照（含 INV/EDGE/FAULT/MEM 细分），与本表口径不可直接相加。
