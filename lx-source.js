@@ -3368,6 +3368,8 @@ if (typeof module !== "undefined" && module.exports) {
       playDeadStreak,
       qualityShortCircuitKey,
       buildQualityChain,          // N3（F12）：降档链构造，只读
+      fallbackRace,               // D-08：单链分支硬上限回归（可传入只含 1 个源的自造链）
+      cfg,                        // D-05/D-06：配置白名单与布尔键 `??` 语义（只读求值，不改值）
       setFailCached,              // N4（F10）：构造失败缓存条目
       getFailCachedEntry,         // N4（F10）：读取时按 TTL 判过期
       get failCache() { return failCache; },   // N4：只用于把 ts 往前挪，模拟 5 分钟流逝

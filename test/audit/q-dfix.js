@@ -86,26 +86,35 @@ if (!dbg || !dbg.breakerMap || typeof dbg.recordRateLimit !== 'function') {
   const key = dbg2.buildCacheKey('fail_kw', { songmid: 'Q3SONG', hash: 'h', id: 1 }, '128k');
   dbg2.setFailCached(key, 'NOT_FOUND');            // 造一条 1h 的"歌不存在"
   const before = dbg2.getFailCachedEntry(key);
-  if (!h) {
-    rec('Q3', 'D-01：toggle 开启清失败缓存', false, 'request handler 未注册');
-  } else {
-    Promise.resolve(h({ action: 'toggle', source: 'kw', info: { id: 'huibq', enabled: true } }))
-      .then(() => {
+  (async () => {
+    if (!h) {
+      rec('Q3', 'D-01：toggle 开启清失败缓存', false, 'request handler 未注册');
+      rec('Q4', 'D-08：单链硬超时', false, 'request handler 未注册');
+    } else {
+      try {
+        await h({ action: 'toggle', source: 'kw', info: { id: 'huibq', enabled: true } });
         const after = dbg2.getFailCachedEntry(key);
         rec('Q3', 'D-01：开启源后 kw 失败缓存必须失效',
           before !== null && after === null,
           `开启前缓存=${before ? before.code : 'none'}，开启后=${after ? after.code : 'none'}`);
-      })
-      .catch(e => rec('Q3', 'D-01：toggle 开启清失败缓存', false, `toggle 抛错 ${e.message}`))
-      .then(() => {
-        console.log(`\nD 系列行为断言（Q1~Q3）汇总：${3 - fail} 通过 / ${fail} 失败`);
-        // eslint-disable-next-line no-process-exit
-        if (require.main === module) process.exit(fail ? 1 : 0);
-      });
-    // 主流程收尾交给上面的 then；这里不提前退出
-    return;
-  }
+      } catch (e) {
+        rec('Q3', 'D-01：toggle 开启清失败缓存', false, `toggle 抛错 ${e.message}`);
+      }
+      // Q4：D-08 单链分支必须受 deadline 硬约束（只有 1 个源也不能绕过超时）
+      const t0 = Date.now();
+      const hanging = { id: 'q4hang', name: 'Q4悬挂源', maxQuality: '128k', fn: () => new Promise(() => {}) };
+      try {
+        await dbg2.fallbackRace([hanging], 'kw', { songmid: 'Q4' }, '128k', Date.now() + 2000);
+        rec('Q4', 'D-08：单链悬挂源必须在预算内被判超时', false, '悬挂源竟然返回了结果');
+      } catch (e) {
+        const ms = Date.now() - t0;
+        rec('Q4', 'D-08：单链悬挂源必须在预算内被判超时',
+          e.code === 'NETWORK_TIMEOUT' && ms < 3000, `code=${e.code} 耗时=${ms}ms（预算 2000ms）`);
+      }
+    }
+    console.log(`\nD 系列行为断言（Q1~Q4）汇总：${4 - fail} 通过 / ${fail} 失败`);
+    if (require.main === module) process.exit(fail ? 1 : 0);
+  })();
 }
-console.log(`\nD 系列行为断言（Q1~Q2）汇总：${2 - fail} 通过 / ${fail} 失败`);
-if (require.main === module) process.exit(fail ? 1 : 0);
+
 module.exports = { results: { fail } };

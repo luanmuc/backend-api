@@ -439,7 +439,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('S1', '非法 type 不崩且有兜底或明确码', out.every(x => x), out.join('/'));
 
     let s2 = 0, s2d = '';
-    try { await call({ action: 'musicUrl', source: 'kw', info: { type: 'flac' } }); s2d = '未拒绝'; } catch (e) { s2 = /PARAM_ERROR/.test(e.code + e.message) ? 1 : 0; s2d = e.code; }
+    try { await call({ action: 'musicUrl', source: 'kw', info: { type: 'flac' } }); s2d = '未拒绝'; } catch (e) { s2 = e.code === 'PARAM_ERROR' ? 1 : 0; s2d = e.code; } // 2026-11-10 收紧：旧判据用 code+message 正则，message 自带前缀 → 删掉 err.code 也能绿
     rec('S2', '缺 musicInfo 明确 PARAM_ERROR', s2 === 1, s2d);
 
     fresh(['suyinKuwo']);
