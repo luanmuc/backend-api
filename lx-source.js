@@ -480,15 +480,19 @@ async function probeSingleSource(id, pc) {
         }
         return { usable, duration: Date.now() - startProbe };
       } catch (e) {
-        return { usable: false, duration: Date.now() - startProbe };
+        const duration = Date.now() - startProbe;
+        recordHealthEvent({ event: "probe_result", traceId: `probe:${globalThis.__probeRound || 0}:${id}`, sourceId: id, ok: false, code: extractErrorCode(e), latencyMs: duration });
+        return { usable: false, duration };
       }
     }));
     const usable = results.some(r => r.usable);
+    recordHealthEvent({ event: "probe_result", traceId: `probe:${globalThis.__probeRound || 0}:${id}`, sourceId: id, ok: usable, code: usable ? "" : "PROBE_FAIL", latencyMs: Math.round(results.reduce((s, r) => s + r.duration, 0) / Math.max(results.length, 1)) });
     // v1.0：探测结果并入竞速统计（成功率/均时供 sortChainByHealth 排序复用；
     // 只更新统计、不触发熔断——熔断仅由真实播放请求触发，避免探测与熔断双机制打架）
     recordProbeResult(id, usable, results.reduce((s, r) => s + r.duration, 0) / Math.max(results.length, 1));
     return { usable, raw: null };
   } catch (e) {
+    recordHealthEvent({ event: "probe_result", traceId: `probe:${globalThis.__probeRound || 0}:${id}`, sourceId: id, ok: false, code: extractErrorCode(e), latencyMs: 0 });
     recordProbeResult(id, false, 0);
     return { usable: false, raw: null };
   }
@@ -568,6 +572,67 @@ function applyProbeResult(id, usable) {
 // v8.0：健康历史趋势记录（每次自动探测完成后存一条）；v8.10：上限 60→144（10min/条 ≈ 24h）
 const healthHistory = [];
 const HEALTH_HISTORY_MAX = 144; // v8.10：历史快照上限（60→144，10min/条 ≈ 24h，原 10h 跨天就断）
+
+// 2.4 方案：音源侧只读事件环形缓冲。
+// 只服务本地排障：记录"一次播放走到哪个子源、哪一步、什么错误码、多久"，
+// 不记歌名、URL、搜索词、账号、设备 ID、位置。App 通过 healthEvents action 只读拉取。
+const HEALTH_EVENT_MAX = 500;
+const HEALTH_EVENT_FIELDS = ["traceId", "event", "sourceId", "platform", "quality", "ok", "code", "latencyMs", "reason"];
+const healthEventRing = [];
+let healthEventSeq = 0;
+let healthEventDropped = 0;
+const HEALTH_TRACE_KEY = Symbol("lxHealthTrace");
+
+const clipText = (v, max) => String(v == null ? "" : v).slice(0, max);
+function recordHealthEvent(entry) {
+  if (!entry || typeof entry !== "object") return;
+  const e = {
+    seq: ++healthEventSeq,
+    ts: Date.now(),
+    traceId: clipText(entry.traceId, 64),
+    event: clipText(entry.event || "unknown", 32),
+  };
+  for (const k of HEALTH_EVENT_FIELDS) {
+    if (k === "traceId" || k === "event" || entry[k] === undefined) continue;
+    if (k === "ok") {
+      if (typeof entry.ok === "boolean") e.ok = entry.ok;
+    } else if (k === "latencyMs") {
+      const n = Number(entry.latencyMs);
+      if (Number.isFinite(n) && n >= 0) e.latencyMs = Math.round(n);
+    } else {
+      e[k] = clipText(entry[k], k === "reason" ? 40 : 48);
+    }
+  }
+  healthEventRing.push(e);
+  while (healthEventRing.length > HEALTH_EVENT_MAX) {
+    healthEventRing.shift();
+    healthEventDropped++;
+  }
+}
+function getHealthEvents(params) {
+  const cap = Math.min(Math.max(Number(params && params.limit) || HEALTH_EVENT_MAX, 1), HEALTH_EVENT_MAX);
+  const traceId = clipText(params && params.traceId, 64);
+  const filtered = traceId ? healthEventRing.filter(e => e.traceId === traceId) : healthEventRing;
+  return {
+    schema: 1,
+    capacity: HEALTH_EVENT_MAX,
+    dropped: healthEventDropped,
+    events: filtered.slice(-cap).map(e => ({ ...e })),
+  };
+}
+function attachHealthTrace(songInfo, traceId) {
+  if (!songInfo || typeof songInfo !== "object") return;
+  try {
+    Object.defineProperty(songInfo, HEALTH_TRACE_KEY, {
+      value: clipText(traceId, 64),
+      configurable: true,
+      enumerable: false,
+    });
+  } catch (e) { /* 冻结对象不阻断播放 */ }
+}
+function healthTraceOf(songInfo) {
+  return (songInfo && typeof songInfo === "object" && songInfo[HEALTH_TRACE_KEY]) || "";
+}
 
 async function runHealthCheck(saveHistory = true) {
   if (probeState.running) return;
@@ -1774,6 +1839,7 @@ function toggleSource(target, enabled) {
   else manualOff[target] = true;
   clearSourceLedger(target);
   logInfo(`[源开关] ${target} ${next ? "开启" : "关闭"}，已清账（失败缓存/摘除/熔断限流/探测态）`);
+  recordHealthEvent({ event: "config_change", sourceId: target, reason: next ? "toggle_on" : "toggle_off" });
   return { id: target, enabled: next };
 }
 
@@ -3087,6 +3153,7 @@ function throttleCheck(sourceId) {
   return true;
 }
 async function wrapExecute(handler, platform, songInfo, quality) {
+  const traceId = healthTraceOf(songInfo);
   // v8.11：源级限流冷却——同一源对同一首歌三档都只给片段时判定为源被限流，
   // 冷却期内直接跳过（实测密集请求时整个源会统一返回同一个 84972 字节片段，跑三档纯属白等）
   // v8.11.1（二轮压测 S9 实测）：冷却期若整源跳过，新歌会连片段都拿不到（与「整站只有片段时给片段」冲突）。
@@ -3094,11 +3161,13 @@ async function wrapExecute(handler, platform, songInfo, quality) {
   const previewCoolUntil = previewCooldownMap.get(handler.id);
   const is128k = String(quality || "").toLowerCase() === "128k";
   if (previewCoolUntil && previewCoolUntil > Date.now() && !is128k) {
+    recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "preview_cooldown" });
     const coolErr = new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]判定为源级限流，冷却中（128k 保底档除外）`);
     coolErr.isThrottleSkip = true;
     throw coolErr;
   }
   if (!canExecute(handler.id)) {
+    recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "breaker" });
     logDebug(`[断路器] ${handler.id} 处于${getBreaker(handler.id).state}状态，跳过`);
     // v6.0：熔断跳过打 isThrottleSkip 标记——catch 短路抛出，不再误记 recordRateLimit
     //（旧实现熔断期每轮跳过都虚增 rateLimitCount，App 面板限流计数被污染）
@@ -3108,6 +3177,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     throw breakerSkip;
   }
   if (!throttleCheck(handler.id)) {
+    recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "local_throttle" });
     // v6.0：本地并发/限速保护跳过——标记 isThrottleSkip：非上游429，不记限流统计、不污染成功率、
     // 不触发 30s 退避（旧实现误记 recordRateLimit，流量高峰会把源冤枉成"被限"）
     revertHalfOpenOnSkip(handler.id); // D-34：同上，节流也在 try 之外抛
@@ -3122,6 +3192,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
   // v6.0：真实播放请求（成败均记）——健康面板'使用中'判定依据；探测不经过此路径
   lastUsedAt.set(handler.id, Date.now());
   const startTime = Date.now();
+  recordHealthEvent({ event: "source_attempt", traceId, sourceId: handler.id, platform, quality });
   try {
     const mid = getHashOrMid(songInfo);
     const url = await handler.fn(platform, mid, quality, songInfo);
@@ -3155,6 +3226,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
       }
     }
     recordSuccess(handler.id, Date.now() - startTime, quality);
+    recordHealthEvent({ event: "source_result", traceId, sourceId: handler.id, platform, quality, ok: true, code: "", latencyMs: Date.now() - startTime });
     logInfo(`[${handler.name}] 解析成功: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
     return finalUrl;
   } catch (e) {
@@ -3165,6 +3237,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
       revertHalfOpenOnSkip(handler.id); // D-34：抽函数统一，三处收口行为一致
       throw e;
     }
+    recordHealthEvent({ event: "source_result", traceId, sourceId: handler.id, platform, quality, ok: false, code: extractErrorCode(e), latencyMs: Date.now() - startTime });
     // v6.0：删除 catch 里的 inflightCount 递减——finally 已统一释放；
     // 旧实现 catch+finally 双递减会把并发中其他请求的计数也归零，单源并发保护(2)失效
     // v3.0：失败原因结构化透出——给错误附加源 id，供聚合 detail 关联具体子源
@@ -3642,6 +3715,7 @@ Object.keys(PLATFORM_QUALITIES).forEach(platform => {
   actions.push("toggle", "probe"); // v4.0：源级开关 + 手动探测 action（App fork 声明即注册，健康面板「管」能力）
   actions.push("config"); // v8.0：配置热更新 action（App 设置页读写 USER_CONFIG 内存值，免重载音源）
   actions.push("trend"); // v8.0：健康趋势 action（返回历史健康快照数组，App 折线图展示）
+  actions.push("healthEvents"); // 2.4：只读事件环形缓冲（本地排障；不记歌名/URL）
   sourceConfig[platform] = {
     name: PLATFORM_NAMES[platform],
     type: "music",
@@ -3651,6 +3725,10 @@ Object.keys(PLATFORM_QUALITIES).forEach(platform => {
 });
 
 on(EVENT_NAMES.request, ({ action, source, info }) => {
+  // 2.4：只读事件环形缓冲（App 健康页/导出诊断包消费；不提供任何写能力）
+  if (action === "healthEvents") {
+    return Promise.resolve(getHealthEvents(info || {}));
+  }
   // v4.0：健康快照 action（聚合查询，与请求的 source 无关）
   if (action === "health") {
     return Promise.resolve(getHealthSnapshot());
@@ -3757,6 +3835,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       updated[key] = value;
     }
     logInfo(`[config] 热更新配置：${JSON.stringify(updated)}`);
+    if (Object.keys(updated).length) recordHealthEvent({ event: "config_change", reason: "config", code: Object.keys(updated).join(",") });
     // v30.1：修改熔断阈值后，重置所有源的 failureCount——避免"突然熔断"
     // （阈值从 3 改成 1 后，已累计 2 次失败的源下一次失败不会立即熔断）
     if (updated.breakerThreshold !== undefined) {
@@ -3805,6 +3884,9 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
     return Promise.reject(paramErr);
   }
   const quality = info.type || (QUALITY_FIRST ? "flac" : "128k");
+  const traceId = clipText(info.traceId, 64) || `src_${Date.now().toString(36)}_${healthEventSeq + 1}`;
+  attachHealthTrace(info.musicInfo, traceId);
+  recordHealthEvent({ event: "play_start", traceId, platform: source, quality });
   const key = buildInflightKey(source, info.musicInfo, quality);
   if (inflightUrl.size > INFLIGHT_URL_MAX) inflightUrl.clear();
   const prev = inflightUrl.get(key);

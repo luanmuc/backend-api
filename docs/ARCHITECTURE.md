@@ -46,6 +46,7 @@ App → lx.on(EVENT_NAMES.request)
       │             ↓ 全链失败 → 片段兜底（fragmentFallback && (hasFragDetail || hasFragCache)）→ 标「试听版」、不进 6h 缓存
       ├ lyric / pic → 直连源（wy 有稳定接口，其余明确 NOT_FOUND）；出口 normalizeErrCode
       ├ health → getHealthSnapshot()（只读，零外呼）
+      ├ healthEvents → getHealthEvents()（只读环形缓冲 500 条；traceId 串联一次播放的多次取链，不记歌名/URL/账号/设备）
       ├ toggle → 校验 handlerId ∈ SOURCE_HANDLERS → 清 manualOff/probeState/deadCount + 重置熔断
       ├ probe  → 正在跑则 {running:true}，否则 runHealthCheck(false)
       ├ config → 读（卡密脱敏）/ 写（15 个 ALLOWED_KEYS + 范围钳制；其余 24 键只读，含 9 个闸门键）

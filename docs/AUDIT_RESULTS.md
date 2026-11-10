@@ -1940,3 +1940,15 @@ V29 只钉住「命中脏缓存 → 复验 → 拒」，**拒绝之后是否恢�
 才引出这条 —— 这也是"断言全绿不等于链路验证过"的又一例。
 
 新增 MU22 看护（删掉回填那行 → V39a 必须翻红），实测 killed。
+
+### 26.14 2.4 方案：音源健康事件（S 组 22 条，先红后绿）
+
+新增 `test/audit/s-health-events.js`，先在功能缺失时实跑 RED（`PARAM_ERROR: action not support`，6 通过 / 16 失败），
+再实现 `healthEvents` 只读 action 与关键阶段打点后转绿（22 通过 / 0 失败，rc=0）。覆盖：
+
+- 5 平台 `actions` 均声明 `healthEvents`；返回 `{schema:1, capacity:500, dropped, events}`。
+- 成功链 `play_start` → `source_attempt` → `source_result(ok:true)` 同一 `traceId`；失败链 `source_result(ok:false)` 且 `code` 非空。
+- `probe_result`、`config_change`（开关）事件；`traceId` 过滤；返回深拷贝副本，外部改 `.code` 不回写。
+- 隐私边界：事件体不含歌名、URL、搜索词。
+- 环形缓冲：620 次请求撑爆 500 条，`dropped>0` 且返回长度恒 ≤ 容量。
+
