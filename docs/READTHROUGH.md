@@ -4,8 +4,8 @@
 > 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、HEAD 与版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
-HEAD `fe305c1`（v8.11.2）
-文件数：**79**　总行数：**20675**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `5674da7`（v8.11.2）
+文件数：**80**　总行数：**20825**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -13,7 +13,7 @@ HEAD `fe305c1`（v8.11.2）
 |---|---|---|
 | X1 | **远端巡检已断 2 天**：`origin/master` 最新 `45d8e7a`（2026-11-08，v8.10.12），11-09 / 11-10 无自动提交；`README_HEALTH` 停在 `2026-11-08T08:32Z`，`health-daily` 最新一份也是 11-08 | `git fetch` + `git log origin/master --since=2026-11-09` 为空 |
 | X2 | **本地 85 个提交未推**，远端 CI 跑的还是 v8.10.12，D-20~D-39 与 22 个变异体远端全无覆盖 | `git status -sb` = `[ahead 85]` |
-| X3 | **变异门禁 fail-open**：步骤名写「killed 率必须 100%」，实跑 `--full` 不带 `--strict`，有 survived 也 exit 0 | `ci.yml` 变异 job vs `test/mutation/run.js` 的 `process.exit(strict && survived.length ? 1 : 0)` |
+| X3 | ~~变异门禁 fail-open~~ **已闭环（v8.11.2）**：`ci.yml` 补 `--strict`，且 2026-11-10 实测 `--full --strict` 全量 **22 killed / 0 survived**、rc=0；门禁从此真会拦人 | 旧：`ci.yml` 变异 job 不带 `--strict`；新：本日志 + `docs-audit` 规则16 |
 
 ## 二、四类清单（详细证据见 §四）
 
@@ -22,7 +22,7 @@ HEAD `fe305c1`（v8.11.2）
 | **未审计** | A1 8 文件 / A2 4 项未开始组 / A3 4 段零覆盖代码 / A4 5 类文档盲区 | 8 个文件 2298 行从未进矩阵；N 组「无回归保护清单」`docs/audit-plans/round4.md` §3 至今写「未开始」；健康巡检自动启用链、FLAC 多块遍历、MP3 位率回填、`isPreviewFragmentUrl` 四段零执行 |
 | **数据过时** | 54 处 | 已由本轮门禁接管可计算项（见 §三）；剩余语义类逐条列在清单原文 |
 | **未测试** | 14 入口全覆盖，但有 7 项该测未测 | `CONFIG_ERROR` 缓存 TTL 缺失、320k 档被跳过、`juhe` 字符串状态码、`isPreviewFragmentUrl` 零覆盖等 |
-| **未验证** | 4 条推断 + 6 条只到结果层 + 9 项从未做 | F10~F13 只读代码未实证；L4 真机播放从未做；22 只变异体本轮未全量跑；T10「Issue 已存在」分支文档自写「未单独实测」 |
+| **未验证** | 4 条推断 + 6 条只到结果层 + 9 项从未做 | F10~F13 已实证（N1~N4 先红后绿）；L4 真机播放从未做；22 只变异体已于 2026-11-10 全量跑完（22/0）；T10「Issue 已存在」分支文档自写「未单独实测」 |
 
 ## 三、本轮实跑证据（新鲜，非引用）
 
@@ -115,7 +115,7 @@ HEAD `fe305c1`（v8.11.2）
 | `test/audit/e-extra.js` | 929 | 断言 | 92 条（含 U500/U410/U404/U429/U403 状态码族、EDGE/FAULT 五轮补测）；实跑 92/0 |
 | `test/audit/f-repo.js` | 339 | 断言 | U~Z 50 条；实跑 50/0，最大单文件 219.17KB |
 | `test/audit/g-meta.js` | 314 | 断言 | 14 条 M1~M14（审断言本身）；实跑 14/0 |
-| `test/audit/n-fixes.js` | 176 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |
+| `test/audit/n-fixes.js` | 150 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |
 | `test/audit/h-toggles.js` | 187 | 断言 | 14 条（逐源开启）；实跑 14/0 |
 | `test/audit/q-quickjs-real.js` | 127 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |
 | `test/candidate-audit-test.js` | 135 | 断言 | 6 条；曾无 ID 输出，已补 |
