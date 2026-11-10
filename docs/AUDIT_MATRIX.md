@@ -69,7 +69,7 @@
 | `test/audit/b-logic.js` | 232 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/audit/d-func.js` | 232 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/audit/p-gaps.js` | 165 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | P1~P4/X (新增) |
-| `test/audit/q-dfix.js` | 85 | .js | — | — | ✓ | — | ✓ | — | ✓ | Q1~Q2/D-04（新增） |
+| `test/audit/q-dfix.js` | 84 | .js | — | — | ✓ | — | ✓ | — | ✓ | Q1~Q2/D-04（新增） |
 | `test/audit/n-fixes.js` | 150 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | N1~N4/X (新增) |
 | `test/audit/h-toggles.js` | 187 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | H1~H14/X (新增) |
 | `test/audit/e-extra.js` | 929 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
@@ -104,8 +104,8 @@
 | `docs/DOC_INDEX.md` | 81 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
 ## 汇总
 
-- 文件总数：**81**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**21154**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**82**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**21238**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**63/63** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 - H：行为断言脚本 **12** 个（含 `test/mutation/run.js`）（冒烟 + a-static/b-logic/d-func/e-extra + **h-toggles** + f-repo + g-meta + 两代压测）
