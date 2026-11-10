@@ -1,11 +1,11 @@
 # 全仓通读台账（READTHROUGH）
 
 > **这是活文档：每次版本号变更或每轮审计后必须刷新，不许过期。**
-> 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、HEAD 与版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。
+> 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。HEAD 一行按「必须是当前 HEAD 的祖先」校验（落后 ≤20 条只报 🟡、不改写）——避免审计每次把自己写成待提交改动。
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
 HEAD `ddf6adb`（v8.11.4）
-文件数：**87**　总行数：**21887**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**87**　总行数：**21918**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -96,7 +96,7 @@ HEAD `ddf6adb`（v8.11.4）
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
 | `scripts/cn-date.js` | 17 | 全文 | 北京日期单一来源 |
-| `scripts/docs-audit.js` | 363 | 全文 | **14 条规则**；不校 README 当前版本行 / CI 数字 / 矩阵数字（过时数字的根因） |
+| `scripts/docs-audit.js` | 394 | 全文 | **14 条规则**；不校 README 当前版本行 / CI 数字 / 矩阵数字（过时数字的根因） |
 | `scripts/doc-sync-map.js` | 111 | 全文 | 规则指向 `docs/SYNC_POINTS.md`（两仓均无，悬空） |
 | `scripts/ecosystem-scan.js` | 147 | 全文 | 从 SOURCE_HANDLERS 动态提取，防漂移 |
 | `scripts/endpoint-registry.js` | 86 | 全文 | **20 条端点（纠正我早前「19」的误判）**；note 行号全过期；导出 WINDOW_DAYS/CONSECUTIVE_FAIL_DAYS/EXCLUDE_DOMAINS |

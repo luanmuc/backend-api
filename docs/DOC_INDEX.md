@@ -69,7 +69,7 @@
 | `docs/README.md` | 规则19 / 规则20 / 规则21 | 测试入口数、缺陷编号上界、docs 文件登记完整性 |
 | `docs/TESTING.md` | 规则20 | 入口总数 |
 | `docs/AUDIT_MATRIX.md` | 规则17 | 逐行行数、文件总数、总行数、漏登文件（漏一个即红） |
-| `docs/READTHROUGH.md` | 规则18 | 逐行行数、文件数、总行数、HEAD 与版本、漏登文件 |
+| `docs/READTHROUGH.md` | 规则18 | 逐行行数、文件数、总行数、版本；HEAD 须为当前 HEAD 的祖先（落后 ≤20 条只提示不改写）、漏登文件 |
 | `docs/AGENTS.md` | 规则1 / 规则6 / 规则8 | 冒烟组数、L1 组数、setTimeout 处数 |
 | `docs/DEV_GUIDE.md` | 规则6 / 规则7 / 规则9 / 规则11 | 冒烟组数、总行数、行段表末段、子源数、写死的增长量 |
 | `docs/ITERATION_ROADMAP.md` | 规则13 | 当前最新版本 |

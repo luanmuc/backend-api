@@ -298,7 +298,38 @@ function ruleReadThroughLedger() {
   align('docs/READTHROUGH.md', /文件数：\*\*(\d+)\*\*/, () => `文件数：**${map.size}**`, '台账文件数');
   align('docs/READTHROUGH.md', /总行数：\*\*(\d+)\*\*/, () => `总行数：**${total}**`, '台账总行数');
   const v = read('lx-source.js').match(/@version[: \t]+([\d.]+)/);
-  if (v) align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, () => `HEAD \`${execSync('git rev-parse --short HEAD', { encoding: 'utf8', cwd: ROOT }).trim()}\`（v${v[1]}）`, '台账 HEAD 与版本');
+  if (v) {
+    // v8.11.5（门禁自指修复）：原实现每次审计都把台账 HEAD 改写成「当前 HEAD」，而任何后续
+    // 提交都会让它立刻过期 → 每周 bot 为它单独提交一次，永远追不上（审计自己制造待提交改动）。
+    // 现规则：记录的 sha 只须是 HEAD 的祖先（证明审计确实发生过）；落后 ≤20 条只 🟡 提示、
+    // 不改写；非祖先或落后 >20 才重置。
+    const head = execSync('git rev-parse --short HEAD', { encoding: 'utf8', cwd: ROOT }).trim();
+    const line = read('docs/READTHROUGH.md').match(/HEAD `([0-9a-f]{7,})`（v([\d.]+)）/);
+    const rewrite = () => `HEAD \`${head}\`（v${v[1]}）`;
+    if (!line) {
+      align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, rewrite, '台账 HEAD 与版本');
+      report.push('🟡 台账 HEAD 缺失，已写入当前 HEAD');
+    } else if (line[2] !== v[1]) {
+      align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, rewrite, '台账 HEAD 与版本');
+    } else {
+      let isAncestor = false;
+      try { execSync(`git merge-base --is-ancestor ${line[1]} HEAD`, { cwd: ROOT, stdio: 'ignore' }); isAncestor = true; } catch (e) { isAncestor = false; }
+      if (!isAncestor) {
+        align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, rewrite, '台账 HEAD 与版本');
+        report.push('🟡 台账 HEAD 不在当前历史中，已重置');
+      } else {
+        const lag = Number(execSync(`git rev-list --count ${line[1]}..HEAD`, { encoding: 'utf8', cwd: ROOT }).trim());
+        if (lag > 20) {
+          align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, rewrite, '台账 HEAD 与版本');
+          report.push(`🟡 台账 HEAD 落后 ${lag} 条（>20），已重置`);
+        } else if (lag > 0) {
+          report.push(`🟡 台账 HEAD 落后 ${lag} 条（≤20 容忍，不自动改写）`);
+        } else {
+          report.push('🟢 台账 HEAD 与当前一致');
+        }
+      }
+    }
+  }
   const listed = new Set([...read('docs/READTHROUGH.md').matchAll(/^\| `([^`]+)` \| \d+ \|/gm)].map((m) => m[1]));
   const miss = [...map.keys()].filter((f) => !listed.has(f));
   if (miss.length) report.push(`🔴 [docs/READTHROUGH.md] ${miss.length} 个 tracked 文件未进台账：${miss.join(', ')}`);
