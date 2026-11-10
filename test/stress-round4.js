@@ -1256,6 +1256,33 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V38b', !!(r38 && r38.url), `给音频时应能交付（对照），实测 ${r38 ? '交付' : '失败'}`);
   }
 
+  // ============ V39 hh:mm:ss 三段时长：解析失败会让超长曲的片段校验整体失效 ============
+  // V32 只覆盖了 mm:ss 两段。三段是 live/古典现场常见格式，若解析成 0，
+  // songInfoMatch 的 `if (tDur && rDur && ...)` 直接短路 —— 一段 1 小时的音频只给 60 秒也放行。
+  console.log('\n[V39] hh:mm:ss 三段时长应被解析（否则超长曲校验失效）');
+  {
+    const S39 = { name: '交响曲现场', singer: '某乐团', duration: 3900000, hash: 'H39AAA' };
+    const okJSON39 = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v39.mp3\n歌名：交响曲现场\n歌手：某乐团\n时长：1:05:00` }) });
+    const m = fresh(Object.assign({}, BASE_CFG, { fragmentFallback: false, verifyMinOriginalSec: 1 }), ['suyinKuwo']);
+    fetchFault = okJSON39;
+    // 源声称 1 小时，实际只给 60 秒 → 必须判片段
+    probeFault = () => audio(flac(60), 'audio/flac', 55397039);
+    let code39 = '', out39 = null;
+    try { out39 = await m.getUrlWithFallback('kw', S39, 'flac'); } catch (e) { code39 = e.code || ''; }
+    // 必须真的拒（或明确降级为试听版）；「放行」不算通过，否则 hh:mm:ss 解析失败也能变绿
+    rec('V39a', code39 === CODES().PREVIEW_FRAGMENT || !!(out39 && String(out39.type).includes('试听')),
+      `1小时声称 vs 60秒实际必须判片段/标试听版，实测 code=${code39 || '(未抛=放行)'} type=${out39 ? out39.type : '-'}`);
+
+    // 对照：真的给 1 小时 → 必须正常交付（证明上面的拒绝不是因为"永远拒"）
+    const m2 = fresh(Object.assign({}, BASE_CFG, { fragmentFallback: false, verifyMinOriginalSec: 1 }), ['suyinKuwo']);
+    fetchFault = okJSON39;
+    probeFault = () => audio(flac(3900), 'audio/flac', 55397039);
+    let code39b = '', out39b = null;
+    try { out39b = await m2.getUrlWithFallback('kw', S39, 'flac'); } catch (e) { code39b = e.code || ''; }
+    rec('V39b', !!(out39b && out39b.url), `真给 1 小时应交付（对照），实测 code=${code39b || '(正常)'}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);

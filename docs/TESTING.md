@@ -3,7 +3,7 @@
 > **14 个入口**，**没有统一 runner**，逐条跑。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 249**。
-> 断言实测：冒烟 **67 组** + 审计 **249 条**（10/30/30/**92**/50/**14**/**14**/**6** + QuickJS **3**）+ 压测 **155 条**（12/14/**129**）= **合计 471 条**；变异体 **21 个**（按「能否被门禁杀掉」记，全量 21 killed / 0 survived）。
+> 断言实测：冒烟 **67 组** + 审计 **249 条**（10/30/30/**92**/50/**14**/**14**/**6** + QuickJS **3**）+ 压测 **159 条**（12/14/**133**）= **合计 475 条**；变异体 **21 个**（按「能否被门禁杀掉」记，全量 21 killed / 0 survived）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 〇、CI 覆盖（`.github/workflows/ci.yml`）
@@ -14,7 +14,7 @@
 |---|---|---|
 | L1.3 | `node --expose-gc test/stress-test.js` | 12（S 组，压量） |
 | L5 | `node --expose-gc test/stress-round3.js` | 14（T 组，压态） |
-| L5.1 | `node --expose-gc test/stress-round4.js` | 129（V 组，压判据） |
+| L5.1 | `node --expose-gc test/stress-round4.js` | 133（V 组，压判据） |
 | mutation job | `node test/mutation/run.js --full` | 21 个变异体，killed 率必须 100% |
 
 > 说明：`stress-round4` 曾长期缺席 CI（另两套早就在），2026-11-09 补入 L5.1。
@@ -33,7 +33,7 @@
 | `test/audit/g-meta.js` | 14 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
 | `test/stress-test.js` | 12 | 压测 S 组压「量」：并发/预算/配额/熔断/缓存容量/长跑/极端参数/闸门对照/定时器 | `--expose-gc` | `node --expose-gc test/stress-test.js` |
 | `test/stress-round3.js` | 14 | 压测 T 组压「态」：跨档总预算、源级冷却与本地限速分离、片段翻转、闸门 8 组合矩阵、config 热更新、错误码注入、probe 并发、写满容量堆增长、档位串槽、熔断跨源污染 | `--expose-gc` | `node --expose-gc test/stress-round3.js` |
-| `test/stress-round4.js` | **129** | 压测 V 组压「判据」（第四轮新增）：故障谱系 10 类 × 5 平台 × 3 档 = 150 组零假成功 / 同歌同档 100 并发只外呼 1 次 / 220 首并发无违约 / 缓存 400 首内命中·700 首后 LRU 淘汰 / 熔断全周期 / 限流滑窗 / 降档预算与末档保底 / 随机 2000 次 4 条不变量 / soak 4000 次堆收敛与句柄不累积 / 20 次重载缓存不跨实例 / MISMATCH 拒错歌 / 验真时长三阈值边界 / CONFIG_ERROR / 配置脱敏与写白名单 / logEnabled 静音 / raceBatchSize 串并行 / 音质短路拦停 / 冷启动预热开关与 TTL | 纯 mock 宿主 | `node --expose-gc test/stress-round4.js` |
+| `test/stress-round4.js` | **133** | 压测 V 组压「判据」（第四轮新增）：故障谱系 10 类 × 5 平台 × 3 档 = 150 组零假成功 / 同歌同档 100 并发只外呼 1 次 / 220 首并发无违约 / 缓存 400 首内命中·700 首后 LRU 淘汰 / 熔断全周期 / 限流滑窗 / 降档预算与末档保底 / 随机 2000 次 4 条不变量 / soak 4000 次堆收敛与句柄不累积 / 20 次重载缓存不跨实例 / MISMATCH 拒错歌 / 验真时长三阈值边界 / CONFIG_ERROR / 配置脱敏与写白名单 / logEnabled 静音 / raceBatchSize 串并行 / 音质短路拦停 / 冷启动预热开关与 TTL | 纯 mock 宿主 | `node --expose-gc test/stress-round4.js` |
 | `test/candidate-audit-test.js` | 6 | 候选实证流程 | 本地 | `node test/candidate-audit-test.js` |
 | `test/audit/q-quickjs-real.js` | 3（可选） | **真 QuickJS 引擎**跑：能否加载 / 宿主是否真没有 Buffer / 无 Buffer 下 JSON 假交付必须判 NOT_AUDIO（D-28 就靠它抓出） | 需 `quickjs-emscripten`，未装自动 SKIP | `NODE_PATH=<装了它的 node_modules> node test/audit/q-quickjs-real.js` |
 | `test/mutation/run.js` | 21 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（只读仓库，在 /tmp 副本上跑）；全量 21 killed / 0 survived | 本地 | `node test/mutation/run.js [--full] [--strict]` |
