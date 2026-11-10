@@ -112,7 +112,20 @@ if (!dbg || !dbg.breakerMap || typeof dbg.recordRateLimit !== 'function') {
           e.code === 'NETWORK_TIMEOUT' && ms < 3000, `code=${e.code} 耗时=${ms}ms（预算 2000ms）`);
       }
     }
-    console.log(`\nD 系列行为断言（Q1~Q4）汇总：${4 - fail} 通过 / ${fail} 失败`);
+
+    // Q5（F-01）：星海后端缺 songmid 时不得兜底成 1 号歌——必须 PARAM_ERROR
+    {
+      const fn = src.SOURCE_HANDLERS && src.SOURCE_HANDLERS.xinghaiBackend && src.SOURCE_HANDLERS.xinghaiBackend.fn;
+      if (typeof fn !== 'function') {
+        rec('Q5', 'F-01：星海后端缺 id 必须报 PARAM_ERROR', false, 'xinghaiBackend 未注册');
+      } else {
+        let code = null;
+        try { await fn('kw', null, '128k', { name: 'zzz不存在zzz', singer: '无' }); } catch (e) { code = e && e.code; }
+        rec('Q5', 'F-01：星海后端缺 id 必须报 PARAM_ERROR（不得兜底 1 号歌）',
+          code === 'PARAM_ERROR', `code=${code}`);
+      }
+    }
+    console.log(`\nD 系列行为断言（Q1~Q5）汇总：${5 - fail} 通过 / ${fail} 失败`);
     if (require.main === module) process.exit(fail ? 1 : 0);
   })();
 }
