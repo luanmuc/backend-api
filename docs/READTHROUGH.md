@@ -4,8 +4,8 @@
 > 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、HEAD 与版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
-HEAD `5c31e75`（v8.11.2）
-文件数：**81**　总行数：**21022**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `c5a71d8`（v8.11.2）
+文件数：**81**　总行数：**21088**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -29,7 +29,7 @@ HEAD `5c31e75`（v8.11.2）
 | 命令 | 输出 |
 |---|---|
 | `test/lx-source-smoke-test.js` | **67 组用例**，rc=0 |
-| `test/audit/{a-static,b-logic,d-func,e-extra,f-repo,g-meta,h-toggles}.js` | 10 / 30 / 30 / 92 / 50 / 14 / 14，全 rc=0 |
+| `test/audit/{a-static,b-logic,d-func,e-extra,f-repo,g-meta,h-toggles}.js` | 10 / 30 / 30 / 92 / 52 / 14 / 14，全 rc=0 |
 | `test/candidate-audit-test.js` | 6 通过 / 0 失败 |
 | `test/audit/q-quickjs-real.js` | 3 通过 / 0 失败（真引擎） |
 | `test/stress-test.js` | 12 / 0 |
@@ -113,7 +113,7 @@ HEAD `5c31e75`（v8.11.2）
 | `test/audit/b-logic.js` | 232 | 断言 | 30 条（C4~C10 等，含循环生成）；实跑 30/0 |
 | `test/audit/d-func.js` | 232 | 断言 | 30 条（D1/I3~I5/E1~E4）；实跑 30/0 |
 | `test/audit/e-extra.js` | 929 | 断言 | 92 条（含 U500/U410/U404/U429/U403 状态码族、EDGE/FAULT 五轮补测）；实跑 92/0 |
-| `test/audit/f-repo.js` | 339 | 断言 | U~Z 50 条；实跑 50/0，最大单文件 219.17KB |
+| `test/audit/f-repo.js` | 405 | 断言 | U~Z 52 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支）；实跑 52/0 |
 | `test/audit/g-meta.js` | 314 | 断言 | 14 条 M1~M14（审断言本身）；实跑 14/0 |
 | `test/audit/p-gaps.js` | 165 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
 | `test/audit/n-fixes.js` | 150 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |

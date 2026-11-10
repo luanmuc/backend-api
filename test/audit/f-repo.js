@@ -333,6 +333,72 @@ console.log('\n[Z] 资源与启动');
   rec('Z5', `无 >500KB 的单文件（最大 ${Math.max(...files.map(f => fs.statSync(abs(f)).size)) / 1024}KB）`, big.length === 0, big.join(','));
 }
 
+// ══ Z6/Z7：CI 巡检告警分支（T10「Issue 已存在则跳过」此前从未实测）══
+// 这段逻辑只存在于 .github/workflows/ci.yml 的 run 块里，平时只有 schedule 才走到，
+// 所以它到底会不会「重复刷 Issue」或「该开却不开」，一直是读注释而不是验行为。
+// 做法：从 YAML 里抽出 run 块原文 → 在临时目录里用假 gh 驱动 → 断言实际落到哪个分支。
+{
+  const ci = read('.github/workflows/ci.yml');
+  const lines = ci.split('\n');
+  const head = lines.findIndex(l => l.includes('- name: 巡检告警'));
+  const runAt = head >= 0 ? lines.findIndex((l, i) => i > head && /^\s+run: \|\s*$/.test(l)) : -1;
+  if (head < 0 || runAt < 0) {
+    rec('Z6', 'ci.yml 巡检告警 step 可定位', false, '未找到 run 块');
+  } else {
+    // 取 run: | 之后、缩进回退之前的所有行，并去掉公共缩进
+    const body = [];
+    for (let i = runAt + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^\s*$/.test(l)) { body.push(''); continue; }
+      const indent = l.match(/^\s*/)[0].length;
+      if (indent <= 8) break;
+      body.push(l.slice(10));
+    }
+    const script = body.join('\n');
+    rec('Z6', 'ci.yml 巡检告警 run 块可抽取且含去重判据', script.includes('gh issue list') && script.includes('已存在，跳过'), script.split('\n').length + ' 行');
+
+    const os = require('os');
+    const runCi = (listOut, createOk) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-alert-'));
+      fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
+      fs.mkdirSync(path.join(dir, 'docs/health-daily'), { recursive: true });
+      fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
+      fs.copyFileSync(abs('scripts/health-alert.js'), path.join(dir, 'scripts/health-alert.js'));
+      // 造一份「需处理 1 条」的日报汇总，保证脚本会产出正文（否则走的是"无告警"分支）
+      const day = execFileSync('date', ['+%F'], { env: { ...process.env, TZ: 'Asia/Shanghai' }, encoding: 'utf8' }).trim();
+      fs.writeFileSync(path.join(dir, `docs/health-daily/${day}.json`), JSON.stringify({
+        date: day, handle: [{ label: 'gdstudio', url: 'https://x.test/a', rate: 0, total: 5, consecutiveFail: 3, reason: 'HTTP 500', kind: 'payload', sources: ['gdWy'] }], changes: [],
+      }));
+      // 假 gh：list 是否命中、create 是否成功都由参数决定
+      fs.writeFileSync(path.join(dir, 'bin/gh'), [
+        '#!/bin/sh',
+        'for a in "$@"; do case "$a" in',
+        '  list) ' + (listOut ? 'echo 123; exit 0' : 'exit 0') + ';;',
+        '  create) ' + (createOk ? 'echo created; exit 0' : 'echo "repository has disabled issues" >&2; exit 1') + ';;',
+        'esac; done', 'exit 0',
+      ].join('\n'), { mode: 0o755 });
+      fs.writeFileSync(path.join(dir, 'run.sh'), script, { mode: 0o755 });
+      let out = '';
+      try {
+        out = execFileSync('bash', ['run.sh'], {
+          cwd: dir, encoding: 'utf8', timeout: 20000,
+          env: { ...process.env, PATH: path.join(dir, 'bin') + ':' + process.env.PATH, GITHUB_STEP_SUMMARY: path.join(dir, 'summary.md') },
+        });
+      } catch (e) { out = String(e.stdout || '') + String(e.stderr || ''); }
+      fs.rmSync(dir, { recursive: true, force: true });
+      return out;
+    };
+
+    const dup = runCi(true, true);
+    const fresh = runCi(false, true);
+    const disabled = runCi(false, false);
+    rec('Z7', 'T10 已有同日 Issue → 跳过；无 → 创建；Issue 通道不可用 → 有意失败',
+      /已存在，跳过/.test(dup) && /已创建告警 Issue/.test(fresh) && /降级为失败通知/.test(disabled),
+      `重复=${/已存在，跳过/.test(dup) ? '跳过' : '未跳过'} 新建=${/已创建告警 Issue/.test(fresh) ? '创建' : '未创建'} 降级=${/降级为失败通知/.test(disabled) ? '触发' : '未触发'}`);
+  }
+}
+
+
 console.log(`\n第三轮全仓覆盖审计（U~Z）汇总：${res.length - fail} 通过 / ${fail} 失败`);
 // require.main 守卫：被其他脚本 require 时不得杀掉调用方（D-16 同类，见 g-meta M9）
 if (require.main === module) process.exit(fail ? 1 : 0);

@@ -2,8 +2,8 @@
 
 > **16 个入口**，**没有统一 runner**，逐条跑。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
-> 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 253**。
-> 断言实测：冒烟 **67 组** + 审计 **253 条**（10/30/30/**92**/50/**14**/**14**/**4**/**4**/**6** + QuickJS **3**）+ 压测 **159 条**（12/14/**133**）= **合计 479 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-10 实测）。
+> 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 255**。
+> 断言实测：冒烟 **67 组** + 审计 **255 条**（10/30/30/**92**/**52**/**14**/**14**/**4**/**4**/**6** + QuickJS **3**）+ 压测 **159 条**（12/14/**133**）= **合计 481 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-10 实测）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 〇、CI 覆盖（`.github/workflows/ci.yml`）
@@ -31,7 +31,7 @@
 | `test/audit/p-gaps.js` | 4 | 六轮新增：通读发现的零覆盖点补测（P1 previewUrlPreFilter 开/关差值 · P2 FLAC 多 metadata 块遍历 · P3 MP3 无 Xing 按码率回填时长 · P4 探测连续 2 次通过才自动启用）；逐条反向改坏实现 → 全红后还原 | mock 宿主 + `__debug` | `node test/audit/p-gaps.js` |
 | `test/audit/n-fixes.js` | 4 | 六轮新增：通读推断缺陷的红绿回归（N1 Juhe code 字符串 / N2 Juhe 303 校验值类型 / N3 flac24bit 起跑保留 320k / N4 CONFIG_ERROR 5 分钟过期） | mock 宿主 + `__debug` 只读钩子 | `node test/audit/n-fixes.js` |
 | `test/audit/h-toggles.js` | 14 | 四轮新增：默认关闭/从未开启的源（helloworldKw·星海后端·酷我官方·Juhe×5·聆川·gdWy·溯音QQ·溯音咪咕·酷我封面·星海备）逐个开启后的最小可用性 | mock 宿主 | `node test/audit/h-toggles.js` |
-| `test/audit/f-repo.js` | 50 | 三轮新增：全仓 **72** 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
+| `test/audit/f-repo.js` | 52 | 三轮新增：全仓 **72** 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
 | `test/audit/g-meta.js` | 14 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
 | `test/stress-test.js` | 12 | 压测 S 组压「量」：并发/预算/配额/熔断/缓存容量/长跑/极端参数/闸门对照/定时器 | `--expose-gc` | `node --expose-gc test/stress-test.js` |
 | `test/stress-round3.js` | 14 | 压测 T 组压「态」：跨档总预算、源级冷却与本地限速分离、片段翻转、闸门 8 组合矩阵、config 热更新、错误码注入、probe 并发、写满容量堆增长、档位串槽、熔断跨源污染 | `--expose-gc` | `node --expose-gc test/stress-round3.js` |
