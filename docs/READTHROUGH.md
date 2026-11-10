@@ -4,8 +4,8 @@
 > 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、HEAD 与版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
-HEAD `d8677c4`（v8.11.2）
-文件数：**84**　总行数：**21350**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `129f651`（v8.11.3）
+文件数：**84**　总行数：**21387**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -49,9 +49,9 @@ HEAD `d8677c4`（v8.11.2）
 | `.github/workflows/ci.yml` | 199 | 全文 | 13 个 job；断言数注释过期（32/21/22）；**mutation 未带 `--strict`（X3）**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 1 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
-| `README.md` | 121 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
+| `README.md` | 122 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 46 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
-| `lx-source.js` | 3368 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 12 错误码；12 处可疑点见 F07~F22（4 条待实证） |
+| `lx-source.js` | 3377 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 12 错误码；12 处可疑点见 F07~F22（4 条待实证） |
 | `docs/AGENTS.md` | 190 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 91 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突） |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
@@ -118,7 +118,7 @@ HEAD `d8677c4`（v8.11.2）
 | `test/audit/f-repo.js` | 405 | 断言 | U~Z 52 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支）；实跑 52/0 |
 | `test/audit/g-meta.js` | 314 | 断言 | 14 条 M1~M14（审断言本身）；实跑 14/0 |
 | `test/audit/p-gaps.js` | 165 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
-| `test/audit/q-dfix.js` | 84 | 断言 | 2 条：Q1 D-04 half-open 遇 429 收口回 open（删掉收口段立刻红）；Q2 closed 态 429 只退避不熔断；实跑 2/0 |
+| `test/audit/q-dfix.js` | 111 | 断言 | 3 条：Q1 D-04 half-open 遇 429 收口回 open（删收口段立刻红）；Q2 closed 态 429 只退避不熔断；Q3（v8.11.3）D-01 toggle 开启后失败缓存失效，先红后绿；实跑 3/0 |
 | `test/audit/n-fixes.js` | 150 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |
 | `test/audit/h-toggles.js` | 187 | 断言 | 14 条（逐源开启）；实跑 14/0 |
 | `test/audit/q-quickjs-real.js` | 127 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |

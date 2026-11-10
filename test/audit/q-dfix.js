@@ -23,7 +23,7 @@ globalThis.lx = {
   env: 'mobile',
   utils: { buffer: { from: (d, e) => Buffer.from(d, e), bufToString: (b, e) => b.toString(e) } },
   request(url, opts, cb) { setTimeout(() => cb(null, { statusCode: 200, headers: {}, body: '', url: String(url) }), 1); },
-  on() {},
+  on(n, h) { if (n === 'request') globalThis.__lxHandler = h; },
   send() {},
 };
 
@@ -79,6 +79,33 @@ if (!dbg || !dbg.breakerMap || typeof dbg.recordRateLimit !== 'function') {
   b.rateLimited = false;
 }
 
+// ── Q3：D-01 toggle 开启某源 → 该平台失败缓存必须失效（否则重开源仍命中"歌不存在 1h"）──
+{
+  const h = globalThis.__lxHandler;
+  const dbg2 = src.__debug;
+  const key = dbg2.buildCacheKey('fail_kw', { songmid: 'Q3SONG', hash: 'h', id: 1 }, '128k');
+  dbg2.setFailCached(key, 'NOT_FOUND');            // 造一条 1h 的"歌不存在"
+  const before = dbg2.getFailCachedEntry(key);
+  if (!h) {
+    rec('Q3', 'D-01：toggle 开启清失败缓存', false, 'request handler 未注册');
+  } else {
+    Promise.resolve(h({ action: 'toggle', source: 'kw', info: { id: 'huibq', enabled: true } }))
+      .then(() => {
+        const after = dbg2.getFailCachedEntry(key);
+        rec('Q3', 'D-01：开启源后 kw 失败缓存必须失效',
+          before !== null && after === null,
+          `开启前缓存=${before ? before.code : 'none'}，开启后=${after ? after.code : 'none'}`);
+      })
+      .catch(e => rec('Q3', 'D-01：toggle 开启清失败缓存', false, `toggle 抛错 ${e.message}`))
+      .then(() => {
+        console.log(`\nD 系列行为断言（Q1~Q3）汇总：${3 - fail} 通过 / ${fail} 失败`);
+        // eslint-disable-next-line no-process-exit
+        if (require.main === module) process.exit(fail ? 1 : 0);
+      });
+    // 主流程收尾交给上面的 then；这里不提前退出
+    return;
+  }
+}
 console.log(`\nD 系列行为断言（Q1~Q2）汇总：${2 - fail} 通过 / ${fail} 失败`);
 if (require.main === module) process.exit(fail ? 1 : 0);
 module.exports = { results: { fail } };
