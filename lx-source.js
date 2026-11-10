@@ -2058,6 +2058,10 @@ async function suyinKuwoSearch(keyword, br, songInfo = null) {
       if (songInfo) {
         const parsed = parseMessageSongInfo(res.message);
         if (parsed && !songInfoMatch(parsed, songInfo)) throw new Error(`${ERROR_CODES.MISMATCH}: 溯音酷我歌曲信息不匹配`);
+        // D-39：message 里的时长必须回填。旧实现只拿 parsed 做歌名校验，duration 就地丢弃，
+        // 而外层 verifyDelivery 的 originalDurationSec 只读 ctx.songInfo —— 调用方没传 duration 时，
+        // 整条时长校验静默失效（实测：声称 1:05:00、实际给 60 秒，直接放行且标 flac24bit）。
+        if (parsed && parsed.duration && !songInfo.duration) songInfo.duration = parsed.duration;
       }
       return match[1];
     }

@@ -35,3 +35,10 @@
 | **v3.0** | 健康系统雏形：失败原因结构化 + 健康权重 + 竞速校验 + 歌词封面透出 + 健康快照 |
 | **v2.0** | 工程化：CI 冒烟 + 巡检 + 协作规范 + 配置化可选源 |
 | **v1.0** | 基础四源（kw/wy/tx/mg）+ 高音质双源冗余 + 失败缓存 |
+
+### v8.11.1 补丁：D-39 message 时长回填
+
+- **D-39**：`parseMessageSongInfo` 解析出的 `duration` 从未回填 `songInfo`，导致调用方没传
+  `duration` 时 `originalDurationSec` 恒为 0、时长校验整体短路——声称 1:05:00 实际给 60 秒
+  仍照常交付并标 flac24bit。修：歌名校验后按需回填 `songInfo.duration`。
+- 测试：V38（网易云 VIP 不可试听，双边）、V39（`hh:mm:ss` 三段，双边）、MU22。

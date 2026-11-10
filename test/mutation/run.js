@@ -169,7 +169,11 @@ const MUTANTS = [
     to: 'globalThis.__lxSourceConfig.allFailShortTtlMs) || 30000',
     gates: ['test/stress-round4.js'],
   },
-
+  // MU22（v8.11.1 / D-39）：message 里的时长不回填 → 调用方没传 duration 时片段校验静默失效
+  { id: 'MU22', name: 'D-39 message 时长回填被删 → 超长曲片段校验失效',
+    from: 'if (parsed && parsed.duration && !songInfo.duration) songInfo.duration = parsed.duration;',
+    to: 'if (false) songInfo.duration = parsed.duration;',
+    gates: ['test/stress-round4.js'] }
 ];
 
 function copyRepo() {

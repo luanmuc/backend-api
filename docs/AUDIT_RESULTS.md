@@ -1864,3 +1864,33 @@ V29 只钉住「命中脏缓存 → 复验 → 拒」，**拒绝之后是否恢�
 
 **方法论提醒**：只说"覆盖率盲区已清零"而没有新一轮 `NODE_V8_COVERAGE` 数据，就是没有证据。
 这次复测才发现：修完 D-32~D-38 之后仍余 147 行，且里面藏着一条用户可感的 VIP 分支。
+
+### 26.13 D-39：message 里的时长对片段校验完全无效（本轮由覆盖率复测挖出）
+
+补 V39（`hh:mm:ss`）时第一版断言是绿的，但**走的是数字路径**——我把 `songInfo.duration: 3900000`
+一起传了进去，`hh:mm:ss` 的冒号分支根本没执行。去掉 `duration` 只留 message 里的
+`时长：1:05:00` 后，V39a 立刻翻红：
+
+```
+✗ 1小时声称 vs 60秒实际必须判片段，实测 code=(未抛=放行) type=flac24bit
+```
+
+根因：`parseMessageSongInfo` 解析出的 `result.duration` **只被用于歌名校验，从未回填到 songInfo**；
+而外层 `verifyDelivery` 的 `originalDurationSec(ctx.songInfo)` 只读 `songInfo.duration`
+（或 `dt`/`interval`/`songDuration`）。调用方没传 duration 时：
+
+- `origDur = 0`
+- 判据 `if (realDur && origDur && origDur >= verifyMinOriginalSec)` 直接短路
+- **整条时长校验静默失效** —— 声称 1:05:00、实际给 60 秒，照常交付并标 `flac24bit`
+
+这与 D-37（`mm:ss` 解析成 NaN）是同一族的两个不同断点：D-37 修了"解析"，但**解析结果没接到判据上**。
+
+修法（最小）：在 `suyinKuwoGetUrl` 里，歌名校验之后补一行回填
+`if (parsed && parsed.duration && !songInfo.duration) songInfo.duration = parsed.duration;`。
+只在原缺失时补，不覆盖调用方给的值。
+
+**为什么之前所有断言都没抓到**：V26/V32 都是构造 `songInfo.duration` 的数字或 `mm:ss`，
+全部走 `songInfo` 路径，没有任何一条从 message 入口进来看。覆盖率复测把 1228-1232 标出来
+才引出这条 —— 这也是"断言全绿不等于链路验证过"的又一例。
+
+新增 MU22 看护（删掉回填那行 → V39a 必须翻红），实测 killed。

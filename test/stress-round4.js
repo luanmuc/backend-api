@@ -1261,7 +1261,9 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
   // songInfoMatch 的 `if (tDur && rDur && ...)` 直接短路 —— 一段 1 小时的音频只给 60 秒也放行。
   console.log('\n[V39] hh:mm:ss 三段时长应被解析（否则超长曲校验失效）');
   {
-    const S39 = { name: '交响曲现场', singer: '某乐团', duration: 3900000, hash: 'H39AAA' };
+    // 关键：**不给 songInfo.duration**，否则走的是数字路径（3900000→3900），
+    // hh:mm:ss 的冒号分支根本没执行，断言绿了也是空转。只靠 message 里的「时长：1:05:00」驱动。
+    const S39 = { name: '交响曲现场', singer: '某乐团', hash: 'H39AAA' };
     const okJSON39 = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message: `音乐链接：https://cdn.test/audio.test/v39.mp3\n歌名：交响曲现场\n歌手：某乐团\n时长：1:05:00` }) });
     const m = fresh(Object.assign({}, BASE_CFG, { fragmentFallback: false, verifyMinOriginalSec: 1 }), ['suyinKuwo']);
