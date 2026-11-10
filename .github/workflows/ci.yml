@@ -55,6 +55,7 @@ jobs:
           node test/audit/f-repo.js
           node test/audit/g-meta.js
           node test/audit/h-toggles.js
+          node test/audit/n-fixes.js
       - name: L5 第三轮压力与并发（T1~T12）
         run: node --expose-gc test/stress-round3.js
       - name: L5.1 第四轮压力测试（V 组 133 条：故障谱系/不变量/MISMATCH/阈值边界/配置面/兜底档实证）

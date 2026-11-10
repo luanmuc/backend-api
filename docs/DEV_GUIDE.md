@@ -18,16 +18,16 @@
 
 | 部分 | 行段 | 职责 |
 |---|---|---|
-| ① 常量配置 | 15~198 | `USER_CONFIG` 参数表、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
-| ② 音源开关 + 健康探测 | 199~651 | `SOURCE_TOGGLES` 静态默认；`runtimeToggles` 运行时随探测自愈；`probeSingleSource` 并发探测 + Range 二次校验 |
-| ③ 日志 + LRU 双层缓存 + 断路器 | 652~893 | `logInfo`、`successCache`/`failCache`、熔断 + 半开试探 + 成功率/均时统计 |
-| ④ HTTP 封装 + 交付真实性判据层 | 894~1372 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；**v8.11 新增（993~1216）**：`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`——Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行（ok:null） |
-| ⑤ 歌曲信息与匹配工具 | 1373~1535 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey` |
-| ⑥ 音源实现 | 1536~2151 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
-| ⑦ 注册表 + 调度 + 健康分 | 2152~2932 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback` |
-| ⑧ 上报 + 事件监听 | 3115~3357（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ① 常量配置 | 79~218 | `USER_CONFIG` 参数表、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
+| ② 音源开关 + 健康探测 | 219~661 | `SOURCE_TOGGLES` 静态默认；`runtimeToggles` 运行时随探测自愈；`probeSingleSource` 并发探测 + Range 二次校验 |
+| ③ 日志 + LRU 双层缓存 + 断路器 | 662~941 | `logInfo`、`successCache`/`failCache`、熔断 + 半开试探 + 成功率/均时统计 |
+| ④ HTTP 封装 + 交付真实性判据层 | 942~1401 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；**v8.11 新增（993~1216）**：`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`——Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行（ok:null） |
+| ⑤ 歌曲信息与匹配工具 | 1402~1627 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey` |
+| ⑥ 音源实现 | 1628~2354 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
+| ⑦ 注册表 + 调度 + 健康分 | 2355~3118 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback` |
+| ⑧ 上报 + 事件监听 | 3121~3367（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.11.1 基线（`lx-source.js` 共 3357 行）** 实测值，代码增删后需同步本表；表格覆盖全文（①～⑧ 首尾相接，无空白区）。
+> 行段为 **v8.11.2 基线（`lx-source.js` 共 3367 行）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~78 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
 
 ## 三、核心机制详解
 

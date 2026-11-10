@@ -28,6 +28,7 @@
 | `test/audit/b-logic.js` | 30 | 逻辑：闸门判据、降档链、缓存键、记账口径、冷却状态机 | mock 宿主 | `node test/audit/b-logic.js` |
 | `test/audit/d-func.js` | 30 | 功能：五平台取链、音质矩阵、订阅源、错误码、配置读写 | mock 宿主 | `node test/audit/d-func.js` |
 | `test/audit/e-extra.js` | **92** | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏；四轮 U 组：上游 HTTP 500/410/404/429/403 码映射；六轮新增 G4b/G4c（同歌 5 并发只 1 次外呼、结果一致）+ G12a~G12d（星海备按 `PLATFORM_TO_XINGHAI_BACKUP` 过滤平台，mg/kg 不再白 push 必败源）+ **Q7**（真删 `globalThis.Buffer` 跑交付验真，JSON 假交付必须判 `NOT_AUDIO`，不得 fail-open 放行） | mock 宿主 | `node test/audit/e-extra.js` |
+| `test/audit/n-fixes.js` | 4 | 六轮新增：通读推断缺陷的红绿回归（N1 Juhe code 字符串 / N2 Juhe 303 校验值类型 / N3 flac24bit 起跑保留 320k / N4 CONFIG_ERROR 5 分钟过期） | mock 宿主 + `__debug` 只读钩子 | `node test/audit/n-fixes.js` |
 | `test/audit/h-toggles.js` | 14 | 四轮新增：默认关闭/从未开启的源（helloworldKw·星海后端·酷我官方·Juhe×5·聆川·gdWy·溯音QQ·溯音咪咕·酷我封面·星海备）逐个开启后的最小可用性 | mock 宿主 | `node test/audit/h-toggles.js` |
 | `test/audit/f-repo.js` | 50 | 三轮新增：全仓 **72** 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
 | `test/audit/g-meta.js` | 14 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
