@@ -4,8 +4,8 @@
 > 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、HEAD 与版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
-HEAD `c0a66c2`（v8.11.2）
-文件数：**81**　总行数：**21011**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `5c31e75`（v8.11.2）
+文件数：**81**　总行数：**21022**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -19,10 +19,10 @@ HEAD `c0a66c2`（v8.11.2）
 
 | 类别 | 条数 | 摘要 |
 |---|---|---|
-| **未审计** | A1 8 文件 / A2 4 项未开始组 / A3 4 段零覆盖代码 / A4 5 类文档盲区 | 8 个文件 2298 行从未进矩阵；N 组「无回归保护清单」`docs/audit-plans/round4.md` §3 至今写「未开始」；健康巡检自动启用链、FLAC 多块遍历、MP3 位率回填、`isPreviewFragmentUrl` 四段零执行 |
+| **未审计** | A1 8 文件 / A2 1 项未开始组 / A4 5 类文档盲区 | 8 个文件 2298 行从未进矩阵；N 组「无回归保护清单」`docs/audit-plans/round4.md` §3 至今写「未开始」；四段零执行代码已由 P1~P4 补齐（2026-11-10） |
 | **数据过时** | 54 处 | 已由本轮门禁接管可计算项（见 §三）；剩余语义类逐条列在清单原文 |
-| **未测试** | 14 入口全覆盖，但有 7 项该测未测 | `CONFIG_ERROR` 缓存 TTL 缺失、320k 档被跳过、`juhe` 字符串状态码、`isPreviewFragmentUrl` 零覆盖等 |
-| **未验证** | 4 条推断 + 6 条只到结果层 + 9 项从未做 | F10~F13 已实证（N1~N4 先红后绿）；L4 真机播放从未做；22 只变异体已于 2026-11-10 全量跑完（22/0）；T10「Issue 已存在」分支文档自写「未单独实测」 |
+| **未测试** | 15 道门禁入口全覆盖（13 个测试脚本 + 自检 + 文档门禁），原 7 项该测未测剩 3 项 | 已补：`CONFIG_ERROR` TTL（N4）、320k 跳档（N3）、`juhe` 字符串码（N1/N2）、四段零覆盖（P1~P4）；仍缺：T10「Issue 已存在则跳过」分支、T33 flaky 根因、V 组真机项 |
+| **未验证** | 剩 3 项从未做 | F10~F13 已实证（N1~N4）；变异 22/0 已全量；L4 真机播放仍需真机；T10 分支、T33 flaky 未定论 |
 
 ## 三、本轮实跑证据（新鲜，非引用）
 
@@ -68,7 +68,7 @@ HEAD `c0a66c2`（v8.11.2）
 | `docs/README.md` | 63 | 全文 | 文档地图；「5 个测试入口」实 14；「D-01~D-26」已到 D-39 |
 | `docs/SCRIPTS.md` | 52 | 全文 | 14 脚本 + 3 hook；「17 条规则」实 14；行数 235/110 实 236/111；prepare-commit-msg 的 exit 1 描述属 commit-msg |
 | `docs/SOURCE_AUDIT.md` | 96 | 全文 | 11-06 基线 21/35 + 11-09 顶注 10/10；「短路探路 6h」实默认 1h |
-| `docs/TESTING.md` | 111 | 全文 | 14 入口 / 249 审计口径正确；72 文件、58/14145、203.45KB 三处过期 |
+| `docs/TESTING.md` | 111 | 全文 | 口径正确（253 审计 / 479 合计 / 22 变异）；72 文件、58/14145、203.45KB 三处过期（历史值已冻结） |
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 82 | 归档 | 96 维执行轨迹；F-08~F-14 待决策记录（部分已修） |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 146 | 归档 | 音源+App 五步审计 13 问题（2 中 11 低） |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 295 | 归档 | 15 项修复 + §10.2 仍未做（L4 真网络 / F-12 第二方案 / 面板 raceBudgetMs 说明） |
@@ -125,7 +125,7 @@ HEAD `c0a66c2`（v8.11.2）
 | `test/stress-round3.js` | 349 | 断言 | 14 条 T1~T14（压「态」） |
 | `test/stress-round4.js` | 1291 | 断言 | 133 条 V1a~V39b；**未进 AUDIT_MATRIX** |
 | `test/stress-test.js` | 219 | 断言 | 12 条 S1~S10 |
-| `docs/READTHROUGH.md` | 154 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/READTHROUGH.md` | 165 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
 | `docs/DOC_INDEX.md` | 81 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
 
 ## 五、维护规则（这段是契约，不是说明）
@@ -152,3 +152,14 @@ HEAD `c0a66c2`（v8.11.2）
 **一个必须写下来的测量假象**：`test/audit/n-fixes.js`、`test/audit/p-gaps.js` 结尾用 `process.exit(fail?1:0)` 退出（否则模块留下的定时器会让进程不退出），V8 覆盖率来不及落盘，所以**这两组刚验证过的代码在报告里仍显示未覆盖**——例如 `530~531`（探测连续通过自动启用）已被 P4 行为验证，覆盖率表里却是空的。**看到这两组已覆盖的行号出现在未覆盖清单里，不要当缺陷报。** 想消除假象需给测试加"清定时器后自然退出"的收尾，属独立改造，未做。
 
 **剩余 136 行的性质**：绝大多数是刻意不可达或极难驱动的路径——探测异常兜底（`492~494`）、冷启动豁免日志（`548`）、巡检定时器 tick（`618~623`）、ID3 跳过与 FLAC 块上限保护（`1124~1125`、`1117`）、非法 URL / 验真失败分支（`1238`、`1255`、`1279`）。这些不按"补覆盖率"去硬凑用例，需要真实场景再补。
+
+## 七、验证债清算（2026-11-10，只清「能查实的」）
+
+| 债 | 原表述 | 实查结论 | 证据 |
+|---|---|---|---|
+| probe-history 11-08 单日 215 条 | 「单日 215 条异常，未查」 | **非异常**：当日 20 个端点共跑 12 轮（20×12≈240，其中部分重复请求合并计 215），`(date,url)` 唯一组合正好 20 | 逐行解析 `docs/probe-history.jsonl`：11-08 记录 215 / 唯一 (date,url) 20，单 url 出现 12 次 |
+| 25 distinct url vs 登记表 20 | 「对不上」 | **对得上**：25 是历史累计，其中 5 个是已退役或非音频端点（sayqz 旧域、lingchuan、ikunshare 旧域、kuwo 封面模板 `img2.kuwo.cn/${item.MVPIC}`、GitHub releases 更新检查）；**当日实际探测 20 个，与登记表 20 条一致** | 同上 + 登记表正则抽取计数 20 |
+| `ARCHIVE_OLD_TAGS.md` 旧 tag 是否真删 | 「未核远端」 | **真删了**：远端只剩 `v1.0~v8.0` 共 8 个新体系 tag，v11~v29 旧 tag 零残留 | GitHub API `repos/luanmuc/backend-api/tags` |
+| F17 三个明文端点 cleartext | 「宿主 cleartext 未验证」 | **不是缺陷（但台账记错了数量）**：明文端点实为 **8 个**（`search.kuwo.cn`、`antiserver.kuwo.cn`、`175.27.166.236` 两条、`music.nxinxz.com` 三条、`nmobi.kuwo.cn`）；App 侧 `android/app/src/main/res/xml/network_security_config.xml` 为 `base-config cleartextTrafficPermitted="true"`，Android 不拦 | 见上文件；`curl` 实测 4 个域名均支持 TLS（https 200/404），`175.27.166.236` 无 TLS（https 000、http 200） |
+
+**为什么没顺手改 http→https**：`search.kuwo.cn` / `antiserver.kuwo.cn` 的 https 可达只是「裸路径 200」，带真实参数、真实取链的端到端行为没验过；`music.nxinxz.com` 与 `nmobi.kuwo.cn` 带参在 http/https 下**同为 404**（源本身已废）。在没有端到端证据前改协议，是拿「能用的酷我搜链」去换一个理论收益，不做。等真机验真（L4）时一并实测再定。
