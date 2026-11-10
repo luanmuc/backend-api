@@ -25,9 +25,9 @@
 | ⑤ 歌曲信息与匹配工具 | 1849~2074 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey`、`getHashOrMid` |
 | ⑥ 音源实现 | 2075~2809 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
 | ⑦ 注册表 + 调度 + 健康分 | 2810~3567 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`） |
-| ⑧ 上报 + 事件监听 | 3703~3993（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ⑧ 上报 + 事件监听 | 3703~3995（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.11.7 基线（`lx-source.js` 共 3993 行，`@version 8.11.7`）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~78 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
+> 行段为 **v8.11.7 基线（`lx-source.js` 共 3995 行，`@version 8.11.7`）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~78 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
 
 ## 三、核心机制详解
 

@@ -1952,3 +1952,13 @@ V29 只钉住「命中脏缓存 → 复验 → 拒」，**拒绝之后是否恢�
 - 隐私边界：事件体不含歌名、URL、搜索词。
 - 环形缓冲：620 次请求撑爆 500 条，`dropped>0` 且返回长度恒 ≤ 容量。
 
+
+
+### 26.15 2.4 方案压力：健康事件环形缓冲（T 组 12 条）
+
+新增 `test/audit/t-health-events-stress.js`，用 `__debug.recordHealthEvent` 注入 10000 条事件（含 1000 个 traceId 与 5 平台交错）：
+
+- 容量恒 500、`dropped=9500`、`seq` 从 9501 到 10000 单调递增；10000 次写入 18ms。
+- 同 `traceId` 能串起 `play_start`→`source_attempt`→`source_result`；limit `0/-1/1/500/1000/NaN/字符串` 全部钳在 1..500 且不抛。
+- 返回副本不可回写；字段仅 11 个白名单键；注入的歌名/URL/账号全部被丢弃。
+- 反向验证：`HEALTH_EVENT_MAX` 临时改 100 时 T1 容量与 dropped 两条翻红，还原后 12/0。

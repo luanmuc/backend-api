@@ -3969,6 +3969,8 @@ if (typeof module !== "undefined" && module.exports) {
       // v8.11.2（覆盖率补测）：健康巡检主流程 L572-626 整段此前零覆盖——runHealthCheck 未导出，
       // 只能从定时器间接触发（初始延迟 60s），测试无法稳定驱动。此处只读导出（healthHistory 返回副本）。
       runHealthCheck,
+      recordHealthEvent,   // 2.4 压测：注入事件验证容量/白名单（只读 action 不暴露写口）
+      getHealthEvents,
       get healthHistory() { return healthHistory.slice(); },
       suyinKuwoGetUrl,   // 供测试验证 D-31 端到端：兜底档日志是否落
       setCachedUrl,      // 供测试构造脏缓存（复现"槽位是 flac、内容是 128k"的历史条目）
