@@ -25,6 +25,7 @@ test/                  # 冒烟用例
 1. 读 [docs/ITERATION_ROADMAP.md](ITERATION_ROADMAP.md)：找到第一个状态 `[ ]` 且依赖已满足的版本 = 本次迭代目标；
 2. 按「实证开发流程」实现（实证 → 改码 → L0~L4 验证链）；
 3. 通过后：改 `lx-source.js` 头部 `@version`/`@description`、README 版本历史、并把该版本 `[ ]` → `[x]`；
+3.5 **文档闸门（v8.11.2 起强制）**：`node scripts/docs-audit.js` 必须零 ❌；同时刷新三份活文档——[`READTHROUGH.md`](READTHROUGH.md)（四类清单 + 逐文件行，规则18 会改行数并抓漏登）、[`DOC_INDEX.md`](DOC_INDEX.md)（本轮若新增/删除任何文档，先登记再写内容，未登记规则19 直接红）、[`AUDIT_MATRIX.md`](AUDIT_MATRIX.md)（文件增减时补行，规则17 抓漏登与行数漂移）。文档没跟上 = 本次迭代未完成，不进入第 4 步；
 4. 走 DEV_GUIDE 发布 SOP 出 tag + Release（附 `lx-source.js` 产物）；
 5. 一次迭代 = 一个版本 = 一个提交；用户说"迭代到 X"则连续执行，每版单独提交；
 6. 标注「外部依赖」的版本（v3.0+ 需服务器/App 扩展/长期数据）：条件不具备时跳过并说明，禁止强行实现；
@@ -121,6 +122,8 @@ node scripts/self-check.js      # 发布自检：@version 与 @description/logIn
 ```
 
 `self-check.js` 即本仓库的文档一致性检查（版本串/README 版本条目/ROADMAP 交付标记三向校验），推送前必须清零；新增文档字段需同步扩展自检项。
+
+再加一道（v8.11.2 起）：`node scripts/docs-audit.js --dry-run` 零 ❌ 才算过。它看住的是「派生数字类过期」——README 当前版本行、CI 变异体数与 `--strict`、矩阵/台账逐行行数与漏登文件、`DOC_INDEX` 登记完整性、测试入口数、缺陷编号上界；漏改会被它自动改回或直接报红，不再依赖人记。
 
 ## 实证开发流程（强制 · 2026-10-28 起）
 

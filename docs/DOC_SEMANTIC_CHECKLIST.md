@@ -16,7 +16,7 @@
 
 ## 二、机器已覆盖的项（不必人肉重查）
 
-`scripts/docs-audit.js` 17 条规则：冒烟组数（全文档 4 处）、`lx-source.js` 总行数、行段表末段边界、setTimeout 处数、子源总数、ikun/huibq 开关真值、`@version` 串、pdone URL、health/candidate 新鲜度、跨仓 App 文档版本、写死增长量检测、`ITERATION_ROADMAP` 当前版本、`SOURCE_AUDIT` 登记源数与 `verified` 源数。
+`scripts/docs-audit.js` 21 条规则：冒烟组数（全文档 4 处）、`lx-source.js` 总行数、行段表末段边界、setTimeout 处数、子源总数、ikun/huibq 开关真值、`@version` 串、pdone URL、health/candidate 新鲜度、跨仓 App 文档版本、写死增长量检测、`ITERATION_ROADMAP` 当前版本、`SOURCE_AUDIT` 登记源数与 `verified` 源数、README 当前版本行、CI 变异体数（且必须带 `--strict`）、`AUDIT_MATRIX` 逐行行数与漏登文件、`READTHROUGH` 台账同步、`DOC_INDEX` 登记完整性、测试入口数、缺陷编号上界。
 
 ## 三、持续增长量（不要写死）
 

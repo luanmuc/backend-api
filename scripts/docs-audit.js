@@ -213,6 +213,119 @@ function ruleSourceAuditFacts() {
   align('docs/SOURCE_AUDIT.md', /(\d+) 个 `verified` 源/, () => `${ve} 个 \`verified\` 源`, 'SOURCE_AUDIT verified 源数');
 }
 
+// ── 共用：全仓 tracked 文件 → 行数映射（矩阵/台账/索引类文档的真值来源）──
+function trackedLines() {
+  const list = execSync('git -c core.quotepath=false ls-files', { encoding: 'utf8', cwd: ROOT })
+    .trim().split('\n').filter(Boolean);
+  const map = new Map();
+  for (const f of list) {
+    map.set(f, Number(execSync(`wc -l < ${JSON.stringify(f)}`, { encoding: 'utf8', cwd: ROOT }).trim()));
+  }
+  return map;
+}
+
+// 表格类文档的行数同步器：把「| `path` | 数字 |」里的数字对齐到实测值
+function syncRowLines(p, map, label) {
+  const s = read(p);
+  let out = s;
+  let n2 = 0;
+  out = out.split('\n').map((line) => {
+    const m = line.match(/^\| `([^`]+)` \| (\d+) \|/);
+    if (!m) return line;
+    if (!map.has(m[1])) return line;
+    const real = map.get(m[1]);
+    if (Number(m[2]) === real) return line;
+    n2++;
+    return line.replace(`| \`${m[1]}\` | ${m[2]} |`, `| \`${m[1]}\` | ${real} |`);
+  }).join('\n');
+  if (n2 && !DRY) { write(p, out); fixed++; report.push(`✅ [${p}] ${label}：同步 ${n2} 行行数`); }
+  else if (n2) report.push(`🟡 [${p}] ${label}：待同步 ${n2} 行行数`);
+  else report.push(`🟢 [${p}] ${label}：行数已与实测一致`);
+}
+
+// ── 规则 15：README「当前版本」行 ↔ @version（工具层与音源层已统一版本链）──
+function ruleReadmeCurrentVersion() {
+  const m = read('lx-source.js').match(/@version[: \t]+([\d.]+)/);
+  if (!m) { report.push('⚠️ 规则15：@version 未找到'); return; }
+  align('README.md', /\| 当前版本 \| \*\*v([\d.]+)\*\*/, () => `| 当前版本 | **v${m[1]}**`, 'README 当前版本行');
+  align('README.md', /内 `@version ([\d.]+)`/, () => `内 \`@version ${m[1]}\``, 'README 内 @version 标注');
+}
+
+// ── 规则 16：ci.yml 变异体数 ↔ MUTANTS 实读，且必须带 --strict ─────────
+function ruleMutationGate() {
+  const r = read('test/mutation/run.js');
+  const a = r.indexOf('const MUTANTS = [');
+  let n = 0;
+  if (a < 0) { report.push('⚠️ 规则16：MUTANTS 未找到'); }
+  else {
+    const b = r.indexOf('\n];', a);
+    try { n = eval(r.slice(a + 16, b + 2)).length; } catch (e) { report.push(`⚠️ 规则16 解析 MUTANTS 失败：${e.message}`); }
+  }
+  if (n) align('.github/workflows/ci.yml', /(\d+) 变异体/, () => `${n} 变异体`, 'CI 变异体数');
+  const ci = read('.github/workflows/ci.yml');
+  const line = (ci.match(/node test\/mutation\/run\.js[^\n]*/) || [''])[0];
+  if (!line) report.push('❌ [ci.yml] 没有调用变异测试，变异门禁不存在');
+  else if (!line.includes('--strict')) report.push(`❌ [ci.yml] 变异测试未带 --strict（${line.trim()}）→ 有存活变异体也 exit 0，门禁 fail-open`);
+  else report.push('🟢 [ci.yml] 变异测试带 --strict');
+}
+
+// ── 规则 17：AUDIT_MATRIX 行数 ↔ 实测，且不允许漏登 tracked 文件 ────────
+function ruleMatrixCoverage() {
+  const map = trackedLines();
+  syncRowLines('docs/AUDIT_MATRIX.md', map, '矩阵行数');
+  const s = read('docs/AUDIT_MATRIX.md');
+  const listed = new Set([...s.matchAll(/^\| `([^`]+)` \| \d+ \|/gm)].map((m) => m[1]));
+  const miss = [...map.keys()].filter((f) => !listed.has(f));
+  if (miss.length) report.push(`❌ [docs/AUDIT_MATRIX.md] ${miss.length} 个 tracked 文件未进矩阵：${miss.join(', ')}`);
+  else report.push(`🟢 [docs/AUDIT_MATRIX.md] 矩阵覆盖全仓 ${map.size} 个文件`);
+  align('docs/AUDIT_MATRIX.md', /文件总数：\*\*(\d+)\*\*/g, () => `文件总数：**${map.size}**`, '矩阵文件总数');
+  const total = [...map.values()].reduce((x, y) => x + y, 0);
+  align('docs/AUDIT_MATRIX.md', /总行数：\*\*(\d+)\*\*/g, () => `总行数：**${total}**`, '矩阵总行数');
+}
+
+// ── 规则 18：READTHROUGH 台账 ↔ 实测（文件数/总行数/逐行行数/版本）────
+function ruleReadThroughLedger() {
+  const map = trackedLines();
+  syncRowLines('docs/READTHROUGH.md', map, '台账行数');
+  const total = [...map.values()].reduce((x, y) => x + y, 0);
+  align('docs/READTHROUGH.md', /文件数：\*\*(\d+)\*\*/, () => `文件数：**${map.size}**`, '台账文件数');
+  align('docs/READTHROUGH.md', /总行数：\*\*(\d+)\*\*/, () => `总行数：**${total}**`, '台账总行数');
+  const v = read('lx-source.js').match(/@version[: \t]+([\d.]+)/);
+  if (v) align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, () => `HEAD \`${execSync('git rev-parse --short HEAD', { encoding: 'utf8', cwd: ROOT }).trim()}\`（v${v[1]}）`, '台账 HEAD 与版本');
+  const listed = new Set([...read('docs/READTHROUGH.md').matchAll(/^\| `([^`]+)` \| \d+ \|/gm)].map((m) => m[1]));
+  const miss = [...map.keys()].filter((f) => !listed.has(f));
+  if (miss.length) report.push(`❌ [docs/READTHROUGH.md] ${miss.length} 个 tracked 文件未进台账：${miss.join(', ')}`);
+}
+
+// ── 规则 19：docs 下每个文件都必须在 DOC_INDEX 登记（新文档不得漏登）──
+function ruleDocIndex() {
+  const idx = read('docs/DOC_INDEX.md');
+  const docs = execSync('git -c core.quotepath=false ls-files docs', { encoding: 'utf8', cwd: ROOT })
+    .trim().split('\n').filter(Boolean);
+  const miss = docs.filter((f) => !idx.includes('`' + f + '`'));
+  if (miss.length) report.push(`❌ [docs/DOC_INDEX.md] ${miss.length} 个 docs 文件未登记：${miss.join(', ')}`);
+  else report.push(`🟢 [docs/DOC_INDEX.md] docs 下 ${docs.length} 个文件全部登记`);
+  const stale = [...idx.matchAll(/^\| `(docs\/[^`]+)` \|/gm)].map((m) => m[1]).filter((f) => !docs.includes(f));
+  if (stale.length) report.push(`❌ [docs/DOC_INDEX.md] 登记了不存在的文件：${stale.join(', ')}`);
+}
+
+// ── 规则 20：测试入口数 ↔ test 下实际入口脚本数 ───────────────────────
+function ruleTestEntryCount() {
+  const n = execSync("git ls-files 'test/**/*.js' 'test/*.js'", { encoding: 'utf8', cwd: ROOT })
+    .trim().split('\n').filter((f) => f.endsWith('.js')).length;
+  align('docs/README.md', /(\d+) 个测试入口/, () => `${n} 个测试入口`, '文档地图测试入口数');
+  align('docs/TESTING.md', /\*\*(\d+) 个入口\*\*/, () => `**${n} 个入口**`, 'TESTING 入口数');
+}
+
+// ── 规则 21：缺陷编号上界 ↔ AUDIT_RESULTS 实有最大 D-xx ───────────────
+function ruleDefectIdCeiling() {
+  const res = read('docs/AUDIT_RESULTS.md');
+  const max = Math.max(...[...res.matchAll(/D-(\d{2})/g)].map((m) => Number(m[1])));
+  if (!Number.isFinite(max)) { report.push('⚠️ 规则21：AUDIT_RESULTS 未找到 D-xx'); return; }
+  align('docs/README.md', /\*\*D-01~D-(\d+)\*\*/, () => `**D-01~D-${String(max).padStart(2, '0')}**`, '文档地图缺陷编号上界');
+  align('docs/AUDIT_PLAN_v10.md', /缺陷总账已补齐 D-01~D-(\d+)/, () => `缺陷总账已补齐 D-01~D-${String(max).padStart(2, '0')}`, 'v10 缺陷编号上界');
+}
+
 // ── 执行 ────────────────────────────────────────────────────────────────
 ruleSmokeCount();
 ruleVersion();
@@ -228,6 +341,13 @@ ruleHardcodedGrowing();
 ruleCrossRepoAppDoc();
 ruleRoadmapVersion();
 ruleSourceAuditFacts();
+ruleReadmeCurrentVersion();
+ruleMutationGate();
+ruleMatrixCoverage();
+ruleReadThroughLedger();
+ruleDocIndex();
+ruleTestEntryCount();
+ruleDefectIdCeiling();
 
 console.log(`\n[L4 文档巡检] ${DRY ? 'DRY-RUN（不修改）' : '自动修复'} — ${new Date().toISOString().slice(0, 10)}\n`);
 for (const r of report) console.log(r);

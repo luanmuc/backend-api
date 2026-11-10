@@ -78,8 +78,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: 变异测试（21 变异体，killed 率必须 100%）
-        run: node test/mutation/run.js --full
+      - name: 变异测试（22 变异体，killed 率必须 100%）
+        run: node test/mutation/run.js --full --strict
 
   # ---------- v2.0：每日端点巡检 + 健康表写回 ----------
   probe:

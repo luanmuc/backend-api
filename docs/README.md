@@ -16,6 +16,8 @@
 | 查当前源可用性基线 | [`SOURCE_AUDIT.md`](./SOURCE_AUDIT.md) |
 | 文档改了怕不同步 | [`DOC_SEMANTIC_CHECKLIST.md`](./DOC_SEMANTIC_CHECKLIST.md)（机器管不了的靠人） |
 | 多账号协作 / 提交规范 | [`AGENTS.md`](./AGENTS.md) |
+| 查「哪些文件审过/没审、哪些数字已核查过时」 | [`READTHROUGH.md`](./READTHROUGH.md)（全仓通读台账 + 四类清单） |
+| 新增文档该放哪、哪些字段要跟着改 | [`DOC_INDEX.md`](./DOC_INDEX.md)（逐文件登记 + 机器校验归属） |
 
 ## 二、文件清单与性质
 
@@ -25,13 +27,15 @@
 | `README_HEALTH.md` | **自动生成**（`scripts/probe.js`） | 端点健康表，别手改 |
 | `docs/ARCHITECTURE.md` | 手写 | 边界、8 段结构、调用链、4 个状态机、账本口径、跨仓契约 |
 | `docs/DEV_GUIDE.md` | 手写 | 逐段职责、机制细节、子源实测总表、已知缺陷 |
-| `docs/TESTING.md` | 手写 | 5 个测试入口、mock 四件事、隔离与新增断言流程 |
+| `docs/TESTING.md` | 手写 | 14 个测试入口、mock 四件事、隔离与新增断言流程 |
 | `docs/SCRIPTS.md` | 手写 | 14 脚本 + 3 hook 的职责/触发/副作用 |
 | `docs/AUDIT_PLAN.md` | 手写 | 方法论 + 维度矩阵（只写"要审什么"） |
 | `docs/AUDIT_PLAN_v10.md` | 手写（**六轮整合活文档**） | 以它为准：维度总表、G1~G12 缺口、待修清单、销项记录、门禁 14 项口径、已知取舍 |
 | `docs/audit-plans/round1~5.md` | 手写（归档性） | 前五轮的分轮计划，历史用；当前计划看 v10 |
 | `docs/reports/*.md` | 手写（每轮一份） | 分轮审计报告：`v8.11.1-全面审计报告.md`、`-第五轮审计结算.md`、`-第六轮缺口审计.md` |
-| `docs/AUDIT_RESULTS.md` | 手写 | 三代审计总账 + **D-01~D-26** 缺陷编号 + 结论性事实 + 历轮过程 |
+| `docs/AUDIT_RESULTS.md` | 手写 | 三代审计总账 + **D-01~D-39** 缺陷编号 + 结论性事实 + 历轮过程 |
+| `docs/READTHROUGH.md` | 手写（**活文档·每版本必刷**） | 全仓通读台账：75 文件逐条结论 + 未审计/过时/未测试/未验证四类清单；规则18 校验 |
+| `docs/DOC_INDEX.md` | 手写（**活文档·新增文档必登**） | docs 下逐文件登记（性质/生成者/刷新时机/机器校验）；规则19 校验，漏登即红 |
 | `docs/AUDIT_MATRIX.md` | 手写（每轮更新） | **58 文件 × 审计维度覆盖矩阵**，证明"每个文件都被审过" |
 | `docs/CHANGELOG.md` | 手写 | 完整版本历史；README 只留最近摘要 |
 | `docs/ITERATION_ROADMAP.md` | 手写 | 版本规划与三层目标 |
