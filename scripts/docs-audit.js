@@ -137,7 +137,7 @@ function ruleSmokeWide() {
   // CI 是执行方，它写的组数与真实用例数不一致时，人看 CI 绿灯会以为旧数是对的。
   align('.github/workflows/ci.yml', /(\d+) 组用例/, () => `${n} 组用例`, 'CI 冒烟组数');
   if (!read('.github/workflows/ci.yml').includes('test/lx-source-smoke-test.js')) {
-    report.push('❌ [.github/workflows/ci.yml] ci.yml 没有调用冒烟测试，L1 等于没跑');
+    report.push('🔴 [.github/workflows/ci.yml] ci.yml 没有调用冒烟测试，L1 等于没跑');
   }
 }
 
@@ -264,8 +264,8 @@ function ruleMutationGate() {
   if (n) align('.github/workflows/ci.yml', /(\d+) 变异体/, () => `${n} 变异体`, 'CI 变异体数');
   const ci = read('.github/workflows/ci.yml');
   const line = (ci.match(/node test\/mutation\/run\.js[^\n]*/) || [''])[0];
-  if (!line) report.push('❌ [ci.yml] 没有调用变异测试，变异门禁不存在');
-  else if (!line.includes('--strict')) report.push(`❌ [ci.yml] 变异测试未带 --strict（${line.trim()}）→ 有存活变异体也 exit 0，门禁 fail-open`);
+  if (!line) report.push('🔴 [ci.yml] 没有调用变异测试，变异门禁不存在');
+  else if (!line.includes('--strict')) report.push(`🔴 [ci.yml] 变异测试未带 --strict（${line.trim()}）→ 有存活变异体也 exit 0，门禁 fail-open`);
   else report.push('🟢 [ci.yml] 变异测试带 --strict');
 }
 
@@ -276,7 +276,7 @@ function ruleMatrixCoverage() {
   const s = read('docs/AUDIT_MATRIX.md');
   const listed = new Set([...s.matchAll(/^\| `([^`]+)` \| \d+ \|/gm)].map((m) => m[1]));
   const miss = [...map.keys()].filter((f) => !listed.has(f));
-  if (miss.length) report.push(`❌ [docs/AUDIT_MATRIX.md] ${miss.length} 个 tracked 文件未进矩阵：${miss.join(', ')}`);
+  if (miss.length) report.push(`🔴 [docs/AUDIT_MATRIX.md] ${miss.length} 个 tracked 文件未进矩阵：${miss.join(', ')}`);
   else report.push(`🟢 [docs/AUDIT_MATRIX.md] 矩阵覆盖全仓 ${map.size} 个文件`);
   align('docs/AUDIT_MATRIX.md', /文件总数：\*\*(\d+)\*\*/g, () => `文件总数：**${map.size}**`, '矩阵文件总数');
   const total = [...map.values()].reduce((x, y) => x + y, 0);
@@ -294,7 +294,7 @@ function ruleReadThroughLedger() {
   if (v) align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, () => `HEAD \`${execSync('git rev-parse --short HEAD', { encoding: 'utf8', cwd: ROOT }).trim()}\`（v${v[1]}）`, '台账 HEAD 与版本');
   const listed = new Set([...read('docs/READTHROUGH.md').matchAll(/^\| `([^`]+)` \| \d+ \|/gm)].map((m) => m[1]));
   const miss = [...map.keys()].filter((f) => !listed.has(f));
-  if (miss.length) report.push(`❌ [docs/READTHROUGH.md] ${miss.length} 个 tracked 文件未进台账：${miss.join(', ')}`);
+  if (miss.length) report.push(`🔴 [docs/READTHROUGH.md] ${miss.length} 个 tracked 文件未进台账：${miss.join(', ')}`);
 }
 
 // ── 规则 19：docs 下每个文件都必须在 DOC_INDEX 登记（新文档不得漏登）──
@@ -303,10 +303,10 @@ function ruleDocIndex() {
   const docs = execSync('git -c core.quotepath=false ls-files docs', { encoding: 'utf8', cwd: ROOT })
     .trim().split('\n').filter(Boolean);
   const miss = docs.filter((f) => !idx.includes('`' + f + '`'));
-  if (miss.length) report.push(`❌ [docs/DOC_INDEX.md] ${miss.length} 个 docs 文件未登记：${miss.join(', ')}`);
+  if (miss.length) report.push(`🔴 [docs/DOC_INDEX.md] ${miss.length} 个 docs 文件未登记：${miss.join(', ')}`);
   else report.push(`🟢 [docs/DOC_INDEX.md] docs 下 ${docs.length} 个文件全部登记`);
   const stale = [...idx.matchAll(/^\| `(docs\/[^`]+)` \|/gm)].map((m) => m[1]).filter((f) => !docs.includes(f));
-  if (stale.length) report.push(`❌ [docs/DOC_INDEX.md] 登记了不存在的文件：${stale.join(', ')}`);
+  if (stale.length) report.push(`🔴 [docs/DOC_INDEX.md] 登记了不存在的文件：${stale.join(', ')}`);
 }
 
 // ── 规则 20：测试入口数 ↔ test 下实际入口脚本数 ───────────────────────

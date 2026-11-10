@@ -2,7 +2,7 @@ name: L4 docs-audit
 
 on:
   schedule:
-    # 每周一凌晨巡检：UTC 周日 18:15 = 北京时间周一 02:15（错开 probe 的 UTC 06:00）
+    # 每周一凌晨巡检：UTC 周日 18:15 = 北京时间周一 02:15（错开 probe 的 UTC 20:00）
     - cron: '15 18 * * 0'
   workflow_dispatch: {}   # 手动触发
 
@@ -22,7 +22,7 @@ jobs:
           git clone --depth 1 --quiet https://github.com/luanmuc/mobile-app.git ../lx-music-mobile \
             || echo "::warning::兄弟仓 clone 失败，跨仓规则将跳过"
       - name: L4 文档一致性巡检（低风险自动修复）
-        # 规则见 scripts/docs-audit.js：冒烟用例数 ↔ AGENTS / @version 子串 ↔ README / pdone URL 防回退
+        # 规则见 scripts/docs-audit.js（21 条）：版本串/冒烟组数/行段/开关真值/矩阵与台账/文档登记/缺陷编号等
         # 报告项（不修改）：README_HEALTH 与 candidate-status 新鲜度（>28h 告警）
         run: node scripts/docs-audit.js
       - name: 修复写回（自动提交，无变化跳过）
