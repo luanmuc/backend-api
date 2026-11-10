@@ -534,7 +534,7 @@ gdstudio → {"ok": true, "status": 200, "time": 1068, "reason": "OK", "payload"
 
 | 组 | 条数 | 审计对象 |
 |---|---|---|
-| U 静态合规 | 13 | 全部 tracked 文件：21 个 .js 逐 `node --check`、.md 的 H1（**跳过代码块内 `#` 注释**）、BOM/CRLF、TODO、`/tmp` 硬编码、明文 40 位密钥、console 残留、json/jsonl 可解析、YAML 无 Tab、无空文件 |
+| U 静态合规 | 13 | 全部 tracked 文件：31 个 .js 逐 `node --check`、.md 的 H1（**跳过代码块内 `#` 注释**）、BOM/CRLF、TODO、`/tmp` 硬编码、明文 40 位密钥、console 残留、json/jsonl 可解析、YAML 无 Tab、无空文件 |
 | V 交叉引用 | 8 | 20 个 .md 的相对链接逐个验在否、`@version` 三文档一致、冒烟组数/开关数/错误码数、文档引用的脚本与测试文件是否存在、归档目录 |
 | W 脚本自洽 | 9 | 4 个脚本退出码、登记表 20 条 url 唯一且字段完整、开关解析、北京日期、doc-sync 映射路径、hook 语法 |
 | X 功能联动 | 9 | 片段码对齐、日报字段↔README_HEALTH、candidate-status 格式、候选名单两处一致、**解析值与源码默认值逐键比对**、docs-audit 规则数、CI/workflow 引用文件、兜底层 |

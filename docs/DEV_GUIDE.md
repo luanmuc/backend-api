@@ -443,6 +443,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | `allFailShortTtlMs` | 30000 | max 10min | 全链网络类失败短缓存 |
 | `playDeadReviveMs` | 300000（5min） | max 2h | 播放摘除后的半开试探冷却 |
 | **`raceBudgetMs`** | **12000** | max 15s | **v8.10.3 新增可写**：单次取链总预算（跨音质档共享），替代已删除的死键 `raceOverallTimeoutMs` |
+| `memoryMapMax` | 2000 | min 1 / max 20000 | 五轮 MEM 新增可写：按歌曲累积记忆表条目上限（超限淘汰最旧），硬顶 20000 |
 
 ### 11.2 只读（仅 `globalThis.__lxSourceConfig` 注入生效，面板不可写）
 

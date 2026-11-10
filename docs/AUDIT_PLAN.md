@@ -207,7 +207,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 | ID | 维度 | 验证方式（可执行） | 通过判据 |
 |---|---|---|---|
 | T1 | 登记表完整性 | 源码 `lx-source.js` 提取全部 `https?://` 主机集合，与 `ENDPOINTS` 双向差集 | 无"源码有、表无"（漏登记）；无"表有、源码无"（残登记） |
-| T2 | `kind` 分类正确性 | 对 15 条端点各打一次裸 GET，记录状态码；比对声明的 `endpoint`/`payload`/`param` | `param` 必须 4xx/404（裸探测不可判）；`endpoint` 必须 2xx；`payload` 允许 2xx 但需真实取链才算活 |
+| T2 | `kind` 分类正确性 | 对 20 条端点各打一次裸 GET，记录状态码；比对声明的 `endpoint`/`payload`/`param` | `param` 必须 4xx/404（裸探测不可判）；`endpoint` 必须 2xx；`payload` 允许 2xx 但需真实取链才算活 |
 | T3 | `sources` 归属正确性 | 逐端点回源码定位常量定义 + 消费点（谁真的用它取链） | 每个 `sources` 都在该端点的真实消费路径上，且键存在于 `SOURCE_TOGGLES` |
 | T4 | toggle 解析鲁棒性 | 构造 5 类片段喂 `parseToggles`：行内注释含冒号 / 值被引号包 / 嵌套对象 / CRLF / 注释掉的键 | 不解析出被注释掉的键；不因行内注释含 `:` 截断；键数与人工核对一致 |
 | T5 | 只判启用源是否彻底 | 临时副本里把某启用源改 `false` 跑日报 | 该源不出现在 handle/watch/changes 任何一处；启用源全部进入判定 |
@@ -228,7 +228,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 |---|---|---|---|
 | T1 | ❌ **未通过**（漏登记） | 源码 19 个主机 vs 登记 12 个。`175.27.166.236` / `musicapi.haitangw.net` / `music.haitangw.cc` 属 **changqingVip**、`music.nxinxz.com` 属 **nianxinVip** 的直链模板，两源 `SOURCE_TOGGLES` 都是 `true` → **日报对这两个启用源完全失明**。其余 3 个（`music-dl.sayqz.com` / `api.lingchuan.com` / `img2.kuwo.cn`）有不登记正当理由 | P1 |
 | T2 | ✅ **已修（v8.10.7）** | 实测定型：裸请求（含 Range）恒返回 **206**，缺参正文是 6 字节 `failed`；带 `type=convert_url` 则返回 98 字节纯文本真实 mp3 URL。故 `anti.s` 的 `kind` 改 **payload**，并在 `PAYLOAD_CHECKS` 加带参取链校验（返回体需匹配 `^https?://` 再走 rangeOk 真下载）。改后 probe 输出 `payload: true`；历史 32/35 恒绿（看着健康）实为从未真正监控 |
-| T3 | ✅ 通过 | 15 条端点的 `sources` 均能在 `lx-source.js` 常量区（L112-147）定位到真实消费点，且键都在 `SOURCE_TOGGLES` | — |
+| T3 | ✅ 通过 | 20 条端点的 `sources` 均能在 `lx-source.js` 常量区（L112-147）定位到真实消费点，且键都在 `SOURCE_TOGGLES` | — |
 | T4 | ❌ **未通过**（2 处） | 构造 6 类输入：①注释键 ignored ②引号值 ignored ③行内注释含冒号正确 ⑥CRLF 正确；④**嵌套对象把内层 `inner` 当源开关**；⑤**注释里一个未闭合 `{` 直接抛"花括号未闭合"** → 而 CI 里 health-daily 是 `\|\| true`，抛错后**当天没有日报但 CI 全绿**（静默失败） | P0（⑤）/ P2（④） |
 | T5 | ✅ 通过 | 把 `huibq` 改 `false` → 参与判定 10→9，且只在"未参与判定"段留说明行；把关闭的 `suyinQQ` 改 `true` → 立刻被纳入并报 4.3% / 4 天连败 | — |
 | T6 | ✅ **已修（v8.10.7）** | 窗口改**日历日**（目标日往前 WINDOW_DAYS 天）。旧结论「按日历日会把整段窗口判死」已过时——F02 的 `no-today` 与 F03 的小样本规则上线后不再成立：实测断档 4 天时两种口径**都是**参与判定 0；中间态（当天有数据、中间几天缺）下日历窗口给出 14 样本（= 7 个日历日内实际有数据的 4 天），符合「7 天窗口」语义；真实完整数据下与旧口径输出 **diff 为空** |
@@ -437,7 +437,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 ## 4. 第三轮审计计划（U~Z 六组 · 全仓全覆盖）
 
 > **设计约束**：刻意避开前两轮 A~T 已测过的角度（A~I 九维 79 项、J~T 57 项），只补「文件级合规 / 文档与脚本契约 / 跨模块联动 / 死码与资源」这几层此前**完全没碰**的部分。
-> **覆盖口径**：以 `git ls-files` 的 **63 个 tracked 文件 / 15338 行** 作分母，逐个文件标注被哪一维审过，**未覆盖文件 0**。矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)，由脚本实测产出、不是手写清单。
+> **覆盖口径**：以 `git ls-files` 的 **79 个 tracked 文件 / 20309 行** 作分母，逐个文件标注被哪一维审过，**未覆盖文件 0**。矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)，由脚本实测产出、不是手写清单。
 > 实现：`test/audit/f-repo.js`（325 行，**50 条**断言，rc=0）。
 
 | 组 | 维度 | 断言 | 判据要点 |

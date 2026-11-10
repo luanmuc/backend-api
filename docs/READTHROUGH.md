@@ -4,8 +4,8 @@
 > 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、HEAD 与版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
-HEAD `e7fb776`（v8.11.2）
-文件数：**82**　总行数：**21238**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `ff7a87d`（v8.11.2）
+文件数：**82**　总行数：**21239**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -56,11 +56,11 @@ HEAD `e7fb776`（v8.11.2）
 | `docs/ARCHITECTURE.md` | 91 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突） |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
 | `docs/AUDIT_MATRIX.md` | 122 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
-| `docs/AUDIT_PLAN.md` | 514 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；「15 条端点」「63 文件/15338 行」过期 |
+| `docs/AUDIT_PLAN.md` | 514 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 197 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
-| `docs/AUDIT_RESULTS.md` | 1899 | 全文 | D-01~D-39 总账 + §0~§26.13；多处旧数字（8 缺陷/32 断言/12 变异体/58 文件） |
+| `docs/AUDIT_RESULTS.md` | 1899 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
 | `docs/CHANGELOG.md` | 44 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
-| `docs/DEV_GUIDE.md` | 470 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
+| `docs/DEV_GUIDE.md` | 471 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 61 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
 | `docs/ITERATION_ROADMAP.md` | 325 | 全文 | 三层目标；**32 断言/49 文件/897→430/白名单 14/趋势 60 条 全过期**；3 条 `[ ] 待开发`（服务器）/ 2 条触发式未闭环 |
