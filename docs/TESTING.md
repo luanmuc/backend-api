@@ -97,6 +97,21 @@ globalThis.__lxSourceConfig = {
 - **六组在同一脚本内顺序执行，不支持只跑某一组**（传组名参数会被忽略，实测过）：要定位失败直接看输出行首的 `[U1]`…`[Z5]` 编号
 - **改完任何文件都要重跑**：U 组会因行数/BOM/新增文件而红；改文档后顺手把 `AUDIT_MATRIX.md` 的行数同步（`docs-audit` 不校验该表数字）
 
+## 八、真网分层实跑（L1~L7，`tools/live/`）
+
+本地 mock 与 QuickJS 都跑在「宿主已给定」的前提下，**真网/真宿主契约**要另用这一套：
+
+```bash
+node tools/live/run.js l1l4   # L1 协议 + L2 缓存 + L3 调度 + L4 验真
+node tools/live/run.js l5     # L5 单源逐个开启（每源独立歌曲 + 真实 id，避开共享缓存）
+node tools/live/run.js l6l7   # L6 状态机 + L7 巡检
+```
+
+- `tools/live/host.js` 是**真宿主桩**：按 lx 移动端 `request(url, opts, cb)` 契约实现，真 https，支持 `timeout/method/headers/follow_max/binary`，302 手动跟链并记 `hops`；每次调用落 `{url, status, ms, hops, range}`。
+- 计数口径：`fullCalls()` **排除 Range 请求**、`rangeCalls()` 单独计——因为交付前的 1KB 验真本身就是一次外呼，不二分会把「验真」误判成「又解析了一次」。
+- 这几个分支**会真连上游**，结果随上游存活波动；用例本身是固定夹具（含 `NOSONG`/`FRAG_SONG`/`FREE2`），失败要先按「上游 vs 本仓逻辑」归因再动手。
+- 该工具不进 CI（依赖外部网络与上游可用性），只作人工验收/回归。
+
 ## QuickJS 依赖的持久化位置
 
 `test/audit/q-quickjs-real.js` 需要 `quickjs-emscripten`。**`/tmp` 会被系统清理（已踩过两次），
