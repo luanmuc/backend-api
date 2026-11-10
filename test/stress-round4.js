@@ -1229,6 +1229,33 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
       `应交付新解析结果而非脏条目，实测 ${r37 ? String(r37.url).slice(-24) : '失败'}`);
   }
 
+  // ============ V38 网易云 VIP / 无版权歌曲：不该报网络错误，该报 NOT_FOUND ============
+  // L1641 那条「该歌曲不可试听(可能需VIP)，跳过」此前从未执行过：用户看到的现象是
+  // "某首歌怎么点都没声"，而如果它被归一成 NETWORK_ERROR，App 会当成网络抖动去重试。
+  console.log('\n[V38] 网易云 VIP 不可试听应判 NOT_FOUND（双边）');
+  {
+    const S38 = { name: '以父之名', singer: '周杰伦', duration: 200000, id: 'W38AAA' };
+    const isWy = (u) => String(u).includes('music.163.com/song/media/outer');
+    // ① 非 200 / 非音频 content-type → 必须判 NOT_FOUND，不能滑进网络错误
+    const m1 = fresh(Object.assign({}, BASE_CFG, { fragmentFallback: false }), ['wyOuter']);
+    fetchFault = (u) => (isWy(u)
+      ? { statusCode: 404, headers: { 'content-type': 'application/json' }, body: '' }
+      : { error: 'ECONNRESET' });
+    let code38 = '';
+    try { await m1.getUrlWithFallback('wy', S38, '128k'); } catch (e) { code38 = e.code || ''; }
+    rec('V38a', code38 === CODES().NOT_FOUND, `VIP/无版权应判 NOT_FOUND，实测 code=${code38 || '(未抛)'}`);
+
+    // ② 对照：真的给音频时必须能拿到链接（否则"永远 NOT_FOUND"也能让 ① 变绿）
+    const m2 = fresh(Object.assign({}, BASE_CFG), ['wyOuter']);
+    fetchFault = (u) => (isWy(u)
+      ? { statusCode: 200, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-1023/55397039' },
+          body: flac(200), url: 'https://cdn.test/audio.test/w38.mp3' }
+      : { error: 'ECONNRESET' });
+    probeFault = () => audio(flac(200), 'audio/flac', 4315200);
+    const r38 = await m2.getUrlWithFallback('wy', S38, '128k');
+    rec('V38b', !!(r38 && r38.url), `给音频时应能交付（对照），实测 ${r38 ? '交付' : '失败'}`);
+  }
+
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
   process.exit(fail === 0 ? 0 : 1);
