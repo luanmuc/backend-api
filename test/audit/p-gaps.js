@@ -129,6 +129,31 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
     && Math.abs((info.durationSec || 0) - expect) < 1,
     `format=${info.format} bitrate=${info.bitrateKbps} duration=${info.durationSec}（期望≈${expect}）`);
 
+  // ---------- T-5：健康巡检「连续 N 次通过 → 自动启用」闭环 ----------
+  const probeRounds = async (rounds) => {
+    const m = load(['xinghaiBackend']);
+    m.runtimeToggles.xinghaiBackend = false;      // 模拟「被探测失败自动关掉」的源
+    globalThis.__lxSourceConfig = globalThis.__lxSourceConfig;
+    scene = (u) => (/audio\.test/.test(u) ? okAudio() : { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, url: 'https://audio.test/x.mp3', data: { url: 'https://audio.test/x.mp3' } }) });
+    console.log = () => {};
+    try {
+      // 逐轮推进：__probeRound 决定探测素材轮换与降频判断
+      let onAfter = null;
+      for (let i = 0; i < rounds; i++) {
+        globalThis.__probeRound = i;
+        await m.__debug.runHealthCheck();
+        if (onAfter === null) onAfter = [];
+        onAfter.push(m.runtimeToggles.xinghaiBackend);
+      }
+      return onAfter;
+    } finally { console.log = orig; }
+  };
+  const oneRound = await probeRounds(1);
+  const twoRounds = await probeRounds(2);
+  rec('P4', 'T-5 探测连续 2 次通过才自动启用（1 次不够）',
+    oneRound[0] === false && twoRounds[0] === false && twoRounds[1] === true,
+    `1轮=${oneRound.join(',')} ｜ 2轮=${twoRounds.join(',')}（需连续 ${2} 次）`);
+
   let pass = 0, fail = 0;
   for (const it of res) {
     const id = it.id;

@@ -4,8 +4,8 @@
 > 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、HEAD 与版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
-HEAD `1808d18`（v8.11.2）
-文件数：**80**　总行数：**20829**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `15b8c20`（v8.11.2）
+文件数：**81**　总行数：**20994**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -115,7 +115,7 @@ HEAD `1808d18`（v8.11.2）
 | `test/audit/e-extra.js` | 929 | 断言 | 92 条（含 U500/U410/U404/U429/U403 状态码族、EDGE/FAULT 五轮补测）；实跑 92/0 |
 | `test/audit/f-repo.js` | 339 | 断言 | U~Z 50 条；实跑 50/0，最大单文件 219.17KB |
 | `test/audit/g-meta.js` | 314 | 断言 | 14 条 M1~M14（审断言本身）；实跑 14/0 |
-| `test/audit/p-gaps.js` | 140 | 断言 | 3 条（T-4/T-6/T-7 零覆盖补测）；反向改坏 3/3 红 → 还原 3/0 |
+| `test/audit/p-gaps.js` | 165 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
 | `test/audit/n-fixes.js` | 150 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |
 | `test/audit/h-toggles.js` | 187 | 断言 | 14 条（逐源开启）；实跑 14/0 |
 | `test/audit/q-quickjs-real.js` | 127 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |
