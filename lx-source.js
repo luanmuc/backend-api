@@ -3355,6 +3355,7 @@ if (typeof module !== "undefined" && module.exports) {
       setCachedUrl,      // 供测试构造脏缓存（复现"槽位是 flac、内容是 128k"的历史条目）
       buildCacheKey,
       breakerMap,
+      recordRateLimit,   // D-04 回归：半开态遇 429 必须收口回 open（否则永久卡死）
       playDeadStreak,
       qualityShortCircuitKey,
       buildQualityChain,          // N3（F12）：降档链构造，只读

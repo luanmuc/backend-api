@@ -85,8 +85,15 @@ function ruleHealthFresh() {
   const m = h.match(/更新于 ([\dT:.\-]+Z)/);
   if (m) {
     const ageH = (Date.now() - new Date(m[1]).getTime()) / 3600000;
-    if (ageH > 28) report.push(`🔴 README_HEALTH 已 ${ageH.toFixed(0)}h 未更新（probe 未跑？）`);
-    else report.push(`🟢 README_HEALTH 最近更新 ${ageH.toFixed(0)}h 前`);
+    // 2026-11-10：README_HEALTH 由远端 schedule 的 probe job 生成，本地仓库改不出来。
+    // 本地领先 origin 时会假红：明明该更新的是"远端跑一次"，不是"本地补一行"。
+    // 因此按「提交是否已推送」分流：未推送 → 🟡 提示（不拦门禁）；已推送且超时 → 🔴（真问题）。
+    let ahead = 0;
+    try { ahead = Number(execSync('git rev-list --count origin/master..HEAD', { encoding: 'utf8' }).trim()) || 0; } catch (e) {}
+    if (ageH > 28) {
+      if (ahead > 0) report.push(`🟡 README_HEALTH 已 ${ageH.toFixed(0)}h 未更新，但本地领先 origin ${ahead} 个提交未推送——该表由远端 probe 生成，推送后自然恢复，不拦本地门禁`);
+      else report.push(`🔴 README_HEALTH 已 ${ageH.toFixed(0)}h 未更新（probe 未跑？）`);
+    } else report.push(`🟢 README_HEALTH 最近更新 ${ageH.toFixed(0)}h 前`);
   }
 }
 
