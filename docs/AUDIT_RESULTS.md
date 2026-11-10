@@ -1286,6 +1286,8 @@ return m && ERROR_CODES[m[1]] ? m[1] : NETWORK_ERROR;   // ERROR_CODES['SONG_MIS
 
 **一个组合陷阱**：V18c 单独看会空转 —— 断言是 `w2 === w1`，预热整体失效时 `0 === 0` 也成立。它靠 V18b（`w1 >= 1`）锚定才有效。这类「相等型断言」必须配一条存在性断言，否则改坏上游就变成恒绿。
 
+**CI 隔离口径（2026-11-10）**：V18 的预热计数不能只按 URL 片段。huibq 健康探针的素材 URL 与预热完全相同（`/url/kw/228908/128k`），而 `startHealthCheck()` 首轮 60s 延迟写死、压测只调 `healthCheckIntervalMs` 管不到它，CI 上会随机插进 V18 窗口把预热计数从 2 抬到 3（Run `42820620748` 的 V18c 红项根因）。现计数改为 **URL + timeout 双键**：V18 注入唯一 `coldStartTimeoutMs=4321` 只数预热，探针走 `coldStartProbeTimeoutMs`（默认 30000）自然被排除；并在 V18b 后主动插一次 `probeSingleSource('huibq', …)` 做确定性污染回归——旧口径必红，新口径必绿。
+
 **仍零覆盖**：`coldStartProbeTimeoutMs`（健康探测超时，属巡检探针链路，压测无该入口）；`qualityShortCircuitProbeMs` 的到期放行（被失败缓存干扰，见 §18）。
 
 

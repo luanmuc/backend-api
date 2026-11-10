@@ -27,14 +27,23 @@ const SRC = path.join(__dirname, '../lx-source.js');
 
 let handler = null;
 let counts = {};
+let countsByTimeout = {}; // URL + NUL + timeout：同一 URL 的预热与健康探针靠超时口径区分
 let probeFault = null;   // (url, opts) => 响应对象（验真阶段注入故障）
 let fetchFault = null;   // (url, opts) => 响应对象（取链阶段注入故障）
 let timersInFlight = 0;
 let timersPeak = 0;
 
-const resetCounts = () => { counts = {}; };
+const resetCounts = () => { counts = {}; countsByTimeout = {}; };
 const totalCalls = () => Object.values(counts).reduce((a, b) => a + b, 0);
 const callsOf = (frag) => Object.keys(counts).filter(k => k.includes(frag)).reduce((a, k) => a + counts[k], 0);
+// V18 专用：健康探针与预热打同一个 /url/kw/228908/128k，只按 URL 计数会把探针算成预热（CI 假红根因）。
+// 预热固定用冷启动超时（V18 注入唯一值），探针用 coldStartProbeTimeoutMs，双键可精确隔离。
+const callsOfTimeout = (frag, timeout) => Object.keys(countsByTimeout)
+  .filter(k => {
+    const parts = k.split('\u0000');
+    return parts[0].includes(frag) && Number(parts[1]) === timeout;
+  })
+  .reduce((a, k) => a + countsByTimeout[k], 0);
 
 // 音频体必须是**可被验真解析**的真实头（FLAC STREAMINFO 带总采样数 / MP3 Xing 带帧数），
 // 否则验真会把它判成片段或死链，压测就变成了「测坏自己」。构造器与 stress-test 保持一致。
@@ -57,8 +66,9 @@ const setLx = () => {
     utils: { buffer: { from: (d, e) => Buffer.from(d, e), bufToString: (b, e) => b.toString(e) } },
     request(url, opts, cb) {
       const u = String(url); const k = u;   // 保留 query：砍掉后无法按参数断言（如 suyinKuwo 的 br=1 档）
-      counts[k] = (counts[k] || 0) + 1;
       const tmo = (opts && opts.timeout) || 99999;
+      counts[k] = (counts[k] || 0) + 1;
+      countsByTimeout[`${k}\u0000${tmo}`] = (countsByTimeout[`${k}\u0000${tmo}`] || 0) + 1;
       let r;
       try {
         // 按 URL 分流（与 stress-test 一致）：交付链接一律给音频，取链接口一律给 JSON。
@@ -603,17 +613,21 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
   console.log('\n[V18] 冷启动预热：开关要真生效，TTL 要真决定是否重预热');
   {
     const WARM = '/url/kw/228908';
+    const WARM_TIMEOUT = 4321; // 唯一冷启动超时，用来把预热外呼与同 URL 的健康探针分开计数
     const mk = (over) => Object.assign({}, BASE_CFG, {
       failCacheNotFoundMs: 1, failCacheExpiredMs: 1, allFailShortTtlMs: 1, breakerThreshold: 100,
+      coldStartTimeoutMs: WARM_TIMEOUT,
     }, over);
     const setup = (over) => {
-      fresh(mk(over), ['huibq']);
+      const m = fresh(mk(over), ['huibq']);
       fetchFault = (u) => (/onrender/.test(u)
         ? { statusCode: 500, headers: {}, body: 'cold' }   // 预热目标恒冷（onrender 冷态失败）
         : audio(271));
+      return m;
     };
     // 预热是后台异步：固定 sleep 在负载下必然偶发（V18c 曾多次假红）。
     // 改为「等到调用计数连续 3 次采样不变」再取值。
+    const warmCalls = () => callsOfTimeout(WARM, WARM_TIMEOUT);
     const settle = async (getter, budget = 2500) => {
       let last = getter(), same = 0;
       const t0 = Date.now();
@@ -627,19 +641,22 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
 
     setup({ coldStartWarmEnabled: false });
     await invoke('kw', '128k', SONG(9301), 'v18a');
-    const w0 = await settle(() => callsOf(WARM));
+    const w0 = await settle(warmCalls);
 
-    setup({ coldStartWarmEnabled: true, coldStartWarmTtlMs: 600000 });
+    const mB = setup({ coldStartWarmEnabled: true, coldStartWarmTtlMs: 600000 });
     await invoke('kw', '128k', SONG(9302), 'v18b');
-    const w1 = await settle(() => callsOf(WARM));
+    const w1 = await settle(warmCalls);
+    // 回归：健康探针打的是同一个 /url/kw/228908/128k（与预热同 URL），必须不能算进预热次数。
+    // 这里主动插一次探针，复现 CI 上「巡检首轮 60s 延迟刚好落进 V18 窗口」的污染。
+    await mB.__debug.probeSingleSource('huibq', mB.buildProbeConfig().huibq);
     await invoke('kw', '128k', SONG(9303), 'v18c1');   // TTL 内再请求
-    const w2 = await settle(() => callsOf(WARM));
+    const w2 = await settle(warmCalls);
 
     setup({ coldStartWarmEnabled: true, coldStartWarmTtlMs: 5 });
     await invoke('kw', '128k', SONG(9304), 'v18d1');
-    const w3 = await settle(() => callsOf(WARM));
+    const w3 = await settle(warmCalls);
     await invoke('kw', '128k', SONG(9305), 'v18d2');   // TTL 已过期
-    const w4 = await settle(() => callsOf(WARM));
+    const w4 = await settle(warmCalls);
 
     rec('V18a', w0 === 0, `coldStartWarmEnabled=false → 预热外呼 ${w0} 次（应 0）`);
     rec('V18b', w1 >= 1, `coldStartWarmEnabled=true → 预热外呼 ${w1} 次（应 >=1，否则 V18a 恒真）`);
