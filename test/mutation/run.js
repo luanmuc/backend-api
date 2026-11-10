@@ -24,6 +24,7 @@ const SRC = 'lx-source.js';
 const FAST_GATES = [
   'test/audit/a-static.js',
   'test/audit/b-logic.js',
+  'test/audit/r-admission.js',   // v8.11.5：L4 裁决层的针对性断言（MU11 等锚点靠它快速杀掉）
   'test/audit/e-extra.js',
   'test/audit/g-meta.js',
 ];
@@ -47,7 +48,7 @@ const MUTANTS = [
   {
     id: 'MU3',
     name: '永不记录片段证据（PREVIEW_FRAGMENT 分支失效）',
-    from: 'if (e.code === ERROR_CODES.PREVIEW_FRAGMENT) {',
+    from: 'if (adm.code === ERROR_CODES.PREVIEW_FRAGMENT) {',
     to: 'if (false) {',
   },
   {
@@ -77,14 +78,14 @@ const MUTANTS = [
   {
     id: 'MU11',
     name: '5xx 不计入熔断（服务端持续故障却永不切源）',
-    from: '        e.code === ERROR_CODES.SERVER_ERROR) {\n      recordFailure(handler.id, quality);',
-    to: '        false) {\n      recordFailure(handler.id, quality);',
+    from: '    health: policy.health,',
+    to: '    health: "businessFail",',
   },
   {
     id: 'MU12',
     name: '整链失败不写短失败缓存（同歌重播反复白跑降级链）',
-    from: "setFailCached(failKey, lastFailCode, FAIL_CACHE_TTL_BY_CODE[lastFailCode] === 0 ? cfg('allFailShortTtlMs', 30000) : undefined);",
-    to: 'void 0;',
+    from: '  setFailCached(failKey, lastFailCode, failTtl);',
+    to: '  void 0;',
   },
   {
     id: 'MU10',

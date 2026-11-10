@@ -18,16 +18,16 @@
 
 | 部分 | 行段 | 职责 |
 |---|---|---|
-| ① 常量配置 | 79~218 | `USER_CONFIG` 参数表、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
+| ① 常量配置 | 78~218 | `USER_CONFIG` 参数表、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
 | ② 音源开关 + 健康探测 | 219~661 | `SOURCE_TOGGLES` 静态默认；`runtimeToggles` 运行时随探测自愈；`probeSingleSource` 并发探测 + Range 二次校验 |
 | ③ 日志 + LRU 双层缓存 + 断路器 | 662~943 | `logInfo`、`successCache`/`failCache`、熔断 + 半开试探 + 成功率/均时统计 |
-| ④ HTTP 封装 + 交付真实性判据层 | 944~1403 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；**v8.11 新增（995~1230）**：`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`——Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行（ok:null） |
-| ⑤ 歌曲信息与匹配工具 | 1404~1629 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey` |
-| ⑥ 音源实现 | 1630~2356 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
-| ⑦ 注册表 + 调度 + 健康分 | 2357~3120 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback` |
-| ⑧ 上报 + 事件监听 | 3136~3392（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ④ HTTP 封装 + 交付真实性判据层 + **L0 归一层 + L4 裁决层** | 944~1848 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`（Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行 `ok:null`）；**v8.11.5 新增 L0**：`decodeBase64Ascii`/`toBytes`/`kindOf`/`headerEvidence`/`totalBytesOf`（认 `view`/数组/`{type:"Buffer",data}`/base64 串）；**v8.11.5 新增 L4**：`ADMISSION_POLICY`/`CODE_RANK`/`verdictOfCode`/`strongestEvidence`/`isFragmentInfo`/`admissionLedger`/`admit`/`skipReason`/`clearSourceLedger`/`trialMarkOf`/`applyAdmission`/`rememberFragmentSource` |
+| ⑤ 歌曲信息与匹配工具 | 1849~2074 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey`、`getHashOrMid` |
+| ⑥ 音源实现 | 2075~2809 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
+| ⑦ 注册表 + 调度 + 健康分 | 2810~3567 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`） |
+| ⑧ 上报 + 事件监听 | 3569~3827（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.11.4 基线（`lx-source.js` 共 3392 行）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~78 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
+> 行段为 **v8.11.5 基线（`lx-source.js` 共 3827 行）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~78 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
 
 ## 三、核心机制详解
 
@@ -60,6 +60,29 @@ on(request musicUrl)
   - 但包含 `linkExpired`（410 死链）：oiapi flac/320k 是 VIP 死链恒 410，属"这一档拿不到"，必须能短路（v8.9 拆分，冒烟 T45 固化两种场景）；
 - 全部失败 → 抛聚合错误（`code` + 非空 `detail`）；
 - `sortChainByHealth` 用断路器统计（成功率相差 >5% 按成功率排，否则按均时）把健康源放前，减少竞速打到死源的概率。
+
+### 3.3b L4 裁决层（admit：判定 + 记账的唯一入口）
+
+> v8.11.5 起，**「这次取链算成功还是失败、失败算什么码、要记多久、要不要记账」只在这里判**。执行层只上报事实（`probe` / `delivery` / `attempts` / `error.code`），不再各自记账。
+
+- **策略表 `ADMISSION_POLICY`**（七 verdict）：
+
+| verdict | deliverable | ttlMs | ledger 类别 | 说明 |
+|---|---|---|---|---|
+| `PASS` | true | 0 | success | 验真通过，正常交付 |
+| `FRAGMENT` | true | 30000 | businessFail | 试听片段兜底交付（标「试听版」、30s 短缓存） |
+| `NOT_AUDIO` | false | 60000 | businessFail | 交付物不是音频（JSON/HTML/空体/播放列表）——**不再被 `NOT_FOUND` 吞** |
+| `RATE_LIMITED` | false | 0 | businessFail | 429 / 源级冷却，附 `sourceCooldownMs=45000` |
+| `BUSINESS` | false | 3600000 | businessFail | 歌不存在/错歌/死链（1h 歌级锁） |
+| `TRANSIENT` | false | 0 | hardFail | 网络类（超时/断连/5xx），不缓存失败 |
+| `BROKEN` | false | 60000 | businessFail | 常量级失败（配置缺失/参数错误） |
+
+- **`admit(input)` 五级短路**：`trialMark`（API 层试听标记）→ `ctx.probe.ok===true`（放行）→ `stage==='fallback' && attempts`（按 `CODE_RANK` 取最高 + 最强证据）→ `delivery`（429/非 200-206/字节分类）→ `error.code`；输出 `{verdict, code, deliverable, evidence, quality, ledger, reason}`。
+- **代表码优先级 `CODE_RANK`**：交付类 `NOT_AUDIO`/`PREVIEW_FRAGMENT`/`STREAM_PLAYLIST` = **3**；业务类 `NOT_FOUND`/`MISMATCH`/`LINK_EXPIRED`/`PARAM_ERROR`/`CONFIG_ERROR` = **2**；网络与限流 = **1**。**大者优先**——旧实现「业务码一旦出现即固定」会把 `NOT_AUDIO` 吞成 `NOT_FOUND`，用户二次点击秒回「该请求已知失败(缓存中)」。
+- **证据四档**：`none/weak/medium/strong`。`admissionLedger` 规定 **非 strong 证据 TTL 一律 `min(ttl, 60000)`**、`playDead` 只有 strong 才可置位（weak 不摘源）。
+- **`skipReason()`**：`unknown-source` / `manual-off` / `play-dead` / `breaker` / `rate-limited`，统一回答「这个源为什么被跳过」。
+- **`clearSourceLedger()`**：按 `handler.platforms` 前缀清 `fail_<平台>`；`playDeadStreak`/`playDeadDeadline` 删除；`probeState` 四项复位；断路器 `state/failureCount/lastFailureTime/rateLimitUntil/rateLimited` 归零 + `byQuality` 各项归零。`toggle` 开启分支只调它一处。
+- **`applyAdmission(adm,ctx)`**：唯一允许把 ledger 翻成 `recordSuccess`/`recordBusinessFail`/`recordFailure`/`recordRateLimit` 的 reducer；`PREVIEW_FRAGMENT` 额外写 `rememberFragmentSource` + 片段 URL 映射，`LINK_EXPIRED` 额外 `byQuality.linkExpired++`。
 
 ### 3.4 健康自愈（健康探测）
 

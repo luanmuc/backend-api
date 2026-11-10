@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.11.4 错歌兜底修复（2026-11-10 云端真测 F-01：①星海后端缺 songmid 不再兜底 1 号歌，改抛 PARAM_ERROR——旧兜底等于保证错歌；②片段兜底（B 方案）加「必须有 hash/mid 锚点」前提，无 id 时不再把他人的 5 秒片段标成「试听版」交付，改报错；q-dfix Q5 先红后绿）｜v8.11.3 源开关失败缓存失效（2026-11-10：toggle 开启某源时按该源平台前缀清 fail_<平台> 失败缓存——旧实现只重置熔断/探测状态，开启后仍命中「歌不存在 1h」，新源根本没机会被调用，用户看到"开了还是不出歌"；配套 LRU 补 keys()；q-dfix Q3 先红后绿）｜v8.11.2 通读缺陷修复（2026-11-10：Juhe code 类型归一 + 303 校验宽松比 + flac24bit 起跑补齐 320k + CONFIG_ERROR 5 分钟过期 + 删恒假守卫；N1~N4 先红后绿）｜v8.11.1 交付真实性闸门（2026-11-08：①交付前 1KB 字节验真——FLAC STREAMINFO / MP3 Xing 解析真实时长，「能播但只有 5 秒」的试听片段不再被当 FLAC 交付，阈值 60%+15s 双条件；②音质标签回填真话——请求 flac 实得 128kbps mp3 时窗口改显示 128K；③降档链修复 128k 终档被截断；④缓存双入口验真 + 移除 helloworld 内层缓存，缓存里的片段不再绕过判据；⑤源级限流识别——同源三档全片段判定被风控，冷却 5 分钟转跨平台；⑥巡检同判据——probe 片段判定 + 日报片段率单列；⑦压力测试固化 test/stress-test.js（G1~G8 / 32 断言）并据此修三处：JSON 错误体不再被「拿不准放行」放过、源级限流冷却改为跨歌证据（单曲受限不再误伤同源其他歌）、片段直链兜底加 10 分钟 TTL 防过期签名；冒烟 60→67 组）｜v8.10.12 探测素材修正（移除写死的无效 VIP 歌/单曲素材）｜v8.10.4 可播校验错误码修复（超时/网络异常不判死链 + LINK_EXPIRED 补 code）｜v8.10.3 分档预算 + 冷启动探针豁免 + 缓存分级 TTL（2026-11-06：①分档预算 flac 6s/320k 4s/128k 4s + 末档保底 3s，防高音质吃满总预算饿死低档致点歌无声；②冷启动源探针超时放宽到 30s + 豁免自动关闭，onrender 冷态 30s 不再被 20min 误摘；③短路探路窗口 6h→1h，源临时波动后用户不用等 6h 才恢复高音质；④高音质缓存分级 TTL——flac/320k 30min（原 6h 链接已死仍返回死链），128k 保持 6h；⑤历史快照 60→144（10h→24h），趋势图跨天不断；新增 5 配置键，冒烟 T46/T47/T48；v8.10.1 补修：缓存 LRU 缺 delete 致高音质缓存过期重播 TypeError，T46/T47/T48 由空壳改为真行为验证）；v8.9 huibq 平台能力收窄 + 档位短路判据拆分（2026-11-06：huibq 实测仅 kw/wy 可用，从 tx/mg/kg 链尾移除；短路判据由 fail+businessFail 拆为 fail+linkExpired——404 无版权不再误伤、410 死链仍能短路；source-audit 支持 --strict 退出码）；v8.8 竞速引擎改造（2026-11-06：6 条全做——①竞速执行器重写为全链分批错峰并发（消灭"竞速3+串行rest"，kw 最坏 31s→≤10.5s）②单次请求总预算 12s 跨音质档共享（防三级降档理论 90s+）③档位短路（某源某档历史 0 成功且样本≥3 直接跳过该档，6h 放行探路防死锁）④冷启动源预热 + 单源超时放宽到 8s（huibq onrender 冷态 30s > 旧 5s 必败）⑤gdWy 配额源 batch:2 降后批省配额⑥verified 等待精确化（无 verified 源在飞则立即交付，不再白等 600ms）；USER_CONFIG 新增 7 键，冒烟 T40/T41/T42/T43）；v8.7 huibq假成功治理（2026-11-06：msg 失败词判失败，避免交付错歌）；v8.6 huibq默认开启（2026-11-06：全平台全音质可用，进五平台链尾兜底 + 探针托管）；v8.5 巡检工具与监控口径升级（2026-11-06：source-audit 巡检工具 + probe 假阳性治理 + huibq 探针）；v8.4 全源全接口深度巡检修复（2026-11-06：suyinKuwo br 修正 + xinghaiBackend 匿名适配，可用源 15→21）；v8.3 ikun默认开启（2026-11-06：A 方案——公益版免卡密默认进 kw 链尾兜底，探测自动托管/失败自动关/恢复自动开）；v8.2 ikun探针接入（2026-11-06：默认关闭源补齐健康探针，用户手动开启后自动监控；POST /music/url 固定歌 + Range 可播校验）；v8.1 ikun源复活（2026-11-06：域名 api.ikunshare.com→c.wwwweb.top，接口 GET /url→POST /music/url，公益版免卡密，实测 rid=228908 出真实128k链）；v8.0 全量审计修复版（版本重新整理：原 v11.11~v29.9 共53个小版本合并为8个大版本；旧版本归档见 docs/ARCHIVE_OLD_TAGS.md）；v29.9 全量审计修复（helloworld通道②补试听片段检测+reqTimestamps初始化防御+raceFirst空数组防御+注释修正+self-check补config/trend检查）；v29.8 小修复合集（logInfo版本号同步+清理冗余正则+@description同步）；v29.7 helloworld(kw)试听片段修复（降优先级移到Juhe之后 + URL关键词检测preview/test/sample抛错换源）；v29.6 巡检脚本全面优化(并发池限流+403/429判定修正+退出码分级+平台健康汇总+死源分级+原因标注+恢复标记+UA轮换+重试机制+README表格自动生成)；v29.5 深度交叉点审计修复(配置写模式返回current脱敏+PARAM_LIMITS上下限校验+改熔断阈值重置failureCount+改缓存TTL清空successCache+手动探测不存历史快照+deadCount含half-open+兜底平台按avgScore排序+历史快照上限20→60条+历史快照去冗余字段+breakers→breakerMap变量名修复)；v28 自动健康日报(scripts/health-daily.js：读probe-history按端点聚合近7日成功率/均时，连续3天全失败或真故障率>50%自动生成摘除建议，输出docs/health-daily/YYYY-MM-DD.md)；v27.4 健康分10分制输出；v27.3 全面审计修复(三源内部缓存命中返回裸URL——旧返回{url,type,subSource}包装对象被wrapExecute validateUrl拦截致缓存后跨平台取链秒失败；wy封面取songs[0].album.picUrl/blurPicUrl回退+补移动UA——网易detail实测带ids参数顶层picUrl恒null、封面在album字段；probe.js端点过滤正则悬空|恒真修复；ecosystem-scan.js源表改为从SOURCE_HANDLERS动态提取防漂移)；v27.2 候选 helloworld 实证接入(生态扫描候选——kw 128k/320k/flac 三档 convert_url_with_sign 直链全端到端实证通过(2026-10-29：mock宿主加载+真实flac/320k返回+Range 206+魔数校验)，与星海后端并列 kw 高音质竞速；haitangw v1 resolve-url 作通道②备用)；v26.3 生态扫描制度化(scripts/ecosystem-scan.js抓pdone每日健康表交叉——自动产出新候选/失效清单，纳入迭代协议；运行时逻辑同v26.1)；v26.1 自动摘死源(播放连续失败≥3次实时摘除出链+playDead快照+播放成功/探测通过自动复活——与manualOff分层)；v26.0 音源日志增强(竞速过程打点+失败逐源明细——配合App「音源日志」一次失败定位到子源与原因)；v25.11 沙箱兼容(raceFirst setInterval→setTimeout——洛雪移动端VM无setInterval，修复UnhandledPromiseRejection与候选取回失效)；v25.10 防御修复(raceFirst 裸url分支source兜底空串，防未来裸值调用丢子源透出)；v25.9 子源名透出(musicUrl 返回补 subSourceName——实际子源中文名，App 播放页音源标签直接显示「平台·子源名」，无需端侧维护映射)；v25.8 实际子源透出(musicUrl 成功返回 {url,type,subSource}——实际交付链接的子源id，缓存同存；配合 App 播放页音源标签显示「平台·子源」)；v25.7 第三轮全维度审计修复(探测清单过滤手动关闭/默认关闭源——juhe五源不再白耗外呼、手动关闭源不再被标休眠)；v25.6 第二轮全量审计修复(熔断跳过不再误记限流/CDN410走1min缓存/删COPYRIGHT_LIMIT死枚举/删HIRES死常量/补allFailShortTtlMs配置键)；v25.5 全量审计修复(溯音咪咕对象冒充直链/星海备API伪装直链/酷我官方错歌校验/删死代码)；v25.4 字段完整透传(juheGetUrl 透传 strMediaMid/mediaMid/hash/rid/copyrightId 等原始ID+meta层，提升API型源高音质解析)；v25.3 音源健康审计修复(健康分口径/并发保护/本地节流误记/探测锁/休眠复活/降频生效)；v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
- * @version 8.11.4 错歌兜底修复（F-01）+ 8.11.3 通读缺陷修复（2026-11-10：①Juhe 响应 code 归一——上游时而 "200"(串)时而 200(数)，旧实现严格比数字，字符串形态 100% 判失败；②Juhe 303 重定向校验值同样按字符串宽松比；③降档链不再跳档——flac24bit 起跑原链 [flac24bit,flac,128k] 跳过 320k 档，现逐档下降；④未登记 TTL 的失败码（CONFIG_ERROR：ikun 403/huibq 未配置/lingchuan 未配置）按注释承诺的 5 分钟过期，旧实现永不超时；⑤删除恒假的每源 mids 上限守卫（比的是音质集合，≤4 永远 < 200）；新增 test/audit/n-fixes.js N1~N4 四条回归，四条均先红后绿）；8.11.1 交付真实性闸门（2026-11-08：①交付前 1KB 字节验真——FLAC STREAMINFO / MP3 Xing 解析真实时长，「能播但只有 5 秒」的试听片段不再被当 FLAC 交付，阈值 60%+15s 双条件；②音质标签回填真话——请求 flac 实得 128kbps mp3 时窗口改显示 128K；③降档链修复 128k 终档被截断；④缓存双入口验真 + 移除 helloworld 内层缓存，缓存里的片段不再绕过判据；⑤源级限流识别——同源三档全片段判定被风控，冷却 5 分钟转跨平台；⑥巡检同判据——probe 片段判定 + 日报片段率单列；⑦压力测试固化 test/stress-test.js（G1~G8 / 32 断言）并据此修三处：JSON 错误体不再被「拿不准放行」放过、源级限流冷却改为跨歌证据（单曲受限不再误伤同源其他歌）、片段直链兜底加 10 分钟 TTL 防过期签名；冒烟 60→67 组）；8.10.12 探测素材修正：移除写死的无效/单曲素材，统一走免费歌池轮换（2026-11-08：超时/网络异常不再判死链 + LINK_EXPIRED 补 err.code）；8.10.3 全覆盖审计修复（2026-11-07：15 项隐性缺陷——①probeSingleSource 形参 cfg 遮蔽全局 cfg()，huibq（唯一冷启动源）探针 100% TypeError、请求从未发出、健康分恒负垫底休眠；②429 不再计入 byQuality.fail/成功率分母（旧实现 3 次限流把该档短路 1h），半开遇 429 收口回 open；③降档交付按实交付音质入缓存槽（旧实现请求 flac 实给 128k 却存进 flac 槽，6h 内不再试高音质）；④失败缓存命中还原代表性 code（旧实现 code 丢失，网络全挂被当歌不存在）；⑤平台分组改由竞速链生成（旧手写清单漏 suyinKuwo，wy/tx/mg/kg 只剩它活着时误报全挂）；⑥探针通过一并复位断路器/限流退避（旧实现只清休眠，出现「探针正常 + 熔断中」矛盾态）；⑦末端预算上界显式钳在总预算+保底；⑧validateUrl 返回 trim 后 URL；⑨320k/128k 单档预算 4s→5s 对齐单源超时（旧 4s 把 5s 内本可成功的源判死并累计熔断）；⑩删死键 raceOverallTimeoutMs、面板改暴露真键 raceBudgetMs；⑪huibq 假成功判据单点化并补进探针；⑫lingchuan 补 platforms 显式声明；⑬A19 备注 20→144；⑭冒烟新增 T50–T55（回退必红）共 55 组）；v8.10.2 分档预算 + 冷启动探针豁免 + 缓存分级 TTL（2026-11-06：①分档预算 flac 6s/320k 4s/128k 4s + 末档保底 3s，防高音质吃满总预算饿死低档致点歌无声；②冷启动源探针超时放宽到 30s + 豁免自动关闭，onrender 冷态 30s 不再被 20min 误摘；③短路探路窗口 6h→1h；④高音质缓存分级 TTL——flac/320k 30min，128k 保持 6h；⑤历史快照 60→144（10h→24h）；新增 5 配置键，冒烟 T46/T47/T48；v8.10.1 补修：缓存 LRU 缺 delete 致高音质缓存过期重播 TypeError，T46/T47/T48 由空壳改为真行为验证）；v8.9 huibq 平台能力收窄 + 收尾修复（2026-11-06：实测 tx/mg/kg 必败，从三平台链尾移除仅留 kw/wy；source-audit.js 跑完自动退出；hyw 候选状态修正为已判否自动复检）；v8.8 竞速引擎改造（2026-11-06：全链分批错峰并发 + 跨档 12s 总预算 + 档位短路 + 冷启动预热 + gdWy 降批 + verified 精确等待；新增7配置键）；v8.7 huibq 假成功治理（2026-11-06：上游"无法获取播放链接！"仍返回 code=0 + 可播错链（实测 panspace 酷我 206）→ 按 msg 失败词判失败，避免静默播错歌）；v8.6 huibq 默认开启（2026-11-06：A 方案——全平台全音质实测可用，进 kw/wy/tx/mg/kg 链尾兜底 + 探针自动托管；v8.5 巡检工具与监控口径升级（2026-11-06：新增 scripts/source-audit.js 全源取链巡检工具 + docs/SOURCE_AUDIT.md 基线；probe.js 对取链型端点加真实取链+Range 可播二次校验（治理"端点✅但源410"假阳性，xcvts 由假✅转真❌）；huibq 探针补齐；真死域名排除清单更新）；v8.4 全源全接口深度巡检修复（2026-11-06：溯音酷我 128k br=7→9（实测唯一可播，flac/320k VIP 死链）；星海后端去自定义 X-Token 改匿名第三方调用（上游对无效 token 403"请使用官方版本"，匿名放行）；全源实测 15→21/35 可用）；v8.3 ikun默认开启（2026-11-06：A 方案——公益版免卡密，默认进 kw 链尾兜底 + 每3轮探测自动托管；探测失败2次自动关、恢复自动开自愈闭环）；v8.2 ikun探针接入（2026-11-06：默认关闭源补齐健康探针——用户手动开启后自动监控健康；POST /music/url 固定歌 rid=228908 + code200/url非空 + Range可播二次校验，tier=secondary 每3轮一探避免公益版频控）；v8.1 ikun源复活（2026-11-06：域名 api.ikunshare.com→c.wwwweb.top，接口 GET /url→POST /music/url，公益版免卡密，实测 rid=228908 晴天出真实128k链）；v8.0 全量审计修复版（2026-11-05 版本重新整理：原 v11.11~v29.9 共53个小版本合并为8个大版本，旧版本详细历史归档见 docs/ARCHIVE_OLD_TAGS.md）
+ * @description v8.11.5 L4 裁决层落地（admit 单一入口 + ADMISSION_POLICY + L0 桥产物归一 + 交付类代表码优先 + clearSourceLedger）｜v8.11.4 错歌兜底修复（2026-11-10 云端真测 F-01：①星海后端缺 songmid 不再兜底 1 号歌，改抛 PARAM_ERROR——旧兜底等于保证错歌；②片段兜底（B 方案）加「必须有 hash/mid 锚点」前提，无 id 时不再把他人的 5 秒片段标成「试听版」交付，改报错；q-dfix Q5 先红后绿）｜v8.11.3 源开关失败缓存失效（2026-11-10：toggle 开启某源时按该源平台前缀清 fail_<平台> 失败缓存——旧实现只重置熔断/探测状态，开启后仍命中「歌不存在 1h」，新源根本没机会被调用，用户看到"开了还是不出歌"；配套 LRU 补 keys()；q-dfix Q3 先红后绿）｜v8.11.2 通读缺陷修复（2026-11-10：Juhe code 类型归一 + 303 校验宽松比 + flac24bit 起跑补齐 320k + CONFIG_ERROR 5 分钟过期 + 删恒假守卫；N1~N4 先红后绿）｜v8.11.1 交付真实性闸门（2026-11-08：①交付前 1KB 字节验真——FLAC STREAMINFO / MP3 Xing 解析真实时长，「能播但只有 5 秒」的试听片段不再被当 FLAC 交付，阈值 60%+15s 双条件；②音质标签回填真话——请求 flac 实得 128kbps mp3 时窗口改显示 128K；③降档链修复 128k 终档被截断；④缓存双入口验真 + 移除 helloworld 内层缓存，缓存里的片段不再绕过判据；⑤源级限流识别——同源三档全片段判定被风控，冷却 5 分钟转跨平台；⑥巡检同判据——probe 片段判定 + 日报片段率单列；⑦压力测试固化 test/stress-test.js（G1~G8 / 32 断言）并据此修三处：JSON 错误体不再被「拿不准放行」放过、源级限流冷却改为跨歌证据（单曲受限不再误伤同源其他歌）、片段直链兜底加 10 分钟 TTL 防过期签名；冒烟 60→67 组）｜v8.10.12 探测素材修正（移除写死的无效 VIP 歌/单曲素材）｜v8.10.4 可播校验错误码修复（超时/网络异常不判死链 + LINK_EXPIRED 补 code）｜v8.10.3 分档预算 + 冷启动探针豁免 + 缓存分级 TTL（2026-11-06：①分档预算 flac 6s/320k 4s/128k 4s + 末档保底 3s，防高音质吃满总预算饿死低档致点歌无声；②冷启动源探针超时放宽到 30s + 豁免自动关闭，onrender 冷态 30s 不再被 20min 误摘；③短路探路窗口 6h→1h，源临时波动后用户不用等 6h 才恢复高音质；④高音质缓存分级 TTL——flac/320k 30min（原 6h 链接已死仍返回死链），128k 保持 6h；⑤历史快照 60→144（10h→24h），趋势图跨天不断；新增 5 配置键，冒烟 T46/T47/T48；v8.10.1 补修：缓存 LRU 缺 delete 致高音质缓存过期重播 TypeError，T46/T47/T48 由空壳改为真行为验证）；v8.9 huibq 平台能力收窄 + 档位短路判据拆分（2026-11-06：huibq 实测仅 kw/wy 可用，从 tx/mg/kg 链尾移除；短路判据由 fail+businessFail 拆为 fail+linkExpired——404 无版权不再误伤、410 死链仍能短路；source-audit 支持 --strict 退出码）；v8.8 竞速引擎改造（2026-11-06：6 条全做——①竞速执行器重写为全链分批错峰并发（消灭"竞速3+串行rest"，kw 最坏 31s→≤10.5s）②单次请求总预算 12s 跨音质档共享（防三级降档理论 90s+）③档位短路（某源某档历史 0 成功且样本≥3 直接跳过该档，6h 放行探路防死锁）④冷启动源预热 + 单源超时放宽到 8s（huibq onrender 冷态 30s > 旧 5s 必败）⑤gdWy 配额源 batch:2 降后批省配额⑥verified 等待精确化（无 verified 源在飞则立即交付，不再白等 600ms）；USER_CONFIG 新增 7 键，冒烟 T40/T41/T42/T43）；v8.7 huibq假成功治理（2026-11-06：msg 失败词判失败，避免交付错歌）；v8.6 huibq默认开启（2026-11-06：全平台全音质可用，进五平台链尾兜底 + 探针托管）；v8.5 巡检工具与监控口径升级（2026-11-06：source-audit 巡检工具 + probe 假阳性治理 + huibq 探针）；v8.4 全源全接口深度巡检修复（2026-11-06：suyinKuwo br 修正 + xinghaiBackend 匿名适配，可用源 15→21）；v8.3 ikun默认开启（2026-11-06：A 方案——公益版免卡密默认进 kw 链尾兜底，探测自动托管/失败自动关/恢复自动开）；v8.2 ikun探针接入（2026-11-06：默认关闭源补齐健康探针，用户手动开启后自动监控；POST /music/url 固定歌 + Range 可播校验）；v8.1 ikun源复活（2026-11-06：域名 api.ikunshare.com→c.wwwweb.top，接口 GET /url→POST /music/url，公益版免卡密，实测 rid=228908 出真实128k链）；v8.0 全量审计修复版（版本重新整理：原 v11.11~v29.9 共53个小版本合并为8个大版本；旧版本归档见 docs/ARCHIVE_OLD_TAGS.md）；v29.9 全量审计修复（helloworld通道②补试听片段检测+reqTimestamps初始化防御+raceFirst空数组防御+注释修正+self-check补config/trend检查）；v29.8 小修复合集（logInfo版本号同步+清理冗余正则+@description同步）；v29.7 helloworld(kw)试听片段修复（降优先级移到Juhe之后 + URL关键词检测preview/test/sample抛错换源）；v29.6 巡检脚本全面优化(并发池限流+403/429判定修正+退出码分级+平台健康汇总+死源分级+原因标注+恢复标记+UA轮换+重试机制+README表格自动生成)；v29.5 深度交叉点审计修复(配置写模式返回current脱敏+PARAM_LIMITS上下限校验+改熔断阈值重置failureCount+改缓存TTL清空successCache+手动探测不存历史快照+deadCount含half-open+兜底平台按avgScore排序+历史快照上限20→60条+历史快照去冗余字段+breakers→breakerMap变量名修复)；v28 自动健康日报(scripts/health-daily.js：读probe-history按端点聚合近7日成功率/均时，连续3天全失败或真故障率>50%自动生成摘除建议，输出docs/health-daily/YYYY-MM-DD.md)；v27.4 健康分10分制输出；v27.3 全面审计修复(三源内部缓存命中返回裸URL——旧返回{url,type,subSource}包装对象被wrapExecute validateUrl拦截致缓存后跨平台取链秒失败；wy封面取songs[0].album.picUrl/blurPicUrl回退+补移动UA——网易detail实测带ids参数顶层picUrl恒null、封面在album字段；probe.js端点过滤正则悬空|恒真修复；ecosystem-scan.js源表改为从SOURCE_HANDLERS动态提取防漂移)；v27.2 候选 helloworld 实证接入(生态扫描候选——kw 128k/320k/flac 三档 convert_url_with_sign 直链全端到端实证通过(2026-10-29：mock宿主加载+真实flac/320k返回+Range 206+魔数校验)，与星海后端并列 kw 高音质竞速；haitangw v1 resolve-url 作通道②备用)；v26.3 生态扫描制度化(scripts/ecosystem-scan.js抓pdone每日健康表交叉——自动产出新候选/失效清单，纳入迭代协议；运行时逻辑同v26.1)；v26.1 自动摘死源(播放连续失败≥3次实时摘除出链+playDead快照+播放成功/探测通过自动复活——与manualOff分层)；v26.0 音源日志增强(竞速过程打点+失败逐源明细——配合App「音源日志」一次失败定位到子源与原因)；v25.11 沙箱兼容(raceFirst setInterval→setTimeout——洛雪移动端VM无setInterval，修复UnhandledPromiseRejection与候选取回失效)；v25.10 防御修复(raceFirst 裸url分支source兜底空串，防未来裸值调用丢子源透出)；v25.9 子源名透出(musicUrl 返回补 subSourceName——实际子源中文名，App 播放页音源标签直接显示「平台·子源名」，无需端侧维护映射)；v25.8 实际子源透出(musicUrl 成功返回 {url,type,subSource}——实际交付链接的子源id，缓存同存；配合 App 播放页音源标签显示「平台·子源」)；v25.7 第三轮全维度审计修复(探测清单过滤手动关闭/默认关闭源——juhe五源不再白耗外呼、手动关闭源不再被标休眠)；v25.6 第二轮全量审计修复(熔断跳过不再误记限流/CDN410走1min缓存/删COPYRIGHT_LIMIT死枚举/删HIRES死常量/补allFailShortTtlMs配置键)；v25.5 全量审计修复(溯音咪咕对象冒充直链/星海备API伪装直链/酷我官方错歌校验/删死代码)；v25.4 字段完整透传(juheGetUrl 透传 strMediaMid/mediaMid/hash/rid/copyrightId 等原始ID+meta层，提升API型源高音质解析)；v25.3 音源健康审计修复(健康分口径/并发保护/本地节流误记/探测锁/休眠复活/降频生效)；v25.2 健康面板使用中分组(真实播放请求记录 lastUsedAt 时间戳进快照，配合 App 五级分区排序：使用中→正常→待采样→休眠→已关)；v25.1 Juhe源族治理(Juhe上游2026-10-28实测整体不可用：五平台超时/429→默认关闭；协议型探测(固定歌POST校验code200/303)接通休眠/自动关闭/自愈复活；全链网络类失败30s短缓存防反复卡18s)；v25.0 Juhe源族扩充(tx全链路实测通：POST→303→vkeys中转→qqmusic直链；wy/kg/mg按平台标识字段注册，服务端受限时自动降级)；v24.0 音质协商链可观测(降档日志+快照 lastQuality 实际交付音质，配合 App 真实音质显示；降档链 v11.12/v13.x 已有)；v23.1 发布前自检门(scripts/self-check.js：版本串同步/actions声明/README与ROADMAP同步，CI L2 任一失败阻断发布)；v22.0 配置化治理(USER_CONFIG 全量参数化：缓存TTL/熔断阈值与冷却/429退避/并发与限速/探测间隔/竞速超时均可配，缺省行为与历史一致)；v19.2 探测自适应(连续通过≥5轮降频为每2轮一探)+探测歌曲池扩至12首(随机轮换防单曲被风控)；v19.1 并发上限+滑动窗口限速+UA池轮换(单源并发≤2、3s窗口≤5次、4套移动UA轮换，防上游风控)；v19.0 健康分排序源链(sortChainByHealth 强化：verified 源附加优先权重，串行兜底按健康分降序；v14.1 已实现基础)；v18.0 源族扩充(Juhe聚合API：kw 全音质 303重定向校验协议全链路实测可用，独立新源族 juheKw)；v17.2 429限流退避(短退避30s不触发熔断、连续≥3次标记被限状态，快照 rateLimited)；v17.1 成功率按音质分档(byQuality：flac/320k/128k 各档 rate/avgTime，flac 坏但低音质好的源精确呈现)；v17.0 失败归因分离(版权/业务失败单独计数 copyrightFail——无版权歌不再惩罚健康分/不计入成功率分母)；v16.5.1 停用 updateAlert 发版弹窗(每次加载/导入不再弹更新提示)；v16.5 健康面板"管"能力(toggle 源级开关+manualOff手动锁定防探测复活、probe 手动探测一轮返回结果、快照 sleeping 休眠字段)；v16.4 健康面板数据语义修正(无样本 successRate/avgTime 返回 null + reqCount/probeCount 样本计数，App 显示"-"与采样数)；v16.3 App健康面板联动(health action：App fork 声明即注册 getHealth，聚合快照直通设置页面板)；v16.2发布后监控/回滚决策(Release自动巡检基线+核心源连续失败≥3天回滚)；v16.1死源建议(连续3天失败自动标记)；v16.0仓库级成功率统计(probe-history近7日)；v15.2健康统计快照(getHealthSnapshot)；v15.0歌词/封面透出(wy lyric+pic/kw pic)；v14.3分级探测+休眠复活；v14.2竞速匹配校验；v14.1健康权重自学习；v14.0失败原因结构化透出；v13.4配置化+v12.1失败缓存差异化；保留v12.0星海kw高音质双源+v11.12防错歌加固
+ * @version 8.11.5 L4 裁决层（2026-11-10：把散在六处的「判定 + 记账」收成一个 `admit()` + 一张 `ADMISSION_POLICY` 策略表 + 三个调用点（候选执行/降档聚合/缓存命中）；新增 L0 归一层 `toBytes`/`kindOf`/`headerEvidence` 修「App 桥把 Buffer 序列化成普通对象 → 全源 NOT_AUDIO」；代表码优先级改为交付类码高于 NOT_FOUND，治「NOT_AUDIO 被吞成 1h 歌级锁 → 该请求已知失败(缓存中)」；`clearSourceLedger` 统一清账，治「关源/重开无效」；证据四档 weak/medium/strong + weak 永不超 60s）｜8.11.4 错歌兜底修复（F-01）+ 8.11.3 通读缺陷修复（2026-11-10：①Juhe 响应 code 归一——上游时而 "200"(串)时而 200(数)，旧实现严格比数字，字符串形态 100% 判失败；②Juhe 303 重定向校验值同样按字符串宽松比；③降档链不再跳档——flac24bit 起跑原链 [flac24bit,flac,128k] 跳过 320k 档，现逐档下降；④未登记 TTL 的失败码（CONFIG_ERROR：ikun 403/huibq 未配置/lingchuan 未配置）按注释承诺的 5 分钟过期，旧实现永不超时；⑤删除恒假的每源 mids 上限守卫（比的是音质集合，≤4 永远 < 200）；新增 test/audit/n-fixes.js N1~N4 四条回归，四条均先红后绿）；8.11.1 交付真实性闸门（2026-11-08：①交付前 1KB 字节验真——FLAC STREAMINFO / MP3 Xing 解析真实时长，「能播但只有 5 秒」的试听片段不再被当 FLAC 交付，阈值 60%+15s 双条件；②音质标签回填真话——请求 flac 实得 128kbps mp3 时窗口改显示 128K；③降档链修复 128k 终档被截断；④缓存双入口验真 + 移除 helloworld 内层缓存，缓存里的片段不再绕过判据；⑤源级限流识别——同源三档全片段判定被风控，冷却 5 分钟转跨平台；⑥巡检同判据——probe 片段判定 + 日报片段率单列；⑦压力测试固化 test/stress-test.js（G1~G8 / 32 断言）并据此修三处：JSON 错误体不再被「拿不准放行」放过、源级限流冷却改为跨歌证据（单曲受限不再误伤同源其他歌）、片段直链兜底加 10 分钟 TTL 防过期签名；冒烟 60→67 组）；8.10.12 探测素材修正：移除写死的无效/单曲素材，统一走免费歌池轮换（2026-11-08：超时/网络异常不再判死链 + LINK_EXPIRED 补 err.code）；8.10.3 全覆盖审计修复（2026-11-07：15 项隐性缺陷——①probeSingleSource 形参 cfg 遮蔽全局 cfg()，huibq（唯一冷启动源）探针 100% TypeError、请求从未发出、健康分恒负垫底休眠；②429 不再计入 byQuality.fail/成功率分母（旧实现 3 次限流把该档短路 1h），半开遇 429 收口回 open；③降档交付按实交付音质入缓存槽（旧实现请求 flac 实给 128k 却存进 flac 槽，6h 内不再试高音质）；④失败缓存命中还原代表性 code（旧实现 code 丢失，网络全挂被当歌不存在）；⑤平台分组改由竞速链生成（旧手写清单漏 suyinKuwo，wy/tx/mg/kg 只剩它活着时误报全挂）；⑥探针通过一并复位断路器/限流退避（旧实现只清休眠，出现「探针正常 + 熔断中」矛盾态）；⑦末端预算上界显式钳在总预算+保底；⑧validateUrl 返回 trim 后 URL；⑨320k/128k 单档预算 4s→5s 对齐单源超时（旧 4s 把 5s 内本可成功的源判死并累计熔断）；⑩删死键 raceOverallTimeoutMs、面板改暴露真键 raceBudgetMs；⑪huibq 假成功判据单点化并补进探针；⑫lingchuan 补 platforms 显式声明；⑬A19 备注 20→144；⑭冒烟新增 T50–T55（回退必红）共 55 组）；v8.10.2 分档预算 + 冷启动探针豁免 + 缓存分级 TTL（2026-11-06：①分档预算 flac 6s/320k 4s/128k 4s + 末档保底 3s，防高音质吃满总预算饿死低档致点歌无声；②冷启动源探针超时放宽到 30s + 豁免自动关闭，onrender 冷态 30s 不再被 20min 误摘；③短路探路窗口 6h→1h；④高音质缓存分级 TTL——flac/320k 30min，128k 保持 6h；⑤历史快照 60→144（10h→24h）；新增 5 配置键，冒烟 T46/T47/T48；v8.10.1 补修：缓存 LRU 缺 delete 致高音质缓存过期重播 TypeError，T46/T47/T48 由空壳改为真行为验证）；v8.9 huibq 平台能力收窄 + 收尾修复（2026-11-06：实测 tx/mg/kg 必败，从三平台链尾移除仅留 kw/wy；source-audit.js 跑完自动退出；hyw 候选状态修正为已判否自动复检）；v8.8 竞速引擎改造（2026-11-06：全链分批错峰并发 + 跨档 12s 总预算 + 档位短路 + 冷启动预热 + gdWy 降批 + verified 精确等待；新增7配置键）；v8.7 huibq 假成功治理（2026-11-06：上游"无法获取播放链接！"仍返回 code=0 + 可播错链（实测 panspace 酷我 206）→ 按 msg 失败词判失败，避免静默播错歌）；v8.6 huibq 默认开启（2026-11-06：A 方案——全平台全音质实测可用，进 kw/wy/tx/mg/kg 链尾兜底 + 探针自动托管；v8.5 巡检工具与监控口径升级（2026-11-06：新增 scripts/source-audit.js 全源取链巡检工具 + docs/SOURCE_AUDIT.md 基线；probe.js 对取链型端点加真实取链+Range 可播二次校验（治理"端点✅但源410"假阳性，xcvts 由假✅转真❌）；huibq 探针补齐；真死域名排除清单更新）；v8.4 全源全接口深度巡检修复（2026-11-06：溯音酷我 128k br=7→9（实测唯一可播，flac/320k VIP 死链）；星海后端去自定义 X-Token 改匿名第三方调用（上游对无效 token 403"请使用官方版本"，匿名放行）；全源实测 15→21/35 可用）；v8.3 ikun默认开启（2026-11-06：A 方案——公益版免卡密，默认进 kw 链尾兜底 + 每3轮探测自动托管；探测失败2次自动关、恢复自动开自愈闭环）；v8.2 ikun探针接入（2026-11-06：默认关闭源补齐健康探针——用户手动开启后自动监控健康；POST /music/url 固定歌 rid=228908 + code200/url非空 + Range可播二次校验，tier=secondary 每3轮一探避免公益版频控）；v8.1 ikun源复活（2026-11-06：域名 api.ikunshare.com→c.wwwweb.top，接口 GET /url→POST /music/url，公益版免卡密，实测 rid=228908 晴天出真实128k链）；v8.0 全量审计修复版（2026-11-05 版本重新整理：原 v11.11~v29.9 共53个小版本合并为8个大版本，旧版本详细历史归档见 docs/ARCHIVE_OLD_TAGS.md）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -1234,6 +1234,120 @@ function originalDurationSec(songInfo) {
   return normalizeDurationSec(raw);
 }
 
+// ============================================================
+// L4 前置：L0 宿主通道层（形态归一 + 单一形态判定）
+// ------------------------------------------------------------
+// 真机事故（2026-11-10）：App 原生桥 sendAction 对二进制体做 JSON.stringify，
+// Buffer 变成 {type:'Buffer',data:[0,1,…]}。判据只认 ArrayBuffer 视图 →
+// 「拿不到字节」被当成「不是音频」→ 全部源 NOT_AUDIO → 代表码 NOT_FOUND →
+// 1 小时歌级锁 → 用户看到「该请求已知失败(缓存中)」。
+// 结论：字节「是不是原样到达」是通道问题，不是交付问题。这里先归一，再判形态。
+// ============================================================
+
+// 手动 base64 解码（真机 QuickJS 没有全局 Buffer，不能依赖宿主）
+const B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+function decodeBase64Ascii(s) {
+  let pad = 0;
+  const origLen = s.length;   // 必须先按含 '=' 的原长算输出字节数：剥掉填充后再算会少 1~2 字节
+  while (s.length && s.charAt(s.length - 1) === "=") { pad++; s = s.slice(0, -1); }
+  const out = new Uint8Array(Math.floor(origLen / 4) * 3 - pad);
+  let o = 0, buf = 0, bits = 0;
+  for (let i = 0; i < s.length; i++) {
+    const v = B64_CHARS.indexOf(s.charAt(i));
+    if (v < 0) return null;
+    buf = (buf << 6) | v; bits += 6;
+    if (bits >= 8) { bits -= 8; out[o++] = (buf >> bits) & 0xFF; }
+  }
+  return out;
+}
+
+// 任意交付体 → 字节（认不出返回 null，绝不抛）
+function toBytes(x) {
+  if (x == null) return null;
+  try {
+    if (typeof ArrayBuffer !== "undefined" && typeof ArrayBuffer.isView === "function" && ArrayBuffer.isView(x)) {
+      if (x instanceof Uint8Array) return x;
+      return new Uint8Array(x.buffer, x.byteOffset || 0, x.byteLength);
+    }
+    if (Array.isArray(x)) {
+      if (!x.length) return null;
+      for (let i = 0; i < x.length; i++) {
+        const n = x[i];
+        if (typeof n !== "number" || !Number.isFinite(n) || n < 0 || n > 255) return null;
+      }
+      return Uint8Array.from ? Uint8Array.from(x) : new Uint8Array(x);
+    }
+    if (typeof x === "object") {
+      // App 桥产物：{ type:"Buffer", data:[…] }（真机实测形状）
+      const t = String(x.type || "");
+      if (/buffer/i.test(t) && Array.isArray(x.data)) return toBytes(x.data);
+      if (Array.isArray(x.data)) return toBytes(x.data);
+      if (x.data && typeof x.data === "object") return toBytes(x.data);
+      return null;
+    }
+    if (typeof x === "string") {
+      const s = x.replace(/\s+/g, "");
+      if (s.length < 16 || s.length % 4 !== 0) return null;
+      if (!/^[A-Za-z0-9+/]+=*$/.test(s)) return null;
+      return decodeBase64Ascii(s);
+    }
+  } catch (e) { return null; }
+  return null;
+}
+
+// 单一形态判定：audio | json | html | playlist | empty | bytes | unknown
+// 全仓「这是什么形态」只允许走这里（字节细则仍复用 sniffAudioBytes）
+function kindOf(x) {
+  if (x == null) return "unknown";
+  const bytes = toBytes(x);
+  if (bytes) {
+    if (!bytes.length || bytes.length < 16) return "empty";
+    const info = sniffAudioBytes(bytes, {}, bytes.length);
+    if (info && info.kind) return info.kind; // audio/playlist/html/json/empty/unknown
+    return "unknown";
+  }
+  if (typeof x === "string") {
+    const s = x.trim();
+    if (s.indexOf("#EXTM3U") === 0) return "playlist";
+    if (s.indexOf("<") === 0) return "html";
+    if (s.indexOf("{") === 0 || s.indexOf("[") === 0) return "json";
+    // 既不是 base64、又不是 JSON/HTML/播放列表，而且短到不足 16 字节：不可能是音频体
+    return s.length < 16 ? "empty" : "unknown";
+  }
+  if (typeof x === "object") {
+    if (x.code !== undefined || x.msg !== undefined || x.error !== undefined || x.url !== undefined) return "json";
+    return "unknown";
+  }
+  return "unknown";
+}
+
+// 无字节时的「响应头证据」：只信头，不装懂。
+// 返回 { ok:true|false|null, code?, reason?, evidence:"medium"|"weak"|"strong", info }
+function headerEvidence(headers, totalBytes) {
+  const ct = String((headers && headers["content-type"]) || "").toLowerCase();
+  const info = { kind: "unknown", format: null, durationSec: null, bitrateKbps: null };
+  if (/json|html|text\/plain|xml/.test(ct)) {
+    return { ok: false, code: ERROR_CODES.NOT_AUDIO, reason: `响应头声明非音频(${ct.split(";")[0]})`, evidence: "strong", info: { kind: "json", format: null, durationSec: null } };
+  }
+  if (/audio|octet|mpeg|mp3|flac|ogg|aac/.test(ct)) {
+    info.kind = "audio";
+    info.format = ct.includes("flac") ? "flac" : (ct.includes("mpeg") || ct.includes("mp3") ? "mp3" : "audio");
+    if (totalBytes && info.format === "mp3") info.bitrateKbps = 128;
+    return { ok: true, info, evidence: "medium", reason: "仅头信息（桥未透传字节）" };
+  }
+  return { ok: null, code: ERROR_CODES.NETWORK_ERROR, reason: "响应头不足以判定", evidence: "weak", info };
+}
+
+function totalBytesOf(delivery) {
+  if (!delivery) return 0;
+  if (delivery.totalBytes) return Number(delivery.totalBytes) || 0;
+  const h = delivery.headers || {};
+  const cr = String(h["content-range"] || "");
+  const m = cr.match(/\/\s*(\d+)/);
+  if (m) return parseInt(m[1], 10) || 0;
+  return parseInt(String(h["content-length"] || "0"), 10) || 0;
+}
+
 // 一次 Range(1KB) 取真实字节
 async function probeAudioDelivery(audioUrl, timeoutMs = 3000) {
   if (!audioUrl || typeof audioUrl !== "string" || !HTTP_URL_REGEX.test(audioUrl)) {
@@ -1253,34 +1367,70 @@ async function probeAudioDelivery(audioUrl, timeoutMs = 3000) {
     const m = cr.match(/\/\s*(\d+)/);
     if (m) totalBytes = parseInt(m[1], 10) || 0;
     if (!totalBytes) totalBytes = parseInt(String((res.headers && res.headers["content-length"]) || "0"), 10) || 0;
-    if (status !== 206 && status !== 200) {
-      return { ok: false, code: ERROR_CODES.LINK_EXPIRED, reason: `HTTP ${status}` };
+    // 注意：4xx/5xx 与 429 在 httpRequest 内已按状态码抛出（带 err.code），
+    // 走 catch 统一映射，这里再判一遍只会得到不可能执行的死分支（覆盖率实测 0 行）。
+    const body = res.body;
+    const bytes = toBytes(body);
+    const totalBytesKnown = totalBytes;
+    if (bytes) {
+      const info = sniffAudioBytes(bytes, res.headers, totalBytesKnown);
+      if (info && info.kind === "audio") {
+        return {
+          ok: true, info, evidence: "strong", statusCode: status,
+          contentType: String((res.headers && res.headers["content-type"]) || ""), totalBytes,
+        };
+      }
+      const kind = (info && info.kind) || "unknown";
+      if (kind === "empty") {
+        return { ok: false, code: ERROR_CODES.NOT_AUDIO, reason: "交付内容为空(0~16 字节，不可能可播)", evidence: "strong", info, statusCode: status, totalBytes };
+      }
+      if (kind === "playlist") {
+        return { ok: false, code: ERROR_CODES.STREAM_PLAYLIST, reason: "交付内容是流播放列表", evidence: "strong", info, statusCode: status, totalBytes };
+      }
+      if (kind === "json" || kind === "html") {
+        return { ok: false, code: ERROR_CODES.NOT_AUDIO, reason: `交付内容不是音频(${kind})`, evidence: "strong", info, statusCode: status, totalBytes };
+      }
+      // 二进制但认不出形态：能走到这里说明响应头也不是音频（头是音频时 sniff 已判 audio），
+      // 所以只能给弱证据，不判死但也不当交付成功。
+      return { ok: false, code: ERROR_CODES.NOT_AUDIO, reason: "交付内容无法识别为音频", evidence: "weak", info, statusCode: status, totalBytes };
     }
-    let body = res.body;
-    // v8.11.1（压测 G3 实测）：httpRequest 会把 `{`/`[` 开头的文本 body 自动 JSON.parse 成对象，
-    // 旧逻辑传到 sniffAudioBytes 时 body 已不是字节 → kind 判成 unknown → 被"拿不准放行"放过去，
-    // 结果交付一段 JSON 给播放器 = 点歌没声。这里直接判非音频。
-    // v8.12（D-28）：交付体类型判定不能裸用 Buffer——App 的 QuickJS 宿主只注入
-    // `lx.utils.buffer`，**没有全局 Buffer**。旧实现 `Buffer.isBuffer(body)` 在真机上抛
-    // ReferenceError，被下方 catch 归一成 NETWORK_ERROR，进而落进「网络错误拿不准放行」
-    // 分支，结果 JSON 假链接被当成功交付——这道交付真实性闸门在真机上等于失效
-    // （Node 里 Buffer 存在，228 条断言全绿，正好把这条掩盖掉）。
-    // 改用 ArrayBuffer.isView / Array.isArray 判断"是不是字节"：Node 的 Buffer 是
-    // Uint8Array 子类（isView=true），QuickJS 的 Uint8Array 同样成立，无 Buffer 也不炸。
-    const isByteView = Array.isArray(body) || (typeof ArrayBuffer !== "undefined" && typeof ArrayBuffer.isView === "function" && ArrayBuffer.isView(body));
-    if (body && typeof body === "object" && !isByteView) {
-      return { ok: false, code: ERROR_CODES.NOT_AUDIO, reason: "交付内容是 JSON 对象而不是音频", info: { kind: "json", format: null, durationSec: null }, statusCode: status, totalBytes };
+    // 无字节（App 桥把二进制体变成了普通对象）：只信响应头，证据降为 medium/weak，
+    // 绝不因为「拿不到字节」判 NOT_AUDIO —— 这正是真机全源误判的根因。
+    // 但「明确给了空体」（''/{Buffer,data:[]}/零长视图）不是桥问题，是真空交付，必须判死。
+    // 没有可识别字节时，仍要按形态判死：文本形态的 playlist/json/html 与空体，
+    // 都是「明确不是音频」，不能因为「字节拿不到」就被响应头放行（否则 .m3u8 / 登录页会被当音频交付）。
+    if (body !== undefined && body !== null) {
+      const bk = kindOf(body);
+      if (bk === "playlist") {
+        return { ok: false, code: ERROR_CODES.STREAM_PLAYLIST, reason: "交付内容是流播放列表", evidence: "strong", statusCode: status, totalBytes };
+      }
+      if (bk === "json" || bk === "html") {
+        return { ok: false, code: ERROR_CODES.NOT_AUDIO, reason: `交付内容不是音频(${bk})`, evidence: "strong", statusCode: status, totalBytes };
+      }
+      if (bk === "empty") {
+        return { ok: false, code: ERROR_CODES.NOT_AUDIO, reason: "交付内容为空(空体)", evidence: "strong", statusCode: status, totalBytes };
+      }
     }
-    const info = sniffAudioBytes(body, res.headers, totalBytes);
-    return { ok: info.kind === "audio", info, statusCode: status, contentType: String((res.headers && res.headers["content-type"]) || ""), totalBytes };
+    const hv = headerEvidence(res.headers, totalBytes);
+    if (hv.ok === null) {
+      return { ok: null, code: ERROR_CODES.NETWORK_ERROR, reason: "无字节且头信息不足", evidence: "weak", statusCode: status };
+    }
+    return { ok: hv.ok, code: hv.code, reason: hv.reason, info: hv.info, evidence: hv.evidence, statusCode: status, totalBytes };
   } catch (e) {
     const code = (e && e.code) ? e.code : ERROR_CODES.NETWORK_ERROR;
     // 只有 410/404 是确定结论（链接确实死了）才判死链换源，统一映射为 LINK_EXPIRED
     // —— 音频 CDN 的 404 语义就是"这条直链失效"，不是"歌不存在"（歌不存在发生在接口层）
     if (code === ERROR_CODES.LINK_EXPIRED || code === ERROR_CODES.NOT_FOUND) {
-      return { ok: false, code: ERROR_CODES.LINK_EXPIRED, reason: `验真失败(${code})` };
+      return { ok: false, code: ERROR_CODES.LINK_EXPIRED, reason: `验真失败(${code})`, evidence: "strong" };
     }
-    return { ok: null, code, reason: `验真未完成(${code})` };
+    // 429 是确定结论（源在限流），不是「拿不准」——必须判失败并让裁决层转冷却/换源。
+    if (code === ERROR_CODES.RATE_LIMIT) {
+      return { ok: false, code: ERROR_CODES.RATE_LIMIT, reason: "HTTP 429", evidence: "strong" };
+    }
+    // 探针没跑完（超时/断连/5xx）：沿用「拿不准就放行」（T66/C8a 契约）——
+    // 误杀一首能播的歌，比偶尔放一条没验过的链接更糟；真正的问题是「拿不到字节就判 NOT_AUDIO」，
+    // 那种误判已经在上面用响应头证据消掉了。
+    return { ok: null, code, reason: `验真未完成(${code})`, evidence: "weak" };
   }
 }
 
@@ -1296,17 +1446,12 @@ async function verifyDelivery(audioUrl, ctx = {}) {
   if (probe.ok === false && probe.code) {
     const err = new Error(`${probe.code}: ${probe.reason}`);
     err.code = probe.code;
+    err.evidence = probe.evidence || "strong";
+    err.probeInfo = probe.info || null;
     throw err;
   }
-  if (!probe.ok) {
-    const kind = probe.info && probe.info.kind;
-    if (kind === "playlist" || kind === "html" || kind === "json" || kind === "empty") {
-      const code = kind === "playlist" ? ERROR_CODES.STREAM_PLAYLIST : ERROR_CODES.NOT_AUDIO;
-      const why = kind === "empty" ? "交付内容为空(0~16 字节，不可能可播)" : `交付内容不是音频(${kind})`;
-      return { ok: false, code, reason: why };
-    }
-    return null; // 拿不准就放行（误杀代价高于听到片段）
-  }
+  // 探针的返回值只有三种：ok=true / ok=false（必带 code）/ ok=null。
+  // 上面已分别处理，此处不再留「!probe.ok 但无 code」的死分支（覆盖率实测 0 行）。
   const realDur = probe.info?.durationSec || null;
   const origDur = originalDurationSec(ctx.songInfo);
   // 四条同时满足才拒：真实时长可定 + 原曲可定且≥90s + <60% + 差>15s
@@ -1315,7 +1460,20 @@ async function verifyDelivery(audioUrl, ctx = {}) {
     const gap = origDur - realDur;
     if (ratio < cfg("verifyDurRatio", VERIFY_DUR_RATIO) && gap > cfg("verifyDurGapSec", VERIFY_DUR_GAP_SEC)) {
       // 即便是片段也带出真实格式——全档兜底时标签要写真话（实测 flac 档给的是 128kbps mp3）
-      return { ok: false, code: ERROR_CODES.PREVIEW_FRAGMENT, reason: `仅 ${realDur}s，原曲 ${origDur}s`, quality: qualityFromDelivery(probe.info, ctx.quality) };
+      return { ok: false, code: ERROR_CODES.PREVIEW_FRAGMENT, reason: `仅 ${realDur}s，原曲 ${origDur}s`, quality: qualityFromDelivery(probe.info, ctx.quality), evidence: probe.evidence || "strong" };
+    }
+  }
+  // medium 证据（无字节、只有体积）：按 3KB/s 下界估「明显短于目标曲目」的试听片段。
+  // 依据：128kbps≈16KB/s，5 秒片段≈80KB；180 秒整曲≈2.8MB。保守取 3KB/s×60% 作下界，只拦明显偏小。
+  if (!realDur && origDur && origDur >= cfg("verifyMinOriginalSec", VERIFY_MIN_ORIGINAL_SEC) && probe.totalBytes) {
+    const minFull = Math.max(128000, origDur * 3000 * VERIFY_DUR_RATIO);
+    if (probe.totalBytes < minFull) {
+      return {
+        ok: false, code: ERROR_CODES.PREVIEW_FRAGMENT,
+        reason: `体积仅 ${probe.totalBytes} 字节（< ${Math.round(minFull)}），明显短于 ${origDur}s 整曲`,
+        quality: qualityFromDelivery(probe.info, ctx.quality),
+        evidence: "medium",
+      };
     }
   }
   return {
@@ -1323,8 +1481,294 @@ async function verifyDelivery(audioUrl, ctx = {}) {
     quality: qualityFromDelivery(probe.info, ctx.quality),
     realDurationSec: realDur,
     format: probe.info?.format || null,
-    totalBytes: probe.totalBytes || 0
+    totalBytes: probe.totalBytes || 0,
+    evidence: probe.evidence || "strong",
   };
+}
+
+// ============================================================
+// L4 裁决层（Admission）：一个函数 + 一张表 + 三个调用点
+// ------------------------------------------------------------
+// 边界铁律：不发请求、不调度、不写状态；只回答两件事——
+//   ① 这次交付是什么结果（verdict + code + evidence）
+//   ② 该记什么账（ledger：TTL / 健康分类 / 是否摘除 / 源冷却）
+// 读侧只允许 skipReason()，写侧只允许按 ledger 记账；不允许再出现散落的 if(code)。
+// ============================================================
+const ADMISSION_POLICY = {
+  // verdict    是否可交付  歌×档 TTL   健康分类        是否计入摘除   源级冷却
+  PASS:         { deliverable: true,  ttlMs: 0,       health: "success",      playDead: false, sourceCooldownMs: 0 },
+  FRAGMENT:     { deliverable: true,  ttlMs: 30000,   health: "businessFail", playDead: false, sourceCooldownMs: 0 },
+  NOT_AUDIO:    { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, sourceCooldownMs: 0 },
+  RATE_LIMITED: { deliverable: false, ttlMs: 0,       health: "businessFail", playDead: false, sourceCooldownMs: 45000 },
+  BUSINESS:     { deliverable: false, ttlMs: 3600000, health: "businessFail", playDead: false, sourceCooldownMs: 0 },
+  TRANSIENT:    { deliverable: false, ttlMs: 0,       health: "hardFail",     playDead: false, sourceCooldownMs: 0 },
+  BROKEN:       { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, sourceCooldownMs: 0 },
+};
+
+// 代表码优先级：确定性业务码(1) < 交付类码(2) < 网络类码(3)。高优先不被低覆盖。
+// 旧实现把 NOT_FOUND 设成"一旦出现即固定"，直接吞掉 NOT_AUDIO → 60s 变 1h（真机事故现场）。
+// 数值越大越优先。**交付类码（3）必须高于「歌不存在」类（2）**——
+// 旧实现把 NOT_FOUND 设成一旦出现即固定，会直接吞掉 NOT_AUDIO（60s 变 1h，真机事故现场）。
+const CODE_RANK = {
+  [ERROR_CODES.NOT_AUDIO]: 3,
+  [ERROR_CODES.PREVIEW_FRAGMENT]: 3,
+  [ERROR_CODES.STREAM_PLAYLIST]: 3,
+  [ERROR_CODES.NOT_FOUND]: 2,
+  [ERROR_CODES.MISMATCH]: 2,
+  [ERROR_CODES.LINK_EXPIRED]: 2,
+  [ERROR_CODES.PARAM_ERROR]: 2,
+  [ERROR_CODES.CONFIG_ERROR]: 2,
+  [ERROR_CODES.RATE_LIMIT]: 1,
+  [ERROR_CODES.NETWORK_TIMEOUT]: 1,
+  [ERROR_CODES.NETWORK_ERROR]: 1,
+  [ERROR_CODES.SERVER_ERROR]: 1,
+};
+const codeRank = (c) => CODE_RANK[c] || 1;
+
+function verdictOfCode(code) {
+  switch (code) {
+    case ERROR_CODES.RATE_LIMIT: return "RATE_LIMITED";
+    case ERROR_CODES.NOT_FOUND:
+    case ERROR_CODES.MISMATCH:
+    case ERROR_CODES.LINK_EXPIRED: return "BUSINESS";
+    case ERROR_CODES.NOT_AUDIO:
+    case ERROR_CODES.STREAM_PLAYLIST: return "NOT_AUDIO";
+    case ERROR_CODES.PREVIEW_FRAGMENT: return "FRAGMENT";
+    case ERROR_CODES.PARAM_ERROR:
+    case ERROR_CODES.CONFIG_ERROR: return "BROKEN";
+    default: return "TRANSIENT";
+  }
+}
+
+const EVIDENCE_ORDER = { none: 0, weak: 1, medium: 2, strong: 3 };
+function strongestEvidence(list) {
+  let best = "none";
+  for (const e of list) {
+    const v = String(e || "none");
+    if ((EVIDENCE_ORDER[v] || 0) > (EVIDENCE_ORDER[best] || 0)) best = v;
+  }
+  return best;
+}
+
+// 片段判定（与 verifyDelivery 同阈值，抽出来供 admit 复用）
+function isFragmentInfo(info, songInfo) {
+  const realDur = info && info.durationSec;
+  const origDur = originalDurationSec(songInfo);
+  if (!realDur || !origDur || origDur < cfg("verifyMinOriginalSec", VERIFY_MIN_ORIGINAL_SEC)) return false;
+  const ratio = realDur / origDur;
+  const gap = origDur - realDur;
+  return ratio < cfg("verifyDurRatio", VERIFY_DUR_RATIO) && gap > cfg("verifyDurGapSec", VERIFY_DUR_GAP_SEC);
+}
+
+function admissionLedger(verdict, code, evidence) {
+  const policy = ADMISSION_POLICY[verdict] || ADMISSION_POLICY.TRANSIENT;
+  let ttlMs = policy.ttlMs;
+  if (code === ERROR_CODES.LINK_EXPIRED) ttlMs = Math.min(ttlMs || 60000, 60000);
+  // I6 硬约束：medium/weak 证据一律 ≤60s，不许写 1h、不许判 NOT_FOUND、不许 bump playDead
+  if (evidence !== "strong") ttlMs = Math.min(ttlMs || 0, 60000);
+  return {
+    ttlMs,
+    health: policy.health,
+    playDead: evidence === "strong" ? policy.playDead : false,
+    sourceCooldownMs: policy.sourceCooldownMs,
+  };
+}
+
+/**
+ * 唯一裁决入口（纯函数，幂等，不写任何状态）
+ * input = { stage, platform, quality, songInfo, source, delivery, error, trialMark, attempts }
+ * delivery = { statusCode, headers, body, totalBytes }
+ * attempts = [{ code, evidence, reason }]
+ */
+// 接口层试听标记识别（社区同做法：jiexiang/xinglan 在拿到 playurl/privilege 时就判，不必等 Range）
+// 只认「明确结构化字段」，认不出就返回 false —— 不做启发式猜测，避免把正常歌当试听。
+function trialMarkOf(payload) {
+  if (!payload || typeof payload !== "object") return false;
+  for (const key of ["freeTrialInfo", "freeTrialPrivilege", "trialInfo", "freeTrial", "privilege"]) {
+    const v = payload[key];
+    if (v === true) return true;
+    if (Array.isArray(v) && v.length > 0) return true;
+    if (v && typeof v === "object") {
+      if (v.freeTrial === true || v.trial === true || v.flag === 1 || v.status === 1) return true;
+    }
+  }
+  const rs0 = payload.RS0 !== undefined ? payload.RS0 : payload.rs0;
+  if (rs0 === 1 || rs0 === "1") return true;
+  return false;
+}
+
+function admit(input) {
+  const ctx = input || {};
+  const stage = ctx.stage || "candidate";
+  const delivery = ctx.delivery || null;
+  let verdict = "TRANSIENT";
+  let code = ERROR_CODES.NETWORK_ERROR;
+  let evidence = "none";
+  let reason = "";
+  let quality = "";
+  let deliverable = false;
+
+  if (ctx.trialMark === true) {
+    // API 层已明确告知是试听 → 免探针直接判片段（省一次 Range，也不受桥影响）
+    verdict = "FRAGMENT";
+    code = ERROR_CODES.PREVIEW_FRAGMENT;
+    evidence = "medium";
+    deliverable = true;
+    reason = "接口层已标记试听";
+  } else if (ctx.probe && ctx.probe.ok === true) {
+    // 已验证过的探针结论（verifyDelivery 产出）——不再重复走形态判定
+    verdict = "PASS";
+    code = null;
+    evidence = ctx.probe.evidence || "strong";
+    deliverable = true;
+    quality = ctx.probe.quality || "";
+    reason = "探针已判可交付";
+  } else if (stage === "fallback" && Array.isArray(ctx.attempts) && ctx.attempts.length) {
+    let best = null, bestRank = -1;
+    for (const a of ctx.attempts) {
+      if (!a || !a.code) continue;
+      const r = codeRank(a.code);
+      if (r > bestRank) { best = a; bestRank = r; }
+    }
+    code = (best && best.code) || ERROR_CODES.NETWORK_ERROR;
+    verdict = verdictOfCode(code);
+    evidence = strongestEvidence(ctx.attempts.map(a => a && a.evidence));
+    deliverable = verdict === "FRAGMENT";
+    reason = (best && best.reason) || "";
+  } else if (delivery) {
+    const status = Number(delivery.statusCode) || 0;
+    if (status === 429) {
+      verdict = "RATE_LIMITED"; code = ERROR_CODES.RATE_LIMIT; evidence = "strong"; reason = "HTTP 429";
+    } else if (status && status !== 200 && status !== 206) {
+      const dead = status === 404 || status === 410;
+      verdict = dead ? "BUSINESS" : "TRANSIENT";
+      code = dead ? ERROR_CODES.LINK_EXPIRED : ERROR_CODES.NETWORK_ERROR;
+      evidence = dead ? "strong" : "weak";
+      reason = `HTTP ${status}`;
+    } else {
+      const bytes = toBytes(delivery.body);
+      const shape = kindOf(bytes || delivery.body);
+      const totalBytes = totalBytesOf(delivery);
+      if (bytes) {
+        const info = sniffAudioBytes(bytes, delivery.headers || {}, totalBytes);
+        const kind = (info && info.kind) || "unknown";
+        if (kind === "audio") {
+          evidence = "strong";
+          if (isFragmentInfo(info, ctx.songInfo)) {
+            verdict = "FRAGMENT"; code = ERROR_CODES.PREVIEW_FRAGMENT; deliverable = true;
+          } else {
+            verdict = "PASS"; code = null; deliverable = true;
+          }
+          quality = qualityFromDelivery(info, ctx.quality);
+          reason = `字节可定(${info.format || "audio"}${info.durationSec ? "/" + info.durationSec + "s" : ""})`;
+        } else if (kind === "playlist") {
+          verdict = "NOT_AUDIO"; code = ERROR_CODES.STREAM_PLAYLIST; evidence = "strong"; reason = "交付内容是流播放列表";
+        } else if (kind === "json" || kind === "html" || kind === "empty") {
+          verdict = "NOT_AUDIO"; code = ERROR_CODES.NOT_AUDIO; evidence = "strong";
+          reason = kind === "empty" ? "交付内容为空" : `交付内容不是音频(${kind})`;
+        } else {
+          // 同 probe：认不出形态且头不是音频（头是音频时 sniff 已判 audio）→ 弱证据判非音频
+          verdict = "NOT_AUDIO"; code = ERROR_CODES.NOT_AUDIO; evidence = "weak"; reason = "交付内容无法识别为音频";
+        }
+      } else {
+        // 没有可识别字节：文本形态的 playlist/json/html 与空体一律判死，只有「头是音频」
+        // 且形态不明时才 medium 放行（与 probe 的分支顺序保持一致，避免 m3u8/登录页被交付）。
+        if (shape === "playlist") {
+          verdict = "NOT_AUDIO"; code = ERROR_CODES.STREAM_PLAYLIST; evidence = "strong"; reason = "交付内容是流播放列表";
+        } else if (shape === "json" || shape === "html" || shape === "empty") {
+          verdict = "NOT_AUDIO"; code = ERROR_CODES.NOT_AUDIO; evidence = "strong";
+          reason = shape === "empty" ? "交付内容为空" : `交付内容不是音频(${shape})`;
+        } else {
+          const hv = headerEvidence(delivery.headers || {}, totalBytes);
+          if (hv.ok === true) {
+            verdict = "PASS"; code = null; evidence = "medium"; deliverable = true;
+            quality = qualityFromDelivery(hv.info, ctx.quality); reason = hv.reason;
+          } else if (hv.ok === false) {
+            verdict = "NOT_AUDIO"; code = hv.code; evidence = "strong"; reason = hv.reason;
+          } else {
+            verdict = "TRANSIENT"; code = ERROR_CODES.NETWORK_ERROR; evidence = "weak"; reason = hv.reason;
+          }
+        }
+      }
+    }
+  } else if (ctx.error && ctx.error.code) {
+    code = ctx.error.code;
+    verdict = verdictOfCode(code);
+    evidence = ctx.error.evidence || "strong";
+    deliverable = verdict === "FRAGMENT";
+    reason = ctx.error.reason || "";
+  }
+
+  const ledger = admissionLedger(verdict, code, evidence);
+  return { verdict, code: code || null, evidence, deliverable, quality, reason, ledger };
+}
+
+// 读侧唯一查询：能不能用这个源（null=可用）
+function skipReason(source, ctx) {
+  const id = source;
+  if (!SOURCE_HANDLERS[id]) return { reason: "unknown-source", untilMs: null };
+  if (runtimeToggles[id] === false || manualOff[id]) return { reason: "manual-off", untilMs: null };
+  if (isPlayDead(id)) return { reason: "play-dead", untilMs: playDeadDeadline.get(id) || null };
+  if (typeof canExecute === "function" && !canExecute(id)) {
+    const br = getBreaker(id);
+    return { reason: br.state || "breaker", untilMs: br.rateLimitUntil || null };
+  }
+  const pv = previewCooldownMap.get(id);
+  if (pv && pv > Date.now()) return { reason: "rate-limited", untilMs: pv };
+  return null;
+}
+
+// 写侧唯一清账：开开关 / 播放成功 / 面板重置，都走这里
+function clearSourceLedger(source) {
+  const handler = SOURCE_HANDLERS[source];
+  if (!handler) return false;
+  const prefixes = (handler.platforms || []).map(p => `fail_${p}`);
+  for (const k of Array.from(failCache.keys())) {
+    if (!prefixes.length || prefixes.some(pre => k.includes(pre))) failCache.delete(k);
+  }
+  playDeadStreak.delete(source);
+  playDeadDeadline.delete(source);
+  delete probeState.sleeping[source];
+  delete probeState.deadCount[source];
+  delete probeState.sleepRound[source];
+  probeState.failCount[source] = 0;
+  const br = getBreaker(source);
+  br.state = "closed"; br.failureCount = 0; br.lastFailureTime = 0;
+  br.rateLimitUntil = 0; br.rateLimited = false;
+  if (br.byQuality) for (const q of Object.keys(br.byQuality)) {
+    const s = br.byQuality[q];
+    if (s && typeof s === "object") { s.fail = 0; s.success = 0; s.linkExpired = 0; }
+  }
+  return true;
+}
+
+// 写侧唯一记账入口：裁决结果 → 既有状态机（reducer）。
+// 只允许这里把 ledger 翻译成 record* 调用；调用点不再自己 if(code)。
+function applyAdmission(adm, ctx) {
+  const id = ctx && ctx.source;
+  if (!adm || !id) return adm;
+  const q = ctx.quality;
+  const L = adm.ledger || {};
+  if (adm.verdict === "PASS") {
+    recordSuccess(id, Number(ctx.elapsed) || 0, q);
+    return adm;
+  }
+  if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q);
+  else if (L.health === "hardFail") recordFailure(id, q);
+  else recordBusinessFail(id, q);
+  const err = ctx.error || {};
+  if (adm.code === ERROR_CODES.PREVIEW_FRAGMENT) {
+    rememberFragmentSource(ctx.platform, ctx.songInfo, id, q);
+    if (err.fragmentUrl) {
+      boundedMapSet(fragmentUrlMap, `${ctx.platform}|${getHashOrMid(ctx.songInfo)}|${String(q || "").toLowerCase()}`,
+        { url: err.fragmentUrl, quality: err.fragmentQuality || String(q || "128k").toLowerCase(), source: id, name: ctx.name, ts: Date.now() });
+    }
+  }
+  if (adm.code === ERROR_CODES.LINK_EXPIRED) {
+    const qStat = getBreaker(id).byQuality[String(q)];
+    if (qStat) qStat.linkExpired = (qStat.linkExpired || 0) + 1;
+  }
+  return adm;
 }
 
 // 记录「该源对该歌只给片段」，并在同一源连续三档都片段时判定源级限流（实测：风控状态下所有歌都返回同一 84972 字节片段）
@@ -2628,6 +3072,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
       const vErr = new Error(`${verdict.code}: ${CODE_HINT[verdict.code] || "交付校验未通过"}（${verdict.reason}）`);
       vErr.code = verdict.code;
       vErr.deliveryCheck = true;
+      vErr.evidence = verdict.evidence || "strong";
       // v8.11：把片段 URL 带出去——全链都只有片段时要按 B 方案兜底返回它（标注「试听版」），
       // 否则用户点歌直接"没声"，比听到 5 秒更糟
       if (verdict.code === ERROR_CODES.PREVIEW_FRAGMENT) {
@@ -2636,7 +3081,7 @@ async function wrapExecute(handler, platform, songInfo, quality) {
       }
       throw vErr;
     }
-    const realQuality = (verdict && verdict.quality) || "";
+    const realQuality = (admit({ probe: verdict, songInfo, quality }).quality) || (verdict && verdict.quality) || "";
     if (realQuality) {
       const reqQ = String(quality || "").toLowerCase();
       if (realQuality !== reqQ) {
@@ -2664,34 +3109,14 @@ async function wrapExecute(handler, platform, songInfo, quality) {
     if (e && typeof e === "object" && !e.sourceId) e.sourceId = handler.id;
     // v1.0：决策日志——区分熔断类错误(网络类)与业务失败(不熔断)
     logDebug(`[${handler.name}] 失败 code=${e.code || "?"} msg=${e.message}; 熔断类=${e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR || e.code === ERROR_CODES.SERVER_ERROR || e.code === ERROR_CODES.RATE_LIMIT}`);
-    // v1.0 (D8)：仅网络类错误(超时/5xx/429)计入熔断——业务失败(NOT_FOUND/MISMATCH等)说明源已正常响应，
-    // 不应因"歌不存在/无版权"累积连续失败而误熔断健康源
-    if (e.code === ERROR_CODES.RATE_LIMIT) {
-      // v4.0：429 限流单独处理（不熔断，短退避）
-      recordRateLimit(handler.id, quality);
-    } else if (e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.NETWORK_ERROR ||
-        e.code === ERROR_CODES.SERVER_ERROR) {
-      recordFailure(handler.id, quality);
-    } else {
-      // v4.0：业务失败（无版权404/歌不存在/错歌）单独归类——源正常响应，不再计入成功也不计入熔断，
-      // 只记 copyrightFail（快照可见，健康分/成功率分母剔除）
-      recordBusinessFail(handler.id, quality);
-      // v8.11：片段判定记到「该源对该歌」维度——降档时跳过已知片段源，且同一源三档全片段即判源级限流
-      // 注意：走 businessFail 分支（非网络类），不进 recordFailure，因此不会把健康源误熔断
-      if (e.code === ERROR_CODES.PREVIEW_FRAGMENT) {
-        rememberFragmentSource(platform, songInfo, handler.id, quality);
-        if (e.fragmentUrl) {
-          boundedMapSet(fragmentUrlMap, `${platform}|${getHashOrMid(songInfo)}|${String(quality || "").toLowerCase()}`,
-            { url: e.fragmentUrl, quality: e.fragmentQuality || String(quality || "128k").toLowerCase(), source: handler.id, name: handler.name, ts: Date.now() });
-        }
-      }
-      // v8.9：410 死链单独计"档位能力失败"——短路判据要区分"这首歌没有(404)"与"这一档拿不到(410)"：
-      // 404 是歌的问题不能短路源该档；410 是档位/权限问题（如 oiapi flac VIP 死链）应当短路
-      if (e.code === ERROR_CODES.LINK_EXPIRED) {
-        const qStat = getBreaker(handler.id).byQuality[String(quality)];
-        if (qStat) qStat.linkExpired = (qStat.linkExpired || 0) + 1;
-      }
-    }
+    // v1.0：仅网络类错误(超时/5xx/429)计入熔断——业务失败(NOT_FOUND/MISMATCH等)说明源已正常响应，
+    // 不应因"歌不存在/无版权"累积连续失败而误熔断健康源。
+    // L4：判据与记账分离——admit 出裁决，applyAdmission 按 ledger 落账（不再在此处 if(code) 分叉）。
+    const adm = admit({
+      stage: "candidate", platform, quality, songInfo, source: handler.id,
+      error: { code: extractErrorCode(e), reason: String((e && e.message) || ""), evidence: (e && e.evidence) || "strong" },
+    });
+    applyAdmission(adm, { source: handler.id, quality, platform, songInfo, error: e, name: handler.name });
     throw e;
   } finally {
     inflightCount.set(handler.id, Math.max((inflightCount.get(handler.id) || 0) - 1, 0));
@@ -2757,7 +3182,7 @@ async function fallbackRace(chain, platform, songInfo, quality, deadline) {
   const recordFail = (handlerId, q, err) => {
     const code = extractErrorCode(err);
     mergeCode(code);
-    details.push({ source: handlerId, quality: q, code, reason: String((err && err.message) || "") });
+    details.push({ source: handlerId, quality: q, code, evidence: (err && err.evidence) || "strong", reason: String((err && err.message) || "") });
     errors.push(err.message);
   };
   try {
@@ -2957,10 +3382,12 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   const details = []; // v3.0：结构化失败明细（跨音质级汇总，供 App 端展示）
   // v1.0：代表性失败码——业务码(NOT_FOUND/MISMATCH/LINK_EXPIRED)一旦出现即固定(稳定结论)，
   // 网络类码仅在没有业务码时记录；防止低音质级(128k)的网络错误覆盖高音质级的"歌不存在"
+  // L4：改为收集 attempts，最后一次 admit 定代表码与 TTL——
+  // 优先级「确定性业务码 < 交付类码 < 网络类码」，NOT_AUDIO 不再被 NOT_FOUND 吞掉。
   let lastFailCode = ERROR_CODES.NETWORK_ERROR;
-  const mergeLastCode = (code) => {
-    if (code === ERROR_CODES.NOT_FOUND || code === ERROR_CODES.MISMATCH || code === ERROR_CODES.LINK_EXPIRED) lastFailCode = code;
-    else if (lastFailCode === ERROR_CODES.NETWORK_ERROR) lastFailCode = code;
+  const attempts = [];
+  const noteAttempt = (code, evidence) => {
+    if (code) attempts.push({ code, evidence: evidence || "strong" });
   };
 
   // 3. 音质降级链（请求音质首位→向下降级；链内按源能力过滤，末级必有源）
@@ -3003,7 +3430,7 @@ async function getUrlWithFallback(platform, songInfo, quality) {
       logDebug(`[${platform}][${q}] 档位短路：全部源该档历史 0 成功，直接降档`);
       errors.push(`[${q}] 档位短路(全部源该档历史0成功)`);
       details.push({ source: "quality-short-circuit", quality: q, code: ERROR_CODES.NETWORK_ERROR, reason: "全部源该档历史0成功，已短路降档" });
-      mergeLastCode(ERROR_CODES.NETWORK_ERROR);
+      noteAttempt(ERROR_CODES.NETWORK_ERROR, "weak");
       continue;
     }
     if (!chain.length) {
@@ -3044,13 +3471,15 @@ async function getUrlWithFallback(platform, songInfo, quality) {
       }
       return { url, type: truthQ, subSource: source || "", subSourceName: SOURCE_HANDLERS[source]?.name || "" };
     } catch (e) {
-      mergeLastCode(extractErrorCode(e)); // v1.0：业务码优先归并
+      noteAttempt(extractErrorCode(e), (e && e.evidence) || "strong"); // L4：收集 attempt，末尾统一裁决
       errors.push(`[${q}] ${e.message}`);
       // v3.0：透出结构化失败明细（fallbackRace 已结构化；旧路径兜底单条）
       if (e && Array.isArray(e.detail) && e.detail.length) {
-        for (const d of e.detail) details.push({ ...d });
+        for (const d of e.detail) { details.push({ ...d }); noteAttempt(d.code, d.evidence); }
       } else {
-        details.push({ source: "chain", quality: q, code: extractErrorCode(e), reason: String((e && e.message) || "") });
+        const c = extractErrorCode(e);
+        details.push({ source: "chain", quality: q, code: c, reason: String((e && e.message) || "") });
+        noteAttempt(c, (e && e.evidence) || "strong");
       }
     }
   }
@@ -3116,8 +3545,12 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   // v6.0 (A3)：整链全失败且为网络类（上游整体不可用/超时/5xx）→ 写 30s 短失败缓存，
   // 避免同一首歌每次重播都在降级链里白跑 ≈18s；30s 后自动过期恢复重试（上游可能恢复）。
   // 业务类(NOT_FOUND等)维持原差异化 TTL。熔断不受影响——缓存过期后的重试仍会计入源失败。
-  setFailCached(failKey, lastFailCode, FAIL_CACHE_TTL_BY_CODE[lastFailCode] === 0 ? cfg('allFailShortTtlMs', 30000) : undefined);
-  logDebug(`失败缓存写入[${platform}] code=${lastFailCode} ttl=${FAIL_CACHE_TTL_BY_CODE[lastFailCode] === 0 ? "不缓存" : ((FAIL_CACHE_TTL_BY_CODE[lastFailCode] || FAIL_CACHE_TTL_MS) / 1000) + "s"}`);
+  // L4：全链失败 → 唯一裁决。代表码按优先级（交付类码不被 NOT_FOUND 覆盖），TTL 由策略表给。
+  const finalAdm = admit({ stage: "fallback", attempts });
+  if (finalAdm.code) lastFailCode = finalAdm.code;
+  const failTtl = finalAdm.ledger.ttlMs === 0 ? cfg('allFailShortTtlMs', 30000) : (finalAdm.ledger.ttlMs || FAIL_CACHE_TTL_MS);
+  setFailCached(failKey, lastFailCode, failTtl);
+  logDebug(`失败缓存写入[${platform}] code=${lastFailCode} ttl=${failTtl / 1000}s（evidence=${finalAdm.evidence}·${finalAdm.verdict}）`);
   // v7.0：失败逐源明细 logInfo——一次失败一屏看懂"哪些源、为什么失败"（供 App「音源日志」自查）
   if (details.length) {
     logInfo(`[失败明细] 平台=${platform} 歌=${songInfo?.name || ""} 音质=${quality || "128k"} 代表码=${lastFailCode}: ${details.map(d => `${d.source}=${d.code}(${String(d.reason || "").slice(0, 50)})`).join(" | ")}`);
@@ -3171,20 +3604,9 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
     runtimeToggles[target] = next;
     if (next) {
       delete manualOff[target];
-      delete probeState.sleeping[target];
-      delete probeState.deadCount[target];
-      delete probeState.sleepRound[target];
-      probeState.failCount[target] = 0;
-      // v4.0：用户手动开启 = 强制重启——重置熔断/限流退避，立即可尝试
-      const br = getBreaker(target);
-      br.state = 'closed'; br.failureCount = 0; br.lastFailureTime = 0; br.rateLimitUntil = 0; br.rateLimited = false;
-      // v8.11.3（D-01）：失败缓存也必须失效。失败缓存是 fail_<平台> 粒度（不是按源），
-      // 开启新源后若仍命中「歌不存在 1h / 死链 1min」，新源根本没机会被调用，
-      // 用户看到的就是"开了还是不出歌"。这里按该源声明的平台精确清；未声明平台的源清全部。
-      const failPrefixes = (SOURCE_HANDLERS[target].platforms || []).map(p => `fail_${p}`);
-      for (const k of Array.from(failCache.keys())) {
-        if (!failPrefixes.length || failPrefixes.some(pre => k.includes(pre))) failCache.delete(k);
-      }
+      // L4：单一清账入口——失败缓存（平台粒度）/ 摘除（streak+deadline）/ 熔断与限流退避 / 探测态
+      // 一次全清。旧实现只在开启分支清 fail_ 前缀，重开被摘除的源仍回不到链里（D-01 后半）。
+      clearSourceLedger(target);
     } else {
       manualOff[target] = true;
     }
@@ -3328,7 +3750,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.11.4 已加载（源开关失败缓存失效（2026-11-10：toggle 开启按平台前缀清 fail 缓存 + LRU 补 keys()，q-dfix Q3 先红后绿）｜v8.11.2 通读缺陷修复（2026-11-10：Juhe code 类型归一/303 校验宽松比/flac24bit 起跑补齐 320k/CONFIG_ERROR 5 分钟过期/删恒假守卫）；v8.11.1 交付真实性闸门（2026-11-08：①交付前 1KB 字节验真——FLAC STREAMINFO / MP3 Xing 解析真实时长，「能播但只有 5 秒」的试听片段不再被当 FLAC 交付，阈值 60%+15s 双条件；②音质标签回填真话——请求 flac 实得 128kbps mp3 时窗口改显示 128K；③降档链修复 128k 终档被截断；④缓存双入口验真 + 移除 helloworld 内层缓存，缓存里的片段不再绕过判据；⑤源级限流识别——同源三档全片段判定被风控，冷却 5 分钟转跨平台；⑥巡检同判据——probe 片段判定 + 日报片段率单列；⑦压力测试固化 test/stress-test.js（G1~G8 / 32 断言）并据此修三处：JSON 错误体不再被「拿不准放行」放过、源级限流冷却改为跨歌证据（单曲受限不再误伤同源其他歌）、片段直链兜底加 10 分钟 TTL 防过期签名；冒烟 60→67 组）；v8.10.12：v8.10.4：可播校验错误码修复（2026-11-08：超时/网络异常不再判死链，改抛 NETWORK 码走 180s 熔断；三处 LINK_EXPIRED 抛错补 err.code，使 410 真正计入 linkExpired 与 1min 失败缓存；冒烟 55 增至 57 组，T56/T57 均已 red-green 验证；v8.10.3：全覆盖审计修复（2026-11-07：15 项隐性缺陷——①probeSingleSource 形参 cfg 遮蔽全局 cfg()，huibq（唯一冷启动源）探针 100% TypeError、请求从未发出、健康分恒负垫底休眠；②429 不再计入 byQuality.fail/成功率分母（旧实现 3 次限流把该档短路 1h），半开遇 429 收口回 open；③降档交付按实交付音质入缓存槽（旧实现请求 flac 实给 128k 却存进 flac 槽，6h 内不再试高音质）；④失败缓存命中还原代表性 code（旧实现 code 丢失，网络全挂被当歌不存在）；⑤平台分组改由竞速链生成（旧手写清单漏 suyinKuwo，wy/tx/mg/kg 只剩它活着时误报全挂）；⑥探针通过一并复位断路器/限流退避（旧实现只清休眠，出现「探针正常 + 熔断中」矛盾态）；⑦末端预算上界显式钳在总预算+保底；⑧validateUrl 返回 trim 后 URL；⑨320k/128k 单档预算 4s→5s 对齐单源超时（旧 4s 把 5s 内本可成功的源判死并累计熔断）；⑩删死键 raceOverallTimeoutMs、面板改暴露真键 raceBudgetMs；⑪huibq 假成功判据单点化并补进探针；⑫lingchuan 补 platforms 显式声明；⑬A19 备注 20→144；⑭冒烟新增 T50–T55（回退必红）共 55 组）；v8.10.2：修 validateUrl 与 recordSuccess 顺序——旧顺序把"URL 非法"既记成功又记业务失败(双记账)，现改为先验后记；并补齐半开试探收口(业务失败/本地节流也要 half-open→open，否则该源永久不被调用)；v8.10.1：分档预算 flac6s/320k4s/128k4s + 末档保底3s 防点歌无声、冷启动探针30s超时+豁免自动关 防onrender冷态误摘、短路窗口6h→1h、高音质缓存分级TTL flac/320k30min、历史快照60→144，冒烟48组；v8.10.1：修缓存 LRU 缺 delete（高音质缓存过期重播 TypeError）+ T46/T47/T48 改真验证；v8.9：huibq平台能力收窄至kw/wy + 短路判据拆分(fail+linkExpired，404不误伤/410仍短路) + source-audit --strict退出码；v8.8：竞速引擎改造——全链分批错峰并发/跨档12s总预算/档位短路/冷启动预热/gdWy降批/verified精确等待；v8.7：huibq假成功治理——上游"无法获取播放链接"仍返回 code=0 + 可播错链，按 msg 失败词判失败；v8.6：huibq默认开启——全平台全音质实测可用、进五平台链尾兜底、探针自动托管；v8.5：巡检工具与监控口径升级——scripts/source-audit.js + docs/SOURCE_AUDIT.md 基线、probe.js 取链可播二次校验、huibq 探针；v8.4：全源全接口深度巡检修复——suyinKuwo 128k br=9、xinghaiBackend 匿名调用适配，可用源 15→21/35；v8.3：ikun默认开启——公益版免卡密默认进 kw 链尾兜底、探测自动托管/失败自动关/恢复自动开；v8.2：ikun探针接入——默认关闭源补齐健康探针，手动开启后自动监控健康（POST /music/url 固定歌 + Range 可播校验）；v8.1：ikun源复活——域名 api.ikunshare.com→c.wwwweb.top、接口 GET /url→POST /music/url、公益版免卡密，2026-11-06实测 rid=228908 出真实128k链；v8.0：全量审计修复版——2026-11-05 版本重新整理，原 v1.0~v8.0 共53个小版本合并为8个大版本；旧版本归档见 docs/ARCHIVE_OLD_TAGS.md），上报 ${Object.keys(sourceConfig).length} 个音源；v4.0 health action(App健康面板)；v3.0歌词/封面透出；v3.0失败原因结构化+健康自愈；v2.0配置化(USER_CONFIG)；保留v1.0星海kw高音质双源+防错歌加固`);
+logInfo(`豆包定制聚合音源 v8.11.5 已加载（L4 裁决层：admit 单一入口 + 策略表 + 三调用点，L0 桥产物归一，代表码交付类优先，clearSourceLedger 统一清账）｜v8.11.4（源开关失败缓存失效（2026-11-10：toggle 开启按平台前缀清 fail 缓存 + LRU 补 keys()，q-dfix Q3 先红后绿）｜v8.11.2 通读缺陷修复（2026-11-10：Juhe code 类型归一/303 校验宽松比/flac24bit 起跑补齐 320k/CONFIG_ERROR 5 分钟过期/删恒假守卫）；v8.11.1 交付真实性闸门（2026-11-08：①交付前 1KB 字节验真——FLAC STREAMINFO / MP3 Xing 解析真实时长，「能播但只有 5 秒」的试听片段不再被当 FLAC 交付，阈值 60%+15s 双条件；②音质标签回填真话——请求 flac 实得 128kbps mp3 时窗口改显示 128K；③降档链修复 128k 终档被截断；④缓存双入口验真 + 移除 helloworld 内层缓存，缓存里的片段不再绕过判据；⑤源级限流识别——同源三档全片段判定被风控，冷却 5 分钟转跨平台；⑥巡检同判据——probe 片段判定 + 日报片段率单列；⑦压力测试固化 test/stress-test.js（G1~G8 / 32 断言）并据此修三处：JSON 错误体不再被「拿不准放行」放过、源级限流冷却改为跨歌证据（单曲受限不再误伤同源其他歌）、片段直链兜底加 10 分钟 TTL 防过期签名；冒烟 60→67 组）；v8.10.12：v8.10.4：可播校验错误码修复（2026-11-08：超时/网络异常不再判死链，改抛 NETWORK 码走 180s 熔断；三处 LINK_EXPIRED 抛错补 err.code，使 410 真正计入 linkExpired 与 1min 失败缓存；冒烟 55 增至 57 组，T56/T57 均已 red-green 验证；v8.10.3：全覆盖审计修复（2026-11-07：15 项隐性缺陷——①probeSingleSource 形参 cfg 遮蔽全局 cfg()，huibq（唯一冷启动源）探针 100% TypeError、请求从未发出、健康分恒负垫底休眠；②429 不再计入 byQuality.fail/成功率分母（旧实现 3 次限流把该档短路 1h），半开遇 429 收口回 open；③降档交付按实交付音质入缓存槽（旧实现请求 flac 实给 128k 却存进 flac 槽，6h 内不再试高音质）；④失败缓存命中还原代表性 code（旧实现 code 丢失，网络全挂被当歌不存在）；⑤平台分组改由竞速链生成（旧手写清单漏 suyinKuwo，wy/tx/mg/kg 只剩它活着时误报全挂）；⑥探针通过一并复位断路器/限流退避（旧实现只清休眠，出现「探针正常 + 熔断中」矛盾态）；⑦末端预算上界显式钳在总预算+保底；⑧validateUrl 返回 trim 后 URL；⑨320k/128k 单档预算 4s→5s 对齐单源超时（旧 4s 把 5s 内本可成功的源判死并累计熔断）；⑩删死键 raceOverallTimeoutMs、面板改暴露真键 raceBudgetMs；⑪huibq 假成功判据单点化并补进探针；⑫lingchuan 补 platforms 显式声明；⑬A19 备注 20→144；⑭冒烟新增 T50–T55（回退必红）共 55 组）；v8.10.2：修 validateUrl 与 recordSuccess 顺序——旧顺序把"URL 非法"既记成功又记业务失败(双记账)，现改为先验后记；并补齐半开试探收口(业务失败/本地节流也要 half-open→open，否则该源永久不被调用)；v8.10.1：分档预算 flac6s/320k4s/128k4s + 末档保底3s 防点歌无声、冷启动探针30s超时+豁免自动关 防onrender冷态误摘、短路窗口6h→1h、高音质缓存分级TTL flac/320k30min、历史快照60→144，冒烟48组；v8.10.1：修缓存 LRU 缺 delete（高音质缓存过期重播 TypeError）+ T46/T47/T48 改真验证；v8.9：huibq平台能力收窄至kw/wy + 短路判据拆分(fail+linkExpired，404不误伤/410仍短路) + source-audit --strict退出码；v8.8：竞速引擎改造——全链分批错峰并发/跨档12s总预算/档位短路/冷启动预热/gdWy降批/verified精确等待；v8.7：huibq假成功治理——上游"无法获取播放链接"仍返回 code=0 + 可播错链，按 msg 失败词判失败；v8.6：huibq默认开启——全平台全音质实测可用、进五平台链尾兜底、探针自动托管；v8.5：巡检工具与监控口径升级——scripts/source-audit.js + docs/SOURCE_AUDIT.md 基线、probe.js 取链可播二次校验、huibq 探针；v8.4：全源全接口深度巡检修复——suyinKuwo 128k br=9、xinghaiBackend 匿名调用适配，可用源 15→21/35；v8.3：ikun默认开启——公益版免卡密默认进 kw 链尾兜底、探测自动托管/失败自动关/恢复自动开；v8.2：ikun探针接入——默认关闭源补齐健康探针，手动开启后自动监控健康（POST /music/url 固定歌 + Range 可播校验）；v8.1：ikun源复活——域名 api.ikunshare.com→c.wwwweb.top、接口 GET /url→POST /music/url、公益版免卡密，2026-11-06实测 rid=228908 出真实128k链；v8.0：全量审计修复版——2026-11-05 版本重新整理，原 v1.0~v8.0 共53个小版本合并为8个大版本；旧版本归档见 docs/ARCHIVE_OLD_TAGS.md），上报 ${Object.keys(sourceConfig).length} 个音源；v4.0 health action(App健康面板)；v3.0歌词/封面透出；v3.0失败原因结构化+健康自愈；v2.0配置化(USER_CONFIG)；保留v1.0星海kw高音质双源+防错歌加固`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
@@ -3368,6 +3790,18 @@ if (typeof module !== "undefined" && module.exports) {
       qualitySkipProbeAt,
       probeSingleSource,
       sniffAudioBytes,
+      // L4：L0 形态归一 + 单一判定（纯函数，供 r-admission 断言）
+      toBytes,
+      kindOf,
+      // L4 裁决层：唯一裁决入口 + 读侧查询 + 清账；probe 供桥模拟直接驱动
+      admit,
+      skipReason,
+      clearSourceLedger,
+      probeAudioDelivery,
+      verifyDelivery,      // K14：medium 尺寸比分支需要直接驱动
+      applyAdmission,      // K14：reducer 的 PASS/记账分支
+      trialMarkOf,
+      ADMISSION_POLICY,
       suyinKuwoSearch,   // 供测试验证 D-31
       // v8.11.2（覆盖率补测）：健康巡检主流程 L572-626 整段此前零覆盖——runHealthCheck 未导出，
       // 只能从定时器间接触发（初始延迟 60s），测试无法稳定驱动。此处只读导出（healthHistory 返回副本）。
@@ -3379,6 +3813,7 @@ if (typeof module !== "undefined" && module.exports) {
       breakerMap,
       recordRateLimit,   // D-04 回归：半开态遇 429 必须收口回 open（否则永久卡死）
       playDeadStreak,
+      get playDeadDeadline() { return playDeadDeadline; },
       qualityShortCircuitKey,
       buildQualityChain,          // N3（F12）：降档链构造，只读
       fallbackRace,               // D-08：单链分支硬上限回归（可传入只含 1 个源的自造链）

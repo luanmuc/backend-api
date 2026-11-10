@@ -19,10 +19,10 @@
 | ① 常量配置 | `USER_CONFIG`（40 键）、`SOURCE_TOGGLES`（20 键）、错误码、`CODE_HINT`、超时预算 |
 | ② 开关与探测 | 开关真值解析、探针素材、冷启动预热 |
 | ③ 日志/缓存/断路器 | `logInfo/logWarn`、`createLRUCache`（success 500 / fail 300）、`getBreaker` |
-| ④ HTTP 与判据层 | `httpRequest` 重试、`normalizeErrCode`、1KB Range 探针、真实时长解析、交付验真 |
+| ④ HTTP/判据/L0/L4 | `httpRequest` 重试、`normalizeErrCode`、1KB Range 探针、真实时长解析、交付验真；**v8.11.5**：L0 归一（`toBytes`/`kindOf`/`headerEvidence`）、L4 裁决（`ADMISSION_POLICY`/`admit`/`skipReason`/`clearSourceLedger`/`applyAdmission`） |
 | ⑤ 匹配工具 | `normalizeKeyword`、`getHashOrMid`、平台映射 |
 | ⑥ 源实现 | 20 个源 handler，各自 `getUrl` + 能力声明 |
-| ⑦ 注册表与调度 | `sourceConfig`、`buildSourceChain`、`fallbackRace`、`raceFirst`、`wrapExecute`、健康分、`getHealthSnapshot` |
+| ⑦ 注册表与调度 | `sourceConfig`、`buildSourceChain`、`fallbackRace`、`raceFirst`、`wrapExecute`（成功/失败都走 `admit`）、健康分、`getHealthSnapshot`；`getUrlWithFallback` 用 `attempts + noteAttempt + 末尾 admit` 出代表码 |
 | ⑧ 上报与事件 | `on(EVENT_NAMES.request)` action 分发、`inited` 上报、导出面 |
 
 > **行号只在一处维护**：起止行段见 [`DEV_GUIDE.md`](./DEV_GUIDE.md) §二（由 `docs-audit` 规则 7 校验末段边界）。本文件不再抄行号——两处都写必然漂移。
@@ -41,7 +41,8 @@ App → lx.on(EVENT_NAMES.request)
       │             ↓             → verifyDelivery（1KB Range 读 FLAC STREAMINFO / MP3 Xing 算真实时长）
       │             ↓             判据：真实时长可定 && 原曲≥90s && ratio<0.6 && gap>15s → 拒收（PREVIEW_FRAGMENT）
       │             ↓ 成功 → 音质回填（按实测码率改写标签）→ 写 successCache（按实交付音质分槽）
-      │             ↓ 失败 → recordBusinessFail / recordFailure（分业务失败与网络失败）
+      │             ↓ 判定失败 → admit（probe/delivery/attempts/error.code → verdict + 码 + TTL + 证据）→ applyAdmission → record* 记账
+      │             ↓ 成功 → admit({probe}) → 交付；片段 → FRAGMENT（试听版 30s）、非音频 → NOT_AUDIO（60s，不被 NOT_FOUND 吞）
       │             ↓ 全链失败 → 片段兜底（fragmentFallback && (hasFragDetail || hasFragCache)）→ 标「试听版」、不进 6h 缓存
       ├ lyric / pic → 直连源（wy 有稳定接口，其余明确 NOT_FOUND）；出口 normalizeErrCode
       ├ health → getHealthSnapshot()（只读，零外呼）

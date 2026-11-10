@@ -730,6 +730,32 @@ M1 改成真判据后首跑红：`r1=LINK_EXPIRED r2=RATE_LIMIT；总外呼=12`�
 - **剩余 116 行的分布没变**：集中在健康探测循环（`runHealthCheck` / `startHealthCheck` 的定时器与 tick、`recordProbeResult(id,false,…)` 失败分支、`probeState.sleepRound`、`logWarn('健康探测异常')` 与两个 `setTimeout(tick, iv)`），与 8.2 ①「纯兜底/环境不可达」同类；**没有新增业务主路径未执行**（判断依据：片段兜底 / 交付验真 / 降档链 / 熔断冷却四段主路径均为 0 未执行）。
 - **采集时的一个测量干扰**：`test/stress-round4.js` 在 `NODE_V8_COVERAGE=1` 下 V9a（堆增长收敛）会失败（132 通过 / 1 失败，rc=1）；同一条不插桩单跑是 133 通过 / 0 失败、rc=0。V8 覆盖率插桩本身会改变堆行为，故该条按「测量干扰」处理，不计产品红项。
 
+### 8.1c v8.11.5 L4 复测（2026-11-10，9 入口 / 10 份 json）
+
+同一口径重算。L0 归一层与 L4 裁决层**全部新函数行覆盖 100%**：
+
+| 函数 | 覆盖 |
+|---|---|
+| `toBytes` | 31/31 |
+| `kindOf` | 1/1 |
+| `headerEvidence` | 14/14 |
+| `totalBytesOf` | 9/9 |
+| `probeAudioDelivery` | 69/69 |
+| `verifyDelivery` | 43/43 |
+| `verdictOfCode` | 14/14 |
+| `strongestEvidence` | 8/8 |
+| `isFragmentInfo` | 8/8 |
+| `admissionLedger` | 12/12 |
+| `admit` | 98/98 |
+| `skipReason` | 13/13 |
+| `clearSourceLedger` | 22/22 |
+| `trialMarkOf` | 14/14 |
+| `applyAdmission` | 26/26 |
+
+文件整体：**可计代码行 3003 / 未执行 140 / 4.7%**（分母含全部 L0/L4 新增行，故与 8.1b 的 2298 不可直接对比；可比的「L4 段未执行」由 63 行降到 **0**）。
+
+补测过程中撞出并修掉的三处产品真缺陷（均为改实现，不是放宽断言）：①`decodeBase64Ascii` 先剥 `=` 再算输出长度 → 带填充 base64 少解 1~2 字节；②`probeAudioDelivery` 保留 429/非 200-206 状态分支是死代码（`httpRequest` 已抛错），删除并改由 catch 映射（429 → `RATE_LIMIT strong`）；③无字节时只判空体，文本 playlist/json/html 会被响应头放行 → probe 与 admit 均补三形态判死。另删两处经覆盖率证明不可达的分支（probe 未知字节 + 音频头 medium、`verifyDelivery` 的 `!probe.ok` 兜底）。
+
 ### 8.2 三分类（决定「补不补」）
 
 **① 纯兜底/防御（可接受，不补测）**：`buildProbeConfig`（84 行，给每个源写死探针配置，只有对应源被探测才走到自己那段）、`canExecute` 返回 false 的分支、`getSourceStats`/`getHealthSnapshot` 的展示兜底。
