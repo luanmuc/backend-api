@@ -16,13 +16,35 @@ const path = require('path');
 const fs = require('fs');
 const SRC = path.join(__dirname, '../../lx-source.js');
 
+// 依赖查找顺序——`/tmp` 会被系统清理（已踩过两次），仓库内 node_modules 会被 git clean 抹掉，
+// 所以主路径放在**工作区持久目录** vendor/quickjs/node_modules，最后再尝试自动安装兜底。
+const WS = path.resolve(__dirname, '../../../..');   // repos/lx-music-source/test/audit → 工作区根
+const CAND = [
+  path.join(__dirname, '../../node_modules'),          // 仓库内（git clean 会删）
+  path.join(WS, 'vendor/quickjs/node_modules'),        // 工作区持久 ← 主路径
+  process.env.QUICKJS_EMSCRIPTEN || '',                // 显式指定优先于以上？
+].filter(Boolean);
 let getQuickJS = null;
-for (const p of ['quickjs-emscripten', process.env.QUICKJS_EMSCRIPTEN || '']) {
-  if (!p) continue;
-  try { getQuickJS = require(p).getQuickJS; break; } catch (e) { /* 继续试 */ }
+for (const dir of CAND) {
+  const target = dir.includes('quickjs-emscripten') ? dir : path.join(dir, 'quickjs-emscripten');
+  try { getQuickJS = require(target).getQuickJS; break; } catch (e) { /* 继续试 */ }
 }
 if (!getQuickJS) {
-  console.log('⚠ [QR] 未验证：未安装 quickjs-emscripten（npm i quickjs-emscripten 后重跑）');
+  // 兜底：自动装到工作区持久目录（网络不可用就放弃，仍按 exit 3 处理）
+  try {
+    const { spawnSync } = require('child_process');
+    const vend = path.join(WS, 'vendor/quickjs');
+    fs.mkdirSync(vend, { recursive: true });
+    const pj = path.join(vend, 'package.json');
+    if (!fs.existsSync(pj)) fs.writeFileSync(pj, '{"name":"lx-quickjs-vendor","private":true}');
+    console.log('⏳ [QR] 未找到 quickjs-emscripten，尝试自动安装到工作区 vendor/quickjs …');
+    spawnSync('npm', ['i', '--silent', 'quickjs-emscripten'], { cwd: vend, timeout: 180000, stdio: 'ignore' });
+    getQuickJS = require(path.join(vend, 'node_modules', 'quickjs-emscripten')).getQuickJS;
+  } catch (e) { /* 落到下面的 exit 3 */ }
+}
+if (!getQuickJS) {
+  console.log('⚠ [QR] 未验证：拿不到 quickjs-emscripten（网络不可用或安装失败）。');
+  console.log('   手动修复：cd vendor/quickjs && npm i quickjs-emscripten');
   console.log('   跳过不等于通过 —— 退出码 3，请勿把本次结果计入断言通过数。');
   process.exit(3);
 }

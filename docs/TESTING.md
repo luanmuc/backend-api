@@ -92,3 +92,18 @@ globalThis.__lxSourceConfig = {
 - 覆盖分母：`git ls-files` 的 **58 个文件 / 14145 行**，未覆盖文件 **0**，矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)
 - **六组在同一脚本内顺序执行，不支持只跑某一组**（传组名参数会被忽略，实测过）：要定位失败直接看输出行首的 `[U1]`…`[Z5]` 编号
 - **改完任何文件都要重跑**：U 组会因行数/BOM/新增文件而红；改文档后顺手把 `AUDIT_MATRIX.md` 的行数同步（`docs-audit` 不校验该表数字）
+
+## QuickJS 依赖的持久化位置
+
+`test/audit/q-quickjs-real.js` 需要 `quickjs-emscripten`。**`/tmp` 会被系统清理（已踩过两次），
+仓库内 `node_modules/` 会被 `git clean -fdx` 或重新 clone 抹掉**，所以依赖查找按以下顺序：
+
+1. `<repo>/node_modules/quickjs-emscripten`（临时，可被清）
+2. **`<workdir>/vendor/quickjs/node_modules/quickjs-emscripten`** ← 主路径，工作区持久目录
+3. `$QUICKJS_EMSCRIPTEN`（显式覆盖）
+4. 都没有时**自动 `npm i` 到工作区 `vendor/quickjs`**，网络不可用才退 `exit 3`
+
+第三层是自愈：只要网络可用，任何干净环境首次跑都能自动就位。`vendor/` 不在仓库内，
+不占仓库体积、不受 `git clean` 影响。CI 侧仍由 `.github/workflows/ci.yml` 自行安装。
+
+**`exit 3` 的语义是「未验证」，不是通过**——若看到 exit 3，说明依赖缺失，那 3 条不计入 249。
