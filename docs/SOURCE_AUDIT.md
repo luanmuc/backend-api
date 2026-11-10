@@ -88,7 +88,7 @@ huibq 存在**假成功**通路：对某平台拿不到链接时仍返回 `code:
 
 1. **全链分批错峰并发**：`raceFirst` 由"promise 数组 + 竞速3 + `for rest` 串行"改为 launcher 数组分批启动（批间 `raceBatchStaggerMs`=300ms），`fallbackRace` 全链转 launcher；kw 128k 最坏 31s → ≤10.5s。
 2. **跨音质档 12s 总预算**：`getUrlWithFallback` 生成 `raceDeadline` 传入每档 `fallbackRace`，耗尽即抛 `NETWORK_TIMEOUT`（附 `detail:[{source:"budget"}]`），防三级降档叠加。
-3. **档位短路**：`isQualityHopeless` 读 `getBreaker(id).byQuality[q]`，某档 success=0 且 (fail+businessFail)≥`qualityShortCircuitSamples`(3) 即跳过该源该档；整链短路则直接降档并写结构化 detail。**防死锁**：每 `qualityShortCircuitProbeMs`(6h) 放行一次真实探路。
+3. **档位短路**：`isQualityHopeless` 读 `getBreaker(id).byQuality[q]`，某档 success=0 且 (fail+businessFail)≥`qualityShortCircuitSamples`(3) 即跳过该源该档；整链短路则直接降档并写结构化 detail。**防死锁**：每 `qualityShortCircuitProbeMs`（默认 1h，v8.10 由 6h 收窄）放行一次真实探路。
 4. **冷启动源预热**：`huibq` 打 `coldStart` 标签，首次进链后台 fire-and-forget 预热（不阻塞/不计统计），单源超时放宽到 `coldStartTimeoutMs`(8s)——onrender 免费实例冷态 30s > 旧 5s 必败。
 5. **gdWy 降后批**：`batch:2`，前批全败才打，省 5min/50 次配额。
 6. **verified 精确等待**：`verifiedPending` 计数，候选到手时仅当仍有 verified 源在飞才等 600ms，否则立即交付。

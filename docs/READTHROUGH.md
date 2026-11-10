@@ -4,8 +4,8 @@
 > 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、HEAD 与版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
-HEAD `2023a0e`（v8.11.1）
-文件数：**75**　总行数：**20309**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `e21a6fe`（v8.11.1）
+文件数：**79**　总行数：**20661**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -50,22 +50,22 @@ HEAD `2023a0e`（v8.11.1）
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 1 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
 | `README.md` | 121 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
-| `README_HEALTH.md` | 47 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
+| `README_HEALTH.md` | 46 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
 | `lx-source.js` | 3357 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 12 错误码；12 处可疑点见 F07~F22（4 条待实证） |
-| `docs/AGENTS.md` | 187 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
-| `docs/ARCHITECTURE.md` | 89 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突） |
+| `docs/AGENTS.md` | 190 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
+| `docs/ARCHITECTURE.md` | 91 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突） |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
-| `docs/AUDIT_MATRIX.md` | 117 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
-| `docs/AUDIT_PLAN.md` | 511 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；「15 条端点」「63 文件/15338 行」过期 |
+| `docs/AUDIT_MATRIX.md` | 119 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
+| `docs/AUDIT_PLAN.md` | 514 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；「15 条端点」「63 文件/15338 行」过期 |
 | `docs/AUDIT_PLAN_v10.md` | 197 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
-| `docs/AUDIT_RESULTS.md` | 1896 | 全文 | D-01~D-39 总账 + §0~§26.13；多处旧数字（8 缺陷/32 断言/12 变异体/58 文件） |
+| `docs/AUDIT_RESULTS.md` | 1899 | 全文 | D-01~D-39 总账 + §0~§26.13；多处旧数字（8 缺陷/32 断言/12 变异体/58 文件） |
 | `docs/CHANGELOG.md` | 44 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
-| `docs/DEV_GUIDE.md` | 469 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
+| `docs/DEV_GUIDE.md` | 470 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 61 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
-| `docs/ITERATION_ROADMAP.md` | 322 | 全文 | 三层目标；**32 断言/49 文件/897→430/白名单 14/趋势 60 条 全过期**；3 条 `[ ] 待开发`（服务器）/ 2 条触发式未闭环 |
+| `docs/ITERATION_ROADMAP.md` | 325 | 全文 | 三层目标；**32 断言/49 文件/897→430/白名单 14/趋势 60 条 全过期**；3 条 `[ ] 待开发`（服务器）/ 2 条触发式未闭环 |
 | `docs/PROGRESS_round5.md` | 58 | 全文 | 第五轮进度记录；数字停在 82 通过（现 92） |
-| `docs/README.md` | 59 | 全文 | 文档地图；「5 个测试入口」实 14；「D-01~D-26」已到 D-39 |
+| `docs/README.md` | 63 | 全文 | 文档地图；「5 个测试入口」实 14；「D-01~D-26」已到 D-39 |
 | `docs/SCRIPTS.md` | 52 | 全文 | 14 脚本 + 3 hook；「17 条规则」实 14；行数 235/110 实 236/111；prepare-commit-msg 的 exit 1 描述属 commit-msg |
 | `docs/SOURCE_AUDIT.md` | 96 | 全文 | 11-06 基线 21/35 + 11-09 顶注 10/10；「短路探路 6h」实默认 1h |
 | `docs/TESTING.md` | 109 | 全文 | 14 入口 / 249 审计口径正确；72 文件、58/14145、203.45KB 三处过期 |
@@ -86,8 +86,10 @@ HEAD `2023a0e`（v8.11.1）
 | `docs/health-daily/2026-11-06.md` | 41 | 生成 | 同上系列 |
 | `docs/health-daily/2026-11-07.md` | 41 | 生成 | 同上系列 |
 | `docs/health-daily/2026-11-08.md` | 48 | 生成 | 参与判定 10 / 登记 20 ✔；今日变化 2 条；**最新一份，此后无产物** |
+| `docs/health-daily/2026-11-09.md` | 48 | 生成 | 11-09 日报（rebase 带入；与 11-08 同结构，参与判定/需处理/今日变化三栏） |
+| `docs/health-daily/2026-11-09.json` | 48 | 生成 | 同日 json（date/prevDate/registered/judged/handle/watch/changes） |
 | `docs/health-daily/2026-11-08.json` | 54 | 生成 | 字段 date/prevDate/prevDateMode/prevDates/registered/judged/handle/watch/changes |
-| `docs/probe-history.jsonl` | 664 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
+| `docs/probe-history.jsonl` | 684 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | 全文 | 五组账 + 5 次自我推翻；e-extra 82 / 3179 行 / 66 文件 过期 |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
@@ -121,8 +123,8 @@ HEAD `2023a0e`（v8.11.1）
 | `test/stress-round3.js` | 349 | 断言 | 14 条 T1~T14（压「态」） |
 | `test/stress-round4.js` | 1291 | 断言 | 133 条 V1a~V39b；**未进 AUDIT_MATRIX** |
 | `test/stress-test.js` | 219 | 断言 | 12 条 S1~S10 |
-| `docs/READTHROUGH.md` | 0 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
-| `docs/DOC_INDEX.md` | 0 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
+| `docs/READTHROUGH.md` | 135 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/DOC_INDEX.md` | 81 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
 
 ## 五、维护规则（这段是契约，不是说明）
 

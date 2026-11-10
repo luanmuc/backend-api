@@ -12,18 +12,20 @@
 | 只有一条网络通道 | 所有请求走 `lx.request(url, {method, headers, body, binary, timeout}, cb)`；`binary:true` 才回 Buffer |
 | 单次点歌有软实时要求 | 总预算 12s，分档预算 flac 6s / 320k 5s / 128k 5s，末档保底 3s，单源硬上限（防单链绕过） |
 
-## 二、八段结构（按行段）
+## 二、八段结构（按职责）
 
-| 段 | 行段 | 职责 |
+| 段 | 职责 |
 |---|---|---|
-| ① 常量配置 | 15~198 | `USER_CONFIG`（39 键）、`SOURCE_TOGGLES`（20 键）、错误码、`CODE_HINT`、超时预算 |
-| ② 开关与探测 | 199~651 | 开关真值解析、探针素材、冷启动预热 |
-| ③ 日志/缓存/断路器 | 652~893 | `logInfo/logWarn`、`createLRUCache`（success 500 / fail 300）、`getBreaker` |
-| ④ HTTP 与判据层 | 894~1372 | `httpRequest` 重试、`normalizeErrCode`、1KB Range 探针、真实时长解析、交付验真 |
-| ⑤ 匹配工具 | 1373~1535 | `normalizeKeyword`、`getHashOrMid`、平台映射 |
-| ⑥ 源实现 | 1536~2151 | 20 个源 handler，各自 `getUrl` + 能力声明 |
-| ⑦ 注册表与调度 | 2152~2932 | `sourceConfig`、`buildSourceChain`、`fallbackRace`、`raceFirst`、`wrapExecute`、健康分、`getHealthSnapshot` |
-| ⑧ 上报与事件 | 2933~3136 | `on(EVENT_NAMES.request)` action 分发、`inited` 上报、导出面 |
+| ① 常量配置 | `USER_CONFIG`（40 键）、`SOURCE_TOGGLES`（20 键）、错误码、`CODE_HINT`、超时预算 |
+| ② 开关与探测 | 开关真值解析、探针素材、冷启动预热 |
+| ③ 日志/缓存/断路器 | `logInfo/logWarn`、`createLRUCache`（success 500 / fail 300）、`getBreaker` |
+| ④ HTTP 与判据层 | `httpRequest` 重试、`normalizeErrCode`、1KB Range 探针、真实时长解析、交付验真 |
+| ⑤ 匹配工具 | `normalizeKeyword`、`getHashOrMid`、平台映射 |
+| ⑥ 源实现 | 20 个源 handler，各自 `getUrl` + 能力声明 |
+| ⑦ 注册表与调度 | `sourceConfig`、`buildSourceChain`、`fallbackRace`、`raceFirst`、`wrapExecute`、健康分、`getHealthSnapshot` |
+| ⑧ 上报与事件 | `on(EVENT_NAMES.request)` action 分发、`inited` 上报、导出面 |
+
+> **行号只在一处维护**：起止行段见 [`DEV_GUIDE.md`](./DEV_GUIDE.md) §二（由 `docs-audit` 规则 7 校验末段边界）。本文件不再抄行号——两处都写必然漂移。
 
 ## 三、一次点歌的完整调用链
 

@@ -52,6 +52,8 @@
 | `docs/health-daily/2026-11-06.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/health-daily/2026-11-07.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/health-daily/2026-11-08.json` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
+| `docs/health-daily/2026-11-09.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
+| `docs/health-daily/2026-11-09.json` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/health-daily/2026-11-08.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/probe-history.jsonl` | 自动追加 | scripts/probe.js | 每次巡检追加一行 | — |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |

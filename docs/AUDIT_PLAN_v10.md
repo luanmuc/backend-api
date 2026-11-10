@@ -63,9 +63,9 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 > |---|---|---|
 > | 冒烟 | **67 组** | `lx-source-smoke-test.js` |
 > | 审计 | **249 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 92 / f-repo 50 / g-meta 14 / h-toggles 14 / candidate 6 / QuickJS 3 条**（QR 需装 quickjs-emscripten，缺依赖时退出码 3，不得计入通过）** 3 |
-> | 压测 | **159 条** | stress 12 / round3 14 / round4（V 组）129 |
-> | 变异体 | **16 个** | MU1~MU16，killed 率 100% |
-> | **合计** | **249 条审计断言**（+ 151 压测 + 67 冒烟 = 467） | e-extra 的 92 已在 249 内，不再二次相加 |
+> | 压测 | **159 条** | stress 12 / round3 14 / round4（V 组）133 |
+> | 变异体 | **22 个** | MU1~MU22，`--full --strict` 下 killed 率必须 100% |
+> | **合计** | **249 条审计断言**（+ 159 压测 + 67 冒烟 = 475） | e-extra 的 92 已在 249 内，不再二次相加 |
 >
 > **注意历史 232 的偏差**：旧口径 232 = 10+30+30+92+50+14+6，**漏算 h-toggles 14 与 QuickJS 3**。
 > 与其并列的「256 条断言」是 v10 当时的分项快照（含 INV/EDGE/FAULT/MEM 细分），与本表口径不可直接相加。
@@ -154,7 +154,7 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | 2 | 静态 | `test/audit/a-static.js` | ✓ 本轮新增 |
 | 3 | 逻辑 | `test/audit/b-logic.js` | ✓ 本轮新增 |
 | 4 | 功能 | `test/audit/d-func.js` | ✓ 本轮新增 |
-| 5 | 扩展 | `test/audit/e-extra.js`（84 条） | ✓ 本轮新增 |
+| 5 | 扩展 | `test/audit/e-extra.js`（92 条） | ✓ 本轮新增 |
 | 6 | 仓库 | `test/audit/f-repo.js`（50 条） | ✓ 本轮新增 |
 | 7 | 元审计 | `test/audit/g-meta.js`（14 条） | ✓ 本轮新增 |
 | 8 | 开关 | `test/audit/h-toggles.js` | ✓ 本轮新增 |
