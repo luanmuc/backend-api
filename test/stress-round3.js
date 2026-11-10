@@ -256,15 +256,23 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
       const back = await call({ action: 'config', source: 'kw', info: {} });
       openOk = back && back.cacheTtlMs === 1000 ? '生效' : '未生效';
     } catch (e) { openOk = e.code; }
-    // 闸门键（verifyDelivery 等 9 个）不在 ALLOWED_KEYS → 写入应被忽略（有意设计，不给远端关闸门）
-    let gateIgnored = 'no-change';
+    // v8.11.7（B 方案）：布尔开关纳入 config 写入白名单；非布尔值必须被拒
+    let gateOk = 'no-change';
     try {
       await call({ action: 'config', source: 'kw', info: { verifyDelivery: false } });
       const back = await call({ action: 'config', source: 'kw', info: {} });
-      gateIgnored = back && back.verifyDelivery !== false ? '被拒（符合设计）' : '竟然写进去了';
-    } catch (e) { gateIgnored = e.code; }
-    rec('T7', '开放键热更新立即生效；闸门键按设计拒绝远端改写',
-      openOk === '生效' && gateIgnored === '被拒（符合设计）', `开放键=${openOk} ｜ 闸门键=${gateIgnored}`);
+      gateOk = back && back.verifyDelivery === false ? '布尔写入生效' : '未写入';
+    } catch (e) { gateOk = e.code; }
+    let gateBad = 'no-change';
+    try {
+      await call({ action: 'config', source: 'kw', info: { verifyDelivery: true } }); // 先复位，才能区分“被拒”与“没动”
+      await call({ action: 'config', source: 'kw', info: { verifyDelivery: 'false' } });
+      const back = await call({ action: 'config', source: 'kw', info: {} });
+      gateBad = back && back.verifyDelivery === true ? '非布尔被拒' : '非布尔未被拒';
+    } catch (e) { gateBad = e.code; }
+    rec('T7', '开放数字键热更新立即生效；布尔键可写且非布尔值被拒（v8.11.7 B 方案）',
+      openOk === '生效' && gateOk === '布尔写入生效' && gateBad === '非布尔被拒',
+      `开放键=${openOk} ｜ 布尔键=${gateOk} ｜ 非布尔=${gateBad}`);
   }
 
   // ── T8 12 个错误码逐个：App 必须拿到 code 且有中文文案 ──────

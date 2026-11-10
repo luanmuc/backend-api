@@ -138,8 +138,21 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('K4b', 'config 写模式生效（raceBudgetMs）', !!c4b && c4b.updated && c4b.updated.raceBudgetMs === 11000, c4b ? JSON.stringify(c4b.updated) : '');
     reset();
     let c4c = null; try { c4c = await call({ action: 'config', source: 'kw', info: { verifyDelivery: false } }); } catch (e) { }
-    rec('K4c', '闸门开关不经 config 通道开放（有意，防用户误关质检）',
-      !!c4c && !(c4c.updated && c4c.updated.verifyDelivery), c4c ? `updated=${JSON.stringify(c4c.updated)}（config 通道白名单 14 键，闸门 9 键仅支持 __lxSourceConfig 注入）` : '');
+    let c4read = null; try { c4read = await call({ action: 'config', source: 'kw', info: {} }); } catch (e) { }
+    rec('K4c', 'config 可写布尔开关并读回（v8.11.7 B 方案）',
+      !!c4c && c4c.updated && c4c.updated.verifyDelivery === false && !!c4read && c4read.verifyDelivery === false,
+      c4c ? `updated=${JSON.stringify(c4c.updated)} 读回=${c4read && c4read.verifyDelivery}` : '');
+
+    reset();
+    let c4d = null; try { c4d = await call({ action: 'config', source: 'kw', info: { verifyDelivery: 'false', fragmentFallback: 0 } }); } catch (e) { }
+    rec('K4d', '非布尔值不得写入布尔开关',
+      !!c4d && c4d.updated && !('verifyDelivery' in c4d.updated) && !('fragmentFallback' in c4d.updated),
+      c4d ? `updated=${JSON.stringify(c4d.updated)}` : '');
+
+    reset();
+    let c4e = null; try { c4e = await call({ action: 'config', source: 'kw', info: { verifyTimeoutMs: 2500 } }); } catch (e) { }
+    rec('K4e', '新增数字配置项可写（verifyTimeoutMs）',
+      !!c4e && c4e.updated && c4e.updated.verifyTimeoutMs === 2500, c4e ? `updated=${JSON.stringify(c4e.updated)}` : '');
 
     reset();
     let tr5 = null; try { tr5 = await call({ action: 'trend', source: 'kw', info: {} }); } catch (e) { }
