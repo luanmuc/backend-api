@@ -4,7 +4,7 @@
 > 谁看住它：`node scripts/docs-audit.js` 规则 18 —— 逐行行数、文件数、总行数、HEAD 与版本、以及「是否有 tracked 文件漏登」全部机器校验；行数不符会被自动改回实测值，漏登文件直接报 ❌。
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
-HEAD `5c6cdca`（v8.11.3）
+HEAD `66ac4d3`（v8.11.3）
 文件数：**85**　总行数：**21483**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
@@ -12,7 +12,7 @@ HEAD `5c6cdca`（v8.11.3）
 | # | 事实 | 证据 |
 |---|---|---|
 | X1 | ~~远端巡检已断 2 天~~ **已澄清（2026-11-10）**：巡检从未停，2026-11-10T02:27Z 有一次 schedule run 并成功提交 `4f031f1`；早前判断错在「只在本地 `git log origin/master` 看，没再 fetch」——本地领先 100 个提交、fetch 后 behind 1 就是它。`README_HEALTH` 已更新到 `2026-11-10T02:27Z`，`health-daily/2026-11-10.*` 已生成。真正的问题只剩 `test` job 红在 L2 自检（缺 v8.10.12 版本条目，本地 v8.11.2 已补） | `git fetch` → `git status -sb` = `[ahead 100, behind 1]`；GitHub API runs 显示 11-10T02:27 failure（probe/ecosystem job success，test job step7 L2 失败）；远端 commits 最新 `4f031f1` |
-| X2 | **本地 100 个提交未推**（已 rebase 到远端最新 `4f031f1`，behind 0），远端 CI 跑的还是 v8.10.12，D-20~D-39 与 22 个变异体远端全无覆盖 | `git status -sb` = `[ahead 100]` |
+| X2 | **本地 103 个提交未推**（已 rebase 到远端最新 `4f031f1`，behind 0），远端 CI 跑的还是 v8.10.12，D-20~D-39 与 22 个变异体远端全无覆盖 | `git status -sb` = `[ahead 103]` |
 | X3 | ~~变异门禁 fail-open~~ **已闭环（v8.11.2）**：`ci.yml` 补 `--strict`，且 2026-11-10 实测 `--full --strict` 全量 **22 killed / 0 survived**、rc=0；门禁从此真会拦人 | 旧：`ci.yml` 变异 job 不带 `--strict`；新：本日志 + `docs-audit` 规则16 |
 
 ## 二、四类清单（详细证据见 §四）
