@@ -12,6 +12,7 @@
 
 | 步骤 | 门禁 | 断言 |
 |---|---|---|
+| L4 | `node test/audit/r-admission.js` / `node test/audit/u-cross-platform.js` | 23 + 9（L4 裁决层 + 跨平台兜底） |
 | L1.3 | `node --expose-gc test/stress-test.js` | 12（S 组，压量） |
 | L5 | `node --expose-gc test/stress-round3.js` | 14（T 组，压态） |
 | L5.1 | `node --expose-gc test/stress-round4.js` | 133（V 组，压判据） |
