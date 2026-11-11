@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 跨平台兜底审计（U 组，v8.12.0）
+ * 跨平台兜底审计（U 组，v8.12.1）
  *
  * 验收目标：
  *   U1  kw 只有同名翻唱 → 拒绝翻唱，自动转 tx 并交付 Michita 原版
@@ -11,6 +11,8 @@
  *   U6  全平台无匹配 → NOT_FOUND（不是 NETWORK_TIMEOUT）
  *   U7  healthEvents 留下 cross_platform 事件
  *   U8  传给 tx 源的是 QQ songmid，不携带 kw rid
+ *   U9  慢主平台最终成功时不被跨平台抢跑误杀
+ *   U10 关闭目标源后，其跨平台缓存与成功缓存均失效
  *
  * 运行：/usr/local/bin/node20 test/audit/u-cross-platform.js
  */
@@ -205,6 +207,34 @@ function baseScene({ kwCover = true, kwExact = false, qqList = QQ_LIST, wyList =
     rec('U5', '二次命中缓存、平台仍 tx、无新搜索', first && second && second.sourcePlatform === 'tx' && second.subSource === 'juheTx' && qqAfter === qqBefore, JSON.stringify({ first, second, qqBefore, qqAfter }));
   } catch (e) {
     rec('U5', '二次命中缓存、平台仍 tx、无新搜索', false, `${e.code || '?'}: ${e.message}`);
+  }
+
+  // U10 —— 关闭目标源后，跨平台 10min 缓存必须失效，不能继续交付旧源
+  console.log('\n[U10] 关闭目标源后跨平台缓存失效');
+  fresh(['kuwoOfficial', 'juheTx']);
+  scene = baseScene({ kwCover: true });
+  try {
+    const first = await call('musicUrl', {
+      type: '128k', traceId: 'u_cross_10a',
+      musicInfo: { name: 'Cry For Me (feat. Ami)', singer: 'Michita (ミチタ)', duration: 302 },
+    }, 'kw');
+    const qqBefore = calls.filter(u => u.includes('c.y.qq.com/soso')).length;
+    const toggled = current.__debug.toggleSource('juheTx', false);
+    let second = null;
+    let err = null;
+    try {
+      second = await call('musicUrl', {
+        type: '128k', traceId: 'u_cross_10b',
+        musicInfo: { name: 'Cry For Me (feat. Ami)', singer: 'Michita (ミチタ)', duration: 302 },
+      }, 'kw');
+    } catch (e) { err = e; }
+    const qqAfter = calls.filter(u => u.includes('c.y.qq.com/soso')).length;
+    rec('U10', '关闭 juheTx 后不得再交付其缓存', !!first && first.subSource === 'juheTx'
+      && !(second && second.subSource === 'juheTx')
+      && qqAfter > qqBefore,
+      JSON.stringify({ first, second, err: err && `${err.code}: ${err.message}`, qqBefore, qqAfter, toggled }));
+  } catch (e) {
+    rec('U10', '关闭 juheTx 后不得再交付其缓存', false, `${e.code || '?'}: ${e.message}`);
   }
 
   // U6 —— 全平台无匹配：NOT_FOUND，而不是 NETWORK_TIMEOUT
