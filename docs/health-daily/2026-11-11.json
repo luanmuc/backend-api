@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-11",
+  "prevDate": "2026-11-10",
+  "prevDateMode": "uniform",
+  "prevDates": {
+    "https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light": "2026-11-10",
+    "https://oiapi.net/api/QQ_Music": "2026-11-10",
+    "https://oiapi.net/api/Music_163": "2026-11-10",
+    "https://oiapi.net/api/Kuwo": "2026-11-10",
+    "https://api.xcvts.cn/api/music/migu": "2026-11-10",
+    "https://lxmusicapi.onrender.com": "2026-11-10",
+    "https://api.music.lerd.dpdns.org": "2026-11-10",
+    "https://yy.zddyr.top/lx/api/": "2026-11-10",
+    "https://music.163.com/api/song/lyric": "2026-11-10",
+    "https://music.163.com/api/song/detail": "2026-11-10",
+    "http://search.kuwo.cn/r.s": "2026-11-10",
+    "http://antiserver.kuwo.cn/anti.s": "2026-11-10",
+    "https://c.wwwweb.top": "2026-11-10",
+    "http://nmobi.kuwo.cn/mobi.s": "2026-11-10",
+    "https://musicserver.haitangw.cc/v1/music/resolve-url": "2026-11-10",
+    "http://175.27.166.236/kgqq/qq.php?type=mp3&id={id}&level={level}": "2026-11-10",
+    "https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}": "2026-11-10",
+    "https://music.haitangw.cc/kgqq/kg.php?type=mp3&id={id}&level={level}": "2026-11-10",
+    "https://music.nxinxz.com/kgqq/tx.php?id={id}&level={level}&type=mp3": "2026-11-10",
+    "https://music.163.com/song/media/outer/url?id={id}.mp3": "2026-11-10"
+  },
+  "registered": 20,
+  "judged": 9,
+  "handle": [],
+  "watch": [
+    {
+      "label": "suyinKuwo",
+      "url": "https://oiapi.net/api/Kuwo",
+      "rate": 73.1,
+      "total": 26
+    }
+  ],
+  "fragment": [],
+  "changes": []
+}

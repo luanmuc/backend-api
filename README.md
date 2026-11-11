@@ -32,11 +32,9 @@ https://raw.githubusercontent.com/luanmuc/backend-api/master/lx-source.js
 https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-source.js
 ```
 
-## 音源可用性（2026-11-10 核验）
+## 音源可用性（2026-11-11 核验）
 
 > 本表 = 本仓库实测基线 + 生态交叉验证；端点级实时健康状态见 [README_HEALTH.md](./README_HEALTH.md)（`scripts/probe.js` 每日自动刷新）。
->
-> **音源健康 2.4 方案（2026-11-11）**：新增只读 `healthEvents` action（容量 500 环形缓冲，`traceId/event/sourceId/platform/quality/ok/code/latencyMs/reason` 白名单，不记歌名/URL/账号/设备），在 `musicUrl` / 探测 / 开关处打点；`test/audit/s-health-events.js` 22 条先红后绿。不升 `@version`。
 > 口径：pdone 探测来自 CI 服务器 IP，与本仓库 IP 维度不同，分歧 ≠ 某一方错误（典型：溯音咪咕上游域名可用但本机 IP 被封）。
 
 | 平台 | 可用音质 | 主路子源 | 交叉验证 |
@@ -46,20 +44,6 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 | QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | oiapi.net ❌ 403 被封 |
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | —（无独立源，走 kw 兜底） |
 | 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | api.xcvts.cn ❌ PAYLOAD_NO_URL |
-
-> **2026-11-09 补测**：oiapi.net（溯音酷我上游）真实外呼三测——搜索/解析都正常返回「歌名+歌手+音乐链接」，但链接本身 **2/3 立刻 410（0 字节）**（晴天 br=1、稻香 br=1 均 410；晴天 br=9 返回 206 + `fLaC` 头。**同日复测 br=9 又变成 206 + `ID3` 头，即 MP3 不是 FLAC**——同一个 9 档请求的交付格式会变）。带移动端 UA、http/https 都试过。对照：酷我官方 `nmobi.kuwo.cn` 同一时刻 **206 / `audio/x-flac`**。
-> 含义：tx / kg / mg 三平台只有溯音酷我这一个源，它的链接时效**逐次波动**——不能断言「大概率失败」：同日用真实 HTTP 跑端到端矩阵（`getUrlWithFallback`，五平台 × flac/128k 共 10 次），**10/10 全部交付成功**（kw 的 flac 由星海后端交付，其余四平台由溯音酷我交付）。现状**如实失败**（报 `LINK_EXPIRED`、1 分钟后可重试），不做假交付；是否补源或隐藏平台见 `docs/AUDIT_PLAN_v10.md` §7。
-
-> **自己复现（2026-11-09 实测命令）**：
-> ```bash
-> # ① 上游是否返回链接（br=9 是 flac 档；br=1 是 128k 档）
-> curl -sS -m8 "https://oiapi.net/api/Kuwo?msg=$(python3 -c "import urllib.parse;print(urllib.parse.quote('晴天 周杰伦'))")&n=1&br=9" | grep -o "音乐链接[：:][^ ]*"
-> # ② 链接是否真可播（只取前 1KB，看状态码与字节数）
-> curl -sS -m10 -r 0-1023 -A "Mozilla/5.0 (Linux; Android 13; Mobile)" -w "http=%{http_code} bytes=%{size_download}
-" -o /tmp/a.bin "<上一步取到的链接>"
-> # ③ 端到端矩阵（5 平台 × 2 档，方法见 docs/reports 第六轮报告 §12.5）
-> ```
-> 判定：`206 + 1024 字节` 才算可交付；`410 + 0 字节` 是签名已过期（这正是 `D-20` 1KB 验真闸门要拦的）。
 
 > 详细对照表、缺陷与**各版本当前状态（以 docs/ITERATION_ROADMAP.md 与 DEV_GUIDE 为准）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。
 ## 版本历史
