@@ -101,6 +101,8 @@ const BASE_CFG = {
   verifyTimeoutMs: 400, verifyDelivery: true,
   fragmentFallback: false, truthfulQuality: true,
   healthCheckIntervalMs: 3600000,   // 别让后台巡检定时器污染「在途定时器」统计
+  crossPlatformGraceMs: 6000,        // 必须大于主链重试/降档耗时；小于它会让跨平台抢跑并改写主平台错误码
+  crossPlatformSearchTimeoutMs: 200,
   raceBudgetMs: 400, raceBudgetPerQuality: 400, raceBudgetFloorMs: 150,
   probeSleepAfterDead: 0, probeWakeEveryRound: 0,
 };

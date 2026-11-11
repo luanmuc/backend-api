@@ -178,6 +178,9 @@ async function test(name, fn) {
   assert.ok(typeof res.subSourceName === 'string' && res.subSourceName, `应透出子源中文名 subSourceName: ${JSON.stringify(res)}`);
 
   console.log('[T5] 成功缓存：重复请求不重复外呼');
+  // v8.12：T4 主链竞速仍是「先成功即返回、迟到者继续飞」；留 30ms 让迟到请求落账，
+  // 再清计数，避免把 T4 的尾请求算进 T5 的缓存命中预算（断言本身不放松）。
+  await new Promise(r => setTimeout(r, 30));
   resetMock(); // 清计数（requestHandler 仍在）
   const countsAfter = {};
   for (const k of Object.keys(counts)) countsAfter[k] = counts[k];
@@ -701,11 +704,12 @@ async function test(name, fn) {
   globalThis.console = undefined;
   try { require(SRC); } finally { globalThis.console = savedConsole29; }
   const modV29 = require(SRC);
-  // 1) 默认关闭源(juhe 五源)不在探测清单
+  // 1) 默认关闭源(juhe 四源：kw/wy/kg/mg)不在探测清单；v8.12 起 juheTx 默认开启（2026-11-11 实测可用）
   let pcfg = modV29.buildProbeConfig();
-  for (const jid of ['juheKw', 'juheTx', 'juheWy', 'juheKg', 'juheMg']) {
+  for (const jid of ['juheKw', 'juheWy', 'juheKg', 'juheMg']) {
     assert.ok(!(jid in pcfg), '默认关闭源 ' + jid + ' 不应在探测清单');
   }
+  assert.ok('juheTx' in pcfg, 'v8.12 juheTx 默认开启，应在探测清单');
   // 2) 手动关闭源不在探测清单
   await requestHandler({ action: 'toggle', source: 'kw', info: { id: 'suyinKuwo', enabled: false } });
   pcfg = modV29.buildProbeConfig();

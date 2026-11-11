@@ -103,6 +103,7 @@
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
 | `test/audit/q-quickjs-real.js` | 127 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/QR1~QR3 |
 | `test/audit/r-admission.js` | 499 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | R 组 A1~A20（L4 裁决层 + v8.11.6 收尾） |
+| `test/audit/u-cross-platform.js` | 253 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U 组 U1~U9（v8.12.0 跨平台兜底；U9 慢主平台不被抢跑误杀） |
 | `test/audit/s-health-events.js` | 230 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | S 组 S1~S6（2.4 方案 healthEvents 22 条） |
 | `test/audit/t-health-events-stress.js` | 137 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | T 组 T1~T9（2.4 方案压力 12 条） |
 | `test/stress-round4.js` | 1308 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |

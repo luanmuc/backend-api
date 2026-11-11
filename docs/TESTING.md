@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **20 个入口**，**没有统一 runner**，逐条跑。
+> **21 个入口**，**没有统一 runner**，逐条跑。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 257**。
 > 断言实测：冒烟 **67 组** + 审计 **264 条**（10/30/30/**94**/**52**/**14**/**14**/**4**/**5**/**3** + QuickJS **3**）+ 压测 **159 条**（12/14/**133**）= **合计 490 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-10 实测）。
@@ -43,6 +43,7 @@
 | `test/candidate-audit-test.js` | 6 | 候选实证流程 | 本地 | `node test/candidate-audit-test.js` |
 | `test/audit/q-quickjs-real.js` | 3（可选） | **真 QuickJS 引擎**跑：能否加载 / 宿主是否真没有 Buffer / 无 Buffer 下 JSON 假交付必须判 NOT_AUDIO（D-28 就靠它抓出） | 需 `quickjs-emscripten`，未装自动 SKIP | `NODE_PATH=<装了它的 node_modules> node test/audit/q-quickjs-real.js` |
 | `test/audit/r-admission.js` | **23** | L4 裁决层：桥序列化体归一 / 无字节凭头判 PASS / JSON 头判 NOT_AUDIO / 5 秒片段 / API 试听标记 / 代表码优先级（NOT_AUDIO 不被 NOT_FOUND 吞）/ weak 证据 TTL≤60s / clearSourceLedger / 裁决幂等 / skipReason / 片段与试听标记边界（A2b/A3b/A3c）/ K14 新增 A9~A15：probe 四种状态映射、交付体四形态、verify medium 尺寸比、admit delivery 全分支、clearSourceLedger 逐档归零、5xx→hardFail→recordFailure；A16~A20（v8.11.6 收尾）：链过滤与 skipReason 同源、关源清账对称、fallback 按 codeRank 取代表码、GET 无字节 HEAD 补证、非 strong 证据 TTL 全遍历 | 纯 mock 宿主，不外呼 | `node test/audit/r-admission.js` |
+| `test/audit/u-cross-platform.js` | **9** | v8.12.0 跨平台兜底：U1 主平台命中不跨平台 / U2 `NOT_FOUND` 立即转 tx 并严格匹配原版 / U3 主平台成功带 `sourcePlatform` / U4 同名不同歌手拒绝 / U5 时长差 >5s 拒绝 / U6 歌名变体（feat./括号）兼容 / U7 跨平台失败保留主平台码 / U8 跨平台成功清主平台失败缓存且返回 `fallback` / U9 慢主平台最终成功不被跨平台抢跑误杀 | mock 宿主 | `node test/audit/u-cross-platform.js` |
 | `test/mutation/run.js` | 22 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（在临时副本上跑）；2026-11-10 `--full --strict` 全量 **22 killed / 0 survived**；复跑曾出现 1 skipped（MU2 锚点被 F-01 改动失配），修锚点后单跑 killed，锚点失配会被脚本以「锚点命中 0 次」显式报出 | 本地 | `node test/mutation/run.js [--full] [--strict]` |
 
 ## 二、mock 宿主必须同构的四件事（不照做会出现假故障）

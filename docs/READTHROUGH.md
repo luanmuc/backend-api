@@ -124,6 +124,7 @@ HEAD `6c4ecd0`（v8.11.7）
 | `test/audit/h-toggles.js` | 187 | 断言 | 14 条（逐源开启）；实跑 14/0 |
 | `test/audit/q-quickjs-real.js` | 127 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |
 | `test/audit/r-admission.js` | 499 | 断言 | 23 条 A1~A20（L4 裁决层 + v8.11.6 收尾）；先红 0/11 后绿 18/0，A16~A20 逐条注入回退变红，最新 23/0 |
+| `test/audit/u-cross-platform.js` | 253 | 断言 | 9 条 U1~U9（v8.12.0 跨平台兜底：主平台命中不跨平台 / NOT_FOUND 转 tx 严格匹配 / 主平台 sourcePlatform / 同名异歌手拒绝 / 时长差拒绝 / 歌名变体兼容 / 跨平台失败保留原码 / 成功清失败缓存 / 慢主平台最终成功不被跨平台抢跑误杀）；先红 1/8 → 绿 9/0 |
 | `test/audit/s-health-events.js` | 230 | 断言 | 22 条 S1~S6（healthEvents 只读环形缓冲/同 traceId 串联/返回副本/隐私边界/超容丢弃）；先红 6 通过 16 失败 → 绿 22/0 |
 | `test/audit/t-health-events-stress.js` | 137 | 断言 | 12 条 T1~T9（10000 条灌满/容量 500/dropped 9500/同 trace 链/limit 边界/隐私注入）；容量注入 500→100 翻红后还原 12/0 |
 | `test/candidate-audit-test.js` | 135 | 断言 | 6 条；曾无 ID 输出，已补 |

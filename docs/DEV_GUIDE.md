@@ -18,16 +18,16 @@
 
 | 部分 | 行段 | 职责 |
 |---|---|---|
-| ① 常量配置 | 78~218 | `USER_CONFIG` 参数表、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
-| ② 音源开关 + 健康探测 | 219~661 | `SOURCE_TOGGLES` 静态默认；`runtimeToggles` 运行时随探测自愈；`probeSingleSource` 并发探测 + Range 二次校验 |
-| ③ 日志 + LRU 双层缓存 + 断路器 | 662~943 | `logInfo`、`successCache`/`failCache`、熔断 + 半开试探 + 成功率/均时统计 |
-| ④ HTTP 封装 + 交付真实性判据层 + **L0 归一层 + L4 裁决层** | 944~1848 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`（Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行 `ok:null`）；**v8.11.5 新增 L0**：`decodeBase64Ascii`/`toBytes`/`kindOf`/`headerEvidence`/`totalBytesOf`（认 `view`/数组/`{type:"Buffer",data}`/base64 串）；**v8.11.5 新增 L4**：`ADMISSION_POLICY`/`CODE_RANK`/`verdictOfCode`/`strongestEvidence`/`isFragmentInfo`/`admissionLedger`/`admit`/`skipReason`/`clearSourceLedger`/`trialMarkOf`/`applyAdmission`/`rememberFragmentSource`；**v8.11.6**：`structuralSkipReason`（建链纯结构判据）/`toggleSource`（开/关统一清账）/`probeByHeaders`（HEAD 补证）；**v8.11.7**：`config` 写模式布尔白名单（8 键）+ 数字白名单补齐 13 键，`verifyDurRatio`/`verifyDurGapSec` 允许 0 |
-| ⑤ 歌曲信息与匹配工具 | 1849~2074 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey`、`getHashOrMid` |
-| ⑥ 音源实现 | 2075~2809 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
-| ⑦ 注册表 + 调度 + 健康分 | 2810~3567 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`） |
-| ⑧ 上报 + 事件监听 | 3703~3995（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ① 常量配置 | 83~230 | `USER_CONFIG` 参数表、错误码、API 端点（GD/溯音/星海/酷我官方/ikun/长青/念心/helloworldKw）、音质映射表 |
+| ② 音源开关 + 健康探测 | 231~738 | `SOURCE_TOGGLES` 静态默认；`runtimeToggles` 运行时随探测自愈；`probeSingleSource` 并发探测 + Range 二次校验 |
+| ③ 日志 + LRU 双层缓存 + 断路器 | 739~1020 | `logInfo`、`successCache`/`failCache`、熔断 + 半开试探 + 成功率/均时统计 |
+| ④ HTTP 封装 + 交付真实性判据层 + **L0 归一层 + L4 裁决层** | 1021~1984 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`（Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行 `ok:null`）；**v8.11.5 新增 L0**：`decodeBase64Ascii`/`toBytes`/`kindOf`/`headerEvidence`/`totalBytesOf`（认 `view`/数组/`{type:"Buffer",data}`/base64 串）；**v8.11.5 新增 L4**：`ADMISSION_POLICY`/`CODE_RANK`/`verdictOfCode`/`strongestEvidence`/`isFragmentInfo`/`admissionLedger`/`admit`/`skipReason`/`clearSourceLedger`/`trialMarkOf`/`applyAdmission`/`rememberFragmentSource`；**v8.11.6**：`structuralSkipReason`（建链纯结构判据）/`toggleSource`（开/关统一清账）/`probeByHeaders`（HEAD 补证）；**v8.11.7**：`config` 写模式布尔白名单（8 键）+ 数字白名单补齐 13 键，`verifyDurRatio`/`verifyDurGapSec` 允许 0 |
+| ⑤ 歌曲信息与匹配工具 | 1985~2302 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey`、`getHashOrMid` |
+| ⑥ 音源实现 | 2303~3040 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
+| ⑦ 注册表 + 调度 + 健康分 | 3041~4106 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，6s grace，10min 缓存，`cross_platform` 事件） |
+| ⑧ 上报 + 事件监听 | 4107~4401（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.11.7 基线（`lx-source.js` 共 3995 行，`@version 8.11.7`）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~78 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
+> 行段为 **v8.12.0 基线（`lx-source.js` 共 4401 行，`@version 8.12.0`）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~82 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
 
 ## 三、核心机制详解
 

@@ -104,12 +104,12 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
     const lastMsg = (results[2] || {}).msg || '';
     const isCooldown = /判定为源级限流/.test(lastMsg);
     const isRateWindow = /限速保护|限流保护/.test(lastMsg);
-    // 冷却只放行 128k 一档 → 第 3 首外呼应正好是第 1 首（三档全试）的 1/3；且 >0 证明没被锁死
+    // 冷却只放行 128k 一档 → 第 3 首外呼应 ≤ 第 1 首（三档全试 + 跨平台搜索）的 1/3；且 >0 证明没被锁死
     const ratio = a1 > 0 ? a3 / a1 : 0;
     rec('T2', '同源 2 首不同歌都片段 → 第 3 首命中「冷却」分支（非本地限速），只放行 128k 一档且不锁死',
       results.slice(0, 2).every(r => r.code === 'PREVIEW_FRAGMENT') && isCooldown && !isRateWindow &&
-      a3 > 0 && Math.abs(ratio - 1 / 3) < 0.02,
-      `三次 ${results.map(r => r.ok ? 'OK' : r.code).join('/')}，外呼 ${results.map(r => r.api).join('/')}（第3/第1=${ratio.toFixed(2)}，期望 0.33）｜ 冷却分支=${isCooldown} 本地限速=${isRateWindow}`);
+      a3 > 0 && a3 <= Math.ceil(a1 / 3),
+      `三次 ${results.map(r => r.ok ? 'OK' : r.code).join('/')}，外呼 ${results.map(r => r.api).join('/')}（第3/第1=${ratio.toFixed(2)}，要求 ≤0.33；首次含跨平台搜索外呼）｜ 冷却分支=${isCooldown} 本地限速=${isRateWindow}`);
   }
 
   // ── T3 单歌片段不误伤同源（≥2 首才冷却）──────────────────────
@@ -202,8 +202,8 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
     let kw = 0;
     try { await req('flac', good('t2c_late')); kw = counts[KW] || 0; } catch (e) { kw = counts[KW] || 0; }
     rec('T2c', '冷却触发 1.5s 后该源仍被跳过（冷却不是秒级形同虚设）',
-      kw === 1,
-      `1.5s 后 flac 请求中溯音酷我外呼 ${kw} 次（期望 1＝只放行 128k 一档；冷却过期会变 3）`);
+      kw > 0 && kw <= 2,
+      `1.5s 后 flac 请求中溯音酷我外呼 ${kw} 次（期望 ≤2＝只放行 128k 一档，搜索+取链；冷却过期会到 3 档）`);
   }
 
   // ── T5 片段 → 完整版翻转：缓存与标注是否跟着变 ────────────────
