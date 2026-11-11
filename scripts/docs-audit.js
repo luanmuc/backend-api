@@ -152,7 +152,7 @@ function ruleSmokeWide() {
 function ruleLinesAndSegments() {
   try {
     const n = execSync('wc -l < lx-source.js', { encoding: 'utf8', cwd: ROOT }).trim();
-    const start = execSync('grep -n "const sourceConfig" lx-source.js | head -1 | cut -d: -f1', { encoding: 'utf8', cwd: ROOT }).trim();
+    const start = execSync('grep -n "// 第八部分" lx-source.js | head -1 | cut -d: -f1', { encoding: 'utf8', cwd: ROOT }).trim();
     align('docs/DEV_GUIDE.md', /共 (\d+) 行/, () => `共 ${n} 行`, '音源总行数');
     if (start) align('docs/DEV_GUIDE.md', /(\d+)~(\d+)（EOF）/, () => `${start}~${n}（EOF）`, '行段表末段边界');
   } catch (e) { report.push(`⚠️ 规则7 异常：${e.message}`); }
