@@ -2,7 +2,8 @@
 
 > 这份文件是**前五轮的唯一合并入口**。前五轮的分册（`audit-plans/round1~5.md`）保留为原文存档，
 > 但"到底审过什么、用什么断言守、哪些还没审"只以本文件为准。
-> 生成日期：2026-11-09。基线：`lx-music-source` HEAD `3f6499e5` 之后的音源仓提交。
+> 生成日期：2026-11-09；**最近更新：2026-11-11（v8.12.1 跨平台兜底/缓存失效 + 跨平台压力矩阵）**。
+> 当前基线：`lx-music-source` HEAD `0468f52`，`lx-source.js @version 8.12.1`，审计 **348 条** / 压测 **159 条** / 冒烟 **67 组** = **574 条**；`TESTING.md` 为唯一真值。
 
 ## 0. 为什么要有 v10
 
@@ -55,22 +56,83 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | FAULT 故障注入 | 空 body、截断 JSON、10MB、5xx、熔断、DNS、证书、429 | `e-extra.js` FAULT1~8c | 11 | 8A + 2B + 1C |
 | MEM 长时运行 | 表上限、淘汰后可用、快照可观测 | `e-extra.js` MEM1~MEM3 | 3 | 2A + 1B |
 | **X 裁决层（admission）** | 证据分级、codeRank、admit 单一入口、弱证据 TTL ≤60s、链过滤分层、关源对称清账 | `r-admission.js` | 23 | A |
+| **Y 跨平台兜底（v8.12.x）** | 主平台失败识别、严格身份匹配、目标平台 ID 隔离、`sourcePlatform`/`fallback` 透传、grace、10min 缓存、关源失效、总开关、健康事件 | `u-cross-platform.js` | 10 | A |
+| **V 跨平台压测（v8.12.x）** | 并发同歌、顺序缓存、200+ 缓存上限、总开关、关源/重开、错歌拒绝、主/跨交替、全目标 5xx、慢主平台、事件隐私、主平台成功零跨平台 | `v-cross-platform-stress.js`（本轮新增） | 12 | A |
 
-**合计**：281 条断言（258 + 23）+ 22 变异体 + 67 组冒烟 + 巡检自检。（**v8.11.7 口径**——含 v8.11.5/6 L4 裁决层 X 组 + v8.11.7 配置可管 K4c~K4e）
+**历史合计（v8.11.7 口径）**：281 条断言（258 + 23）+ 22 变异体 + 67 组冒烟 + 巡检自检；仅作版本对照，**不再作为当前总数**。
 
-> ### 当前口径（2026-11-09 复算，以此为准）
+> ### 当前口径（2026-11-11 复算，以此为准）
 >
 > | 类别 | 数量 | 构成 |
 > |---|---|---|
 > | 冒烟 | **67 组** | `lx-source-smoke-test.js` |
-> | 审计 | **336 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2-dseries 3 / r-admission 23 / s-health-events 22 / t-health-events-stress 12 / u-cross-platform 10 / QuickJS 3 / candidate 6 |
+> | 审计 | **348 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2-dseries 3 / r-admission 23 / s-health-events 22 / t-health-events-stress 12 / u-cross-platform 10 / **v-cross-platform-stress 12** / QuickJS 3 / candidate 6 |
 > | 压测 | **159 条** | stress 12 / round3 14 / round4（V 组）133 |
 > | 变异体 | **22 个** | MU1~MU22，`--full --strict` 下 killed 率必须 100% |
-> | **合计** | **336 条审计断言**（+ 159 压测 + 67 冒烟 = 562） | e-extra 的 94 已在 336 内，不再二次相加 |
+> | **合计** | **348 条审计断言**（+ 159 压测 + 67 冒烟 = 574） | e-extra 的 94 已在 348 内，不再二次相加 |
 >
 > **注意历史 232 的偏差**：旧口径 232 = 10+30+30+92+50+14+6，**漏算 h-toggles 14 与 QuickJS 3**。
 > 与其并列的「256 条断言」是 v10 当时的分项快照（含 INV/EDGE/FAULT/MEM 细分），与本表口径不可直接相加。
 > 当前唯一可信来源是 [`TESTING.md`](./TESTING.md)。A 级 22 条，其余为 B/C。
+
+## 2.3 本轮新增审计面（v8.12.x，2026-11-11）
+
+前六轮审的是 v8.11.x 的取链/裁决/配置，**跨平台兜底（v8.12.0）与缓存失效（v8.12.1）没有进入维度表**。本轮补 Y 组，并把「并发/缓存/开关」压成 V 组压力矩阵，避免只验单条 happy path。
+
+### Y 组：跨平台兜底审计面
+
+| ID | 判据 | 对应断言 | 证据级 |
+|---|---|---|---|
+| Y1 | 主平台命中时不得发起任何跨平台搜索 | `u-cross-platform` U3 | A |
+| Y2 | 主平台 `NOT_FOUND`/同名错歌时立即回退，不等满 grace | U2/U4/U5 | A |
+| Y3 | 主平台 `NETWORK_TIMEOUT` 时等待 `crossPlatformGraceMs`（默认 6s），慢但最终成功不得被抢跑误杀 | U9 | A |
+| Y4 | 目标候选必须按「歌名归一 + 歌手分词 + 时长 ±5s」严格匹配；remix/DJ/翻唱/同名异歌手全部拒绝 | U2/U4/U5 | A |
+| Y5 | 只带目标平台自己的 ID（tx songmid / wy id / kw rid），绝不把主平台 rid/hash 带过去 | U8 | A |
+| Y6 | 成功返回必须带 `sourcePlatform`/`fallback{from,reason,matched}`；缓存二次命中仍保留实际平台 | U1/U4/U5 | A |
+| Y7 | 跨平台成功清主平台失败缓存；10min 跨平台结果缓存生效；关源/重开时缓存与成功缓存对称失效 | U8/U10 | A |
+| Y8 | `crossPlatformEnabled=false` 时零跨平台搜索，原错误码不被改写 | V5 | A |
+| Y9 | `cross_platform` 健康事件：成功/失败各一条，平台/子源/质量可定位，且不含歌名/URL | U7 + V11 | A |
+| Y10 | 跨平台全失败时：主平台是曲库缺失→`NOT_FOUND`；网络/交付类→保留主平台原码，不被业务码吞 | U2/U6 + V9 | A |
+| Y11 | 并发/缓存：同歌并发不产生错歌或异常；顺序请求只搜一次；200+ 不同歌缓存上限清空后仍可交付 | V1/V2/V3/V4 | A |
+| Y12 | 标签消费：`sourcePlatform` 从源仓到 App 播放页/通知栏不丢；关闭目标源后旧平台标签不得复用 | 源仓 U10 + App `check_source_platform_label` | L1/L2 |
+
+### V 组：跨平台压力矩阵（本轮计划）
+
+| ID | 场景 | 通过标准 | 备注 |
+|---|---|---|---|
+| V1 | 20 并发同歌（kw 无原版、tx 有） | 20/20 交付、全部 `sourcePlatform=tx`、0 错歌 | 压竞态 |
+| V2 | 20 并发同歌的 QQ 搜索次数 | ≤ 20（每请求至多一次，不得放大到 3 倍） | 压外呼放大 |
+| V3 | 50 次顺序同歌 | 第 1 次后命中 10min 缓存，QQ 搜索总数 = 1 | 压缓存 |
+| V4 | 201 首不同歌（每首 kw 无原版、tx 有） | 全部可交付；跨平台缓存超 200 后清空不崩、不串歌 | 压上限 |
+| V5 | `crossPlatformEnabled=false` + 10 次缺失歌 | 10/10 失败且 QQ 搜索 = 0 | 压总开关 |
+| V6 | 首次 tx 成功后关 `juheTx`，再开 | 关后不得交付 tx；开后恢复 tx（或明确报错，不得静默旧缓存） | 压对称失效 |
+| V7 | 30 次只有 remix/DJ/翻唱候选 | 30/30 拒绝，0 次错歌交付 | 压严格匹配 |
+| V8 | 40 次主平台命中/跨平台命中交替 | 主命中标签 kw、跨命中标签 tx，不串 | 压缓存身份 |
+| V9 | 目标平台搜索 5xx + 主平台 NOT_FOUND | 保留主平台 `NOT_FOUND`，不假成功 | 压代表码 |
+| V10 | 10 并发慢主平台（300ms）+ grace=1ms | 10/10 交付 kw，不被跨平台失败提前判死 | 压 grace |
+| V11 | 5 次跨平台成功后读 `healthEvents` | ≥5 条 `cross_platform`，平台 tx，无歌名/URL | 压隐私 |
+| V12 | 100 首主平台全部命中 | 100/100 kw，QQ 搜索 = 0 | 压零回退 |
+
+> 实现文件：`test/audit/v-cross-platform-stress.js`；登记 `docs/TESTING.md`、`.github/workflows/ci.yml`、`docs/AUDIT_MATRIX.md`、`docs/READTHROUGH.md`。新增后总数以 `TESTING.md` 为准。
+
+### V 组本轮实跑结果（2026-11-11）
+
+| ID | 结果 | 关键观测 |
+|---|---|---|
+| V1 | ✓ | 20/20 交付，`sourcePlatform` 全为 tx |
+| V2 | ✓ | 20 并发只触发 1 次 QQ 搜索（缓存/去重叠加） |
+| V3 | ✓ | 50 次顺序同歌 50/50 tx，QQ 搜索 = 1 |
+| V4 | ✓ | 201/201 仍可交付 tx，缓存超 200 清空不崩 |
+| V5 | ✓ | 总开关关闭 10/10 失败，QQ 搜索 = 0 |
+| V6 | ✓ | 关源后 `NOT_FOUND` 且不交付 tx；重开新歌恢复 tx |
+| V7 | ✓ | remix-only 30/30 拒绝，0 错歌 |
+| V8 | ✓ | 主/跨交替 40/40，平台标签不串 |
+| V9 | ✓ | 全目标 5xx 保留主平台 `NOT_FOUND`，不假成功 |
+| V10 | ✓ | 10 并发慢主平台 10/10 交付 kw |
+| V11 | ✓ | 5 条 `cross_platform` tx 事件，无歌名/URL |
+| V12 | ✓ | 100 首主命中 100/100 kw，QQ 搜索 = 0 |
+
+> 全量回归：`a-static 10/0`、`b-logic 30/0`、`d-func 30/0`、`e-extra 94/0`、`f-repo 52/0`、`g-meta 14/0`、`h-toggles 14/0`、`n-fixes 4/0`、`p-gaps 4/0`、`q-dfix 5/0`、`q2-dseries 3/0`、`r-admission 23/0`、`s-health-events 22/0`、`t-health-events-stress 12/0`、`u-cross-platform 10/0`、`v-cross-platform-stress 12/0`、QuickJS 3/0、candidate 6/0；`stress-test 12/0`、`round3 14/0`、`round4 133/0`；`self-check` rc=0。
 
 ## 3. 本轮缺口清单（G 组）
 
