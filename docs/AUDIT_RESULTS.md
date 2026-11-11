@@ -1967,7 +1967,7 @@ V29 只钉住「命中脏缓存 → 复验 → 拒」，**拒绝之后是否恢�
 
 ## 27. v8.12.x 跨平台兜底压力测试（V 组，2026-11-11）
 
-新增 `test/audit/v-cross-platform-stress.js`（V1~V12），首次把「并发 + 10min 缓存 + 200 上限 + 总开关 + 关源重开」压到跨平台链路上。压测前置按 `TESTING.md §3` 注入 `breakerThreshold=999` / `rateWindowMax=100000` / `maxConcurrency=100000`，否则第 5 首会被本地保护态拦掉，测到的是保护态而不是跨平台路径。
+新增 `test/audit/v-cross-platform-stress.js`（V1~V13），首次把「并发 + 10min 缓存 + 200 上限 + 总开关 + 关源重开」压到跨平台链路上。压测前置按 `TESTING.md §3` 注入 `breakerThreshold=999` / `rateWindowMax=100000` / `maxConcurrency=100000`，否则第 5 首会被本地保护态拦掉，测到的是保护态而不是跨平台路径。
 
 | ID | 场景 | 结果 | 关键观测 |
 |---|---|---|---|
@@ -1983,5 +1983,17 @@ V29 只钉住「命中脏缓存 → 复验 → 拒」，**拒绝之后是否恢�
 | V10 | 10 并发慢主平台（300ms）+ grace=1ms | 10/10 kw | 慢主平台未被跨平台失败提前判死 |
 | V11 | 5 次跨平台成功 | ≥5 条事件 | `cross_platform` 平台 tx，无歌名/URL |
 | V12 | 100 首主平台全部命中 | 100/100 kw | QQ 搜索 = 0（零回退） |
+| V13 | 同名同歌手、候选时长 103s（目标 302s） | 拒绝 | `accepted=0`、`code=NOT_FOUND`；锁 ±5s 时长判据 |
 
-> 全量结果：审计 348 条全 0 失败（含 V 组 12/0），既有压测 12/14/133 全 0 失败，QuickJS 3/0，candidate 6/0，`self-check` rc=0。V 组已登记进 `.github/workflows/ci.yml` 的 L4 门禁。
+> 全量结果：审计 349 条全 0 失败（含 V 组 13/0），既有压测 12/14/133 全 0 失败，QuickJS 3/0，candidate 6/0，`self-check` rc=0。V 组已登记进 `.github/workflows/ci.yml` 的 L4 门禁。
+
+
+### 27.1 V 组注入反证（2026-11-11）
+
+在 `/tmp` 复制 `lx-source.js` 与脚本后改坏，不改生产代码：
+
+- **M2 关源不清缓存**：删 `toggleSource` 内 `clearCrossFallbackCache()` → **11/13**，V6 红（`second=tx`）。
+- **M3 事件改名**：`event: "cross_platform"` → `cross_platform_mutated` → **11/13**，V11 红（`count=0`）。
+- **M5 时长门放宽**：`scoreCrossCandidate` 的 `diff > 5` → `diff > 500` → **12/13**，V13 红（`accepted=1`）。
+
+> V13 是补测：M5 在未补 V13 时曾 **13/13 存活**，因为 V7 的 remix 候选先被歌名判掉，没走到时长判据。补 V13 后该变异体被杀，V 组证据从「现状绿」升级为「改坏会红」。

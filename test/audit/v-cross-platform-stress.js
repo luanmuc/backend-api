@@ -15,6 +15,7 @@
  *   V10 10 并发慢主平台（300ms）+ grace=1ms → 10/10 交付 kw
  *   V11 5 次跨平台成功 → healthEvents 至少 5 条 cross_platform，且无歌名/URL
  *   V12 100 首主平台全部命中 → 零跨平台搜索
+ *   V13 同名同歌手但目标候选时长差 199s → 拒绝（锁住 ±5s 时长判据，防 remix 先被歌名判掉后漏测）
  *
  * 运行：/usr/local/bin/node20 test/audit/v-cross-platform-stress.js
  */
@@ -146,6 +147,24 @@ function sceneFor({ kw = 'auto', qq = 'match', wy = 'empty', searchStatus = 200,
       }
       const q = queryOf(u, ['w']);
       if (qq === 'empty') return json({ code: 0, data: { song: { list: [] } } });
+      if (qq === 'short') {
+        // 同名、同歌手、专辑也相同，只有时长是 103s（目标 302s）——专门压 ±5s 时长判据，
+        // 不能靠歌名里的 Remix/翻唱字样提前拒绝（否则时长判据没被走到）。
+        return json({
+          code: 0,
+          data: {
+            song: {
+              list: [{
+                songmid: '000SHORT' + Buffer.from(q).toString('hex').slice(0, 5),
+                songname: q,
+                singer: [{ name: 'Michita (ミチタ)' }],
+                albumname: 'Pureness',
+                interval: 103,
+              }],
+            },
+          },
+        });
+      }
       if (qq === 'remix') {
         return json({
           code: 0,
@@ -377,6 +396,21 @@ const isKw = (r) => r && r.sourcePlatform === 'kw';
       } catch (e) { /* ignore */ }
     }
     rec('V12', '100/100 kw 且 QQ 搜索=0', ok === 100 && qqSearchCount() === 0, `ok=${ok} qqSearch=${qqSearchCount()}`);
+  }
+
+  // V13 —— 同名同歌手、只有时长不对（302s vs 103s），必须拒绝
+  // 这条专门锁 ±5s 判据：V7 的 remix 候选会先被歌名判掉，不能证明时长判据真的生效。
+  console.log('\n[V13] 同名同歌手但时长差 199s');
+  fresh(['kuwoOfficial', 'juheTx']);
+  scene = sceneFor({ qq: 'short' });
+  {
+    let accepted = 0;
+    let code = '';
+    try {
+      const r = await call('musicUrl', { type: '128k', traceId: 'v13', musicInfo: musicInfo('Cry For Me (feat. Ami)') }, 'kw');
+      if (r && r.subSource === 'juheTx') accepted++;
+    } catch (e) { code = e.code || e.message; }
+    rec('V13', '同名同歌手时长差 199s 拒绝', accepted === 0 && code === 'NOT_FOUND', `accepted=${accepted} code=${code}`);
   }
 
   const fail = res.filter(x => !x.ok);

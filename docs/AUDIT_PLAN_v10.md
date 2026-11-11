@@ -3,7 +3,7 @@
 > 这份文件是**前五轮的唯一合并入口**。前五轮的分册（`audit-plans/round1~5.md`）保留为原文存档，
 > 但"到底审过什么、用什么断言守、哪些还没审"只以本文件为准。
 > 生成日期：2026-11-09；**最近更新：2026-11-11（v8.12.1 跨平台兜底/缓存失效 + 跨平台压力矩阵）**。
-> 当前基线：`lx-music-source` HEAD `0468f52`，`lx-source.js @version 8.12.1`，审计 **348 条** / 压测 **159 条** / 冒烟 **67 组** = **574 条**；`TESTING.md` 为唯一真值。
+> 当前基线：`lx-music-source` HEAD `0468f52`，`lx-source.js @version 8.12.1`，审计 **349 条** / 压测 **159 条** / 冒烟 **67 组** = **575 条**；`TESTING.md` 为唯一真值。
 
 ## 0. 为什么要有 v10
 
@@ -66,10 +66,10 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 > | 类别 | 数量 | 构成 |
 > |---|---|---|
 > | 冒烟 | **67 组** | `lx-source-smoke-test.js` |
-> | 审计 | **348 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2-dseries 3 / r-admission 23 / s-health-events 22 / t-health-events-stress 12 / u-cross-platform 10 / **v-cross-platform-stress 12** / QuickJS 3 / candidate 6 |
+> | 审计 | **349 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2-dseries 3 / r-admission 23 / s-health-events 22 / t-health-events-stress 12 / u-cross-platform 10 / **v-cross-platform-stress 13** / QuickJS 3 / candidate 6 |
 > | 压测 | **159 条** | stress 12 / round3 14 / round4（V 组）133 |
 > | 变异体 | **22 个** | MU1~MU22，`--full --strict` 下 killed 率必须 100% |
-> | **合计** | **348 条审计断言**（+ 159 压测 + 67 冒烟 = 574） | e-extra 的 94 已在 348 内，不再二次相加 |
+> | **合计** | **349 条审计断言**（+ 159 压测 + 67 冒烟 = 575） | e-extra 的 94 已在 349 内，不再二次相加 |
 >
 > **注意历史 232 的偏差**：旧口径 232 = 10+30+30+92+50+14+6，**漏算 h-toggles 14 与 QuickJS 3**。
 > 与其并列的「256 条断言」是 v10 当时的分项快照（含 INV/EDGE/FAULT/MEM 细分），与本表口径不可直接相加。
@@ -112,6 +112,7 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | V10 | 10 并发慢主平台（300ms）+ grace=1ms | 10/10 交付 kw，不被跨平台失败提前判死 | 压 grace |
 | V11 | 5 次跨平台成功后读 `healthEvents` | ≥5 条 `cross_platform`，平台 tx，无歌名/URL | 压隐私 |
 | V12 | 100 首主平台全部命中 | 100/100 kw，QQ 搜索 = 0 | 压零回退 |
+| V13 | 同名同歌手、目标候选时长 103s（目标 302s） | 拒绝，0 次错交付；锁 ±5s 时长判据 | 压时长判据 |
 
 > 实现文件：`test/audit/v-cross-platform-stress.js`；登记 `docs/TESTING.md`、`.github/workflows/ci.yml`、`docs/AUDIT_MATRIX.md`、`docs/READTHROUGH.md`。新增后总数以 `TESTING.md` 为准。
 
@@ -131,8 +132,21 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | V10 | ✓ | 10 并发慢主平台 10/10 交付 kw |
 | V11 | ✓ | 5 条 `cross_platform` tx 事件，无歌名/URL |
 | V12 | ✓ | 100 首主命中 100/100 kw，QQ 搜索 = 0 |
+| V13 | ✓ | 同名同歌手时长差 199s 被拒绝，`accepted=0`、`code=NOT_FOUND` |
 
-> 全量回归：`a-static 10/0`、`b-logic 30/0`、`d-func 30/0`、`e-extra 94/0`、`f-repo 52/0`、`g-meta 14/0`、`h-toggles 14/0`、`n-fixes 4/0`、`p-gaps 4/0`、`q-dfix 5/0`、`q2-dseries 3/0`、`r-admission 23/0`、`s-health-events 22/0`、`t-health-events-stress 12/0`、`u-cross-platform 10/0`、`v-cross-platform-stress 12/0`、QuickJS 3/0、candidate 6/0；`stress-test 12/0`、`round3 14/0`、`round4 133/0`；`self-check` rc=0。
+> 全量回归：`a-static 10/0`、`b-logic 30/0`、`d-func 30/0`、`e-extra 94/0`、`f-repo 52/0`、`g-meta 14/0`、`h-toggles 14/0`、`n-fixes 4/0`、`p-gaps 4/0`、`q-dfix 5/0`、`q2-dseries 3/0`、`r-admission 23/0`、`s-health-events 22/0`、`t-health-events-stress 12/0`、`u-cross-platform 10/0`、`v-cross-platform-stress 13/0`、QuickJS 3/0、candidate 6/0；`stress-test 12/0`、`round3 14/0`、`round4 133/0`；`self-check` rc=0。
+
+### V 组注入反证（2026-11-11）
+
+在临时目录复制 `lx-source.js` + 本脚本，改坏后实跑，确认断言会红（不改生产代码）：
+
+| 变异 | 改法 | 结果 |
+|---|---|---|
+| M2 关源不清跨平台缓存 | 删 `toggleSource` 内的 `clearCrossFallbackCache()` | **11/13**，V6 红：关源后仍交付 tx |
+| M3 跨平台事件改名 | `event: "cross_platform"` → `"cross_platform_mutated"` | **11/13**，V11 红：count=0 |
+| M5 时长门放宽 | `scoreCrossCandidate` 的 `if (diff > 5)` → `if (diff > 500)` | **12/13**，V13 红：accepted=1 |
+
+> 结论：V6 / V11 / V13 至少各有一个可复现的注入反证；V 组从「现状 13/13 绿」升级为「改坏会红」，证据级别可标 A。M5 最初在未补 V13 时**存活**，正是补 V13 的直接原因。
 
 ## 3. 本轮缺口清单（G 组）
 
