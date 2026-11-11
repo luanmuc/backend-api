@@ -5,7 +5,7 @@
 > 登记处：[`DOC_INDEX.md`](./DOC_INDEX.md)。新增任何文档 → 先登记，再写内容。
 
 HEAD `19d226d`（v8.12.1）
-文件数：**91**　总行数：**24272**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**91**　总行数：**24274**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -124,7 +124,7 @@ HEAD `19d226d`（v8.12.1）
 | `test/audit/h-toggles.js` | 187 | 断言 | 14 条（逐源开启）；实跑 14/0 |
 | `test/audit/q-quickjs-real.js` | 127 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |
 | `test/audit/r-admission.js` | 499 | 断言 | 23 条 A1~A20（L4 裁决层 + v8.11.6 收尾）；先红 0/11 后绿 18/0，A16~A20 逐条注入回退变红，最新 23/0 |
-| `test/audit/u-cross-platform.js` | 281 | 断言 | 10 条 U1~U10（v8.12.1 跨平台缓存失效：在主平台命中 / NOT_FOUND 转 tx / sourcePlatform / 同名异歌手拒绝 / 时长差拒绝 / 歌名变体兼容 / 失败保留原码 / 成功清失败缓存 / 慢主平台不被抢跑误杀 之外，新增 U10 关闭目标源后跨平台缓存与成功缓存均失效）；先红 1/8 → 绿 10/0 |
+| `test/audit/u-cross-platform.js` | 283 | 断言 | 10 条 U1~U10（v8.12.1 跨平台缓存失效：在主平台命中 / NOT_FOUND 转 tx / sourcePlatform / 同名异歌手拒绝 / 时长差拒绝 / 歌名变体兼容 / 失败保留原码 / 成功清失败缓存 / 慢主平台不被抢跑误杀 之外，新增 U10 关闭目标源后跨平台缓存与成功缓存均失效）；先红 1/8 → 绿 10/0 |
 | `test/audit/s-health-events.js` | 230 | 断言 | 22 条 S1~S6（healthEvents 只读环形缓冲/同 traceId 串联/返回副本/隐私边界/超容丢弃）；先红 6 通过 16 失败 → 绿 22/0 |
 | `test/audit/t-health-events-stress.js` | 137 | 断言 | 12 条 T1~T9（10000 条灌满/容量 500/dropped 9500/同 trace 链/limit 边界/隐私注入）；容量注入 500→100 翻红后还原 12/0 |
 | `test/candidate-audit-test.js` | 135 | 断言 | 6 条；曾无 ID 输出，已补 |

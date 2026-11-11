@@ -3,7 +3,7 @@
 > **22 个入口**，**没有统一 runner**，逐条跑。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 257**。
-> 断言实测：冒烟 **67 组** + 审计 **265 条**（10/30/30/**94**/**52**/**14**/**14**/**4**/**5**/**3** + QuickJS **3**）+ 压测 **159 条**（12/14/**133**）= **合计 491 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-10 实测）。
+> 断言实测：冒烟 **67 组** + 审计 **336 条**（a-static 10 / b-logic 30 / d-func 30 / e-extra **94** / f-repo **52** / g-meta **14** / h-toggles **14** / n-fixes **4** / p-gaps **4** / q-dfix **5** / q2-dseries **3** / r-admission **23** / s-health-events **22** / t-health-events-stress **12** / u-cross-platform **10** / q-quickjs-real **3** / candidate-audit **6**）+ 压测 **159 条**（12/14/**133**）= **合计 562 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-10 实测）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 〇、CI 覆盖（`.github/workflows/ci.yml`）

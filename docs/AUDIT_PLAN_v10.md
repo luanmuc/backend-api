@@ -63,10 +63,10 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 > | 类别 | 数量 | 构成 |
 > |---|---|---|
 > | 冒烟 | **67 组** | `lx-source-smoke-test.js` |
-> | 审计 | **251 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / candidate 6 / QuickJS 3 条**（QR 需装 quickjs-emscripten，缺依赖时退出码 3，不得计入通过）** 3 |
+> | 审计 | **336 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2-dseries 3 / r-admission 23 / s-health-events 22 / t-health-events-stress 12 / u-cross-platform 10 / QuickJS 3 / candidate 6 |
 > | 压测 | **159 条** | stress 12 / round3 14 / round4（V 组）133 |
 > | 变异体 | **22 个** | MU1~MU22，`--full --strict` 下 killed 率必须 100% |
-> | **合计** | **264 条审计断言**（+ 159 压测 + 67 冒烟 = 490） | e-extra 的 94 已在 264 内，不再二次相加 |
+> | **合计** | **336 条审计断言**（+ 159 压测 + 67 冒烟 = 562） | e-extra 的 94 已在 336 内，不再二次相加 |
 >
 > **注意历史 232 的偏差**：旧口径 232 = 10+30+30+92+50+14+6，**漏算 h-toggles 14 与 QuickJS 3**。
 > 与其并列的「256 条断言」是 v10 当时的分项快照（含 INV/EDGE/FAULT/MEM 细分），与本表口径不可直接相加。
