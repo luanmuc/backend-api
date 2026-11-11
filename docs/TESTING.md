@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **23 个入口**，**没有统一 runner**，逐条跑。
+> **24 个入口**，**没有统一 runner**，逐条跑。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 349**。
 > 断言实测：冒烟 **67 组** + 审计 **349 条**（a-static 10 / b-logic 30 / d-func 30 / e-extra **94** / f-repo **52** / g-meta **14** / h-toggles **14** / n-fixes **4** / p-gaps **4** / q-dfix **5** / q2-dseries **3** / r-admission **23** / s-health-events **22** / t-health-events-stress **12** / u-cross-platform **10** / **v-cross-platform-stress 13** / q-quickjs-real **3** / candidate-audit **6**）+ 压测 **159 条**（12/14/**133**）= **合计 575 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-10 实测）。
@@ -45,6 +45,7 @@
 | `test/audit/q-quickjs-real.js` | 3（可选） | **真 QuickJS 引擎**跑：能否加载 / 宿主是否真没有 Buffer / 无 Buffer 下 JSON 假交付必须判 NOT_AUDIO（D-28 就靠它抓出） | 需 `quickjs-emscripten`，未装自动 SKIP | `NODE_PATH=<装了它的 node_modules> node test/audit/q-quickjs-real.js` |
 | `test/audit/r-admission.js` | **23** | L4 裁决层：桥序列化体归一 / 无字节凭头判 PASS / JSON 头判 NOT_AUDIO / 5 秒片段 / API 试听标记 / 代表码优先级（NOT_AUDIO 不被 NOT_FOUND 吞）/ weak 证据 TTL≤60s / clearSourceLedger / 裁决幂等 / skipReason / 片段与试听标记边界（A2b/A3b/A3c）/ K14 新增 A9~A15：probe 四种状态映射、交付体四形态、verify medium 尺寸比、admit delivery 全分支、clearSourceLedger 逐档归零、5xx→hardFail→recordFailure；A16~A20（v8.11.6 收尾）：链过滤与 skipReason 同源、关源清账对称、fallback 按 codeRank 取代表码、GET 无字节 HEAD 补证、非 strong 证据 TTL 全遍历 | 纯 mock 宿主，不外呼 | `node test/audit/r-admission.js` |
 | `test/audit/u-cross-platform.js` | **10** | v8.12.1 跨平台兜底 + 缓存失效（按脚本实际 `rec()` 编号）：U1 转 tx 并交付 Michita 原版 / U2 严格匹配 302s 原版（拒绝 remix/翻唱/同名异歌手）/ U3 kw 主平台成功且未搜 QQ / U4 `subSource=juheTx` / U5 二次命中缓存、平台仍 tx、无新搜索 / U6 全平台无匹配抛 `NOT_FOUND` / U7 留下 `cross_platform` 事件 / U8 tx 源只收到 songmid、无 kw rid / U9 慢主平台最终交付 kw，不被跨平台失败提前判死 / U10 关闭目标源后不得再交付其缓存 | mock 宿主 | `node test/audit/u-cross-platform.js` |
+| `test/audit/w-fallback-owner.js` | **2** | v8.12.2 P1 降级所有权：W1 `inited` 已上报 / W2 5 个平台均显式声明 `fallbackOwner="source"` | mock 宿主 | `node test/audit/w-fallback-owner.js` |
 | `test/audit/v-cross-platform-stress.js` | **12** | v8.12.1 跨平台压力（V 组）：V1 20 并发同歌 20/20 tx / V2 并发 QQ 搜索不放大 / V3 50 次顺序同歌只搜 1 次 / V4 201 首不同歌缓存上限清空后仍可交付 / V5 总开关关闭零跨平台 / V6 关源不交付缓存、重开恢复 / V7 30 次 remix-only 全拒绝 / V8 主/跨交替 40 次标签不串 / V9 目标全 5xx 保留主平台 NOT_FOUND / V10 10 并发慢主平台全部 kw / V11 `cross_platform` 事件 ≥5 且无歌名/URL / V12 100 首主命中零跨平台 | mock 宿主 | `node test/audit/v-cross-platform-stress.js` |
 | `test/mutation/run.js` | 22 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（在临时副本上跑）；2026-11-10 `--full --strict` 全量 **22 killed / 0 survived**；复跑曾出现 1 skipped（MU2 锚点被 F-01 改动失配），修锚点后单跑 killed，锚点失配会被脚本以「锚点命中 0 次」显式报出 | 本地 | `node test/mutation/run.js [--full] [--strict]` |
 
