@@ -6,8 +6,8 @@
 >
 > **时效说明**：以下逐文件结论是 2026-11-10 通读时的历史快照，保留作为审计证据；当前版本号、断言数、行数以 `README.md`、`docs/TESTING.md` 与 `scripts/docs-audit.js` 的实测为准。
 
-HEAD `37c551d`（v8.12.4）　（发布提交后的 6 个测试/文档/CI 收口提交）
-文件数：**98**　总行数：**25364**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `46512ac`（v8.12.4）　（发布提交后的 6 个测试/文档/CI 收口提交 + 每日巡检自动提交）
+文件数：**98**　总行数：**25391**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -93,11 +93,11 @@ HEAD `37c551d`（v8.12.4）　（发布提交后的 6 个测试/文档/CI 收口
 | `docs/health-daily/2026-11-10.json` | 39 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-11.md` | 46 | 生成 | 11-11 日报（rebase 带入，远端 probe 产出） |
 | `docs/health-daily/2026-11-11.json` | 40 | 生成 | 同份日报的 json |
-| `docs/health-daily/2026-11-12.md` | 48 | 生成 | 11-12 日报（rebase 带入，远端 probe 产出） |
-| `docs/health-daily/2026-11-12.json` | 60 | 生成 | 同份日报的 json |
+| `docs/health-daily/2026-11-12.md` | 49 | 生成 | 11-12 日报（rebase 带入，远端 probe 产出） |
+| `docs/health-daily/2026-11-12.json` | 66 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-09.json` | 48 | 生成 | 同日 json（date/prevDate/registered/judged/handle/watch/changes） |
 | `docs/health-daily/2026-11-08.json` | 54 | 生成 | 字段 date/prevDate/prevDateMode/prevDates/registered/judged/handle/watch/changes |
-| `docs/probe-history.jsonl` | 744 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
+| `docs/probe-history.jsonl` | 764 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | 全文 | 五组账 + 5 次自我推翻；e-extra 82 / 3179 行 / 66 文件 过期 |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
