@@ -38,8 +38,8 @@
       ],
       "url": "https://api.music.lerd.dpdns.org",
       "kind": "payload",
-      "rate": 64,
-      "total": 25,
+      "rate": 61.5,
+      "total": 26,
       "consecutiveFail": 4,
       "reason": "PAYLOAD_NO_URL"
     }
@@ -48,13 +48,19 @@
     {
       "label": "suyinKuwo",
       "url": "https://oiapi.net/api/Kuwo",
-      "rate": 72,
-      "total": 25
+      "rate": 69.2,
+      "total": 26
+    },
+    {
+      "label": "kuwoOfficial",
+      "url": "http://antiserver.kuwo.cn/anti.s",
+      "rate": 76.9,
+      "total": 26
     }
   ],
   "fragment": [],
   "changes": [
-    "🔴 **kuwoSearch 酷我搜索接口**：2026-11-11 可用 → 2026-11-12 **失败**（ETIMEDOUT）",
-    "🔴 **kuwoOfficial**：2026-11-11 可用 → 2026-11-12 **失败**（ETIMEDOUT）"
+    "🔴 **suyinKuwo**：2026-11-11 可用 → 2026-11-12 **失败**（PAYLOAD_DEAD）",
+    "🔴 **kuwoOfficial**：2026-11-11 可用 → 2026-11-12 **失败**（PAYLOAD_DEAD）"
   ]
 }
