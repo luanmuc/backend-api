@@ -6,16 +6,16 @@
 >
 > **时效说明**：以下逐文件结论是 2026-11-10 通读时的历史快照，保留作为审计证据；当前版本号、断言数、行数以 `README.md`、`docs/TESTING.md` 与 `scripts/docs-audit.js` 的实测为准。
 
-HEAD `1da2f56`（v8.12.4）
-文件数：**98**　总行数：**25362**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `2e9b204`（v8.12.4）　（发布提交后的 5 个测试/文档/CI 收口提交）
+文件数：**98**　总行数：**25364**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
 | # | 事实 | 证据 |
 |---|---|---|
 | X1 | ~~远端巡检已断 2 天~~ **已澄清（2026-11-10）**：巡检从未停，2026-11-10T02:27Z 有一次 schedule run 并成功提交 `4f031f1`；早前判断错在「只在本地 `git log origin/master` 看，没再 fetch」——本地领先 100 个提交、fetch 后 behind 1 就是它。`README_HEALTH` 已更新到 `2026-11-10T02:27Z`，`health-daily/2026-11-10.*` 已生成。真正的问题只剩 `test` job 红在 L2 自检（缺 v8.10.12 版本条目，本地 v8.11.2 已补） | `git fetch` → `git status -sb` = `[ahead 100, behind 1]`；GitHub API runs 显示 11-10T02:27 failure（probe/ecosystem job success，test job step7 L2 失败）；远端 commits 最新 `4f031f1` |
-| X2 | **本地 100+ 提交未推**（每轮继续增长，不写死数字）（已 rebase 到远端最新 `4f031f1`，behind 0），远端 CI 跑的还是 v8.10.12，D-20~D-39 与 22 个变异体远端全无覆盖 | `git status -sb` 显示 ahead 且 behind 0（数字随提交增长，以命令输出为准） |
-| X3 | ~~变异门禁 fail-open~~ **已闭环（v8.11.2）**：`ci.yml` 补 `--strict`，且 2026-11-10 实测 `--full --strict` 全量 **22 killed / 0 survived**、rc=0；门禁从此真会拦人（同日复跑：21 killed + **1 skipped**——MU2 锚点被 F-01 新增的 `fragAnchor &&` 前提改得失配，修锚点后 `--only=MU2 --strict` 复跑 killed，等效 22/22） | 旧：`ci.yml` 变异 job 不带 `--strict`；新：本日志 + `docs-audit` 规则16 |
+| X2 | ~~本地 100+ 提交未推~~ **已澄清（2026-11-12）**：本地 HEAD 与 origin/master 均为 `2e9b204`，远端 `test` job success；`mutation` job 仍按设计只在 schedule/manual 跑（push 上 skipped），本轮本地 `--full --strict` 已实跑：首跑 19 killed / 3 skipped（MU4/MU10/MU13 锚点失配），修锚点后 `--only=MU4,MU10,MU13` 复跑 3/3 killed，22 个变异体逐个体均有 killed 证据 | `git status -sb` = `## master...origin/master`；`git ls-remote origin refs/heads/master` = `2e9b204...`；Actions run `43139944126` test=success；mutation 条件见 `ci.yml` |
+| X3 | ~~变异门禁 fail-open~~ **已闭环（v8.11.2）**：`ci.yml` 补 `--strict`，且 2026-11-10 实测 `--full --strict` 全量 **22 killed / 0 survived**、rc=0；门禁从此真会拦人（2026-11-12 复跑首轮 19 killed + 3 skipped——MU4/MU10/MU13 锚点被现行源码改得失配，修锚点后 3/3 killed，22/22 覆盖；不是 survived） | 旧：`ci.yml` 变异 job 不带 `--strict`；新：本日志 + `docs-audit` 规则16 |
 
 ## 二、四类清单（详细证据见 §四）
 
@@ -51,7 +51,7 @@ HEAD `1da2f56`（v8.12.4）
 | `.github/workflows/ci.yml` | 207 | 全文 | 13 个 job；断言数注释过期（32/21/22）；**mutation 未带 `--strict`（X3）**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 1 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
-| `README.md` | 117 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
+| `README.md` | 118 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 44 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
 | `lx-source.js` | 4511 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 12 错误码；12 处可疑点见 F07~F22（4 条待实证） |
 | `docs/AGENTS.md` | 190 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
@@ -62,7 +62,7 @@ HEAD `1da2f56`（v8.12.4）
 | `docs/AUDIT_PLAN_v10.md` | 274 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
 | `docs/CHANGELOG.md` | 55 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
-| `docs/DEV_GUIDE.md` | 512 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
+| `docs/DEV_GUIDE.md` | 513 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 61 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
 | `docs/ITERATION_ROADMAP.md` | 325 | 全文 | 三层目标；**32 断言/49 文件/897→430/白名单 14/趋势 60 条 全过期**；3 条 `[ ] 待开发`（服务器）/ 2 条触发式未闭环 |

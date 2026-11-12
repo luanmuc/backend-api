@@ -22,13 +22,13 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | `.github/workflows/ci.yml` | 207 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `.github/workflows/docs-audit.yml` | 48 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
-| `README.md` | 117 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `README.md` | 118 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `README_HEALTH.md` | 44 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AGENTS.md` | 190 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AUDIT_PLAN.md` | 514 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AUDIT_RESULTS.md` | 1999 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/DEV_GUIDE.md` | 512 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/DEV_GUIDE.md` | 513 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 61 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ITERATION_ROADMAP.md` | 325 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -121,7 +121,7 @@
 ## 汇总
 
 - 文件总数：**98**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**25362**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 总行数：**25364**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 - H：行为断言脚本 **12** 个（含 `test/mutation/run.js`）（冒烟 + a-static/b-logic/d-func/e-extra + **h-toggles** + f-repo + g-meta + 两代压测）

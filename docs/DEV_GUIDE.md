@@ -411,6 +411,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 1. **改**：修改 `lx-source.js`，文件头 `@version` +1，`@description` 写明本轮变更与实测结论；头部注释须含 `@license 仅供学习交流，请支持正版`（生态惯例，星海/六音均有；mrkeyoor 评测亦提示内容权利）；README 保留免责声明；协作规范见 `AGENTS.md`；
 2. **验**：跑完第八节测试清单；
 2.5 **文档闸门**：`node scripts/self-check.js` + `node scripts/docs-audit.js` 双双零 ❌；新增/变更文档已在 `docs/DOC_INDEX.md` 登记，`docs/READTHROUGH.md` 四类清单与本版本状态一致（规则18/19 会抓漏）；
+2.6 **CI 闸门**：push 后等本仓 Actions 的 `test` job 绿，再执行第 4 步；`test` job 红时禁止创建 Release，也禁止触发 App 构建（App 会直接拉 master，红提交会被打进 APK；v8.12.4 的 `1da2f56` 已发生过一次：T8 仍断言 12 码导致 test 红，后续 `2e9b204` 修测试才转绿）；
 3. **提交**：`git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push origin master`（**push 前先 pull --rebase**，防远端冲突；功能级改动走分支 + PR，见 AGENTS.md）；
 4. **发**：GitHub Releases 创建 `vX.Y`：标题 `聚合音源 vX.Y …`、正文 = 变更说明 + 实测结论、附件 = 当前 `lx-source.js`；
 5. **通知**（已停用 v16.5.1）：`updateAlert` 发版弹窗已按用户要求关闭（每次加载/导入不再弹），版本信息看 logInfo/Release；

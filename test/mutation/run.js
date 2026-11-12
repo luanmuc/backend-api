@@ -54,7 +54,7 @@ const MUTANTS = [
   {
     id: 'MU4',
     name: '删掉唯一缓存写入（交付结果不入缓存）',
-    from: 'setCachedUrl(writeKey, url, truthQ, source);',
+    from: 'setCachedUrl(writeKey, url, truthQ, source, platform);',
     to: 'void 0; // mutant: no cache write',
   },
   {
@@ -90,8 +90,8 @@ const MUTANTS = [
   {
     id: 'MU10',
     name: '配置校验不防 NaN（NaN 可绕过 <=0 与上下限）',
-    from: '|| !Number.isFinite(value) || value <= 0',
-    to: '|| value <= 0',
+    from: 'if (typeof value !== "number" || !Number.isFinite(value)) continue;',
+    to: 'if (typeof value !== "number") continue;',
   },
   {
     id: 'MU9',
@@ -108,7 +108,7 @@ const MUTANTS = [
   {
     id: 'MU13',
     name: '注掉同名错歌的歌手校验（songInfoMatch 不再比对 singer）',
-    from: 'if (songInfo?.singer && singer && !titleMatch(singer, songInfo.singer)) return false;',
+    from: 'if (songInfo?.singer && singer && !artistMatch(songInfo.singer, singer)) return false;',
     to: 'if (false && songInfo?.singer && singer) return false;',
     gates: ['test/stress-round4.js'],
   },
