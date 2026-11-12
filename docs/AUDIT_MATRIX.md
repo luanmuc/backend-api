@@ -107,7 +107,7 @@
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
 | `test/audit/q-quickjs-real.js` | 127 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/QR1~QR3 |
 | `test/audit/r-admission.js` | 499 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | R 组 A1~A20（L4 裁决层 + v8.11.6 收尾） |
-| `test/audit/u-cross-platform.js` | 283 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U 组 U1~U10（v8.12.1 跨平台缓存失效；U10 关源后旧缓存不得复用） |
+| `test/audit/u-cross-platform.js` | 326 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U 组 U1~U12（v8.12.1 跨平台缓存失效；U11/U12 候选归一化补证） |
 | `test/audit/v-cross-platform-stress.js` | 423 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | V 组 V1~V13（20 并发同歌 / 缓存上限 / 总开关 / 关源重开 / remix-only / 慢主平台 / 事件隐私 / 同名同歌手时长差 199s 拒绝） |
 | `test/audit/w-fallback-owner.js` | 51 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P1 W1~W2（inited 已上报 / 5 平台 fallbackOwner=source） |
 | `test/audit/x-media-envelope.js` | 157 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P2 X1~X12（64B/1B/1KB/1MiB/8MiB 信封还原 / kindOf audio / byteLength=BAD_ENVELOPE / 缺片=TRUNCATED_MEDIA / 旧 Buffer 兼容 / mediaEnvelope 能力声明 / 0 字节零长 / admit 错误码 / 1MiB JSON.parse≤10ms） |
@@ -121,7 +121,7 @@
 ## 汇总
 
 - 文件总数：**98**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**25391**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 总行数：**25434**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 - H：行为断言脚本 **12** 个（含 `test/mutation/run.js`）（冒烟 + a-static/b-logic/d-func/e-extra + **h-toggles** + f-repo + g-meta + 两代压测）

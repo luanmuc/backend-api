@@ -13,6 +13,8 @@
  *   U8  传给 tx 源的是 QQ songmid，不携带 kw rid
  *   U9  慢主平台最终成功时不被跨平台抢跑误杀
  *   U10 关闭目标源后，其跨平台缓存与成功缓存均失效
+ *   U11 wy 候选归一化：kw 翻唱失败 → tx 无候选 → wy 严格匹配并交付
+ *   U12 kw 候选归一化：tx 主平台 NOT_FOUND → wy 无候选 → kw 严格匹配并交付
  *
  * 运行：/usr/local/bin/node20 test/audit/u-cross-platform.js
  */
@@ -99,6 +101,13 @@ const KW_COVER = {
     FORMATS: 'MP3128,AAC48,OGG96,WMA',
   }],
 };
+const WY_CAND = [{
+  id: 2652820720,
+  name: 'Cry For Me (feat. Ami)',
+  artists: [{ name: 'Michita (ミチタ)' }],
+  album: { name: 'Pureness' },
+  duration: 302,
+}];
 const QQ_LIST = [
   { songmid: '004Drt082CV5gf', songname: 'Cry For Me (为我哭泣) (feat. Ami)', singer: [{ name: 'Michita (ミチタ)' }], albumname: 'Pureness', interval: 302 },
   { songmid: '004ENCl816uT5Y', songname: 'Cry For Me (feat. Ami)', singer: [{ name: 'insyufeng' }, { name: 'Michita (ミチタ)' }], albumname: 'Cry For Me', interval: 303 },
@@ -108,7 +117,7 @@ const QQ_LIST = [
   { songmid: '004HFrsF4LlZvF', songname: 'Cry For Me (feat.Ami)', singer: [{ name: 'Maggie_麦吉' }], albumname: 'Cry For Me', interval: 226 },
 ];
 
-function baseScene({ kwCover = true, kwExact = false, qqList = QQ_LIST, wyList = [] } = {}) {
+function baseScene({ kwCover = true, kwExact = false, qqList = QQ_LIST, wyList = [], txFail = false } = {}) {
   return (u, opts) => {
     if (u.includes('search.kuwo.cn')) {
       return json({ abslist: kwExact
@@ -125,6 +134,7 @@ function baseScene({ kwCover = true, kwExact = false, qqList = QQ_LIST, wyList =
       return json({ result: { songs: wyList } });
     }
     if (u.includes('api.music.lerd.dpdns.org/tx')) {
+      if (txFail) return json({ code: 404, msg: 'not found' });
       try {
         const body = JSON.parse(String(opts && opts.body || '{}'));
         seenBodies.push(body);
@@ -140,6 +150,9 @@ function baseScene({ kwCover = true, kwExact = false, qqList = QQ_LIST, wyList =
     }
     if (u.includes('api.vkeys.cn/v2/music/tencent/geturl')) {
       return json({ code: 200, data: { url: 'http://ws.stream.qqmusic.qq.com/M50000145zmG37Aqx4.mp3?guid=api.vkeys.cn&vkey=test' } });
+    }
+    if (u.includes('music.163.com/song/media/outer/url')) {
+      return { statusCode: 200, headers: { 'content-type': 'audio/mpeg' }, body: mp3(302), url: u };
     }
     if (u.includes('ws.stream.qqmusic.qq.com') || u.includes('kw-er.kuwo.cn')) {
       return audio(mp3(302));
@@ -270,6 +283,36 @@ function baseScene({ kwCover = true, kwExact = false, qqList = QQ_LIST, wyList =
     } catch (e) {
       rec('U9', '慢主平台最终交付 kw，而不是被跨平台失败提前判死', false, `${e.code || '?'}: ${e.message}`);
     }
+  }
+
+  // U11 —— wy 候选归一化：kw 翻唱失败 → tx 无候选 → wy 严格匹配并交付
+  console.log('\n[U11] wy 候选归一化');
+  fresh(['kuwoOfficial', 'juheTx', 'wyOuter']);
+  scene = baseScene({ kwCover: true, qqList: [], wyList: WY_CAND });
+  try {
+    const r = await call('musicUrl', {
+      type: '128k', traceId: 'u_cross_11',
+      musicInfo: { name: 'Cry For Me (feat. Ami)', singer: 'Michita (ミチタ)', duration: 302 },
+    }, 'kw');
+    const hit = calls.some(u => u.includes('music.163.com/song/media/outer/url') && u.includes('id=2652820720'));
+    rec('U11', 'wy 候选归一化后按 id 交付', r && r.sourcePlatform === 'wy' && hit, JSON.stringify({ r, hit }));
+  } catch (e) {
+    rec('U11', 'wy 候选归一化后按 id 交付', false, `${e.code || '?'}: ${e.message}`);
+  }
+
+  // U12 —— kw 候选归一化：tx 主平台 NOT_FOUND → wy 无候选 → kw 严格匹配并交付
+  console.log('\n[U12] kw 候选归一化');
+  fresh(['juheTx', 'kuwoOfficial']);
+  scene = baseScene({ txFail: true, kwExact: true, qqList: [], wyList: [] });
+  try {
+    const r = await call('musicUrl', {
+      type: '128k', traceId: 'u_cross_12',
+      musicInfo: { name: 'Cry For Me (feat. Ami)', singer: 'ほんま　めいこ', duration: 302, songmid: '004Drt082CV5gf' },
+    }, 'tx');
+    const hit = calls.some(u => u.includes('antiserver.kuwo.cn') && u.includes('rid=228908'));
+    rec('U12', 'kw 候选归一化后按 rid 交付', r && r.sourcePlatform === 'kw' && hit, JSON.stringify({ r, hit }));
+  } catch (e) {
+    rec('U12', 'kw 候选归一化后按 rid 交付', false, `${e.code || '?'}: ${e.message}`);
   }
 
   // 汇总
