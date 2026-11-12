@@ -1345,6 +1345,8 @@ function decodeMediaEnvelope(x) {
   if (x.__lxMedia !== 2) return null;
   try {
     if (String(x.encoding || "").toLowerCase() !== "base64") return null;
+    // 0 字节信封只带 byteLength，不应伪造 body/chunks；必须返回零长字节而不是 null。
+    if (x.byteLength === 0 && x.body === undefined && x.chunks === undefined) return new Uint8Array(0);
     let parts = null;
     if (Array.isArray(x.chunks)) {
       if (!x.chunks.length) return null;

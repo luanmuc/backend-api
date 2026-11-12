@@ -10,6 +10,7 @@
  *   X5 byteLength 不符返回 null
  *   X6 旧桥产物 {type:'Buffer',data} 仍兼容
  *   X7 inited 显式声明 mediaEnvelope=2（能力协商）
+ *   X8 0 字节信封返回零长 Uint8Array
  *
  * 运行：/usr/local/bin/node20 test/audit/x-media-envelope.js
  */
@@ -93,6 +94,12 @@ run('X5 byteLength 不符返回 null', () => {
 
 run('X7 inited 声明 mediaEnvelope=2', () => {
   assert.strictEqual(inited && inited.mediaEnvelope, 2)
+})
+
+run('X8 0 字节信封返回零长 Uint8Array', () => {
+  const bytes = toBytes({ __lxMedia: 2, encoding: 'base64', byteLength: 0 })
+  assert.ok(bytes instanceof Uint8Array, '0 字节信封未返回 Uint8Array')
+  assert.strictEqual(bytes.length, 0)
 })
 
 run('X6 旧桥产物 {type:"Buffer",data} 仍兼容', () => {
