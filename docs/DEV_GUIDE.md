@@ -27,7 +27,7 @@
 | ⑦ 注册表 + 调度 + 健康分 | 3041~4106 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，6s grace，10min 缓存，`cross_platform` 事件） |
 | ⑧ 上报 + 事件监听 | 4208~4509（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.12.1 基线（`lx-source.js` 共 4509 行，`@version 8.12.1`）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~82 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
+> 行段为 **v8.12.5 基线（`lx-source.js` 共 4509 行，`@version 8.12.5`）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~82 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
 
 ## 三、核心机制详解
 
@@ -445,7 +445,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 > 执行结果（2026-10-29~11-01）：v26.0 ✅ → v26.1 ✅ → v26.2 ❌ 判否 → v26.3 ✅。**v26 系列收尾**。v27.1 fish ❌ 判否 → **v27.2 helloworld ✅ 接入** → v27.3 全面审计修复 ✅ → v27.4 健康分 10 分制 ✅ → v27.5 hyw ❌(后端502) → v27.6 jiexiang ⚠️(零增量留档) → v27.7 lx ❌(防搬运403) → v27.8 qdy ❌(410死链)。**v27 系列 6 候选实证全部收官（2026-10-30），仅 helloworld 接入**。
 > 推进序列（当前）：**v9 播放链路已放弃、v8.1 候选实证半自动化已完成（2026-11-05）**，无主线迭代项；运维观察项（gdWy 主端点 40% 可用率/haitangw 备用通道 404/oiapi QQ 403）由健康表监控、恶化升级为迭代任务；触发式待办（tx 恢复/hyw 后端恢复/qdy 通道恢复等外部条件驱动）+ 生态扫描持续产出新候选（按实证规则逐个推进，v8.1 已自动化草案生成）。
 
-## 十一、配置键总表（v8.12.1 基线）
+## 十一、配置键总表（v8.12.1 基线；v8.12.2~v8.12.5 未改配置面）
 
 > 单一真相仍是 `lx-source.js` 的 `USER_CONFIG`（默认值）、`ALLOWED_KEYS`（28 个数字可写）、`ALLOWED_BOOL_KEYS`（9 个布尔可写）与 `PARAM_LIMITS`（上限）。本表是镜像，配置面有改动时必须同步。v8.10.3 曾出现「死键在面板能写、运行时根本不读」，根因就是没有可对照的键表。
 

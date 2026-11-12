@@ -12,6 +12,7 @@
 | 找某个脚本干什么、会不会改文件 | [`SCRIPTS.md`](./SCRIPTS.md) |
 | 要审计 / 想知道历史上审出过什么 | 计划 [`AUDIT_PLAN.md`](./AUDIT_PLAN.md) → 结果 [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) → 覆盖矩阵 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md) |
 | 查某版本改了什么 | [`CHANGELOG.md`](./CHANGELOG.md) → 规划 [`ITERATION_ROADMAP.md`](./ITERATION_ROADMAP.md) |
+| 看音源架构从 v8.8 到 v8.12.5 的完整执行链 | [`音源架构执行全过程-2026-11-12.md`](./音源架构执行全过程-2026-11-12.md) |
 | 源挂了 / 平台改接口 | [`INTERFACE_CHANGE_PLAYBOOK.md`](./INTERFACE_CHANGE_PLAYBOOK.md) |
 | 查当前源可用性基线 | [`SOURCE_AUDIT.md`](./SOURCE_AUDIT.md) |
 | 文档改了怕不同步 | [`DOC_SEMANTIC_CHECKLIST.md`](./DOC_SEMANTIC_CHECKLIST.md)（机器管不了的靠人） |
@@ -31,12 +32,13 @@
 | `docs/SCRIPTS.md` | 手写 | 14 脚本 + 3 hook 的职责/触发/副作用 |
 | `docs/AUDIT_PLAN.md` | 手写 | 方法论 + 维度矩阵（只写"要审什么"） |
 | `docs/AUDIT_PLAN_v10.md` | 手写（**六轮整合活文档**） | 以它为准：维度总表、G1~G12 缺口、待修清单、销项记录、门禁 14 项口径、已知取舍 |
+| `docs/音源架构执行全过程-2026-11-12.md` | 手写 | 当前态专题纪要：阶段时间线、八段架构、关键决策、缺陷主题、测试/发布证据、边界 |
 | `docs/audit-plans/round1~5.md` | 手写（归档性） | 前五轮的分轮计划，历史用；当前计划看 v10 |
 | `docs/reports/*.md` | 手写（每轮一份） | 分轮审计报告：`v8.11.1-全面审计报告.md`、`-第五轮审计结算.md`、`-第六轮缺口审计.md` |
 | `docs/AUDIT_RESULTS.md` | 手写 | 三代审计总账 + **D-01~D-39** 缺陷编号 + 结论性事实 + 历轮过程 |
-| `docs/READTHROUGH.md` | 手写（**活文档·每版本必刷**） | 全仓通读台账：75 文件逐条结论 + 未审计/过时/未测试/未验证四类清单；规则18 校验 |
+| `docs/READTHROUGH.md` | 手写（**活文档·每版本必刷**） | 全仓通读台账：2026-11-10 快照 75 文件逐条结论；当前 99 文件覆盖见 `AUDIT_MATRIX.md`；规则18 校验 |
 | `docs/DOC_INDEX.md` | 手写（**活文档·新增文档必登**） | docs 下逐文件登记（性质/生成者/刷新时机/机器校验）；规则19 校验，漏登即红 |
-| `docs/AUDIT_MATRIX.md` | 手写（每轮更新） | **75 tracked 文件 × 审计维度覆盖矩阵**（含逐行行数与漏登检测），证明"每个文件都被审过" |
+| `docs/AUDIT_MATRIX.md` | 手写（每轮更新） | **99 tracked 文件 × 审计维度覆盖矩阵**（含逐行行数与漏登检测），证明"每个文件都被审过" |
 | `docs/CHANGELOG.md` | 手写 | 完整版本历史；README 只留最近摘要 |
 | `docs/ITERATION_ROADMAP.md` | 手写 | 版本规划与三层目标 |
 | `docs/SOURCE_AUDIT.md` | 手写 | 源可用性基线、巡检方法、决策记录 |

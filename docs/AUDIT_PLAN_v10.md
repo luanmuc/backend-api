@@ -3,7 +3,7 @@
 > 这份文件是**前五轮的唯一合并入口**。前五轮的分册（`audit-plans/round1~5.md`）保留为原文存档，
 > 但"到底审过什么、用什么断言守、哪些还没审"只以本文件为准。
 > 生成日期：2026-11-09；**最近更新：2026-11-11（v8.12.1 跨平台兜底/缓存失效 + 跨平台压力矩阵）**。
-> 当前基线：`lx-music-source` HEAD `0468f52`，`lx-source.js @version 8.12.1`，审计 **349 条** / 压测 **159 条** / 冒烟 **67 组** = **575 条**；`TESTING.md` 为唯一真值。
+> 当前基线：`lx-music-source` HEAD `1bec334`，`lx-source.js @version 8.12.5`，审计 **365 条** / 压测 **159 条** / 冒烟 **67 组** = **591 条**；`TESTING.md` 为唯一真值。
 
 ## 0. 为什么要有 v10
 
@@ -56,20 +56,20 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | FAULT 故障注入 | 空 body、截断 JSON、10MB、5xx、熔断、DNS、证书、429 | `e-extra.js` FAULT1~8c | 11 | 8A + 2B + 1C |
 | MEM 长时运行 | 表上限、淘汰后可用、快照可观测 | `e-extra.js` MEM1~MEM3 | 3 | 2A + 1B |
 | **X 裁决层（admission）** | 证据分级、codeRank、admit 单一入口、弱证据 TTL ≤60s、链过滤分层、关源对称清账 | `r-admission.js` | 23 | A |
-| **Y 跨平台兜底（v8.12.x）** | 主平台失败识别、严格身份匹配、目标平台 ID 隔离、`sourcePlatform`/`fallback` 透传、grace、10min 缓存、关源失效、总开关、健康事件 | `u-cross-platform.js` | 10 | A |
-| **V 跨平台压测（v8.12.x）** | 并发同歌、顺序缓存、200+ 缓存上限、总开关、关源/重开、错歌拒绝、主/跨交替、全目标 5xx、慢主平台、事件隐私、主平台成功零跨平台 | `v-cross-platform-stress.js`（本轮新增） | 12 | A |
+| **Y 跨平台兜底（v8.12.x）** | 主平台失败识别、严格身份匹配、目标平台 ID 隔离、`sourcePlatform`/`fallback` 透传、grace、10min 缓存、关源失效、总开关、健康事件 | `u-cross-platform.js` | 12 | A |
+| **V 跨平台压测（v8.12.x）** | 并发同歌、顺序缓存、200+ 缓存上限、总开关、关源/重开、错歌拒绝、主/跨交替、全目标 5xx、慢主平台、事件隐私、主平台成功零跨平台 | `v-cross-platform-stress.js` | 13 | A |
 
 **历史合计（v8.11.7 口径）**：281 条断言（258 + 23）+ 22 变异体 + 67 组冒烟 + 巡检自检；仅作版本对照，**不再作为当前总数**。
 
-> ### 当前口径（2026-11-11 复算，以此为准）
+> ### 当前口径（2026-11-12 全量复跑，以此为准）
 >
 > | 类别 | 数量 | 构成 |
 > |---|---|---|
 > | 冒烟 | **67 组** | `lx-source-smoke-test.js` |
-> | 审计 | **349 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2-dseries 3 / r-admission 23 / s-health-events 22 / t-health-events-stress 12 / u-cross-platform 10 / **v-cross-platform-stress 13** / QuickJS 3 / candidate 6 |
+> | 审计 | **365 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2-dseries 3 / r-admission 23 / s-health-events 22 / t-health-events-stress 12 / u-cross-platform 12 / **v-cross-platform-stress 13** / w-fallback-owner 2 / x-media-envelope 12 / QuickJS 3 / candidate 6 |
 > | 压测 | **159 条** | stress 12 / round3 14 / round4（V 组）133 |
 > | 变异体 | **22 个** | MU1~MU22，`--full --strict` 下 killed 率必须 100% |
-> | **合计** | **349 条审计断言**（+ 159 压测 + 67 冒烟 = 575） | e-extra 的 94 已在 349 内，不再二次相加 |
+> | **合计** | **365 条审计断言**（+ 159 压测 + 67 冒烟 = 591） | e-extra 的 94 已在 365 内，不再二次相加 |
 >
 > **注意历史 232 的偏差**：旧口径 232 = 10+30+30+92+50+14+6，**漏算 h-toggles 14 与 QuickJS 3**。
 > 与其并列的「256 条断言」是 v10 当时的分项快照（含 INV/EDGE/FAULT/MEM 细分），与本表口径不可直接相加。
@@ -183,6 +183,17 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | G11 | App 音源消费面：字段差集为空、实测 `healthScore=-4.5`（「异常」判据非死判据）、R1/R4/R5/R6 均真修；新发现 D-23 注释过期 | 报告「G11」 |
 
 完整记录：`docs/reports/v8.11.1-第六轮缺口审计.md`
+
+### Z 组：v8.12.5 发布后收口审计面（2026-11-12）
+
+| ID | 判据 | 命令/证据 | 证据级 |
+|---|---|---|---|
+| Z1 | 死代码清理真实生效：`getFailCached` 包装与 `safeConsole.error` 不再存在，且无调用点；`safeConsole.log/warn` 仍被 `logInfo/logWarn/logDebug` 使用 | `rg` 反查 + `a-static` / `f-repo` | L0/L1 |
+| Z2 | 版本与文档同步：`lx-source.js @version=8.12.5`，README/ROADMAP/DEV_GUIDE/CHANGELOG 同步 | `scripts/self-check.js` + `scripts/docs-audit.js` | L1 |
+| Z3 | 发布归档字节一致：`v8.12.1`~`v8.12.5` 与 `v8.11.7` 的 Release 资产与 tag 内容 `cmp` 一致 | GitHub API + `git show tag:lx-source.js` + `cmp` | L3 |
+| Z4 | App 内置源一致：b115 `assets/builtin_source.js` 的版本/SHA-256 与源仓 `v8.12.5` 资产一致 | APK 解包 + `sha256sum` + `cmp` | L3 |
+| Z5 | 全量测试矩阵：25 个入口完成；核心 19 项、压测 12/14/133 均 rc=0；变异 22 killed/0 survived（全量日志汇总） | `docs/TESTING.md` 命令逐条 | L2/L3 |
+| Z6 | 历史红项不冒充：`v8.12.2` tag 的 V2 文档门禁红保留记录，tag 不移动 | CI run 证据 + Release note | L3 |
 
 ## 4. 执行顺序与记录要求
 

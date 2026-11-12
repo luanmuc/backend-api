@@ -1,6 +1,6 @@
 # 架构与调用链（ARCHITECTURE）
 
-> 单文件聚合音源：`lx-source.js`（3136 行）在 App 的 QuickJS 沙箱里运行，不是 Node。
+> 单文件聚合音源：`lx-source.js`（4509 行）在 App 的 QuickJS 沙箱里运行，不是 Node。
 > 本文只讲**边界、调用顺序、状态机**；逐段代码职责见 [`DEV_GUIDE.md`](./DEV_GUIDE.md)，历史取舍见 [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md)。
 
 ## 一、运行环境边界（决定了很多"不能做"）

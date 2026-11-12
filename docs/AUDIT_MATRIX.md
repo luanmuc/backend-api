@@ -1,6 +1,6 @@
 # 全仓覆盖矩阵（AUDIT_MATRIX）
 
-> 第三轮审计的**唯一可核验载体**：证明 69 个 tracked 文件、每一个都被至少一个维度审过。
+> 第三轮审计的**唯一可核验载体**：证明 99 个 tracked 文件、每一个都被至少一个维度审过。
 > 由 `test/audit/f-repo.js` 的 U~Z 六组实测产出，不是手写的清单。行数取 `wc -l`，随改动自动变化。
 > 每次改动后重跑 `node test/audit/f-repo.js`；**本表行数、文件总数、总行数已由 `docs-audit` 规则17 自动校验与回写，漏登文件直接报红**——不再依赖人工同步。
 
@@ -14,12 +14,13 @@
 | **X** 联动 | 跨模块消费链接通（片段码↔巡检、日报↔README_HEALTH、开关↔源码默认、CI↔脚本存在） | f-repo X1~X9 |
 | **Y** 死码 | 无重复函数、无只定义不用的常量、无 debugger、错误码全被使用、无未用 let | f-repo Y1~Y6 |
 | **Z** 资源 | 加载 <50ms、重复加载堆增长可控、导出面完整、无非法入库文件、无超大文件 | f-repo Z1~Z5 |
-| **H** 行为 | 取链/降档/验真/缓存/熔断/限速/冷却/探针/跨平台兜底等运行时行为 | a-static 10 / b-logic 30 / d-func 30 / **e-extra 94** / h-toggles 14 / 冒烟 67 / 压测 12+14+**133**（审计合计 **357** = 10+30+30+94+52+14+14+4+4+5+3+23+22+12+10+**13**+3+6+**8**） |
+| **H** 行为 | 取链/降档/验真/缓存/熔断/限速/冷却/探针/跨平台兜底等运行时行为 | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2 3 / r 23 / s 22 / t 12 / u 12 / v 13 / w 2 / x 12 / candidate 6 / QuickJS 3；审计合计 **365** |
 
 ## 覆盖矩阵
 
 | 文件 | 行 | 类型 | U | V | W | X | Y | Z | H | 证据 |
 |---|---|---|---|---|---|---|---|---|---|---|
+| `docs/音源架构执行全过程-2026-11-12.md` | 139 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `.github/workflows/ci.yml` | 207 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `.github/workflows/docs-audit.yml` | 48 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `README.md` | 118 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -84,11 +85,11 @@
 | `test/lx-source-smoke-test.js` | 1598 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/stress-test.js` | 219 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `docs/ARCHITECTURE.md` | 93 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/README.md` | 63 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/README.md` | 65 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 52 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/TESTING.md` | 136 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/CHANGELOG.md` | 56 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_MATRIX.md` | 138 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 139 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 405 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
 | `test/stress-round3.js` | 357 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
 | `test/audit/g-meta.js` | 314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14 |
@@ -100,7 +101,7 @@
 | `docs/audit-plans/round4.md` | 235 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `test/mutation/run.js` | 265 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | MU1~MU12（变异测试） |
 | `.gitignore` | 1 | 其他 | ✓ | — | — | — | — | — | — | U13 编码扫描（本轮登记） |
-| `docs/AUDIT_PLAN_v10.md` | 274 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
+| `docs/AUDIT_PLAN_v10.md` | 285 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
 | `docs/PROGRESS_round5.md` | 58 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
 | `docs/audit-plans/stress-round4.md` | 99 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
 | `docs/audit-plans/stress-round5.md` | 45 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
@@ -116,12 +117,12 @@
 | `test/stress-round4.js` | 1310 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 272 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
-| `docs/READTHROUGH.md` | 184 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
-| `docs/DOC_INDEX.md` | 87 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
+| `docs/READTHROUGH.md` | 188 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
+| `docs/DOC_INDEX.md` | 88 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
 ## 汇总
 
-- 文件总数：**98**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**25433**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**99**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**25591**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 - H：行为断言脚本 **12** 个（含 `test/mutation/run.js`）（冒烟 + a-static/b-logic/d-func/e-extra + **h-toggles** + f-repo + g-meta + 两代压测）

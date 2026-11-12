@@ -35,6 +35,7 @@
 | `docs/SCRIPTS.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/SOURCE_AUDIT.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/TESTING.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
+| `docs/音源架构执行全过程-2026-11-12.md` | 当前态（专题纪要） | 人 | 架构阶段收口/版本发布后 | 规则19 登记 |
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 归档 | 人 | 只读，不再更新 | — |
