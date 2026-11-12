@@ -4,7 +4,7 @@
 > **App 每次云编译（CI）会自动拉取本仓库根目录 `lx-source.js` 覆盖内置数据源**，因此：
 > - 本仓库是唯一权威数据源入口，改数据源只改这里；
 > - App 构建直接拉 `master` 的 `lx-source.js`，实际内置版本以构建日志的跨仓版本闸门和 APK 内 `assets/builtin_source.js` 为准；
-> - Releases 页是归档入口，不参与构建取源。截至 2026-11-12，`v8.12.1`~`v8.12.4` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
+> - Releases 页是归档入口，不参与构建取源。截至 2026-11-12，`v8.12.1`~`v8.12.5` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
 
 > **免责声明**：本项目仅供学习交流与技术研究。仅做接口聚合，不存储任何媒体文件；第三方接口的可用性与版权责任归相应服务方。使用即代表同意仅限个人学习用途，禁止商用。
 
@@ -12,11 +12,11 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v8.12.4**（P2 负向归因：缺片返回 `TRUNCATED_MEDIA`、`byteLength`/base64 不符返回 `BAD_ENVELOPE`，probe/admit 均保留错误码；X5/X9/X11/X12 先红后绿）｜v8.12.3（P2 桥媒体信封：App 二进制响应改 base64 信封 + 256KB 分片；`toBytes` 识别 `__lxMedia:2` 并按片独立解码、`byteLength` 不符拒绝；`x-media-envelope` X1~X8 先红后绿）｜v8.12.2（P1 降级所有权：`inited` 显式声明 `fallbackOwner="source"`，App 对声明源不再重复换源；`w-fallback-owner` W1/W2）｜v8.12.1（跨平台缓存失效 + 面板开关：①`toggleSource` 关闭/开启子源时清 10min 跨平台结果缓存；②成功缓存命中若来源已被手动关闭则丢弃重解析；③健康面板只暴露 `crossPlatformEnabled`（9 布尔/37 键）；`u-cross-platform` 9→10，U10 先红后绿）｜v8.12.0（跨平台兜底：主平台无原版/同名错歌/网络超时时按 `tx→wy→kw` 严格歌名+歌手+时长±5s 匹配换平台，6s grace / 10min 结果缓存 / `cross_platform` 事件 / `juheTx` 默认开启；`u-cross-platform` 9 条先红后绿）｜v8.11.7（健康面板配置可管：`config` 写模式开放 8 个布尔开关 + 补齐 13 个数字参数白名单，`verifyDurRatio`/`verifyDurGapSec` 允许 0；`e-extra` K4c~K4e 先红后绿）｜v8.11.5（L4 裁决层：`admit()` 单一裁决入口 + 策略表 + 三调用点；L0 归一 App 桥产物修全源 NOT_AUDIO；交付类代表码优先，不再被 NOT_FOUND 吞成 1h 锁；`clearSourceLedger` 统一清账治关源/重开无效；证据四档 weak 永不 >60s；`r-admission` 18 条先红后绿）；v8.11.4（错歌兜底修复（云端真测 F-01）：星海后端缺 songmid 不再兜底 1 号歌改抛 `PARAM_ERROR`；片段兜底加「必须有 hash/mid 锚点」前提，无 id 不再把他人片段标成「试听版」；q-dfix Q5 先红后绿）；v8.11.3 源开关失败缓存失效：toggle 开启某源时按该源平台前缀清 `fail_<平台>` 缓存 + LRU 补 `keys()`；v8.11.2 通读缺陷修复：Juhe code 类型归一 / 303 校验宽松比 / flac24bit 起跑补齐 320k / CONFIG_ERROR 5 分钟过期 / 删恒假守卫；v8.11.1 交付真实性闸门；可播校验错误码修复；v8.10.3 全覆盖审计 15 项隐性缺陷全修；v8.10.2 记账顺序修复 + 半开收口；v8.10.1 缓存 LRU delete 补修 + 用例真化；v8.0 全量审计修复 + ikun/huibq 复活与默认开启 + 全源巡检修复 + 巡检工具升级 + 竞速引擎改造 + huibq 收窄 + **分档预算/冷启动豁免/缓存分级**；`lx-source.js` 内 `@version 8.12.4`） |
+| 当前版本 | **v8.12.5**（死代码清理：删除未调用 `getFailCached` 包装与 `safeConsole.error`，行为不变；源仓套件全量回归）｜v8.12.4（P2 负向归因：缺片返回 `TRUNCATED_MEDIA`、`byteLength`/base64 不符返回 `BAD_ENVELOPE`，probe/admit 均保留错误码；X5/X9/X11/X12 先红后绿）｜v8.12.3（P2 桥媒体信封：App 二进制响应改 base64 信封 + 256KB 分片；`toBytes` 识别 `__lxMedia:2` 并按片独立解码、`byteLength` 不符拒绝；`x-media-envelope` X1~X8 先红后绿）｜v8.12.2（P1 降级所有权：`inited` 显式声明 `fallbackOwner="source"`，App 对声明源不再重复换源；`w-fallback-owner` W1/W2）｜v8.12.1（跨平台缓存失效 + 面板开关：①`toggleSource` 关闭/开启子源时清 10min 跨平台结果缓存；②成功缓存命中若来源已被手动关闭则丢弃重解析；③健康面板只暴露 `crossPlatformEnabled`（9 布尔/37 键）；`u-cross-platform` 9→10，U10 先红后绿）｜v8.12.0（跨平台兜底：主平台无原版/同名错歌/网络超时时按 `tx→wy→kw` 严格歌名+歌手+时长±5s 匹配换平台，6s grace / 10min 结果缓存 / `cross_platform` 事件 / `juheTx` 默认开启；`u-cross-platform` 9 条先红后绿）｜v8.11.7（健康面板配置可管：`config` 写模式开放 8 个布尔开关 + 补齐 13 个数字参数白名单，`verifyDurRatio`/`verifyDurGapSec` 允许 0；`e-extra` K4c~K4e 先红后绿）｜v8.11.5（L4 裁决层：`admit()` 单一裁决入口 + 策略表 + 三调用点；L0 归一 App 桥产物修全源 NOT_AUDIO；交付类代表码优先，不再被 NOT_FOUND 吞成 1h 锁；`clearSourceLedger` 统一清账治关源/重开无效；证据四档 weak 永不 >60s；`r-admission` 18 条先红后绿）；v8.11.4（错歌兜底修复（云端真测 F-01）：星海后端缺 songmid 不再兜底 1 号歌改抛 `PARAM_ERROR`；片段兜底加「必须有 hash/mid 锚点」前提，无 id 不再把他人片段标成「试听版」；q-dfix Q5 先红后绿）；v8.11.3 源开关失败缓存失效：toggle 开启某源时按该源平台前缀清 `fail_<平台>` 缓存 + LRU 补 `keys()`；v8.11.2 通读缺陷修复：Juhe code 类型归一 / 303 校验宽松比 / flac24bit 起跑补齐 320k / CONFIG_ERROR 5 分钟过期 / 删恒假守卫；v8.11.1 交付真实性闸门；可播校验错误码修复；v8.10.3 全覆盖审计 15 项隐性缺陷全修；v8.10.2 记账顺序修复 + 半开收口；v8.10.1 缓存 LRU delete 补修 + 用例真化；v8.0 全量审计修复 + ikun/huibq 复活与默认开启 + 全源巡检修复 + 巡检工具升级 + 竞速引擎改造 + huibq 收窄 + **分档预算/冷启动豁免/缓存分级**；`lx-source.js` 内 `@version 8.12.5`） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
-| 发布入口 | 本仓库 **Releases 页**（归档入口）：发布 SOP 要求每次迭代出 tag + 附 `lx-source.js` 产物；`v8.12.1`~`v8.12.4` 与 `v8.11.7` 资产均已归档，`v8.12.2` tag CI 文档门禁红见上 |
+| 发布入口 | 本仓库 **Releases 页**（归档入口）：发布 SOP 要求每次迭代出 tag + 附 `lx-source.js` 产物；`v8.12.1`~`v8.12.5` 与 `v8.11.7` 资产均已归档，`v8.12.2` tag CI 文档门禁红见上 |
 | 迭代机制 | 任何豆包账号说「**迭代**」即按 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md) 自动推进下一版本；规则见 [docs/AGENTS.md](./docs/AGENTS.md) |
 
 ## 在线导入（自定义源）
