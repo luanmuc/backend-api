@@ -8,7 +8,7 @@
 
 | 版本 | 核心功能 |
 |---|---|
-| **v8.12.4**（P2 负向归因：缺片返回 `TRUNCATED_MEDIA`、`byteLength`/base64 不符返回 `BAD_ENVELOPE`，probe/admit 均保留错误码；X5/X9/X11 先红后绿） | 2026-11-12 |
+| **v8.12.4**（P2 负向归因：缺片返回 `TRUNCATED_MEDIA`、`byteLength`/base64 不符返回 `BAD_ENVELOPE`，probe/admit 均保留错误码；X5/X9/X11/X12 先红后绿） | 2026-11-12 |
 | **v8.12.3**（2026-11-12） | **P2 桥媒体信封**：App 二进制响应改 base64 信封（1MiB 从 3.57x/87ms 降到 1.33x/4.43ms 量级），>256KB 按 256KB 分片；源侧 `toBytes` 识别 `__lxMedia:2`，`body` 与 `chunks` 均支持，分片逐片解码（避免拼串后中间 `=` 非法），`byteLength` 不符返回 null，0 字节返回零长 `Uint8Array`；旧 `{type:"Buffer",data}` 继续兼容；新增 `x-media-envelope` X1~X8，首跑 2/4 红、修后 8/0 | 2026-11-12 |
 | **v8.12.2**（2026-11-12） | **P1 降级所有权**：`inited` 5 个平台显式声明 `fallbackOwner="source"`，App 对声明源不再重复换源；新增 `w-fallback-owner` W1/W2 | 2026-11-12 |
 | **v8.12.1**（2026-11-11） | **跨平台缓存失效 + 面板开关**：①`toggleSource` 关闭/开启子源时清 10min 跨平台结果缓存；②成功缓存命中若来源已被手动关闭则丢弃重解析；③健康面板只暴露 `crossPlatformEnabled` 总开关（9 布尔/37 键，三语 874）。`u-cross-platform` 9→10（U10 先红后绿） | 2026-11-11 |

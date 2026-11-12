@@ -11,6 +11,7 @@
  *   X6 旧桥产物 {type:'Buffer',data} 仍兼容
  *   X7 inited 显式声明 mediaEnvelope=2（能力协商）
  *   X8 0 字节信封返回零长 Uint8Array
+ *   X12 1MiB 信封 JSON.parse ≤10ms（本机基准回归）
  *
  * 运行：/usr/local/bin/node20 test/audit/x-media-envelope.js
  */
@@ -128,6 +129,20 @@ run('X11 缺片进入 admit 返回 TRUNCATED_MEDIA', () => {
   const result = src.__debug.admit({ delivery: { statusCode: 200, headers: {}, body: env }, songInfo: { name: 'x', singer: 'y', interval: '00:03' } })
   assert.strictEqual(result.code, 'TRUNCATED_MEDIA')
   assert.strictEqual(result.evidence, 'strong')
+})
+
+run('X12 1MiB 信封 JSON.parse ≤10ms', () => {
+  const env = envelope(crypto.randomBytes(1024 * 1024))
+  const text = JSON.stringify(env)
+  JSON.parse(text) // 预热，排除首次 JIT 抖动
+  const samples = []
+  for (let i = 0; i < 5; i++) {
+    const t0 = process.hrtime.bigint()
+    JSON.parse(text)
+    samples.push(Number(process.hrtime.bigint() - t0) / 1e6)
+  }
+  const best = Math.min(...samples)
+  assert.ok(best <= 10, `1MiB JSON.parse 最慢样本 ${best.toFixed(2)}ms > 10ms`)
 })
 
 run('X6 旧桥产物 {type:"Buffer",data} 仍兼容', () => {
