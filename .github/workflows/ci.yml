@@ -64,6 +64,8 @@ jobs:
           node test/audit/t-health-events-stress.js
           node test/audit/u-cross-platform.js
           node test/audit/v-cross-platform-stress.js
+          node test/audit/w-fallback-owner.js
+          node test/audit/x-media-envelope.js
       - name: L5 第三轮压力与并发（T1~T12）
         run: node --expose-gc test/stress-round3.js
       - name: L5.1 第四轮压力测试（V 组 133 条：故障谱系/不变量/MISMATCH/阈值边界/配置面/兜底档实证）
