@@ -6,8 +6,8 @@
 >
 > **时效说明**：以下逐文件结论是 2026-11-10 通读时的历史快照，保留作为审计证据；当前版本号、断言数、行数以 `README.md`、`docs/TESTING.md` 与 `scripts/docs-audit.js` 的实测为准。
 
-HEAD `2905a77`（v8.12.3）
-文件数：**96**　总行数：**25127**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+HEAD `HEAD`（v8.12.4）
+文件数：**98**　总行数：**25345**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -51,17 +51,17 @@ HEAD `2905a77`（v8.12.3）
 | `.github/workflows/ci.yml` | 205 | 全文 | 13 个 job；断言数注释过期（32/21/22）；**mutation 未带 `--strict`（X3）**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 1 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
-| `README.md` | 116 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
-| `README_HEALTH.md` | 38 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
-| `lx-source.js` | 4463 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 12 错误码；12 处可疑点见 F07~F22（4 条待实证） |
+| `README.md` | 117 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
+| `README_HEALTH.md` | 44 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
+| `lx-source.js` | 4511 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 12 错误码；12 处可疑点见 F07~F22（4 条待实证） |
 | `docs/AGENTS.md` | 190 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 93 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突） |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
-| `docs/AUDIT_MATRIX.md` | 136 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
+| `docs/AUDIT_MATRIX.md` | 138 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/AUDIT_PLAN.md` | 514 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 274 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 54 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 55 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 512 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 61 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -93,9 +93,11 @@ HEAD `2905a77`（v8.12.3）
 | `docs/health-daily/2026-11-10.json` | 39 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-11.md` | 46 | 生成 | 11-11 日报（rebase 带入，远端 probe 产出） |
 | `docs/health-daily/2026-11-11.json` | 40 | 生成 | 同份日报的 json |
+| `docs/health-daily/2026-11-12.md` | 48 | 生成 | 11-12 日报（rebase 带入，远端 probe 产出） |
+| `docs/health-daily/2026-11-12.json` | 60 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-09.json` | 48 | 生成 | 同日 json（date/prevDate/registered/judged/handle/watch/changes） |
 | `docs/health-daily/2026-11-08.json` | 54 | 生成 | 字段 date/prevDate/prevDateMode/prevDates/registered/judged/handle/watch/changes |
-| `docs/probe-history.jsonl` | 724 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
+| `docs/probe-history.jsonl` | 744 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | 全文 | 五组账 + 5 次自我推翻；e-extra 82 / 3179 行 / 66 文件 过期 |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
@@ -131,7 +133,7 @@ HEAD `2905a77`（v8.12.3）
 | `test/audit/u-cross-platform.js` | 283 | 断言 | 10 条（按脚本实际 `rec()` 编号）：U1 转 tx 并交付原版 / U2 严格匹配 302s 原版 / U3 kw 主平台成功且未搜 QQ / U4 `subSource=juheTx` / U5 二次缓存仍 tx / U6 全平台无匹配 `NOT_FOUND` / U7 `cross_platform` 事件 / U8 tx 只收 songmid / U9 慢主平台交付 kw / U10 关源后不交付缓存；先红 1/8 → 绿 10/0 |
 | `test/audit/v-cross-platform-stress.js` | 423 | 断言 | 13 条 V1~V13（20 并发同歌 / QQ 搜索不放大 / 50 次顺序只搜 1 次 / 201 首缓存上限 / 总开关零跨平台 / 关源重开 / remix-only 全拒绝 / 主跨交替不串 / 全目标 5xx 保留原码 / 慢主平台并发 / 事件隐私 / 100 首主命中零跨平台 / 同名同歌手时长差 199s 拒绝）；实跑 13/0 |
 | `test/audit/w-fallback-owner.js` | 51 | 断言 | P1 W1~W2：W1 `inited` 已上报 / W2 5 个平台均 `fallbackOwner=source`；先红 1/2 → 绿 2/2 |
-| `test/audit/x-media-envelope.js` | 114 | 断言 | P2 X1~X8：64B/1MiB/8MiB 信封还原 SHA；64B FLAC 信封 `kindOf=audio`；`byteLength` 不符返回 null；旧 `{type:"Buffer",data}` 兼容；`inited.mediaEnvelope=2`；0 字节零长；先红 2/4 → 绿 8/0 |
+| `test/audit/x-media-envelope.js` | 142 | 断言 | P2 X1~X11：64B/1B/1KB/1MiB/8MiB 信封还原 SHA；64B FLAC 信封 `kindOf=audio`；`byteLength` 不符 `BAD_ENVELOPE`；缺片 `TRUNCATED_MEDIA`；旧 `{type:"Buffer",data}` 兼容；`inited.mediaEnvelope=2`；0 字节零长；admit 错误码；先红 2/4 → 绿 11/0 |
 | `test/audit/s-health-events.js` | 230 | 断言 | 22 条 S1~S6（healthEvents 只读环形缓冲/同 traceId 串联/返回副本/隐私边界/超容丢弃）；先红 6 通过 16 失败 → 绿 22/0 |
 | `test/audit/t-health-events-stress.js` | 137 | 断言 | 12 条 T1~T9（10000 条灌满/容量 500/dropped 9500/同 trace 链/limit 边界/隐私注入）；容量注入 500→100 翻红后还原 12/0 |
 | `test/candidate-audit-test.js` | 135 | 断言 | 6 条；曾无 ID 输出，已补 |
@@ -142,8 +144,8 @@ HEAD `2905a77`（v8.12.3）
 | `test/stress-test.js` | 219 | 断言 | 12 条 S1~S10 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 272 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |
-| `docs/READTHROUGH.md` | 182 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
-| `docs/DOC_INDEX.md` | 85 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
+| `docs/READTHROUGH.md` | 184 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/DOC_INDEX.md` | 87 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
 
 ## 五、维护规则（这段是契约，不是说明）
 

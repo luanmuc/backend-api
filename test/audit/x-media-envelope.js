@@ -36,7 +36,7 @@ globalThis.__lxSourceConfig = {}
 const p = require.resolve(SRC)
 if (require.cache[p]) delete require.cache[p]
 const src = require(SRC)
-const { toBytes, kindOf } = src.__debug
+const { toBytes, kindOf, mediaEnvelopeErrorCode } = src.__debug
 
 const CHUNK = 256 * 1024
 const sha = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex')
@@ -86,10 +86,11 @@ run('X4 8MiB 分片 32 片还原 SHA 一致', () => {
   assert.strictEqual(sha(Buffer.from(bytes)), sha(raw))
 })
 
-run('X5 byteLength 不符返回 null', () => {
+run('X5 byteLength 不符返回 BAD_ENVELOPE', () => {
   const env = envelope(flac64)
   env.byteLength = 65
   assert.strictEqual(toBytes(env), null)
+  assert.strictEqual(mediaEnvelopeErrorCode(env), 'BAD_ENVELOPE')
 })
 
 run('X7 inited 声明 mediaEnvelope=2', () => {
@@ -100,6 +101,33 @@ run('X8 0 字节信封返回零长 Uint8Array', () => {
   const bytes = toBytes({ __lxMedia: 2, encoding: 'base64', byteLength: 0 })
   assert.ok(bytes instanceof Uint8Array, '0 字节信封未返回 Uint8Array')
   assert.strictEqual(bytes.length, 0)
+})
+
+run('X9 缺片返回 TRUNCATED_MEDIA', () => {
+  const raw = crypto.randomBytes(CHUNK * 3)
+  const env = envelope(raw)
+  env.chunks.pop()
+  assert.strictEqual(toBytes(env), null)
+  assert.strictEqual(mediaEnvelopeErrorCode(env), 'TRUNCATED_MEDIA')
+})
+
+run('X10 1B/1KB 信封 roundtrip SHA 一致', () => {
+  for (const size of [1, 1024]) {
+    const raw = crypto.randomBytes(size)
+    const bytes = toBytes(envelope(raw))
+    assert.ok(bytes, `${size}B 信封未识别`)
+    assert.strictEqual(bytes.length, size)
+    assert.strictEqual(sha(Buffer.from(bytes)), sha(raw))
+  }
+})
+
+run('X11 缺片进入 admit 返回 TRUNCATED_MEDIA', () => {
+  const raw = crypto.randomBytes(CHUNK * 3)
+  const env = envelope(raw)
+  env.chunks.pop()
+  const result = src.__debug.admit({ delivery: { statusCode: 200, headers: {}, body: env }, songInfo: { name: 'x', singer: 'y', interval: '00:03' } })
+  assert.strictEqual(result.code, 'TRUNCATED_MEDIA')
+  assert.strictEqual(result.evidence, 'strong')
 })
 
 run('X6 旧桥产物 {type:"Buffer",data} 仍兼容', () => {
