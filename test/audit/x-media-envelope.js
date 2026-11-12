@@ -1,0 +1,107 @@
+#!/usr/bin/env node
+/**
+ * P2 桥媒体信封源侧审计（X 组）
+ *
+ * 验收目标：
+ *   X1 信封 body 还原 64B，SHA 一致
+ *   X2 64B FLAC 信封 kindOf = audio（不引入新假阴性）
+ *   X3 1MiB 信封还原 SHA 一致
+ *   X4 8MiB / 256KB 分片 32 片还原 SHA 一致
+ *   X5 byteLength 不符返回 null
+ *   X6 旧桥产物 {type:'Buffer',data} 仍兼容
+ *   X7 inited 显式声明 mediaEnvelope=2（能力协商）
+ *
+ * 运行：/usr/local/bin/node20 test/audit/x-media-envelope.js
+ */
+'use strict'
+
+const path = require('path')
+const crypto = require('crypto')
+const assert = require('assert')
+const SRC = path.join(__dirname, '../../lx-source.js')
+
+let inited = null
+globalThis.lx = {
+  EVENT_NAMES: { inited: 'inited', request: 'request', updateAlert: 'updateAlert' },
+  version: '2.0.0',
+  env: 'mobile',
+  utils: { buffer: { from: (d, e) => Buffer.from(d, e), bufToString: (b, e) => b.toString(e) } },
+  request(_url, _opts, cb) { setTimeout(() => cb(new Error('ECONNREFUSED'), null), 2) },
+  on() {},
+  send(name, data) { if (name === 'inited') inited = data },
+}
+globalThis.__lxSourceConfig = {}
+
+const p = require.resolve(SRC)
+if (require.cache[p]) delete require.cache[p]
+const src = require(SRC)
+const { toBytes, kindOf } = src.__debug
+
+const CHUNK = 256 * 1024
+const sha = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex')
+const b64 = (buffer) => Buffer.from(buffer).toString('base64')
+const envelope = (buffer) => {
+  if (buffer.length <= CHUNK) {
+    return { __lxMedia: 2, encoding: 'base64', byteLength: buffer.length, body: b64(buffer) }
+  }
+  const chunks = []
+  for (let i = 0; i < buffer.length; i += CHUNK) chunks.push(b64(buffer.subarray(i, i + CHUNK)))
+  return { __lxMedia: 2, encoding: 'base64', byteLength: buffer.length, chunkBytes: CHUNK, chunks }
+}
+
+let failures = 0
+let checks = 0
+const run = (name, fn) => {
+  const id = name.split(' ')[0]
+  try { fn(); checks++; console.log(`  ✓ [${id}] ${name}`) } catch (e) { failures++; console.error(`  ✗ [${id}] ${name}`); console.error(`    ${e.message}`) }
+}
+
+const flac64 = Buffer.concat([Buffer.from('fLaC'), Buffer.alloc(60, 1)])
+
+run('X1 信封 body 还原 64B 且 SHA 一致', () => {
+  const bytes = toBytes(envelope(flac64))
+  assert.ok(bytes, 'toBytes 未识别信封')
+  assert.strictEqual(bytes.length, 64)
+  assert.strictEqual(sha(Buffer.from(bytes)), sha(flac64))
+})
+
+run('X2 64B FLAC 信封 kindOf = audio', () => {
+  assert.strictEqual(kindOf(envelope(flac64)), 'audio')
+})
+
+run('X3 1MiB 信封还原 SHA 一致', () => {
+  const raw = crypto.randomBytes(1024 * 1024)
+  const bytes = toBytes(envelope(raw))
+  assert.ok(bytes)
+  assert.strictEqual(sha(Buffer.from(bytes)), sha(raw))
+})
+
+run('X4 8MiB 分片 32 片还原 SHA 一致', () => {
+  const raw = crypto.randomBytes(8 * 1024 * 1024)
+  const env = envelope(raw)
+  assert.strictEqual(env.chunks.length, 32)
+  const bytes = toBytes(env)
+  assert.ok(bytes)
+  assert.strictEqual(sha(Buffer.from(bytes)), sha(raw))
+})
+
+run('X5 byteLength 不符返回 null', () => {
+  const env = envelope(flac64)
+  env.byteLength = 65
+  assert.strictEqual(toBytes(env), null)
+})
+
+run('X7 inited 声明 mediaEnvelope=2', () => {
+  assert.strictEqual(inited && inited.mediaEnvelope, 2)
+})
+
+run('X6 旧桥产物 {type:"Buffer",data} 仍兼容', () => {
+  const oldShape = { type: 'Buffer', data: Array.from(flac64) }
+  const bytes = toBytes(oldShape)
+  assert.ok(bytes)
+  assert.strictEqual(sha(Buffer.from(bytes)), sha(flac64))
+  assert.strictEqual(kindOf(oldShape), 'audio')
+})
+
+console.log(`\n===== 桥媒体信封源侧审计：${checks} 通过 / ${failures} 失败 =====`)
+if (require.main === module) process.exit(failures ? 1 : 0)

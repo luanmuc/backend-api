@@ -35,7 +35,8 @@ const platforms = ['kw', 'kg', 'tx', 'wy', 'mg']
 let failures = 0
 let checks = 0
 const run = (name, fn) => {
-  try { fn(); checks++; console.log(`  ✓ ${name}`) } catch (e) { failures++; console.error(`  ✗ ${name}`); console.error(`    ${e.message}`) }
+  const id = name.split(' ')[0]
+  try { fn(); checks++; console.log(`  ✓ [${id}] ${name}`) } catch (e) { failures++; console.error(`  ✗ [${id}] ${name}`); console.error(`    ${e.message}`) }
 }
 
 run('W1 inited 已上报', () => assert.ok(inited && inited.sources, '没有捕获到 inited'))
@@ -47,4 +48,4 @@ run('W2 5 个平台均声明 fallbackOwner=source', () => {
 })
 
 console.log(`\n===== P1 fallback owner 审计：${checks} 通过 / ${failures} 失败 =====`)
-process.exit(failures ? 1 : 0)
+if (require.main === module) process.exit(failures ? 1 : 0)
