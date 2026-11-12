@@ -4,7 +4,7 @@
 > **App 每次云编译（CI）会自动拉取本仓库根目录 `lx-source.js` 覆盖内置数据源**，因此：
 > - 本仓库是唯一权威数据源入口，改数据源只改这里；
 > - App 构建直接拉 `master` 的 `lx-source.js`，实际内置版本以构建日志的跨仓版本闸门和 APK 内 `assets/builtin_source.js` 为准；
-> - Releases 页是归档入口，不参与构建取源。截至 2026-11-12，Releases 页最新为 `v8.11.7` 且未附产物；`v8.12.1`~`v8.12.4` 已进入 App 安装包，但尚未建 tag/Release。
+> - Releases 页是归档入口，不参与构建取源。截至 2026-11-12，`v8.12.1`~`v8.12.4` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
 
 > **免责声明**：本项目仅供学习交流与技术研究。仅做接口聚合，不存储任何媒体文件；第三方接口的可用性与版权责任归相应服务方。使用即代表同意仅限个人学习用途，禁止商用。
 
@@ -16,7 +16,7 @@
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
-| 发布入口 | 本仓库 **Releases 页**（归档入口）：发布 SOP 要求每次迭代出 tag + 附 `lx-source.js` 产物；当前 `v8.12.1`~`v8.12.4` 待补，`v8.11.7` 缺产物 |
+| 发布入口 | 本仓库 **Releases 页**（归档入口）：发布 SOP 要求每次迭代出 tag + 附 `lx-source.js` 产物；`v8.12.1`~`v8.12.4` 与 `v8.11.7` 资产均已归档，`v8.12.2` tag CI 文档门禁红见上 |
 | 迭代机制 | 任何豆包账号说「**迭代**」即按 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md) 自动推进下一版本；规则见 [docs/AGENTS.md](./docs/AGENTS.md) |
 
 ## 在线导入（自定义源）

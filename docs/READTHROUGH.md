@@ -6,7 +6,7 @@
 >
 > **时效说明**：以下逐文件结论是 2026-11-10 通读时的历史快照，保留作为审计证据；当前版本号、断言数、行数以 `README.md`、`docs/TESTING.md` 与 `scripts/docs-audit.js` 的实测为准。
 
-HEAD `2e9b204`（v8.12.4）　（发布提交后的 5 个测试/文档/CI 收口提交）
+HEAD `37c551d`（v8.12.4）　（发布提交后的 6 个测试/文档/CI 收口提交）
 文件数：**98**　总行数：**25364**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
@@ -14,7 +14,7 @@ HEAD `2e9b204`（v8.12.4）　（发布提交后的 5 个测试/文档/CI 收口
 | # | 事实 | 证据 |
 |---|---|---|
 | X1 | ~~远端巡检已断 2 天~~ **已澄清（2026-11-10）**：巡检从未停，2026-11-10T02:27Z 有一次 schedule run 并成功提交 `4f031f1`；早前判断错在「只在本地 `git log origin/master` 看，没再 fetch」——本地领先 100 个提交、fetch 后 behind 1 就是它。`README_HEALTH` 已更新到 `2026-11-10T02:27Z`，`health-daily/2026-11-10.*` 已生成。真正的问题只剩 `test` job 红在 L2 自检（缺 v8.10.12 版本条目，本地 v8.11.2 已补） | `git fetch` → `git status -sb` = `[ahead 100, behind 1]`；GitHub API runs 显示 11-10T02:27 failure（probe/ecosystem job success，test job step7 L2 失败）；远端 commits 最新 `4f031f1` |
-| X2 | ~~本地 100+ 提交未推~~ **已澄清（2026-11-12）**：本地 HEAD 与 origin/master 均为 `2e9b204`，远端 `test` job success；`mutation` job 仍按设计只在 schedule/manual 跑（push 上 skipped），本轮本地 `--full --strict` 已实跑：首跑 19 killed / 3 skipped（MU4/MU10/MU13 锚点失配），修锚点后 `--only=MU4,MU10,MU13` 复跑 3/3 killed，22 个变异体逐个体均有 killed 证据 | `git status -sb` = `## master...origin/master`；`git ls-remote origin refs/heads/master` = `2e9b204...`；Actions run `43139944126` test=success；mutation 条件见 `ci.yml` |
+| X2 | ~~本地 100+ 提交未推~~ **已澄清并推送（2026-11-12）**：本地 HEAD 与 origin/master 均为 `37c551d`，push run `43161695663` 的 `test` success；`v8.12.1`/`v8.12.3`/`v8.12.4` tag CI success，`v8.12.2` tag CI 的 `test` 红在 V2 文档门禁（历史 `DEV_GUIDE` 缺 8.12.2，`probe` 绿，未移动历史 tag）；`mutation` job 仍按设计只在 schedule/manual 跑（push 上 skipped），本轮本地 `--full --strict` 已实跑：首跑 19 killed / 3 skipped（MU4/MU10/MU13 锚点失配），修锚点后 `--only=MU4,MU10,MU13` 复跑 3/3 killed，22 个变异体逐个体均有 killed 证据 | `git status -sb` = `## master...origin/master`；`git ls-remote origin refs/heads/master` = `37c551d...`；Actions run `43161695663` test=success；mutation 条件见 `ci.yml` |
 | X3 | ~~变异门禁 fail-open~~ **已闭环（v8.11.2）**：`ci.yml` 补 `--strict`，且 2026-11-10 实测 `--full --strict` 全量 **22 killed / 0 survived**、rc=0；门禁从此真会拦人（2026-11-12 复跑首轮 19 killed + 3 skipped——MU4/MU10/MU13 锚点被现行源码改得失配，修锚点后 3/3 killed，22/22 覆盖；不是 survived） | 旧：`ci.yml` 变异 job 不带 `--strict`；新：本日志 + `docs-audit` 规则16 |
 
 ## 二、四类清单（详细证据见 §四）
