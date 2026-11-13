@@ -640,7 +640,8 @@ async function probeSingleSource(id, pc) {
         const probeTimeout = (h && h.coldStart) ? cfg('coldStartProbeTimeoutMs', 30000) : HEALTH_CHECK_TIMEOUT;
         if (p.useHandler) {
           // v8.14：优先复用真实 handler 的取链路径，避免探针维护第二套 URL/解析规则；
-          // handler 抛错时回退旧探针（兼容测试 mock 与上游临时变更，不让探测整体失效）。
+          // handler 抛错时直接按三值失败（UNKNOWN/FAIL）返回，不回退旧 URL 探针——
+          // 生产配置已无 URL 字段，回退旧探针既无输入可用，也会重新引入双路径。
           try {
             const h = SOURCE_HANDLERS[id];
             if (h && typeof h.fn === "function") {
@@ -1119,7 +1120,9 @@ function isResolveDead(sourceId, quality, consume) {
   const trialKey = sourceId;
   const lastTrial = resolveDeadTrialAt.get(trialKey) || 0;
   if (Date.now() - lastTrial < RESOLVE_DEAD_TRIAL_TTL_MS) return true;
-  if (!consume) return true;
+  // 结构读（链构建/快照）只判“是否仍被摘除”：冷却到期就不再拦链；
+  // 真正的唯一试探在发请求前的 preGate 消费，避免链构建先吃掉 trial 后 wrapExecute 又拦一次。
+  if (!consume) return false;
   resolveDeadTrialAt.set(trialKey, Date.now());
   logDebug(`[取链摘除] ${sourceId} 半开试探放行 quality=${quality || "default"} age=${age}ms revive=${reviveMs}ms`);
   return false;
@@ -1143,7 +1146,8 @@ function isPlayDead(sourceId, quality, consume) {
   const trialKey = sourceId; // 半开只允许一个请求/源，不按档各放一个
   const lastTrial = playDeadTrialAt.get(trialKey) || 0;
   if (Date.now() - lastTrial < PLAY_DEAD_TRIAL_TTL_MS) return true;
-  if (!consume) return true; // 快照/UI 仍显示“已摘除”，只有链构建可 consume
+  // 结构读不消费 trial；冷却到期即放链，唯一试探由 wrapExecute preGate 消费。
+  if (!consume) return false;
   playDeadTrialAt.set(trialKey, Date.now());
   logDebug(`[摘除判定] ${sourceId} 半开试探放行 quality=${quality || "default"} age=${age}ms revive=${reviveMs}ms`);
   return false;
@@ -2408,13 +2412,23 @@ function computeEligibility(source, platform, quality, opts) {
   const qbNow = brNow.byQuality[q] && brNow.byQuality[q].breaker;
   // F40：breaker 已进入 half-open 且本次已消费唯一 trial 时，不能再被质量档短路二次拦掉；
   // 否则 Q3 的首次半开永远拿不到请求，失败也无法把 state 收回 open。
-  const halfOpenTrial = !!(o.runtime && qbNow && qbNow.state === 'half-open');
-  if (!halfOpenTrial && (o.runtime || o.qualityShortCircuit) && cfg('qualityShortCircuit', true) && isQualityHopeless(id, q)) {
+  // F40+：冷却到期的 open 也是“唯一试探已就绪”，qualityShortCircuit 不能把它再拦掉；
+  // 否则 buildSourceChain 的 peek 不推进 open→half-open，短路会抢在 canExecute 前把链剪断，
+  // 半开恢复永远拿不到请求（S5b 实测“冷却后外呼 0”）。
+  const breakerTrialReady = !!(o.runtime && qbNow && (
+    qbNow.state === 'half-open' ||
+    (qbNow.state === 'open' && Date.now() - (qbNow.lastFailureTime || 0) >= cfg('breakerCooldownMs', BREAKER_COOLDOWN_MS))
+  ));
+  if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg('qualityShortCircuit', true) && isQualityHopeless(id, q)) {
     return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: qualitySkipProbeAt.get(qualityShortCircuitKey(id, q)) || null };
   }
   if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
+  // 128k 是冷却期的保底档：wrapExecute 已明确放行 128k，资格层必须同源，
+  // 否则 buildSourceChain 会先把整个源过滤掉，保底档永远走不到（T2/T2b/T2c 实测）。
   const pv = previewCooldownMap.get(id);
-  if (pv && pv > Date.now()) return { eligible: false, reason: "preview_cooldown", code: "PREVIEW_COOLDOWN", untilMs: pv };
+  if (pv && pv > Date.now() && String(q || "").toLowerCase() !== "128k") {
+    return { eligible: false, reason: "preview_cooldown", code: "PREVIEW_COOLDOWN", untilMs: pv };
+  }
   return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
 }
 
@@ -4148,7 +4162,7 @@ function buildSourceChain(platform, quality) {
     .filter(h => h.chain[platform] != null)
     .filter(h => qualityRank(h.maxQuality) >= qualityRank(q))
     .map(h => {
-      const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: true });
+      const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
       if (!e.eligible) {
         if (LOG_DEBUG) logDebug(`[链] ${h.id} 跳过（${e.reason}${e.untilMs ? `，至 ${e.untilMs}` : ""}）`);
         return null;
@@ -4323,7 +4337,7 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
   // 在发请求前重取一次结构资格，避免拿旧链继续打已失效源；运行期 breaker/限流仍由下面 canExecute 复核。
   // 合成 handler（测试哨兵/外部临时源）不在注册表里，不参与本仓的资格门禁。
   const preGate = SOURCE_HANDLERS[handler.id]
-    ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: false })
+    ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: true })
     : { eligible: true, code: 'ELIGIBLE', reason: null };
   if (!preGate.eligible) {
     recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: preGate.reason || "eligibility" });

@@ -1,9 +1,9 @@
 # 测试基建索引（test/）
 
-> **44 个入口**，**没有统一 runner**，逐条跑。
+> **44 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **18 个脚本**（冒烟 1 + 审计 17），其余 26 个按需执行。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
-> 断言实测：冒烟 **67 组** + 审计 **429 条**（a-static 10 / b-logic 30 / d-func 30 / e-extra **90** / f-repo **52** / g-meta **14** / h-toggles **8** / n-fixes **4** / p-gaps **4** / q-dfix **5** / q2-dseries **3** / r-admission **23** / s-health-events **22** / t-health-events-stress **12** / u-cross-platform **14** / **v-cross-platform-stress 13** / w-fallback-owner **2** / q-quickjs-real **3** / candidate-audit **6** / x-media-envelope **12** / **y-provider-contract 15** / **s-source-lifecycle 14** / **z-cancel 11** / **v-eligibility 7** / **health-linkage-invariants 4** / **health-breaker-quality 5** / **health-resolve-dead 4** / **health-scoped-reset 2** / **health-scheduler-fake-clock 2**）+ 压测 **159 条**（12/14/**133**）= **合计 655 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-12 实测（变异器改为改 `src/*` 后重建，锚点全部命中））。
+> 断言实测（2026-11-13 当前工作树）：冒烟 **67 组** + 压测 **159 条**（12/14/**133**）+ 审计断言按各脚本输出汇总（本轮新增 health-snapshot **11/0**、health-probe-batch2 **9/0**、health-eligibility-batch3 **9/0**）；历史 429/655 是旧口径，不再作为当前总数。逐入口明细见下方「入口总表」。变异体 **22 个**（`--full --strict` 全量 **22 killed / 0 survived**，2026-11-13 实测）。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 〇、CI 覆盖（`.github/workflows/ci.yml`）
@@ -60,7 +60,7 @@
 | `test/audit/y-provider-contract.js` | **15** | v8.13 Provider Contract：12/10/2 预算、key 对齐、上游族唯一、qualitys/platforms/chain、active 必须有链位次、probation 无链位次且默认关闭 + reviewAt、覆盖缺口、非法契约拒绝加载 | mock 宿主 + `validateProviderContracts` | `node test/audit/y-provider-contract.js` |
 | `test/audit/s-source-lifecycle.js` | **14** | v8.13 生命周期治理：三份治理文档存在、增源七步/减源五条/一进一出、`source-inventory --check`、退役源清零、版本 8.13.0 | 读文件 + 子进程 | `node test/audit/s-source-lifecycle.js` |
 | `test/audit/z-cancel.js` | **10** | v8.13 协作式真取消：预取消零外呼、请求中取消调用宿主 `lx.request` 返回的取消句柄、race 取消全部 launcher、wrapExecute 前后检查、取消不写熔断/失败计数、观察源不进链 | mock 宿主 + `__debug` | `node test/audit/z-cancel.js` |
-| `test/mutation/run.js` | 22 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（在临时副本上跑）；2026-11-12 `--full --strict` 全量 **22 killed / 0 survived**；变异器改为改 `src/*` 后重建再跑门禁，22 个锚点全部命中；2026-11-10 曾因对压缩产物打锚点出现 skipped，已消除 | 本地 | `node test/mutation/run.js [--full] [--strict]` |
+| `test/mutation/run.js` | 22 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（在临时副本上跑）；2026-11-13 `--full --strict` 全量（MU19 锚点已随 `revertHalfOpenOnSkip(id,quality)` 更新） **22 killed / 0 survived**；变异器改为改 `src/*` 后重建再跑门禁，22 个锚点全部命中；2026-11-10 曾因对压缩产物打锚点出现 skipped，已消除 | 本地 | `node test/mutation/run.js [--full] [--strict]` |
 
 ## 二、mock 宿主必须同构的四件事（不照做会出现假故障）
 

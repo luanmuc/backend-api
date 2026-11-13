@@ -154,7 +154,7 @@ const MUTANTS = [
   {
     id: 'MU19',
     name: '去掉半开退回 open（节流路径卡死，D-34 保护）',
-    from: 'revertHalfOpenOnSkip(handler.id); // D-34：同上，节流也在 try 之外抛',
+    from: 'revertHalfOpenOnSkip(handler.id, quality); // D-34：同上，节流也在 try 之外抛',
     to: '// D-34 变异体：删掉半开退回',
     gates: ['test/stress-round4.js'],
   },

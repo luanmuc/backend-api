@@ -87,14 +87,17 @@ check('C5 skipReason 与链使用同一 reducer：open/限流原因一致', () =
   assert(limited && limited.code === 'RATE_LIMITED', `限流 skipReason=${JSON.stringify(limited)}`)
 })
 
-check('C6 preview 冷却不进链且原因独立', () => {
+check('C6 preview 冷却只拦非 128k，128k 保底档仍入链', () => {
   const m = fresh()
   const srcMap = m.__debug.previewCooldownMap || m.previewCooldownMap
   assert(srcMap && typeof srcMap.set === 'function', 'previewCooldownMap 未导出，无法审计')
   srcMap.set(ID, Date.now() + 60 * 1000)
-  assert(!chainIds(m).includes(ID), 'preview 冷却源仍在链中')
-  const skip = m.__debug.skipReason(ID, { platform: 'kw', quality: '128k' })
-  assert(skip && skip.code === 'PREVIEW_COOLDOWN', `preview skipReason=${JSON.stringify(skip)}`)
+  assert(!m.__debug.buildSourceChain('kw', 'flac').map(h => h.id).includes(ID), 'preview 冷却源仍在 flac 链中')
+  assert(m.__debug.buildSourceChain('kw', '128k').map(h => h.id).includes(ID), 'preview 冷却源不应被 128k 保底链排除')
+  const skip = m.__debug.skipReason(ID, { platform: 'kw', quality: 'flac' })
+  assert(skip && skip.code === 'PREVIEW_COOLDOWN', `flac preview skipReason=${JSON.stringify(skip)}`)
+  const keep = m.__debug.skipReason(ID, { platform: 'kw', quality: '128k' })
+  assert(!keep || keep.code !== 'PREVIEW_COOLDOWN', `128k 不应被判 preview 冷却：${JSON.stringify(keep)}`)
 })
 
 check('C7 qualityShortCircuit 仍可见且不入链', () => {

@@ -111,7 +111,8 @@ const handles = () => (typeof process.getActiveResourcesInfo === 'function' ? pr
 
   // S5 熔断雪崩
   {
-    fresh(['suyinKuwo'], { breakerThreshold: 2, breakerCooldownMs: 300 });
+    // 压测只测熔断恢复：本地滑窗、resolveDead 5min 摘除都不能抢在 breaker 半开前拦下（S5b 曾在负载下假红）。
+    fresh(['suyinKuwo'], { breakerThreshold: 2, breakerCooldownMs: 300, playDeadReviveMs: 300, rateWindowMax: 1e6, maxConcurrency: 1e6 });
     scene = () => ({ error: 'ECONNRESET' }); probeFn = () => ({ error: 'ECONNRESET' });
     let calls = [];
     for (let i = 0; i < 10; i++) { reset(); try { await req('flac', GOOD('s5_' + i)); } catch (e) { } calls.push(total()); }

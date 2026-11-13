@@ -27,7 +27,7 @@
 | `README_HEALTH.md` | 44 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AGENTS.md` | 190 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_PLAN.md` | 514 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_PLAN.md` | 600 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AUDIT_RESULTS.md` | 1999 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/DEV_GUIDE.md` | 514 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -56,7 +56,7 @@
 | `docs/health-daily/2026-11-13.json` | 66 | .json | ✓ | — | — | — | — | — | — | U10 |
 | `docs/health-daily/2026-11-09.md` | 48 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/probe-history.jsonl` | 784 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
-| `lx-source.js` | 5539 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
+| `lx-source.js` | 5541 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
 | `scripts/candidate-audit.js` | 342 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/cn-date.js` | 17 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/doc-sync-map.js` | 111 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
@@ -87,7 +87,7 @@
 | `test/audit/health-state-machine-v2.js` | 144 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | 方案 6.2 M1~M10 状态机/快照同源 |
 | `test/audit/health-authority-split.js` | 125 |
 | `test/audit/health-probe-batch2.js` | 151 |
-| `test/audit/health-eligibility-batch3.js` | 127 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 3 C1~C9 统一 Eligibility 接入 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 2 B1~B9 探测/质量档 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 1 A1~A9 开关权威拆分 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 0 S1~S12 影子裁决 |
+| `test/audit/health-eligibility-batch3.js` | 130 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 3 C1~C9 统一 Eligibility 接入 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 2 B1~B9 探测/质量档 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 1 A1~A9 开关权威拆分 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 0 S1~S12 影子裁决 |
 | `test/audit/health-breaker-quality.js` | 137 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Q1~Q5/F39/F40/F41 按档熔断 |
 | `test/audit/health-resolve-dead.js` | 101 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | R1~R4/F42 取链摘除分层 |
 | `test/audit/health-scoped-reset.js` | 74 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | S1~S2/F38 scoped 清账 |
@@ -100,15 +100,15 @@
 | `test/audit/e-extra.js` | 927 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/candidate-audit-test.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/lx-source-smoke-test.js` | 1623 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
-| `test/stress-test.js` | 220 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/stress-test.js` | 221 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `docs/ARCHITECTURE.md` | 94 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/README.md` | 68 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 54 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/TESTING.md` | 155 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/CHANGELOG.md` | 71 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/CHANGELOG.md` | 72 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AUDIT_MATRIX.md` | 187 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 406 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
-| `test/stress-round3.js` | 357 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
+| `test/stress-round3.js` | 356 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
 | `test/audit/g-meta.js` | 314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14 |
 | `docs/audit-plans/round1.md` | 90 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/audit-plans/round2.md` | 186 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
@@ -132,7 +132,7 @@
 | `test/audit/x-media-envelope.js` | 157 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P2 X1~X12（64B/1B/1KB/1MiB/8MiB 信封还原 / kindOf audio / byteLength=BAD_ENVELOPE / 缺片=TRUNCATED_MEDIA / 旧 Buffer 兼容 / mediaEnvelope 能力声明 / 0 字节零长 / admit 错误码 / 1MiB JSON.parse≤10ms） |
 | `test/audit/s-health-events.js` | 230 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | S 组 S1~S6（2.4 方案 healthEvents 22 条） |
 | `test/audit/t-health-events-stress.js` | 137 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | T 组 T1~T9（2.4 方案压力 12 条） |
-| `test/stress-round4.js` | 1314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
+| `test/stress-round4.js` | 1319 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 272 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
 | `docs/READTHROUGH.md` | 241 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
@@ -140,7 +140,7 @@
 ## 汇总
 
 - 文件总数：**147**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**36723**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 总行数：**36834**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_LIFECYCLE.md` | 76 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
@@ -155,7 +155,7 @@
 | `scripts/verify-real-platform-chains.js` | 103 | .js | ✓ | — | — | — | ✓ | ✓ | — | G7 平台 ID 链真实证据 |
 | `src/00-header.js` | 6 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/80-entry.js` | 10 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/legacy.js` | 5593 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/legacy.js` | 5607 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/55-probation.js` | 41 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/changqingVip.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/helloworldKw.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |

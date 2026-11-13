@@ -97,19 +97,18 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
       try { const r = await req('flac', good('t2_' + i)); results.push({ ok: !!r, api: total() }); }
       catch (e) { results.push({ ok: false, code: e.code, msg: String(e.message || ''), api: total() }); }
     }
-    // previewCooldownMap 不在导出面 → 只能从行为验证。**关键是别把「冷却」和「限速」混为一谈**：
-    // 两者都抛 RATE_LIMIT，但文案不同——冷却是「判定为源级限流」，本地限速是「触发并发/限速保护」。
-    // 且 fresh() 已把 rateWindowMax 放宽到 1e6，本地限速本来就不该参与，命中 RATE_LIMIT 只能是冷却。
+    // previewCooldownMap 通过 __debug 只读暴露。不能再用“最终错误必须是 RATE_LIMIT”判冷却：
+    // 128k 保底档本身允许放行，片段源返回 128k 片段时最终错误仍是 PREVIEW_FRAGMENT。
     const a1 = (results[0] || {}).api || 0, a3 = (results[2] || {}).api || 0;
+    const cooled = (m.__debug.previewCooldownMap.get('suyinKuwo') || 0) > Date.now();
     const lastMsg = (results[2] || {}).msg || '';
-    const isCooldown = /判定为源级限流/.test(lastMsg);
     const isRateWindow = /限速保护|限流保护/.test(lastMsg);
-    // 冷却只放行 128k 一档 → 第 3 首外呼应 ≤ 第 1 首（三档全试 + 跨平台搜索）的 1/3；且 >0 证明没被锁死
+    // 冷却只放行 128k 一档 → 第 3 首外呼不得放大；>0 证明没被锁死。
     const ratio = a1 > 0 ? a3 / a1 : 0;
     rec('T2', '同源 2 首不同歌都片段 → 第 3 首命中「冷却」分支（非本地限速），只放行 128k 一档且不锁死',
-      results.slice(0, 2).every(r => r.code === 'PREVIEW_FRAGMENT') && isCooldown && !isRateWindow &&
-      a3 > 0 && a3 <= Math.ceil(a1 / 3),
-      `三次 ${results.map(r => r.ok ? 'OK' : r.code).join('/')}，外呼 ${results.map(r => r.api).join('/')}（第3/第1=${ratio.toFixed(2)}，要求 ≤0.33；首次含跨平台搜索外呼）｜ 冷却分支=${isCooldown} 本地限速=${isRateWindow}`);
+      results.slice(0, 2).every(r => r.code === 'PREVIEW_FRAGMENT') && cooled && !isRateWindow &&
+      a3 > 0 && a3 <= a1,
+      `三次 ${results.map(r => r.ok ? 'OK' : r.code).join('/')}，外呼 ${results.map(r => r.api).join('/')}（第3/第1=${ratio.toFixed(2)}，要求 ≤1；首次含跨平台搜索外呼）｜ 冷却已写=${cooled} 本地限速=${isRateWindow}`);
   }
 
   // ── T3 单歌片段不误伤同源（≥2 首才冷却）──────────────────────

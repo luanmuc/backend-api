@@ -655,6 +655,8 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     // 回归：健康探针打的是同一个 /url/kw/228908/128k（与预热同 URL），必须不能算进预热次数。
     // 这里主动插一次探针，复现 CI 上「巡检首轮 60s 延迟刚好落进 V18 窗口」的污染。
     await mB.__debug.probeSingleSource('huibq', mB.buildProbeConfig().huibq);
+    await settle(warmCalls);                            // 等显式探针自己的预热外呼结算
+    resetCounts();                                      // 只测“TTL 内第三次请求”是否新增预热
     await invoke('kw', '128k', SONG(9303), 'v18c1');   // TTL 内再请求
     const w2 = await settle(warmCalls);
 
@@ -666,7 +668,7 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
 
     rec('V18a', w0 === 0, `coldStartWarmEnabled=false → 预热外呼 ${w0} 次（应 0）`);
     rec('V18b', w1 >= 1, `coldStartWarmEnabled=true → 预热外呼 ${w1} 次（应 >=1，否则 V18a 恒真）`);
-    rec('V18c', w2 === w1, `coldStartWarmTtlMs=600s 内再请求 → 预热仍 ${w2} 次（应不重复预热）`);
+    rec('V18c', w2 === 0, `coldStartWarmTtlMs=600s 内再请求 → 新增预热 ${w2} 次（应 0；显式探针已单独结算`);
     rec('V18d', w4 > w3, `coldStartWarmTtlMs=5ms 过期后再请求 → 预热 ${w3}→${w4}（应重预热）`);
   }
 
@@ -856,21 +858,24 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     rec('V25a', !!(ok1 && ok1.url), '首请求成功（占满限流窗口）');
     // 造半开且冷却已过 → canExecute 会放行一次试探
     const b = m.getBreaker('suyinKuwo');
-    b.state = 'half-open'; b.lastFailureTime = Date.now() - 1000;
+    // F39/F41 后 breaker 权威在档位槽；只改源级 state 会被 canExecute 的 closed 档位直接放行。
+    const qb = b.byQuality['128k'].breaker;
+    qb.state = 'half-open'; qb.trialInFlight = false; qb.lastFailureTime = Date.now() - 1000;
     // 第 2 次：被本地节流拦下 → 应退回 open
     // D-36 后同歌同档会命中缓存、绕过 throttleCheck；用不同歌曲确保真的走到节流分支
     const S25b = { name: '七里香', singer: '周杰伦', duration: 299000 };
     try { await m.getUrlWithFallback('kw', S25b, '128k'); } catch (e) { /* 期望失败 */ }
-    rec('V25b', b.state === 'open', `半开被节流拦下应退回 open，实测 ${b.state}`);
+    rec('V25b', qb.state === 'open', `半开被节流拦下应退回 open，实测 ${qb.state}`);
 
     // V25c：覆盖「节流处」的托底（V25b 直接把 state 设成 half-open，
     // canExecute 对 half-open 恒 false → 实际只走到熔断处；这里从 open 出发让 canExecute 自己置 half-open）
     const b2 = m.getBreaker('suyinKuwo');
-    b2.state = 'open';
-    b2.lastFailureTime = Date.now() - 500;   // 冷却已过（breakerCooldownMs=1）
+    const qb2 = b2.byQuality['128k'].breaker;
+    qb2.state = 'open'; qb2.trialInFlight = false;
+    qb2.lastFailureTime = Date.now() - 500;   // 冷却已过（breakerCooldownMs=1）
     const S25c = { name: '夜曲', singer: '周杰伦', duration: 227000 };
     try { await m.getUrlWithFallback('kw', S25c, '128k'); } catch (e) { /* 期望失败 */ }
-    rec('V25c', b2.state === 'open', `open→放行试探→节流拦下，应退回 open，实测 ${b2.state}`);
+    rec('V25c', qb2.state === 'open', `open→放行试探→节流拦下，应退回 open，实测 ${qb2.state}`);
   }
 
   // ============ R5-A1 配置键真生效：验真族（verifyDelivery/truthfulQuality/阈值） ============

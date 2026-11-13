@@ -1116,7 +1116,7 @@ var __lxSourceBundle = (() => {
         const trialKey = sourceId;
         const lastTrial = resolveDeadTrialAt.get(trialKey) || 0;
         if (Date.now() - lastTrial < RESOLVE_DEAD_TRIAL_TTL_MS) return true;
-        if (!consume) return true;
+        if (!consume) return false;
         resolveDeadTrialAt.set(trialKey, Date.now());
         logDebug(`[\u53D6\u94FE\u6458\u9664] ${sourceId} \u534A\u5F00\u8BD5\u63A2\u653E\u884C quality=${quality || "default"} age=${age}ms revive=${reviveMs}ms`);
         return false;
@@ -1138,7 +1138,7 @@ var __lxSourceBundle = (() => {
         const trialKey = sourceId;
         const lastTrial = playDeadTrialAt.get(trialKey) || 0;
         if (Date.now() - lastTrial < PLAY_DEAD_TRIAL_TTL_MS) return true;
-        if (!consume) return true;
+        if (!consume) return false;
         playDeadTrialAt.set(trialKey, Date.now());
         logDebug(`[\u6458\u9664\u5224\u5B9A] ${sourceId} \u534A\u5F00\u8BD5\u63A2\u653E\u884C quality=${quality || "default"} age=${age}ms revive=${reviveMs}ms`);
         return false;
@@ -2318,13 +2318,15 @@ var __lxSourceBundle = (() => {
         }
         const brNow = getBreaker(id);
         const qbNow = brNow.byQuality[q] && brNow.byQuality[q].breaker;
-        const halfOpenTrial = !!(o.runtime && qbNow && qbNow.state === "half-open");
-        if (!halfOpenTrial && (o.runtime || o.qualityShortCircuit) && cfg("qualityShortCircuit", true) && isQualityHopeless(id, q)) {
+        const breakerTrialReady = !!(o.runtime && qbNow && (qbNow.state === "half-open" || qbNow.state === "open" && Date.now() - (qbNow.lastFailureTime || 0) >= cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS)));
+        if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg("qualityShortCircuit", true) && isQualityHopeless(id, q)) {
           return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: qualitySkipProbeAt.get(qualityShortCircuitKey(id, q)) || null };
         }
         if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
         const pv = previewCooldownMap.get(id);
-        if (pv && pv > Date.now()) return { eligible: false, reason: "preview_cooldown", code: "PREVIEW_COOLDOWN", untilMs: pv };
+        if (pv && pv > Date.now() && String(q || "").toLowerCase() !== "128k") {
+          return { eligible: false, reason: "preview_cooldown", code: "PREVIEW_COOLDOWN", untilMs: pv };
+        }
         return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
       }
       function skipReason(source, ctx) {
@@ -3813,7 +3815,7 @@ var __lxSourceBundle = (() => {
       function buildSourceChain(platform, quality) {
         const q = String(quality || "128k").toLowerCase();
         const handlers = Object.keys(SOURCE_HANDLERS).map((id) => SOURCE_HANDLERS[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform)).filter((h) => h.chain[platform] != null).filter((h) => qualityRank(h.maxQuality) >= qualityRank(q)).map((h) => {
-          const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: true });
+          const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
           if (!e.eligible) {
             if (LOG_DEBUG) logDebug(`[\u94FE] ${h.id} \u8DF3\u8FC7\uFF08${e.reason}${e.untilMs ? `\uFF0C\u81F3 ${e.untilMs}` : ""}\uFF09`);
             return null;
@@ -3985,7 +3987,7 @@ var __lxSourceBundle = (() => {
         var _a2;
         throwIfCanceled(cancelToken);
         const traceId = healthTraceOf(songInfo);
-        const preGate = SOURCE_HANDLERS[handler.id] ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: false }) : { eligible: true, code: "ELIGIBLE", reason: null };
+        const preGate = SOURCE_HANDLERS[handler.id] ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: true }) : { eligible: true, code: "ELIGIBLE", reason: null };
         if (!preGate.eligible) {
           recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: preGate.reason || "eligibility" });
           const gateErr = new Error(`${preGate.code || ERROR_CODES.RATE_LIMIT}: \u97F3\u6E90[${handler.name}]\u53D1\u8BF7\u6C42\u524D\u8D44\u683C\u5931\u6548\uFF08${preGate.reason || "eligibility"}\uFF09`);
