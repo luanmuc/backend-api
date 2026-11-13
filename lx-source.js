@@ -48,7 +48,7 @@ var __lxSourceBundle = (() => {
   // src/legacy.js
   var require_legacy = __commonJS({
     "src/legacy.js"(exports, module) {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
       var USER_CONFIG = {
         ikunApiKey: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.ikunApiKey || "",
         // 填入 ikun 卡密后开启
@@ -71,11 +71,13 @@ var __lxSourceBundle = (() => {
         // 开关等于不存在（helloworld 的试听URL预筛因此从未执行）。补进白名单，布尔用 ?? 防 false 被吞。
         previewUrlPreFilter: (_g = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.previewUrlPreFilter) != null ? _g : false,
         fragmentFallback: (_h = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.fragmentFallback) != null ? _h : true,
+        // F57：持久化 v2 回滚开关；false 时导出旧 v1，旧宿主忽略 v2。
+        healthV2Enabled: (_i = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthV2Enabled) != null ? _i : true,
         // v8.11.2（D-35，V26c/d/f 实测暴露）：验真族阈值用 || 读配置时，传 0 会被吞成默认值（0 比例/0 间隔=不设限 是合法值），统一改 ?? 。
-        verifyTimeoutMs: (_i = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyTimeoutMs) != null ? _i : 3e3,
-        verifyMinOriginalSec: (_j = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyMinOriginalSec) != null ? _j : 90,
-        verifyDurRatio: (_k = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurRatio) != null ? _k : 0.6,
-        verifyDurGapSec: (_l = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurGapSec) != null ? _l : 15,
+        verifyTimeoutMs: (_j = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyTimeoutMs) != null ? _j : 3e3,
+        verifyMinOriginalSec: (_k = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyMinOriginalSec) != null ? _k : 90,
+        verifyDurRatio: (_l = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurRatio) != null ? _l : 0.6,
+        verifyDurGapSec: (_m = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurGapSec) != null ? _m : 15,
         cacheTtlMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.cacheTtlMs || 216e5,
         // 成功缓存 TTL(6h，低音质用)
         cacheTtlHighQualityMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.cacheTtlHighQualityMs || 18e5,
@@ -102,7 +104,7 @@ var __lxSourceBundle = (() => {
         // v8.14：探测并发上限(默认3,最大8)
         raceMatchWaitMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceMatchWaitMs || 600,
         // verified 等待窗口
-        allFailShortTtlMs: (_m = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) != null ? _m : 3e4,
+        allFailShortTtlMs: (_n = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) != null ? _n : 3e4,
         // v6.0：全链网络类失败短缓存 TTL(补齐 v6.0 漏配键)
         raceBudgetMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBudgetMs || 12e3,
         // v8.8：单次请求总预算(跨音质档共享)
@@ -3302,7 +3304,8 @@ var __lxSourceBundle = (() => {
         };
         return snapshot;
       }
-      var HEALTH_STATE_VERSION = 1;
+      var HEALTH_STATE_VERSION = 2;
+      var HEALTH_STATE_ACCEPTED_VERSIONS = [1, 2];
       var HEALTH_STATE_SOURCE_VERSION = "8.13.0";
       var HEALTH_STATE_MAX_BYTES = 256 * 1024;
       var HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1e3;
@@ -3339,6 +3342,37 @@ var __lxSourceBundle = (() => {
       }
       function healthNumber(value, allowZero) {
         return typeof value === "number" && Number.isFinite(value) && (allowZero ? value >= 0 : value > 0);
+      }
+      function collectHealthControls() {
+        const controls = {};
+        for (const id of Object.keys(SOURCE_HANDLERS)) {
+          controls[id] = {
+            enabled: isUserEnabled(id),
+            manualOff: !!manualOff[id],
+            autoOff: !!autoOff[id],
+            autoOffAt: Number(autoOffAt[id] || 0),
+            autoOffReason: autoOffReason[id] || null
+          };
+        }
+        return controls;
+      }
+      function applyHealthControls(controls) {
+        for (const [id, c] of Object.entries(controls)) {
+          userEnabled[id] = c.enabled;
+          if (c.manualOff) manualOff[id] = true;
+          else delete manualOff[id];
+          const autoAge = Date.now() - (c.autoOffAt || 0);
+          if (c.autoOff && (!c.autoOffAt || autoAge <= 6 * 60 * 60 * 1e3)) {
+            autoOff[id] = true;
+            autoOffAt[id] = c.autoOffAt || Date.now();
+            autoOffReason[id] = c.autoOffReason || "AUTO_OFF_PROBE";
+          } else {
+            delete autoOff[id];
+            delete autoOffAt[id];
+            delete autoOffReason[id];
+          }
+          syncRuntimeToggle(id);
+        }
       }
       function exportHealthState() {
         const sources = {};
@@ -3381,32 +3415,29 @@ var __lxSourceBundle = (() => {
           const n = Number(at);
           if (Number.isFinite(n) && n > 0) qualityShortCircuit[`${id}:${quality}`] = n;
         }
-        const controls = {};
-        for (const id of Object.keys(SOURCE_HANDLERS)) {
-          controls[id] = {
-            enabled: isUserEnabled(id),
-            manualOff: !!manualOff[id],
-            autoOff: !!autoOff[id],
-            autoOffAt: Number(autoOffAt[id] || 0),
-            autoOffReason: autoOffReason[id] || null
-          };
-        }
-        return { v: HEALTH_STATE_VERSION, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
+        const controls = collectHealthControls();
+        const version2 = cfg("healthV2Enabled", true) ? HEALTH_STATE_VERSION : 1;
+        return { v: version2, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
       }
       function restoreHealthState(state) {
         try {
           if (!isHealthPlainObject(state)) return { ok: false, reason: "state \u5FC5\u987B\u662F\u5BF9\u8C61" };
-          if (state.v !== HEALTH_STATE_VERSION) return { ok: false, reason: "schema version \u4E0D\u7B26" };
-          if (state.sourceVersion !== HEALTH_STATE_SOURCE_VERSION) return { ok: false, reason: "sourceVersion \u4E0D\u7B26" };
+          if (!HEALTH_STATE_ACCEPTED_VERSIONS.includes(state.v)) return { ok: false, reason: "schema version \u4E0D\u7B26" };
           if (!healthNumber(state.savedAt, true)) return { ok: false, reason: "savedAt \u975E\u6CD5" };
           const age = Date.now() - state.savedAt;
           if (age < -HEALTH_STATE_FUTURE_TOLERANCE_MS || age > HEALTH_STATE_TTL_MS) return { ok: false, reason: "savedAt \u8D85\u51FA TTL" };
           if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state \u8D85\u8FC7 256KB" };
           const forbidden = checkHealthForbiddenKeys(state, "state");
           if (forbidden) return { ok: false, reason: `\u7981\u6B62\u5B57\u6BB5 ${forbidden}` };
-          if (!isHealthPlainObject(state.sources)) return { ok: false, reason: "sources \u5FC5\u987B\u662F\u5BF9\u8C61" };
-          const ids = Object.keys(state.sources);
-          if (!ids.length) return { ok: false, reason: "sources \u4E3A\u7A7A" };
+          const controlsRaw = state.controls === void 0 ? {} : state.controls;
+          if (!isHealthPlainObject(controlsRaw)) return { ok: false, reason: "controls \u975E\u6CD5" };
+          const controlsOnly = (!isHealthPlainObject(state.sources) || Object.keys(state.sources).length === 0) && Object.keys(controlsRaw).length > 0;
+          if (!controlsOnly && state.sourceVersion !== HEALTH_STATE_SOURCE_VERSION) return { ok: false, reason: "sourceVersion \u4E0D\u7B26" };
+          if (!isHealthPlainObject(state.sources)) {
+            if (!controlsOnly) return { ok: false, reason: "sources \u5FC5\u987B\u662F\u5BF9\u8C61" };
+          }
+          const ids = isHealthPlainObject(state.sources) ? Object.keys(state.sources) : [];
+          if (!controlsOnly && !ids.length) return { ok: false, reason: "sources \u4E3A\u7A7A" };
           const sanitized = {};
           for (const id of ids) {
             if (!SOURCE_HANDLERS[id]) return { ok: false, reason: `\u672A\u77E5\u6E90 ${id}` };
@@ -3467,8 +3498,6 @@ var __lxSourceBundle = (() => {
             if (!healthNumber(at, false)) return { ok: false, reason: `qualityShortCircuit.${key} \u975E\u6CD5` };
             qualityShortCircuit[`${id}:${quality}`] = at;
           }
-          const controlsRaw = state.controls === void 0 ? {} : state.controls;
-          if (!isHealthPlainObject(controlsRaw)) return { ok: false, reason: "controls \u975E\u6CD5" };
           const controls = {};
           for (const [id, c] of Object.entries(controlsRaw)) {
             if (!SOURCE_HANDLERS[id]) return { ok: false, reason: `controls.${id} \u672A\u77E5\u6E90` };
@@ -3496,25 +3525,10 @@ var __lxSourceBundle = (() => {
             else playDeadDeadline.delete(id);
             restored++;
           }
-          for (const [id, c] of Object.entries(controls)) {
-            userEnabled[id] = c.enabled;
-            if (c.manualOff) manualOff[id] = true;
-            else delete manualOff[id];
-            const autoAge = Date.now() - (c.autoOffAt || 0);
-            if (c.autoOff && (!c.autoOffAt || autoAge <= 6 * 60 * 60 * 1e3)) {
-              autoOff[id] = true;
-              autoOffAt[id] = c.autoOffAt || Date.now();
-              autoOffReason[id] = c.autoOffReason || "AUTO_OFF_PROBE";
-            } else {
-              delete autoOff[id];
-              delete autoOffAt[id];
-              delete autoOffReason[id];
-            }
-            syncRuntimeToggle(id);
-          }
+          applyHealthControls(controls);
           qualitySkipProbeAt.clear();
           for (const [key, at] of Object.entries(qualityShortCircuit)) qualitySkipProbeAt.set(key, at);
-          return { ok: true, restored };
+          return { ok: true, restored, controlsRestored: Object.keys(controls).length };
         } catch (e) {
           return { ok: false, reason: e && e.message ? e.message : String(e) };
         }
@@ -4736,7 +4750,8 @@ var __lxSourceBundle = (() => {
             "fragmentFallback",
             "qualityShortCircuit",
             "coldStartWarmEnabled",
-            "crossPlatformEnabled"
+            "crossPlatformEnabled",
+            "healthV2Enabled"
           ];
           const ZERO_ALLOWED_KEYS = ["verifyDurRatio", "verifyDurGapSec"];
           const PARAM_LIMITS = {

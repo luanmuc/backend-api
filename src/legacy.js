@@ -33,6 +33,8 @@ const USER_CONFIG = {
   // 开关等于不存在（helloworld 的试听URL预筛因此从未执行）。补进白名单，布尔用 ?? 防 false 被吞。
   previewUrlPreFilter: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.previewUrlPreFilter) ?? false,
   fragmentFallback: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.fragmentFallback) ?? true,
+  // F57：持久化 v2 回滚开关；false 时导出旧 v1，旧宿主忽略 v2。
+  healthV2Enabled: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthV2Enabled) ?? true,
   // v8.11.2（D-35，V26c/d/f 实测暴露）：验真族阈值用 || 读配置时，传 0 会被吞成默认值（0 比例/0 间隔=不设限 是合法值），统一改 ?? 。
   verifyTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyTimeoutMs) ?? 3000,
   verifyMinOriginalSec: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyMinOriginalSec) ?? 90,
@@ -3643,7 +3645,8 @@ function getHealthSnapshot() {
 // 官方移动版自定义源没有 storage API，持久化只能由 App 宿主承担；
 // 源侧只负责导出白名单快照、校验后恢复，successCache/failCache 永远不落盘。
 // ============================================================
-const HEALTH_STATE_VERSION = 1;
+const HEALTH_STATE_VERSION = 2; // F57：v2 独立 controls；仍接受 v1
+const HEALTH_STATE_ACCEPTED_VERSIONS = [1, 2];
 const HEALTH_STATE_SOURCE_VERSION = "8.13.0";
 const HEALTH_STATE_MAX_BYTES = 256 * 1024;
 const HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1000;
@@ -3670,6 +3673,40 @@ function checkHealthForbiddenKeys(value, path) {
 }
 function healthNumber(value, allowZero) {
   return typeof value === "number" && Number.isFinite(value) && (allowZero ? value >= 0 : value > 0);
+}
+
+// F57：用户意图独立导出/恢复；autoOff 仍是短期临时态，恢复时按 6h 复验。
+function collectHealthControls() {
+  const controls = {};
+  for (const id of Object.keys(SOURCE_HANDLERS)) {
+    controls[id] = {
+      enabled: isUserEnabled(id),
+      manualOff: !!manualOff[id],
+      autoOff: !!autoOff[id],
+      autoOffAt: Number(autoOffAt[id] || 0),
+      autoOffReason: autoOffReason[id] || null
+    };
+  }
+  return controls;
+}
+
+function applyHealthControls(controls) {
+  for (const [id, c] of Object.entries(controls)) {
+    userEnabled[id] = c.enabled;
+    if (c.manualOff) manualOff[id] = true;
+    else delete manualOff[id];
+    const autoAge = Date.now() - (c.autoOffAt || 0);
+    if (c.autoOff && (!c.autoOffAt || autoAge <= 6 * 60 * 60 * 1000)) {
+      autoOff[id] = true;
+      autoOffAt[id] = c.autoOffAt || Date.now();
+      autoOffReason[id] = c.autoOffReason || "AUTO_OFF_PROBE";
+    } else {
+      delete autoOff[id];
+      delete autoOffAt[id];
+      delete autoOffReason[id];
+    }
+    syncRuntimeToggle(id);
+  }
 }
 
 function exportHealthState() {
@@ -3714,33 +3751,31 @@ function exportHealthState() {
     if (Number.isFinite(n) && n > 0) qualityShortCircuit[`${id}:${quality}`] = n;
   }
   // v8.14：用户意图永久持久化；autoOff 只做短期临时态，也一并导出供启动复验。
-  const controls = {};
-  for (const id of Object.keys(SOURCE_HANDLERS)) {
-    controls[id] = {
-      enabled: isUserEnabled(id),
-      manualOff: !!manualOff[id],
-      autoOff: !!autoOff[id],
-      autoOffAt: Number(autoOffAt[id] || 0),
-      autoOffReason: autoOffReason[id] || null
-    };
-  }
-  return { v: HEALTH_STATE_VERSION, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
+  const controls = collectHealthControls();
+  // F36/F57：healthV2Enabled=false 时回旧 v1 导出；旧宿主忽略 v2。双写 controls 始终保留。
+  const version = cfg("healthV2Enabled", true) ? HEALTH_STATE_VERSION : 1;
+  return { v: version, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
 }
 
 function restoreHealthState(state) {
   try {
     if (!isHealthPlainObject(state)) return { ok: false, reason: "state 必须是对象" };
-    if (state.v !== HEALTH_STATE_VERSION) return { ok: false, reason: "schema version 不符" };
-    if (state.sourceVersion !== HEALTH_STATE_SOURCE_VERSION) return { ok: false, reason: "sourceVersion 不符" };
+    if (!HEALTH_STATE_ACCEPTED_VERSIONS.includes(state.v)) return { ok: false, reason: "schema version 不符" };
     if (!healthNumber(state.savedAt, true)) return { ok: false, reason: "savedAt 非法" };
     const age = Date.now() - state.savedAt;
     if (age < -HEALTH_STATE_FUTURE_TOLERANCE_MS || age > HEALTH_STATE_TTL_MS) return { ok: false, reason: "savedAt 超出 TTL" };
     if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state 超过 256KB" };
     const forbidden = checkHealthForbiddenKeys(state, "state");
     if (forbidden) return { ok: false, reason: `禁止字段 ${forbidden}` };
-    if (!isHealthPlainObject(state.sources)) return { ok: false, reason: "sources 必须是对象" };
-    const ids = Object.keys(state.sources);
-    if (!ids.length) return { ok: false, reason: "sources 为空" };
+    const controlsRaw = state.controls === undefined ? {} : state.controls;
+    if (!isHealthPlainObject(controlsRaw)) return { ok: false, reason: "controls 非法" };
+    const controlsOnly = (!isHealthPlainObject(state.sources) || Object.keys(state.sources).length === 0) && Object.keys(controlsRaw).length > 0;
+    if (!controlsOnly && state.sourceVersion !== HEALTH_STATE_SOURCE_VERSION) return { ok: false, reason: "sourceVersion 不符" };
+    if (!isHealthPlainObject(state.sources)) {
+      if (!controlsOnly) return { ok: false, reason: "sources 必须是对象" };
+    }
+    const ids = isHealthPlainObject(state.sources) ? Object.keys(state.sources) : [];
+    if (!controlsOnly && !ids.length) return { ok: false, reason: "sources 为空" };
     const sanitized = {};
     for (const id of ids) {
       if (!SOURCE_HANDLERS[id]) return { ok: false, reason: `未知源 ${id}` };
@@ -3803,8 +3838,6 @@ function restoreHealthState(state) {
     }
 
     // v8.14：恢复用户意图（永久）与 autoOff（短期临时态）。旧状态没有 controls 时保持默认。
-    const controlsRaw = state.controls === undefined ? {} : state.controls;
-    if (!isHealthPlainObject(controlsRaw)) return { ok: false, reason: "controls 非法" };
     const controls = {};
     for (const [id, c] of Object.entries(controlsRaw)) {
       if (!SOURCE_HANDLERS[id]) return { ok: false, reason: `controls.${id} 未知源` };
@@ -3833,25 +3866,10 @@ function restoreHealthState(state) {
       else playDeadDeadline.delete(id);
       restored++;
     }
-    for (const [id, c] of Object.entries(controls)) {
-      userEnabled[id] = c.enabled;
-      if (c.manualOff) manualOff[id] = true;
-      else delete manualOff[id];
-      const autoAge = Date.now() - (c.autoOffAt || 0);
-      if (c.autoOff && (!c.autoOffAt || autoAge <= 6 * 60 * 60 * 1000)) {
-        autoOff[id] = true;
-        autoOffAt[id] = c.autoOffAt || Date.now();
-        autoOffReason[id] = c.autoOffReason || "AUTO_OFF_PROBE";
-      } else {
-        delete autoOff[id];
-        delete autoOffAt[id];
-        delete autoOffReason[id];
-      }
-      syncRuntimeToggle(id);
-    }
+    applyHealthControls(controls);
     qualitySkipProbeAt.clear();
     for (const [key, at] of Object.entries(qualityShortCircuit)) qualitySkipProbeAt.set(key, at);
-    return { ok: true, restored };
+    return { ok: true, restored, controlsRestored: Object.keys(controls).length };
   } catch (e) {
     return { ok: false, reason: e && e.message ? e.message : String(e) };
   }
@@ -5189,7 +5207,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       "allFailShortTtlMs", "playDeadReviveMs", "memoryMapMax"];
     const ALLOWED_BOOL_KEYS = ["verifyDelivery", "truthfulQuality", "qualityFloor", "verifyOnCacheHit",
       "previewUrlPreFilter", "fragmentFallback", "qualityShortCircuit", "coldStartWarmEnabled",
-      "crossPlatformEnabled"];
+      "crossPlatformEnabled", "healthV2Enabled"];
     // v8.11.7：这两个阈值 0 是合法值（0=不设比例/间隔门槛），不能被 <=0 校验吞掉
     const ZERO_ALLOWED_KEYS = ["verifyDurRatio", "verifyDurGapSec"];
     // v30.1：每个参数的合理上下限（防极端值触发上游风控/雪崩）

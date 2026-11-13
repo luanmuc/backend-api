@@ -72,7 +72,8 @@ check('A1 exportHealthState 结构合法且无敏感字段', () => {
   assert(res && typeof res.then === 'function', 'export 必须返回 Promise')
   // 同步读取：handler 返回 Promise，测试用 then 不方便；改为直接驱动模块导出函数
   const state = m.exportHealthState()
-  assert(state.v === 1, `v 应为 1，实际 ${state.v}`)
+  assert(state.v === 2, `v 应为 2，实际 ${state.v}`)
+  assert(state.controls && state.controls.suyinQQ, 'v2 必须带独立 controls')
   assert(state.sourceVersion === '8.13.0', `sourceVersion 应为 8.13.0，实际 ${state.sourceVersion}`)
   assert(state.savedAt > 0, 'savedAt 必须为正')
   assert(state.sources && state.sources.suyinKuwo, '缺少 suyinKuwo')
@@ -166,6 +167,41 @@ check('A7 controls 恢复：default-off 不冒充用户关闭，manual-off 保�
   const m2 = fresh()
   assert(m2.restoreHealthState(state).ok === true, 'restore 应成功')
   assert(m2.getHealthSnapshot().suyinQQ.offReason === 'USER_OFF', '恢复后应为 USER_OFF')
+})
+
+// A8 v1 兼容
+check('A8 v1 状态仍可恢复', () => {
+  const m = fresh()
+  const v1 = m.exportHealthState()
+  v1.v = 1
+  const m2 = fresh()
+  assert(m2.restoreHealthState(v1).ok === true, 'v1 应兼容')
+})
+
+// A9 controls-only：sourceVersion 不匹配只丢健康元数据，不丢用户意图
+check('A9 controls-only 不受 sourceVersion 影响', () => {
+  const m = fresh()
+  call('toggle', { id: 'suyinQQ', enabled: false })
+  const controls = m.exportHealthState().controls
+  const m2 = fresh({ healthV2Enabled: false })
+  const controlState = {
+    v: 2,
+    sourceVersion: '0.0.0',
+    savedAt: Date.now(),
+    sources: {},
+    controls,
+  }
+  const res = m2.restoreHealthState(controlState)
+  assert(res.ok === true && res.controlsRestored > 0, `controls-only 应成功：${JSON.stringify(res)}`)
+  assert(m2.getHealthSnapshot().suyinQQ.offReason === 'USER_OFF', '用户关闭必须保留')
+})
+
+// A10 healthV2Enabled=false 回旧 v1 导出
+check('A10 healthV2Enabled=false 导出 v1 回滚态', () => {
+  const m = fresh({ healthV2Enabled: false })
+  const state = m.exportHealthState()
+  assert(state.v === 1, `回滚态应为 v1，实际 ${state.v}`)
+  assert(state.controls && state.controls.suyinQQ, '回滚态仍需双写 controls')
 })
 
 console.log(`\n${passed} passed, ${failures.length} failed`)
