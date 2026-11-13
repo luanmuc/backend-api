@@ -28,7 +28,8 @@ const fresh = () => {
 let passed = 0
 const failures = []
 const check = (name, fn) => {
-  try { fn(); passed++; console.log(`✓ ${name}`) } catch (e) { failures.push(`${name} — ${e.message}`); console.log(`✗ ${name} — ${e.message}`) }
+  const id = (String(name).match(/^[A-Za-z]+\d+[a-z]?/) || [String(name)])[0]
+  try { fn(); passed++; console.log(`✓ [${id}] ${name}`) } catch (e) { failures.push(`${name} — ${e.message}`); console.log(`✗ [${id}] ${name} — ${e.message}`) }
 }
 const assert = (c, m) => { if (!c) throw new Error(m) }
 
@@ -80,7 +81,7 @@ check('S6 platformSummary 拆出 off/blocked/degraded，总数守恒', () => {
   const sum = m.__debug.getHealthSnapshot()._platformSummary.kw
   assert(sum, '缺少 kw 平台摘要')
   for (const k of ['offCount', 'blockedCount', 'degradedCount']) {
-    assert(typeof sum[k] === 'number', `缺少 ${k}`)
+    assert(Number.isFinite(sum[k]) && sum[k] >= 0, `缺少或非法 ${k}`)
   }
   assert(sum.offCount + sum.eligibleCount + sum.blockedCount === sum.totalCount, `计数不守恒：${JSON.stringify(sum)}`)
 })
@@ -137,4 +138,4 @@ check('S9 探测歌曲池可配且校验非法值', () => {
 
 console.log(`\n${passed} passed, ${failures.length} failed`)
 if (failures.length) { console.error(failures.join('\n')); process.exit(1) }
-process.exit(0)
+if (require.main === module) process.exit(0)

@@ -432,7 +432,6 @@ var __lxSourceBundle = (() => {
       var PROBE_TIER_SECONDARY_INTERVAL = 3;
       var PROBE_SLEEP_AFTER_DEAD = 3;
       var PROBE_WAKE_EVERY_ROUND = 10;
-      var PROBE_SONG_POOL = USER_CONFIG.probeSongPool;
       var PROBE_163_IDS = ["2652820720", "347230"];
       function juheProbeCfg(platform, ids) {
         return {
@@ -4291,6 +4290,7 @@ var __lxSourceBundle = (() => {
         const errors = [];
         const details = [];
         let lastFailCode = ERROR_CODES.NETWORK_ERROR;
+        let localProtect = false;
         const attempts = [];
         const noteAttempt = (code, evidence) => {
           if (code) attempts.push({ code, evidence: evidence || "strong" });
@@ -4330,7 +4330,24 @@ var __lxSourceBundle = (() => {
             continue;
           }
           if (!chain.length) {
-            errors.push(`[${q}] \u65E0\u53EF\u7528\u97F3\u6E90`);
+            const skipped = Object.keys(SOURCE_HANDLERS).map((id) => SOURCE_HANDLERS[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform) && h.chain[platform] != null).filter((h) => qualityRank(h.maxQuality) >= qualityRank(q)).map((h) => {
+              const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
+              return e.eligible ? null : { id: h.id, reason: e.reason, code: e.code, untilMs: e.untilMs };
+            }).filter(Boolean);
+            const chosen = skipped.find((s) => s.code === ERROR_CODES.RATE_LIMIT || s.code === "RATE_LIMITED") || skipped[0];
+            if (chosen) {
+              const untilText = chosen.untilMs ? `\uFF0C\u81F3 ${chosen.untilMs}` : "";
+              const isRateLimited = chosen.code === ERROR_CODES.RATE_LIMIT || chosen.code === "RATE_LIMITED";
+              const code = isRateLimited ? ERROR_CODES.RATE_LIMIT : ERROR_CODES.NETWORK_ERROR;
+              if (["rate-limited", "open", "half-open", "resolve-dead", "play-dead", "preview_cooldown", "quality-short-circuit"].includes(chosen.reason)) {
+                localProtect = true;
+              }
+              errors.push(`[${q}] \u65E0\u53EF\u7528\u97F3\u6E90\uFF08${chosen.id}: ${chosen.reason}${untilText}\uFF09`);
+              details.push({ source: chosen.id, quality: q, code, reason: `\u65E0\u53EF\u7528\u97F3\u6E90\uFF1A${chosen.reason}` });
+              noteAttempt(code, "weak");
+            } else {
+              errors.push(`[${q}] \u65E0\u53EF\u7528\u97F3\u6E90`);
+            }
             continue;
           }
           const remaining = Math.max(totalDeadline - Date.now(), 0);
@@ -4425,6 +4442,7 @@ var __lxSourceBundle = (() => {
         }
         const finalErr = new Error(`${lastFailCode}: \u6240\u6709\u6E90\u5747\u5931\u8D25 [${errors.join(" | ")}]`);
         finalErr.code = lastFailCode;
+        if (localProtect) finalErr.isThrottleSkip = true;
         finalErr.detail = details;
         throw finalErr;
       }
@@ -4697,6 +4715,10 @@ var __lxSourceBundle = (() => {
           }).catch((e) => {
             primaryErr = e;
             if (/该请求已知失败/.test(String(e && e.message || ""))) {
+              settleErr(e);
+              return;
+            }
+            if (e && e.isThrottleSkip) {
               settleErr(e);
               return;
             }

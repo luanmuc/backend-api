@@ -189,7 +189,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   }
   {
     // L3b：同一模块实例内，冷却后半开
-    fresh(['suyinKuwo'], { breakerThreshold: 1, breakerCooldownMs: 400 });
+    fresh(['suyinKuwo'], { breakerThreshold: 1, breakerCooldownMs: 400, playDeadReviveMs: 300 });
     scene = () => ({ error: 'ECONNRESET' }); probeFn = () => ({ error: 'ECONNRESET' });
     try { await req('flac', { ...GOOD, songmid: 'l3a' }); } catch (e) { }
     reset(); try { await req('flac', { ...GOOD, songmid: 'l3b' }); } catch (e) { }
@@ -201,7 +201,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('L3', '冷却后半开试探并恢复', blocked && (total() > 0 && (r3 ? true : total() > 0)), `熔断期外呼=${blocked ? 0 : '非0'}；冷却后外呼=${total()}`);
 
     // L4 半开失败 → 回开路
-    fresh(['suyinKuwo'], { breakerThreshold: 1, breakerCooldownMs: 300 });
+    fresh(['suyinKuwo'], { breakerThreshold: 1, breakerCooldownMs: 300, playDeadReviveMs: 300 });
     scene = () => ({ error: 'ECONNRESET' });
     try { await req('flac', { ...GOOD, songmid: 'l4a' }); } catch (e) { }
     await new Promise(r => setTimeout(r, 350));

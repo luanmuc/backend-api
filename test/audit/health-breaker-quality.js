@@ -134,4 +134,4 @@ if (failures.length) {
   for (const f of failures) console.error(f)
   process.exit(1)
 }
-process.exit(0)
+if (require.main === module) process.exit(0)

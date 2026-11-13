@@ -40,7 +40,8 @@ const fresh = (cfg = {}) => {
 let passed = 0
 const failures = []
 const check = async (name, fn) => {
-  try { await fn(); passed++; console.log(`✓ ${name}`) } catch (e) { failures.push(`${name} — ${e.message}`); console.log(`✗ ${name} — ${e.message}`) }
+  const id = (String(name).match(/^[A-Za-z]+\d+[a-z]?/) || [String(name)])[0]
+  try { await fn(); passed++; console.log(`✓ [${id}] ${name}`) } catch (e) { failures.push(`${name} — ${e.message}`); console.log(`✗ [${id}] ${name} — ${e.message}`) }
 }
 const assert = (c, m) => { if (!c) throw new Error(m) }
 const ok = body => ({ res: { statusCode: 200, headers: { 'content-type': 'application/json' }, body } })
@@ -165,6 +166,6 @@ if (failures.length) {
   for (const f of failures) console.log(`- ${f}`)
   process.exit(1)
 }
-process.exit(0)
+if (require.main === module) process.exit(0)
 
 })

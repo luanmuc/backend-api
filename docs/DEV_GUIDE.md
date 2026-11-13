@@ -27,7 +27,7 @@
 | ⑦ 注册表 + 调度 + 健康分 | 3041~4106 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，6s grace，10min 缓存，`cross_platform` 事件） |
 | ⑧ 上报 + 事件监听 | 4208~4509（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.13.0 基线（`lx-source.js` 共 5541 行，`@version 8.13.0`）** 实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 校验末段边界 = EOF。
+> 行段为 **v8.13.0 基线（`lx-source.js` 共 5563 行，`@version 8.13.0`）** 实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 校验末段边界 = EOF。
 > **v8.13.0 构建口径**：`scripts/build-source.js` 使用 esbuild `bundle:true / format:iife / globalName:__lxSourceBundle / platform:neutral / target:es2017`，产物末尾补 CommonJS 桥 `module.exports = __lxSourceBundle`。这样既是单文件 IIFE，又保留洛雪宿主读取的导出面；`verify-bundle` B1 校验 IIFE 包装与导出桥，B2 校验运行 API。10 个 active provider 已拆到 `src/providers/`，核心运行时仍在 `src/legacy.js`（未做 10/20/30/40/60/70 的全量模块拆分）。
 
 ## 三、核心机制详解
@@ -392,7 +392,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 1. **语法**：`node --check lx-source.js`；
 2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（67 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
 2b. **审计与压测（放行前必跑，以退出码为准）**：
-   - `node test/audit/{a-static,b-logic,d-func,e-extra,f-repo,g-meta}.js` → 10 / 30 / 30 / **94** / **52** / **14** 条断言；`node test/audit/h-toggles.js` → 14 条（默认关闭源的开启可用性）；`node test/audit/v-cross-platform-stress.js` → **13** 条（V1~V13 跨平台并发/缓存/开关压测）（`a-static` 另有 2 条、`e-extra` 另有 7 条 `· note` 信息登记，不计通过/失败；`e-extra` 的 94 已含 O 组补的 5 条上游 HTTP 状态码映射与应用层补测）
+   - `node test/audit/{a-static,b-logic,d-func,e-extra,f-repo,g-meta}.js` → 10 / 30 / 30 / **90** / **52** / **14** 条断言；`node test/audit/h-toggles.js` → 14 条（默认关闭源的开启可用性）；`node test/audit/v-cross-platform-stress.js` → **13** 条（V1~V13 跨平台并发/缓存/开关压测）（`a-static` 另有 2 条、`e-extra` 另有 7 条 `· note` 信息登记，不计通过/失败；`e-extra` 的 90 已含 O 组补的 5 条上游 HTTP 状态码映射与应用层补测）
    - `node --expose-gc test/stress-test.js`（S 组压量，12 条）、`node --expose-gc test/stress-round3.js`（T 组压态，**14** 条）、`node test/candidate-audit-test.js`（6 条）
    - **`g-meta` 是元审计**：查断言是否恒真、引用的导出名是否真实存在、脚本顶层 `process.exit` 是否有 `require.main` 守卫。**改过任何审计脚本后必须跑它**，否则可能把写死 true 的伪断言当成绿字
    - 明细与判据原则见 [`TESTING.md`](./TESTING.md)

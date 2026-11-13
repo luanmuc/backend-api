@@ -178,6 +178,7 @@ need('A6', 'clearSourceLedger 清 fail_<平台> + playDeadStreak + 限流退避'
   dbg.playDeadStreak.set('suyinKuwo', 3);
   dbg.playDeadDeadline.set('suyinKuwo', Date.now());
   const br = dbg.breakerMap.get('suyinKuwo') || {};
+  br.byQuality = br.byQuality || {};
   br.state = 'open'; br.rateLimited = true; br.rateLimitUntil = Date.now() + 60000;
   dbg.breakerMap.set('suyinKuwo', br);
 
@@ -198,10 +199,15 @@ need('A7', '同一 input 调两次：ledger 一致、健康快照不变', () => 
     stage: 'candidate', platform: 'kw', quality: 'flac', songInfo, source: 'helloworldKw',
     delivery: { statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: makeFlac(5) },
   };
-  const before = JSON.stringify(src.getHealthSnapshot());
+  // getHealthSnapshot 的 nextProbe/probeEtaMs/wakeEtaMs 是随当前时间变化的只读投影，
+  // 不能用来证明 admit 写状态；比较时剔除时间派生字段，其余快照必须逐字节一致。
+  const snap = () => JSON.stringify(src.getHealthSnapshot(), (k, v) => (
+    ['nextProbe', 'probeEtaMs', 'wakeEtaMs'].includes(k) ? undefined : v
+  ));
+  const before = snap();
   const a = dbg.admit ? dbg.admit(input) : null;
   const b = dbg.admit ? dbg.admit(input) : null;
-  const after = JSON.stringify(src.getHealthSnapshot());
+  const after = snap();
   rec('A7', '同一 input 调两次：ledger 一致、健康快照不变',
     !!a && !!b && JSON.stringify(a.ledger) === JSON.stringify(b.ledger) && before === after,
     a ? `ledgerSame=${JSON.stringify(a.ledger) === JSON.stringify(b.ledger)} snapshotSame=${before === after}` : 'admit 不存在');
@@ -331,7 +337,12 @@ need('A8', 'skipReason：健康源 null，被摘除源给出理由', () => {
 
     const br = dbg.breakerMap.get(id) || {};
     br.state = 'open'; br.rateLimitUntil = null; br.rateLimited = false; br.lastFailureTime = Date.now();
-    br.byQuality = { flac: { fail: 3, success: 0, linkExpired: 2 }, '128k': { fail: 1, success: 5, linkExpired: 0 } };
+    br.byQuality = {
+      flac: { fail: 3, success: 0, linkExpired: 2, req: 5, time: 0, businessFail: 0, rateLimitCount: 0, rateLimitUntil: 0, rateLimited: false,
+        breaker: { state: 'open', failureCount: 3, lastFailureTime: Date.now(), trialInFlight: false } },
+      '128k': { fail: 1, success: 5, linkExpired: 0, req: 6, time: 0, businessFail: 0, rateLimitCount: 0, rateLimitUntil: 0, rateLimited: false,
+        breaker: { state: 'closed', failureCount: 0, lastFailureTime: 0, trialInFlight: false } },
+    };
     dbg.breakerMap.set(id, br);
     const sr = dbg.skipReason ? dbg.skipReason(id, { platform: 'kw', quality: 'flac' }) : null;
     if (dbg.clearSourceLedger) dbg.clearSourceLedger(id);

@@ -132,4 +132,4 @@ globalThis.lx.send(globalThis.lx.EVENT_NAMES.inited, {
 
 console.log('');
 console.log(`===== 结果：${passed} 通过 / ${failed} 失败 =====`);
-process.exit(failed > 0 ? 1 : 0);
+if (require.main === module) process.exit(failed > 0 ? 1 : 0);

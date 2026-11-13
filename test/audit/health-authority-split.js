@@ -122,4 +122,4 @@ check('A9 runtimeToggles 只是测试夹具，不构成生产第二套开关', (
 
 console.log(`\n${passed} passed, ${failures.length} failed`)
 if (failures.length) { console.log(failures.join('\n')); process.exit(1) }
-process.exit(0)
+if (require.main === module) process.exit(0)

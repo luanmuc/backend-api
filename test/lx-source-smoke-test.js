@@ -1602,6 +1602,8 @@ async function test(name, fn) {
     try { await requestUrl('kw', 'flac', song2); } catch (e) { /* 第二首：再次全片段 → 触发冷却 */ }
     resetMock();
     const before = totalCounts();
+    const coolUntil = mod.__debug.previewCooldownMap.get('suyinKuwo') || 0;
+    assert.ok(coolUntil - Date.now() > 240000, '源级冷却时长必须≈5分钟，实际剩余=' + (coolUntil - Date.now()) + 'ms');
     const song3 = { name: '限流歌三', singer: 's', duration: 220000, songmid: 'throttle3' };
     try { await requestUrl('kw', 'flac', song3); } catch (e) { /* 第三首应被冷却直接拦下 */ }
     probeRoute = null;

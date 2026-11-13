@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **44 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **18 个脚本**（冒烟 1 + 审计 17），其余 26 个按需执行。
+> **44 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **19 个脚本**（冒烟 1 + 审计 18，含 `e-extra`），其余 25 个按需执行。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
 > 断言实测（2026-11-13 当前工作树）：冒烟 **67 组** + 压测 **159 条**（12/14/**133**）+ 审计断言按各脚本输出汇总（本轮新增 health-snapshot **11/0**、health-probe-batch2 **9/0**、health-eligibility-batch3 **9/0**）；历史 429/655 是旧口径，不再作为当前总数。逐入口明细见下方「入口总表」。变异体 **22 个**（`--full --strict` 全量 **22 killed / 0 survived**，2026-11-13 实测）。
@@ -12,6 +12,7 @@
 
 | 步骤 | 门禁 | 断言 |
 |---|---|---|
+| L3 | `node test/audit/e-extra.js` | 90（J~U 二轮 + L3/L4/FAULT8 熔断/限流） |
 | L4 | `node test/audit/r-admission.js` / `node test/audit/u-cross-platform.js` / `node test/audit/v-cross-platform-stress.js` | 23 + 15 + 13（L4 裁决层 + 跨平台兜底 + 跨平台压力） |
 | L1.3 | `node --expose-gc test/stress-test.js` | 12（S 组，压量） |
 | L5 | `node --expose-gc test/stress-round3.js` | 14（T 组，压态） |
@@ -28,7 +29,7 @@
 | `test/audit/a-static.js` | 10(+2 note) | 静态：常量一致性、导出面、无死键、注释与代码对齐 | 读文件 | `node test/audit/a-static.js` |
 | `test/audit/b-logic.js` | 30 | 逻辑：闸门判据、降档链、缓存键、记账口径、冷却状态机 | mock 宿主 | `node test/audit/b-logic.js` |
 | `test/audit/d-func.js` | 30 | 功能：五平台取链、音质矩阵、订阅源、错误码、配置读写 | mock 宿主 | `node test/audit/d-func.js` |
-| `test/audit/e-extra.js` | **94** | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏；四轮 U 组：上游 HTTP 500/410/404/429/403 码映射；六轮新增 G4b/G4c（同歌 5 并发只 1 次外呼、结果一致）+ G12a~G12d（星海备按 `PLATFORM_TO_XINGHAI_BACKUP` 过滤平台，mg/kg 不再白 push 必败源）+ **Q7**（真删 `globalThis.Buffer` 跑交付验真，JSON 假交付必须判 `NOT_AUDIO`，不得 fail-open 放行）+ **K4c~K4e**（v8.11.7 健康面板配置可管：布尔开关可写读回/非布尔拒写/数字参数白名单补齐） | mock 宿主 | `node test/audit/e-extra.js` |
+| `test/audit/e-extra.js` | **90** | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏；四轮 U 组：上游 HTTP 500/410/404/429/403 码映射；六轮新增 G4b/G4c（同歌 5 并发只 1 次外呼、结果一致）+ G12a~G12d（星海备按 `PLATFORM_TO_XINGHAI_BACKUP` 过滤平台，mg/kg 不再白 push 必败源）+ **Q7**（真删 `globalThis.Buffer` 跑交付验真，JSON 假交付必须判 `NOT_AUDIO`，不得 fail-open 放行）+ **K4c~K4e**（v8.11.7 健康面板配置可管：布尔开关可写读回/非布尔拒写/数字参数白名单补齐）+ **L3/L4/FAULT8**（熔断半开恢复、半开失败回开路、连续 429 独立退避；2026-11-14 已纳入 `npm test`） | mock 宿主 | `node test/audit/e-extra.js` |
 | `test/audit/p-gaps.js` | 4 | 六轮新增：通读发现的零覆盖点补测（P1 previewUrlPreFilter 开/关差值 · P2 FLAC 多 metadata 块遍历 · P3 MP3 无 Xing 按码率回填时长 · P4 探测连续 2 次通过才自动启用）；逐条反向改坏实现 → 全红后还原 | mock 宿主 + `__debug` | `node test/audit/p-gaps.js` |
 | `test/audit/q-dfix.js` | 5 | D 系列行为断言：Q1 half-open 遇 429 必须收口回 open（删收口段立刻红）；Q2 closed 态遇 429 只退避不熔断；Q3（v8.11.3）toggle 开启某源后该平台失败缓存必须失效——先红（仍 NOT_FOUND）后绿（none）；Q4（D-08）单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 `PARAM_ERROR`，不得兜底 1 号歌——先红（code=undefined）后绿 | 宿主桩 + `__debug` | `node test/audit/q-dfix.js` |
 | `test/audit/q2-dseries.js` | 3 | D 系列剩余行为断言：R1 D-06 布尔键 `??`（注入 false 必须取到 false）、R2 D-05 真键可写/死键忽略、R3 v8.13 观察源 `suyinQQ` 手动开启后仍不进 tx 链（tx 链含 `juheTx`）；三条均已注入回退验证会红 | 宿主桩 + `__debug.cfg` + `buildSourceChain` | `node test/audit/q2-dseries.js` |
@@ -52,6 +53,13 @@
 | `test/audit/health-probe-fidelity.js` | **10** | F20/F22 探测保真：F1 逐目标三值 · F2 全 FAIL · F3 超时 UNKNOWN · F4 POST 透传 · F5 check 生效 · F6 可播校验 · F7 单源隔离 · F8 不写质量账 · F9 不清摘除 · F10 事件无 URL | `__debug.probeSingleSource` + `lx.request` mock | `node test/audit/health-probe-fidelity.js` |
 | `test/audit/health-probe-outcome.js` | **9** | F20/F22 探测三值：O1 单档 PASS · O2 404=FAIL · O3 超时=UNKNOWN · O4 任一 PASS 源级 PASS · O5 全 FAIL · O6 全 UNKNOWN · O7 UNKNOWN 不累计失败 · O8 PASS 不清 playDead/resolveDead · O9 事件无 URL | mock 宿主 `lx.request` + `__debug.probeSingleSource`/`applyProbeResult` | `node test/audit/health-probe-outcome.js` |
 | `test/audit/health-persistence-v2.js` | **8** | F36/F57 持久化 v2：P1 v2 结构 · P2 v1 拒绝 · P3 controls-only 不绑 sourceVersion · P4 controls-only 不恢复健康元数据 · P5 autoOff 6h 复验 · P6 始终 v2 · P7 版本/未知源/容量/禁止字段 · P8 导出无 URL/歌名/缓存 | mock 宿主 + `__debug` | `node test/audit/health-persistence-v2.js` |
+| `test/audit/health-breaker-quality.js` | **5** | F39/F41 按档熔断/限流：Q1 单档 open 只挡该档 · Q2 429 只退避命中档且不记 fail · Q3 半开单 trial · Q4 全档 open 才聚合 open · Q5 429 不污染其他档 | `__debug.canExecute`/`recordRateLimit`/`breakerMap` | `node test/audit/health-breaker-quality.js` |
+| `test/audit/health-linkage-invariants.js` | **5** | F17/F68 联动不变量：L1 链与快照同源 · L2 摘除源不进链 · L3 关源不进链 · L4 单档短路不误伤整源 · L5 platformSummary 只按 eligible 聚合 | `computeEligibility`/`buildSourceChain`/`getHealthSnapshot` | `node test/audit/health-linkage-invariants.js` |
+| `test/audit/health-resolve-dead.js` | **4** | F42 取链/播放摘除分层：R1 取链失败只记 resolveDead · R2 播放失败记 playDead · R3 取链成功只清 resolveDead · R4 非 strong 不产生摘除建议 | `__debug.admit`/`recordFailure`/`getHealthSnapshot` | `node test/audit/health-resolve-dead.js` |
+| `test/audit/health-scheduler-fake-clock.js` | **2** | F21 探测调度：N1 间隔 jitter 边界 · N2 有播放/取链流量在途时暂停本轮 | `__debug.nextHealthCheckDelay`/`hasActiveWork`/`inflightCount` | `node test/audit/health-scheduler-fake-clock.js` |
+| `test/audit/health-scoped-reset.js` | **2** | F38 作用域清账：S1 authority 只清失败/摘除/熔断/限流并保留质量历史 · S2 all 全归零 | `__debug.clearSourceLedger`/`toggleSource` | `node test/audit/health-scoped-reset.js` |
+| `test/audit/health-snapshot-eta.js` | **11** | F35/F45/F46 快照：S1~S11 lastProbe/nextProbe/ETA、localThrottle/coldStart 只读、平台摘要守恒、jitter 边界、歌曲池校验 | `__debug.getHealthSnapshot`/`nextHealthCheckDelay`/`normalizeProbeSongPool` | `node test/audit/health-snapshot-eta.js` |
+| `test/audit/v-eligibility.js` | **7** | 统一资格入口：V1~V7 链/快照/skipReason 同源、休眠/默认关闭/短路不误报、质量档短路不二次过滤 | `__debug.computeEligibility`/`buildSourceChain`/`getHealthSnapshot` | `node test/audit/v-eligibility.js` |
 | `test/audit/aa-p3-persist.js` | **10** | P3 宿主持久化 v2：A1 导出 v2 结构/controls · A2 合法状态往返一致 · A3 含 `successUrl` 必须拒绝 · A4 版本/过期/超容量拒绝 · A5 restore 不写 `successCache/failCache` · A6 档位短路恢复 · A7 controls 权威 · A8 v1 拒绝 · A9 controls-only 不绑 sourceVersion · A10 始终 v2 | mock 宿主 + `__debug` | `node test/audit/aa-p3-persist.js` |
 | `test/audit/u-cross-platform.js` | **15** | v8.12.1 跨平台兜底 + 缓存失效 + v8.12.4 覆盖补证（按脚本实际 `rec()` 编号）：U1 转 tx 并交付 Michita 原版 / U2 严格匹配 302s 原版（拒绝 remix/翻唱/同名异歌手）/ U3 kw 主平台成功且未搜 QQ / U4 `subSource=juheTx` / U5 二次命中缓存、平台仍 tx、无新搜索 / U6 全平台无匹配抛 `NOT_FOUND` / U7 留下 `cross_platform` 事件 / U8 tx 源只收到 songmid、无 kw rid / U9 慢主平台最终交付 kw，不被跨平台失败提前判死 / U10 关闭目标源后不得再交付其缓存 / U11 wy 候选归一化后按 id 交付 / U12 kw 候选归一化后按 rid 交付 / U13 跨平台目标顺序 tx>wy>kw / U14 mg/kg 不再作为跨平台目标 / U15 mg 经 suyinKuwo 实际交付酷我 CDN 时 `sourcePlatform` 必须回填 `kw` | mock 宿主 | `node test/audit/u-cross-platform.js` |
 | `test/audit/w-fallback-owner.js` | **2** | v8.12.2 P1 降级所有权：W1 `inited` 已上报 / W2 5 个平台均显式声明 `fallbackOwner="source"` | mock 宿主 | `node test/audit/w-fallback-owner.js` |

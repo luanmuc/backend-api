@@ -382,7 +382,6 @@ const PROBE_TIER_SECONDARY_INTERVAL = 3;
 const PROBE_SLEEP_AFTER_DEAD = 3;
 const PROBE_WAKE_EVERY_ROUND = 10;
 // v1.0：探测歌曲池轮换（晴天/海阔天空/稻香），避免单曲被风控导致探测误判
-const PROBE_SONG_POOL = USER_CONFIG.probeSongPool; // F06：唯一来源是 USER_CONFIG，可热更新
 // v1.0 (D9)：溯音163 探测免费歌池（实测 code:0 + data[0].url 真实mp3；186016周杰伦VIP无url已排除）
 const PROBE_163_IDS = ["2652820720", "347230"];
 
@@ -4727,6 +4726,7 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   // L4：改为收集 attempts，最后一次 admit 定代表码与 TTL——
   // 优先级「确定性业务码 < 交付类码 < 网络类码」，NOT_AUDIO 不再被 NOT_FOUND 吞掉。
   let lastFailCode = ERROR_CODES.NETWORK_ERROR;
+  let localProtect = false;
   const attempts = [];
   const noteAttempt = (code, evidence) => {
     if (code) attempts.push({ code, evidence: evidence || "strong" });
@@ -4776,7 +4776,36 @@ async function getUrlWithFallback(platform, songInfo, quality) {
       continue;
     }
     if (!chain.length) {
-      errors.push(`[${q}] 无可用音源`);
+      // 链空不等于“网络全挂”：这里必须把真正的结构/运行期跳过原因带回最终裁决。
+      // 旧实现只 push 一句“无可用音源”，attempts 为空，admit() 只能兜底成 NETWORK_ERROR；
+      // 被限流退避的源于是被 App 显示成“网络错误”，限流计数/退避也看起来没生效（FAULT8）。
+      // 用 peekRuntime 只读资格，绝不调用 canExecute，避免在建链阶段消费半开 trial。
+      const skipped = Object.keys(SOURCE_HANDLERS)
+        .map(id => SOURCE_HANDLERS[id])
+        .filter(h => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE)
+        .filter(h => h.platforms.includes(platform) && h.chain[platform] != null)
+        .filter(h => qualityRank(h.maxQuality) >= qualityRank(q))
+        .map(h => {
+          const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
+          return e.eligible ? null : { id: h.id, reason: e.reason, code: e.code, untilMs: e.untilMs };
+        })
+        .filter(Boolean);
+      const chosen = skipped.find(s => s.code === ERROR_CODES.RATE_LIMIT || s.code === "RATE_LIMITED") || skipped[0];
+      if (chosen) {
+        const untilText = chosen.untilMs ? `，至 ${chosen.untilMs}` : "";
+        // 限流是唯一需要把失败码升级成 RATE_LIMIT 的跳过原因；其余本地保护态
+        // （熔断/摘除/冷却/档位短路）沿用 NETWORK_ERROR 代表码，避免改变既有调用方契约。
+        const isRateLimited = chosen.code === ERROR_CODES.RATE_LIMIT || chosen.code === "RATE_LIMITED";
+        const code = isRateLimited ? ERROR_CODES.RATE_LIMIT : ERROR_CODES.NETWORK_ERROR;
+        if (["rate-limited", "open", "half-open", "resolve-dead", "play-dead", "preview_cooldown", "quality-short-circuit"].includes(chosen.reason)) {
+          localProtect = true;
+        }
+        errors.push(`[${q}] 无可用音源（${chosen.id}: ${chosen.reason}${untilText}）`);
+        details.push({ source: chosen.id, quality: q, code, reason: `无可用音源：${chosen.reason}` });
+        noteAttempt(code, "weak");
+      } else {
+        errors.push(`[${q}] 无可用音源`);
+      }
       continue;
     }
     // v8.10.3：分档 deadline —— 单档 = min(该档预算, 剩余总预算)；
@@ -4902,6 +4931,9 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   // 的错误读起来也像"这首歌不存在"（App 若按文案判类型会误判）
   const finalErr = new Error(`${lastFailCode}: 所有源均失败 [${errors.join(" | ")}]`);
   finalErr.code = lastFailCode; // v1.0：代表性失败码
+  // 链空但原因是本地保护态时，必须把保护标记带出去：跨平台兜底不能绕过熔断/摘除/
+  // 限流退避（旧实现只按错误码/文案判断，RATE_LIMIT 会被误判成“平台没歌”而去搜别的平台）。
+  if (localProtect) finalErr.isThrottleSkip = true;
   finalErr.detail = details; // v3.0：结构化失败明细（{source, quality, code, reason} 数组）
   throw finalErr;
 }
@@ -5174,6 +5206,12 @@ async function getUrlWithCrossPlatformFallback(platform, songInfo, quality, trac
       // 失败缓存命中：这首歌刚刚已经被判定失败（可能正是上一次跨平台也失败后写的），
       // 不能再搜一次跨平台，否则失败缓存等于没缓存（实测 T6 会多打 2~4 次外呼）。
       if (/该请求已知失败/.test(String(e && e.message || ""))) {
+        settleErr(e);
+        return;
+      }
+      // 本地保护态（熔断/摘除/限流退避/并发保护）：跨平台不能绕过。链空时错误码可能
+      // 被升级成 RATE_LIMIT，光靠下面的中文正则不再够，直接认标记。
+      if (e && e.isThrottleSkip) {
         settleErr(e);
         return;
       }

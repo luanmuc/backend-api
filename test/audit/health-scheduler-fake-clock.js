@@ -55,4 +55,4 @@ check('N2', '有播放/取链流量在途时判定为忙，探测应暂停（F21
 
 console.log(`\n===== N 组汇总：${passed} 通过 / ${failures.length} 失败 =====`)
 if (failures.length) { for (const f of failures) console.error(f); process.exit(1) }
-process.exit(0)
+if (require.main === module) process.exit(0)

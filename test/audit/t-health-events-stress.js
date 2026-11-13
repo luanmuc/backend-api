@@ -43,7 +43,7 @@ const rec = (id, name, ok, detail) => {
   res.push({ id, ok: !!ok, name, detail: String(detail || '') });
   console.log(`${ok ? '✓' : '✗'} [${id}] ${name}${detail ? ' — ' + String(detail).slice(0, 200) : ''}`);
 };
-const allowedKeys = ['seq', 'ts', 'traceId', 'event', 'sourceId', 'platform', 'quality', 'ok', 'code', 'latencyMs', 'reason'];
+const allowedKeys = ['seq', 'eventId', 'ts', 'traceId', 'event', 'sourceId', 'platform', 'quality', 'ok', 'code', 'latencyMs', 'reason'];
 
 (async () => {
   globalThis.__lxSourceConfig = { rateWindowMax: 100000, maxConcurrency: 100000, rateWindowMs: 3600000 };

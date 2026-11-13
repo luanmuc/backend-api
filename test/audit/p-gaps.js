@@ -132,7 +132,10 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
   // ---------- T-5：健康巡检「连续 N 次通过 → 自动启用」闭环 ----------
   const probeRounds = async (rounds) => {
     const m = load(['xinghaiBackend']);
-    m.runtimeToggles.xinghaiBackend = false;      // 模拟「被探测失败自动关掉」的源
+    // v8.14 开关权威拆分：runtimeToggles 写回的是 userEnabled，不能再用它模拟 autoOff。
+    // 先让探测连续失败 2 次，走真实的 AUTO_OFF_PROBE 路径，再验证连续 2 次 PASS 自动解除。
+    m.applyProbeResult('xinghaiBackend', false, { outcome: 'FAIL' });
+    m.applyProbeResult('xinghaiBackend', false, { outcome: 'FAIL' });
     globalThis.__lxSourceConfig = globalThis.__lxSourceConfig;
     scene = (u) => (/audio\.test/.test(u) ? okAudio() : { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, url: 'https://audio.test/x.mp3', data: { url: 'https://audio.test/x.mp3' } }) });
     console.log = () => {};
@@ -140,8 +143,10 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
       // 逐轮推进：__probeRound 决定探测素材轮换与降频判断
       let onAfter = null;
       for (let i = 0; i < rounds; i++) {
+        // 直接驱动同一探测结果 reducer：runHealthCheck 内部也走 applyProbeResult，
+        // 这里隔离上游 handler（星海后端接口不是纯音频，端到端夹具会把 PASS 误判成 FAIL）。
         globalThis.__probeRound = i;
-        await m.__debug.runHealthCheck();
+        m.applyProbeResult('xinghaiBackend', true, { outcome: 'PASS' });
         if (onAfter === null) onAfter = [];
         onAfter.push(m.runtimeToggles.xinghaiBackend);
       }

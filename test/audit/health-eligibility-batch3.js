@@ -29,7 +29,8 @@ const fresh = () => {
 let passed = 0
 const failures = []
 const check = (name, fn) => {
-  try { fn(); passed++; console.log(`✓ ${name}`) } catch (e) { failures.push(`${name} — ${e.message}`); console.log(`✗ ${name} — ${e.message}`) }
+  const id = (String(name).match(/^[A-Za-z]+\d+[a-z]?/) || [String(name)])[0]
+  try { fn(); passed++; console.log(`✓ [${id}] ${name}`) } catch (e) { failures.push(`${name} — ${e.message}`); console.log(`✗ [${id}] ${name} — ${e.message}`) }
 }
 const assert = (c, m) => { if (!c) throw new Error(m) }
 const ID = 'suyinKuwo'
@@ -127,4 +128,4 @@ check('C9 建链多次调用结果稳定，不触发事件', () => {
 
 console.log(`\n${passed} passed, ${failures.length} failed`)
 if (failures.length) { console.log(failures.join('\n')); process.exit(1) }
-process.exit(0)
+if (require.main === module) process.exit(0)

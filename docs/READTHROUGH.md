@@ -9,7 +9,7 @@
 HEAD `0cba276`（v8.13.0）
 
 > 复核说明（2026-11-12）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前值。
-文件数：**147**　总行数：**36834**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**147**　总行数：**36931**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -55,7 +55,7 @@ HEAD `0cba276`（v8.13.0）
 | `.gitignore` | 2 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
 | `README.md` | 119 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 44 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
-| `lx-source.js` | 5541 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
+| `lx-source.js` | 5563 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
 | `docs/AGENTS.md` | 190 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 94 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突）→ **2026-11-12 已修：4509 行** |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
@@ -63,7 +63,7 @@ HEAD `0cba276`（v8.13.0）
 | `docs/AUDIT_PLAN.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 303 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 72 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 73 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 514 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 61 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -72,7 +72,7 @@ HEAD `0cba276`（v8.13.0）
 | `docs/README.md` | 68 | 全文 | 文档地图；「5 个测试入口」实 14；「D-01~D-26」已到 D-39 |
 | `docs/SCRIPTS.md` | 54 | 全文 | 14 脚本 + 3 hook；「17 条规则」实 14；行数 235/110 实 236/111；prepare-commit-msg 的 exit 1 描述属 commit-msg |
 | `docs/SOURCE_AUDIT.md` | 104 | 全文 | 11-06 基线 21/35 + 11-09 顶注 10/10；「短路探路 6h」实默认 1h |
-| `docs/TESTING.md` | 155 | 全文 | 口径正确（253 审计 / 479 合计 / 22 变异）；72 文件、58/14145、203.45KB 三处过期（历史值已冻结） |
+| `docs/TESTING.md` | 163 | 全文 | 口径正确（253 审计 / 479 合计 / 22 变异）；72 文件、58/14145、203.45KB 三处过期（历史值已冻结） |
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 82 | 归档 | 96 维执行轨迹；F-08~F-14 待决策记录（部分已修） |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 146 | 归档 | 音源+App 五步审计 13 问题（2 中 11 低） |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 295 | 归档 | 15 项修复 + §10.2 仍未做（L4 真网络 / F-12 第二方案 / 面板 raceBudgetMs 说明） |
@@ -127,29 +127,29 @@ HEAD `0cba276`（v8.13.0）
 | `test/audit/e-extra.js` | 927 | 断言 | 94 条（含 U500/U410/U404/U429/U403 状态码族、EDGE/FAULT 五轮补测）；实跑 94/0 |
 | `test/audit/f-repo.js` | 406 | 断言 | U~Z 52 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支）；实跑 52/0 |
 | `test/audit/g-meta.js` | 314 | 断言 | 14 条 M1~M14（审断言本身）；实跑 14/0 |
-| `test/audit/p-gaps.js` | 165 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
+| `test/audit/p-gaps.js` | 170 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
 | `test/audit/q-dfix.js` | 133 | 断言 | 5 条：Q1 D-04 half-open 遇 429 收口回 open（删收口段立刻红）；Q2 closed 态 429 只退避不熔断；Q3（v8.11.3）D-01 toggle 开启后失败缓存失效，先红后绿；Q4 D-08 单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 PARAM_ERROR，先红后绿；实跑 5/0 |
 | `test/audit/q2-dseries.js` | 79 | 断言 | 3 条：R1 D-06 布尔键 `??` 语义、R2 D-05 真键可写/死键忽略、R3 D-26 mg 链不含星海备；三条注入回退均变红，还原后 sha 一致 |
 | `test/audit/n-fixes.js` | 150 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |
 | `test/audit/h-toggles.js` | 170 | 断言 | 14 条（逐源开启）；实跑 14/0 |
 | `test/audit/v-eligibility.js` | 116 | 断言 | 7 条（USER_OFF/DEFAULT_OFF/PLAYBACK_FAILED/短路）；实跑 11/0 |
 | `test/audit/health-linkage-invariants.js` | 151 | 断言 | 4 条（链项 eligibility/链与 skipReason/建链后关源拦截）；实跑 4/0 |
-| `test/audit/health-state-machine-v2.js` | 144 | 断言 | 方案 6.2 M1~M10：链项 eligibility、USER_OFF 最高、AUTO_OFF 只认 FAIL、探测不清摘除、单档隔离、短路可见、休眠优先、快照 reason 同源、快照只读、未知源；实跑 11/0 |
+| `test/audit/health-state-machine-v2.js` | 145 | 断言 | 方案 6.2 M1~M10：链项 eligibility、USER_OFF 最高、AUTO_OFF 只认 FAIL、探测不清摘除、单档隔离、短路可见、休眠优先、快照 reason 同源、快照只读、未知源；实跑 11/0 |
 | `test/audit/health-authority-split.js` | 125 | 断言 |
-| `test/audit/health-probe-batch2.js` | 151 | 断言 |
-| `test/audit/health-eligibility-batch3.js` | 130 | 断言 | Batch 3 C1~C9：open/限流/半开在飞不入链，建链只读不推进 trial，skipReason 同 reducer，preview/短路可见，正常源带 eligibility，建链不写事件；实跑 9/0 | Batch 2 B1~B9：三档探针全走 handler、逐 target 事件、flac 失败/128k 成功只降级、UNKNOWN 不关源、全 FAIL 两轮关源、探测不清 playDead、单源只读、快照脱敏、transition 优先；实跑 11/0 | Batch 1 A1~A9：toggle 只写 user、probe 只写 auto、UNKNOWN 不关源、controls 保留手动关闭、offReason/offAt 同源、runtimeToggles 仅镜像；实跑 11/0 | Batch 0 S1~S12：新旧资格并行只读、auto-off/休眠/resolveDead/单档短路/playDead diff 全解释、建链/快照/事件零变化；实跑 12/0 |
+| `test/audit/health-probe-batch2.js` | 152 | 断言 |
+| `test/audit/health-eligibility-batch3.js` | 131 | 断言 | Batch 3 C1~C9：open/限流/半开在飞不入链，建链只读不推进 trial，skipReason 同 reducer，preview/短路可见，正常源带 eligibility，建链不写事件；实跑 9/0 | Batch 2 B1~B9：三档探针全走 handler、逐 target 事件、flac 失败/128k 成功只降级、UNKNOWN 不关源、全 FAIL 两轮关源、探测不清 playDead、单源只读、快照脱敏、transition 优先；实跑 11/0 | Batch 1 A1~A9：toggle 只写 user、probe 只写 auto、UNKNOWN 不关源、controls 保留手动关闭、offReason/offAt 同源、runtimeToggles 仅镜像；实跑 11/0 | Batch 0 S1~S12：新旧资格并行只读、auto-off/休眠/resolveDead/单档短路/playDead diff 全解释、建链/快照/事件零变化；实跑 12/0 |
 | `test/audit/health-breaker-quality.js` | 137 | 断言 | 5 条（Q1~Q5 按档熔断/源级聚合/半开单 trial/429 分档退避）；实跑 5/0 |
 | `test/audit/health-resolve-dead.js` | 101 | 断言 | 4 条（R1 取链失败只记 resolveDead/R2 链成功不清 playDead/R3 真实播放成功双清/R4 弱证据不摘除）；实跑 4/0 |
 | `test/audit/health-scoped-reset.js` | 74 | 断言 | 2 条（authority 保留质量历史只复位执行门 / all 完整归零）；实跑 2/0 |
 | `test/audit/health-scheduler-fake-clock.js` | 58 | 断言 | 2 条（±10% jitter 边界 / 播放取链在途暂停判定）；实跑 2/0 |
 | `test/audit/q-quickjs-real.js` | 127 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |
 | `test/audit/aa-p3-persist.js` | 212 | 断言 | P3 A1~A10 宿主持久化协议：导出结构/往返/URL 拒绝/版本 TTL/恢复边界/v1 拒绝/controls-only/无回滚开关；实跑 11/0 |
-| `test/audit/health-persistence-v2.js` | 131 | 断言 | F36/F57 P1~P8 持久化 v2：v2 结构/v1 拒绝/controls-only/autoOff 6h/无回滚开关/拒绝非法；实跑 11/0 |
-| `test/audit/health-probe-outcome.js` | 135 | 断言 | F20/F22 O1~O9 探测三值：PASS/FAIL/UNKNOWN 聚合、UNKNOWN 不累计失败、PASS 不清 playDead/resolveDead、事件无 URL；实跑 11/0 |
-| `test/audit/health-probe-fidelity.js` | 170 | 断言 | F20/F22 F1~F10 探测保真：逐目标三值、全 FAIL、超时 UNKNOWN、POST 透传、check/可播校验、单源隔离、不写质量账、不清摘除、事件无 URL；实跑 11/0 |
-| `test/audit/health-transition-events.js` | 111 | 断言 | F33 U1~U7 迁移事件：字段/枚举/优先级保留/probe 压缩/auto_on 单发/无敏感字段/容量 500；实跑 11/0 |
-| `test/audit/health-snapshot-eta.js` | 140 | 断言 | F35 ETA/F45 限速/F46 冷启/F06 jitter/F32 eventId/F17 平台计数：字段存在、只读不改 eligible、调度 nextAt、eventId 唯一、计数守恒、默认 10% 边界；实跑 11/0 |
-| `test/audit/r-admission.js` | 499 | 断言 | 23 条 A1~A20（L4 裁决层 + v8.11.6 收尾）；先红 0/11 后绿 18/0，A16~A20 逐条注入回退变红，最新 23/0 |
+| `test/audit/health-persistence-v2.js` | 132 | 断言 | F36/F57 P1~P8 持久化 v2：v2 结构/v1 拒绝/controls-only/autoOff 6h/无回滚开关/拒绝非法；实跑 11/0 |
+| `test/audit/health-probe-outcome.js` | 136 | 断言 | F20/F22 O1~O9 探测三值：PASS/FAIL/UNKNOWN 聚合、UNKNOWN 不累计失败、PASS 不清 playDead/resolveDead、事件无 URL；实跑 11/0 |
+| `test/audit/health-probe-fidelity.js` | 171 | 断言 | F20/F22 F1~F10 探测保真：逐目标三值、全 FAIL、超时 UNKNOWN、POST 透传、check/可播校验、单源隔离、不写质量账、不清摘除、事件无 URL；实跑 11/0 |
+| `test/audit/health-transition-events.js` | 112 | 断言 | F33 U1~U7 迁移事件：字段/枚举/优先级保留/probe 压缩/auto_on 单发/无敏感字段/容量 500；实跑 11/0 |
+| `test/audit/health-snapshot-eta.js` | 141 | 断言 | F35 ETA/F45 限速/F46 冷启/F06 jitter/F32 eventId/F17 平台计数：字段存在、只读不改 eligible、调度 nextAt、eventId 唯一、计数守恒、默认 10% 边界；实跑 11/0 |
+| `test/audit/r-admission.js` | 510 | 断言 | 23 条 A1~A20（L4 裁决层 + v8.11.6 收尾）；先红 0/11 后绿 18/0，A16~A20 逐条注入回退变红，最新 23/0 |
 | `test/audit/u-cross-platform.js` | 354 | 断言 | 15 条（按脚本实际 `rec()` 编号）：U1 转 tx 并交付原版 / U2 严格匹配 302s 原版 / U3 kw 主平台成功且未搜 QQ / U4 `subSource=juheTx` / U5 二次缓存仍 tx / U6 全平台无匹配 `NOT_FOUND` / U7 `cross_platform` 事件 / U8 tx 只收 songmid / U9 慢主平台交付 kw / U10 关源后不交付缓存 / U11 wy 候选归一化 / U12 kw 候选归一化 / U13 三目标顺序 / U14 mg/kg 不再作为目标 / U15 mg 实际标签回填 kw；先红 1/8 → 绿 15/0 |
 | `test/audit/v-cross-platform-stress.js` | 423 | 断言 | 13 条 V1~V13（20 并发同歌 / QQ 搜索不放大 / 50 次顺序只搜 1 次 / 201 首缓存上限 / 总开关零跨平台 / 关源重开 / remix-only 全拒绝 / 主跨交替不串 / 全目标 5xx 保留原码 / 慢主平台并发 / 事件隐私 / 100 首主命中零跨平台 / 同名同歌手时长差 199s 拒绝）；实跑 13/0 |
 | `test/audit/w-fallback-owner.js` | 51 | 断言 | P1 W1~W2：W1 `inited` 已上报 / W2 5 个平台均 `fallbackOwner=source`；先红 1/2 → 绿 2/2 |
@@ -157,8 +157,8 @@ HEAD `0cba276`（v8.13.0）
 | `test/audit/s-health-events.js` | 230 | 断言 | 22 条 S1~S6（healthEvents 只读环形缓冲/同 traceId 串联/返回副本/隐私边界/超容丢弃）；先红 6 通过 16 失败 → 绿 22/0 |
 | `test/audit/t-health-events-stress.js` | 137 | 断言 | 12 条 T1~T9（10000 条灌满/容量 500/dropped 9500/同 trace 链/limit 边界/隐私注入）；容量注入 500→100 翻红后还原 12/0 |
 | `test/candidate-audit-test.js` | 135 | 断言 | 6 条；曾无 ID 输出，已补 |
-| `test/lx-source-smoke-test.js` | 1623 | 断言 | 67 组；T50~T57 为回退必红用例 |
-| `test/mutation/run.js` | 297 | 断言 | **22 变异体**；`--strict` 才在 survived 时 exit 1；字段名是 `name` 不是 `desc` |
+| `test/lx-source-smoke-test.js` | 1625 | 断言 | 67 组；T50~T57 为回退必红用例 |
+| `test/mutation/run.js` | 299 | 断言 | **22 变异体**；`--strict` 才在 survived 时 exit 1；字段名是 `name` 不是 `desc` |
 | `test/stress-round3.js` | 356 | 断言 | 14 条 T1~T14（压「态」） |
 | `test/stress-round4.js` | 1319 | 断言 | 133 条 V1a~V39b（已进 AUDIT_MATRIX） |
 | `test/stress-test.js` | 221 | 断言 | 12 条 S1~S11 |
@@ -212,7 +212,7 @@ HEAD `0cba276`（v8.13.0）
 | `scripts/verify-real-platform-chains.js` | 103 | 全文 | G7 先搜平台 ID 再隔离取链；公网不可用时如实保留上游失败码 |
 | `src/00-header.js` | 6 | 全文 | 单文件 banner |
 | `src/80-entry.js` | 10 | 全文 | 导出面 + 非枚举 PROVIDER_SPECS |
-| `src/legacy.js` | 5607 | 全文 | v8.13 实现源（契约/生命周期/取消） |
+| `src/legacy.js` | 5645 | 全文 | v8.13 实现源（契约/生命周期/取消） |
 | `src/providers/55-probation.js` | 41 | 全文 | 两个观察源规格 |
 | `src/providers/changqingVip.js` | 20 | 全文 | 12 源契约规格 |
 | `src/providers/helloworldKw.js` | 22 | 全文 | 12 源契约规格 |

@@ -71,4 +71,4 @@ check('S2', 'all 清账仍归零成功/失败/请求数，供面板重置（F38�
 
 console.log(`\n===== S 组汇总：${passed} 通过 / ${failures.length} 失败 =====`)
 if (failures.length) { for (const f of failures) console.error(f); process.exit(1) }
-process.exit(0)
+if (require.main === module) process.exit(0)

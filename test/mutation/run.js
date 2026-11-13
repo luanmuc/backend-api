@@ -33,9 +33,10 @@ const SLOW_GATES = ['test/stress-round3.js'];
 const MUTANTS = [
   {
     id: 'MU1',
-    name: '阈值 +1（qs.size >= 1 → >= 2）',
-    from: 'if (qs.size >= 1) hEntry.mids.add(midKey);',
-    to: 'if (qs.size >= 2) hEntry.mids.add(midKey);',
+    name: '跨歌证据阈值 +1（mids.size >= 2 → >= 3）',
+    from: 'if (hEntry.mids.size >= 2) {',
+    to: 'if (hEntry.mids.size >= 3) {',
+    gates: ['test/lx-source-smoke-test.js'],
   },
   {
     id: 'MU2',
@@ -62,6 +63,7 @@ const MUTANTS = [
     name: '冷却时长数量级错误（300000 → 1000）',
     from: 'const PREVIEW_COOLDOWN_MS = 300000;',
     to: 'const PREVIEW_COOLDOWN_MS = 1000;',
+    gates: ['test/lx-source-smoke-test.js'],
   },
   {
     id: 'MU6',

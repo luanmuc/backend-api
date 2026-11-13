@@ -2,7 +2,7 @@
 
 ## 2026-11-13 最终审计与压力计划（当前代码量身定制）
 
-> **适用基线**：源仓 `5d62195`（master，v8.13.0，本地未推送）+ 本轮修复提交（本地未推送）；App `a87d3f3a` + 修复提交 `65c9d9c3`。所有结论必须在当前工作树上实跑，**不沿用历史绿**。
+> **适用基线**：源仓 `796bb89`（master，v8.13.0，已推送）+ 本轮 CI 修复提交（本地未推送）；App `a87d3f3a` + 修复提交 `785af658`（本地未推送）。所有结论必须在当前工作树上实跑，**不沿用历史绿**。
 > **目标**：按最新代码审计「代码正确性 + 运行逻辑 + 全仓完成度」，重点找未完成、遗漏、半成品、文档说完成但代码没落地的项，并实际执行压力测试。
 
 ### 0. 本轮范围与不做的部分
@@ -13,14 +13,14 @@
 | 运行逻辑 | `buildSourceChain → computeEligibility → wrapExecute → admit/applyAdmission → record*`；探针/冷却/熔断/限流/缓存/降档/128k 保底 |
 | 全仓完成度 | TODO/FIXME/占位/半成品；声明但无消费的常量/字段/键；文档与代码计数漂移 |
 | 跨仓契约 | 13 action、v2 envelope、健康快照字段、三语键、v2 持久化 |
-| 不做/外部阻塞 | G2 真机（无 adb/KVM）、G7 tx 完整曲目（上游约 60s 试听）、远端 CI（本地不推送） |
+| 不做/外部阻塞 | G2 真机（无 adb/KVM）、G7 tx 完整曲目（上游约 60s 试听）；远端 CI 以本轮推送后的实际 run 为准 |
 
 ### 1. 证据分级与纪律
 
 | 级别 | 证据 | 用途 |
 |---|---|---|
 | L0 | `node --check`、`npm run build`、`node --expose-gc` 加载 | 语法/构建/产物 |
-| L1 | `npm test` 18 脚本、`docs-audit` | 契约/文档/台账 |
+| L1 | `npm test` 19 脚本、`docs-audit` | 契约/文档/台账 |
 | L2 | `test/audit/*.js` 行为断言 + mock 宿主 | 状态机/边界/并发/隐私 |
 | L3 | `lx-source.js` 字节数/内容 | 产物是否真带改动 |
 | L4 | 真机/真上游 | 仅记录 blocked |
@@ -50,7 +50,7 @@
 ```bash
 rg -n "TODO|FIXME|HACK|未实现|占位|半成品|待补|待做" src test docs scripts
 rg -n "shadowLegacyEligibility|eligibilityShadow|health-shadow-eligibility|runtimeToggles" src test docs
-rg -n "286797|286863|286995|429|655" docs README.md
+rg -n "286797|286863|288720|429|655|94" docs README.md
 ```
 
 判定：上游继承的 TODO 标 `upstream`，不冒充本次定制缺口；健康/音源链上的死字段、无消费常量、旧路径、文档计数漂移一律算缺口。
@@ -64,7 +64,7 @@ rg -n "286797|286863|286995|429|655" docs README.md
 | P3 | 第四轮压力 | `node --expose-gc test/stress-round4.js` | V1~V25c：预热 TTL、探针双歌、档位 breaker、短路、排序、快照 | 133/0；TTL 内新增预热 0；半开只放一枪 |
 | P4 | 变异门禁 | `node test/mutation/run.js --full --strict` | 22 个锚点 | 22 killed / 0 survived；`--strict` 下 skipped=失败 |
 | P5 | 冒烟 | `node test/lx-source-smoke-test.js` | 67 组插件加载/导出/配置/取链 | 67/0 |
-| P6 | 审计 | `npm test` | 18 个脚本、44 个测试入口中的必跑子集 | 18 脚本 rc0 |
+| P6 | 审计 | `npm test` | 19 个脚本、44 个测试入口中的必跑子集 | 19 脚本 rc0（含 e-extra 90/0） |
 
 执行顺序：P5 → P6 → P1 → P2 → P3 → P4；任一红先修实现或明确夹具漂移，再全量复跑。
 
@@ -76,13 +76,13 @@ rg -n "286797|286863|286995|429|655" docs README.md
 | S-F02 | 冷却到期的 open 被 `qualityShortCircuit` 抢先剪链，且 resolveDead/playDead trial 被链构建吃掉，半开恢复拿不到请求 | 高 | S5b 冷却后外呼 0 | 已加 `breakerTrialReady`：open 冷却到期与 half-open 等同，短路让路；S5b 复跑外呼 3，`stress-test` 12/0 |
 | S-F03 | `probeSingleSource` handler catch 注释说回退旧探针，代码实为 `throw e` | 低 | 注释与代码相反；生产配置已无 URL | 已改注释为“直接三值失败、不回退 URL” |
 | S-F04 | T2/V18c/V25b/V25c/S5 夹具漂移：跨平台外呼比例、探针预热计数、源级 breaker、本地滑窗 | 中 | 首跑 11/3、130/3、11/1 | 已修夹具：T2 改判冷却+外呼不放大；V18c 显式探针后 resetCounts；V25 改档位槽；S5 提高本地限额并把 playDeadReviveMs 压到 300ms |
-| S-F05 | 文档计数漂移：`CHANGELOG` 写 286797、`TESTING` 写 429/655 | 低 | 实际 286995；测试入口 44 / npm test 18 | 本轮同步 |
+| S-F05 | 文档计数漂移：`CHANGELOG` 写 286797、`TESTING` 写 429/655 | 低 | 实际 288720；测试入口 44 / npm test 19 | 本轮同步 |
 
 ### 6. 当前结论边界
 
 - 纯 Node/mock 宿主结论可复现；真机持久化、RN 桥、分享 Intent 不在本轮证据范围。
 - 本地未推送，远端 CI 未跑；只声称本地门禁结果。
-- `npm test` 的 18 个脚本与 `test/` 下 44 个 `.js` 是两种口径：前者是 CI 必跑子集，后者含按需审计/压力/变异入口。
+- `npm test` 的 19 个脚本与 `test/` 下 44 个 `.js` 是两种口径：前者是 CI 必跑子集（2026-11-14 起含 `e-extra`），后者含按需审计/压力/变异入口。
 
 ---
 
