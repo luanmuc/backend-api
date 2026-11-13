@@ -386,6 +386,7 @@ var __lxSourceBundle = (() => {
         runtimeToggles[id] = effectiveEnabled(id);
       }
       var manualOff = {};
+      var manualOffAt = {};
       var HEALTH_CHECK_INTERVAL_MS = 10 * 60 * 1e3;
       var HEALTH_CHECK_INITIAL_DELAY_MS = 60 * 1e3;
       var HEALTH_CHECK_TIMEOUT = 6e3;
@@ -618,6 +619,8 @@ var __lxSourceBundle = (() => {
         deadCount: {},
         sleeping: {},
         sleepRound: {},
+        sleepAt: {},
+        // v8.14：进入休眠时间，供快照 offAt；醒来/清账时删除
         // v8.14：最近一次逐质量档探测结果，供健康页 matrix / 诊断使用（只存枚举和延迟，不存 URL）
         lastTargets: {},
         running: false
@@ -750,6 +753,7 @@ var __lxSourceBundle = (() => {
           delete probeState.deadCount[id];
           delete probeState.sleeping[id];
           delete probeState.sleepRound[id];
+          delete probeState.sleepAt[id];
           if (probeState.passCount[id] >= PROBE_PASS_REQUIRED) {
             const h = SOURCE_HANDLERS[id];
             const canAutoOn = isUserEnabled(id) && !manualOff[id];
@@ -795,6 +799,7 @@ var __lxSourceBundle = (() => {
             if (!probeState.sleeping[id]) {
               probeState.sleeping[id] = true;
               probeState.sleepRound[id] = globalThis.__probeRound || 0;
+              probeState.sleepAt[id] = Date.now();
               logWarn(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_SLEEP_AFTER_DEAD}\u8F6E\u5931\u8D25\uFF0C\u8FDB\u5165\u4F11\u7720(\u6BCF${PROBE_WAKE_EVERY_ROUND}\u8F6E\u590D\u6D3B\u8BD5\u63A2\u4E00\u6B21)`);
               recordHealthEvent({ event: "health_transition", sourceId: id, from: autoOff[id] ? "AUTO_OFF" : "ELIGIBLE", to: "SLEEPING", reason: "probe_sleep" });
             } else {
@@ -2308,11 +2313,13 @@ var __lxSourceBundle = (() => {
         userEnabled[target] = next;
         if (next) {
           delete manualOff[target];
+          delete manualOffAt[target];
           delete autoOff[target];
           delete autoOffReason[target];
           delete autoOffAt[target];
         } else {
           manualOff[target] = true;
+          manualOffAt[target] = Date.now();
         }
         syncRuntimeToggle(target);
         clearSourceLedger(target, { scope: "authority" });
@@ -2336,6 +2343,7 @@ var __lxSourceBundle = (() => {
         delete probeState.sleeping[source];
         delete probeState.deadCount[source];
         delete probeState.sleepRound[source];
+        delete probeState.sleepAt[source];
         probeState.failCount[source] = 0;
         const br = getBreaker(source);
         br.state = "closed";
@@ -3201,6 +3209,18 @@ var __lxSourceBundle = (() => {
         }
         return (songInfo == null ? void 0 : songInfo.songmid) || (songInfo == null ? void 0 : songInfo.id) || (songInfo == null ? void 0 : songInfo.songId) || (songInfo == null ? void 0 : songInfo.rid) || (songInfo == null ? void 0 : songInfo.hash) || null;
       }
+      function getHealthOffState(id, h) {
+        if (manualOff[id]) return { offReason: "USER_OFF", offAt: Number(manualOffAt[id] || 0) };
+        if (!isUserEnabled(id) && h && h.lifecycle !== "probation") return { offReason: "DEFAULT_OFF", offAt: 0 };
+        if (autoOff[id]) return { offReason: "AUTO_OFF_PROBE", offAt: Number(autoOffAt[id] || 0) };
+        if (runtimeToggles[id] === false) {
+          if (h && h.lifecycle === "probation") return { offReason: "DEFAULT_OFF", offAt: 0 };
+          return { offReason: "AUTO_OFF_PROBE", offAt: 0 };
+        }
+        if (probeState.sleeping[id]) return { offReason: "SLEEPING", offAt: Number(probeState.sleepAt[id] || 0) };
+        if (isPlayDead(id)) return { offReason: "PLAY_DEAD", offAt: 0 };
+        return { offReason: null, offAt: 0 };
+      }
       function getHealthSnapshot() {
         var _a2;
         const snapshot = {};
@@ -3210,6 +3230,7 @@ var __lxSourceBundle = (() => {
           const score = computeHealthScore(id);
           const gatePlatform = (h.platforms || []).find((p) => h.chain && h.chain[p] != null) || (h.platforms || [])[0] || null;
           const gate = computeEligibility(id, gatePlatform, "128k", { runtime: false, qualityShortCircuit: false });
+          const offState = getHealthOffState(id, h);
           snapshot[id] = {
             name: h.name,
             maxQuality: h.maxQuality,
@@ -3223,7 +3244,8 @@ var __lxSourceBundle = (() => {
             // 不能再只拿 enabled=false 猜原因。
             userEnabled: isUserEnabled(id),
             autoOff: !!autoOff[id],
-            offReason: manualOff[id] ? "USER_OFF" : !isUserEnabled(id) && SOURCE_TOGGLES[id] === false ? "DEFAULT_OFF" : autoOff[id] ? "AUTO_OFF_PROBE" : probeState.sleeping[id] ? "SLEEPING" : isPlayDead(id) ? "PLAY_DEAD" : null,
+            offReason: offState.offReason,
+            offAt: offState.offAt,
             // 方案 6.2 I1：allowed/reason/code/until 与 computeEligibility 同源，只读不写状态。
             eligible: gate.eligible,
             eligibilityReason: gate.reason,
@@ -3367,6 +3389,7 @@ var __lxSourceBundle = (() => {
           controls[id] = {
             enabled: isUserEnabled(id),
             manualOff: !!manualOff[id],
+            manualOffAt: Number(manualOffAt[id] || 0),
             autoOff: !!autoOff[id],
             autoOffAt: Number(autoOffAt[id] || 0),
             autoOffReason: autoOffReason[id] || null
@@ -3377,8 +3400,13 @@ var __lxSourceBundle = (() => {
       function applyHealthControls(controls) {
         for (const [id, c] of Object.entries(controls)) {
           userEnabled[id] = c.enabled;
-          if (c.manualOff) manualOff[id] = true;
-          else delete manualOff[id];
+          if (c.manualOff) {
+            manualOff[id] = true;
+            manualOffAt[id] = Number(c.manualOffAt || c.offAt || 0) || Date.now();
+          } else {
+            delete manualOff[id];
+            delete manualOffAt[id];
+          }
           const autoAge = Date.now() - (c.autoOffAt || 0);
           if (c.autoOff && (!c.autoOffAt || autoAge <= 6 * 60 * 60 * 1e3)) {
             autoOff[id] = true;
@@ -3522,11 +3550,13 @@ var __lxSourceBundle = (() => {
             if (!isHealthPlainObject(c)) return { ok: false, reason: `controls.${id} \u975E\u6CD5` };
             if (typeof c.enabled !== "boolean") return { ok: false, reason: `controls.${id}.enabled \u975E\u6CD5` };
             if (c.manualOff !== void 0 && typeof c.manualOff !== "boolean") return { ok: false, reason: `controls.${id}.manualOff \u975E\u6CD5` };
+            if (c.manualOffAt !== void 0 && !healthNumber(c.manualOffAt, true)) return { ok: false, reason: `controls.${id}.manualOffAt \u975E\u6CD5` };
             if (c.autoOff !== void 0 && typeof c.autoOff !== "boolean") return { ok: false, reason: `controls.${id}.autoOff \u975E\u6CD5` };
             if (c.autoOffAt !== void 0 && !healthNumber(c.autoOffAt, true)) return { ok: false, reason: `controls.${id}.autoOffAt \u975E\u6CD5` };
             controls[id] = {
               enabled: c.enabled,
               manualOff: !!c.manualOff,
+              manualOffAt: Number(c.manualOffAt || 0),
               autoOff: !!c.autoOff,
               autoOffAt: Number(c.autoOffAt || 0),
               autoOffReason: typeof c.autoOffReason === "string" ? c.autoOffReason.slice(0, 40) : null

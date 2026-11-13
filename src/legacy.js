@@ -338,6 +338,7 @@ function effectiveEnabled(id) { return isUserEnabled(id) && !isAutoOff(id); }
 function syncRuntimeToggle(id) { runtimeToggles[id] = effectiveEnabled(id); }
 // v4.0：用户手动关闭锁定——手动 toggle(false) 的源，探测通过也不再自动启用（除非用户手动开启）
 const manualOff = {};
+const manualOffAt = {}; // v8.14：手动关闭时间，供快照 offAt 与诊断解释
 
 const HEALTH_CHECK_INTERVAL_MS = 10 * 60 * 1000; // 每10分钟一轮
 const HEALTH_CHECK_INITIAL_DELAY_MS = 60 * 1000; // 加载后1分钟开始第一轮
@@ -572,6 +573,7 @@ const probeState = {
   deadCount: {},
   sleeping: {},
   sleepRound: {},
+  sleepAt: {}, // v8.14：进入休眠时间，供快照 offAt；醒来/清账时删除
   // v8.14：最近一次逐质量档探测结果，供健康页 matrix / 诊断使用（只存枚举和延迟，不存 URL）
   lastTargets: {},
   running: false
@@ -726,6 +728,7 @@ function applyProbeResult(id, usable, detail = {}) {
     delete probeState.deadCount[id];
     delete probeState.sleeping[id];
     delete probeState.sleepRound[id];
+    delete probeState.sleepAt[id];
     if (probeState.passCount[id] >= PROBE_PASS_REQUIRED) {
       const h = SOURCE_HANDLERS[id];
       const canAutoOn = isUserEnabled(id) && !manualOff[id];
@@ -773,6 +776,7 @@ function applyProbeResult(id, usable, detail = {}) {
       if (!probeState.sleeping[id]) {
         probeState.sleeping[id] = true;
         probeState.sleepRound[id] = globalThis.__probeRound || 0;
+        probeState.sleepAt[id] = Date.now();
         logWarn(`健康探测: [${id}] 连续${PROBE_SLEEP_AFTER_DEAD}轮失败，进入休眠(每${PROBE_WAKE_EVERY_ROUND}轮复活试探一次)`);
         recordHealthEvent({ event: "health_transition", sourceId: id, from: autoOff[id] ? "AUTO_OFF" : "ELIGIBLE", to: "SLEEPING", reason: "probe_sleep" });
       } else {
@@ -2411,11 +2415,13 @@ function toggleSource(target, enabled) {
   userEnabled[target] = next;
   if (next) {
     delete manualOff[target];
+    delete manualOffAt[target];
     delete autoOff[target];
     delete autoOffReason[target];
     delete autoOffAt[target];
   } else {
     manualOff[target] = true;
+    manualOffAt[target] = Date.now();
   }
   syncRuntimeToggle(target);
   clearSourceLedger(target, { scope: 'authority' });
@@ -2443,6 +2449,7 @@ function clearSourceLedger(source, opts = {}) {
   delete probeState.sleeping[source];
   delete probeState.deadCount[source];
   delete probeState.sleepRound[source];
+  delete probeState.sleepAt[source];
   probeState.failCount[source] = 0;
   const br = getBreaker(source);
   br.state = "closed"; br.failureCount = 0; br.lastFailureTime = 0;
@@ -3535,6 +3542,20 @@ function getPlatformSongId(platform, songInfo) {
 }
 
 // v3.0：健康统计快照——供 App 健康面板/巡检消费；返回各源成功率/均时/熔断状态/健康分
+// v8.14：offReason/offAt 单一来源；与 computeEligibility 的优先序保持一致。
+function getHealthOffState(id, h) {
+  if (manualOff[id]) return { offReason: "USER_OFF", offAt: Number(manualOffAt[id] || 0) };
+  if (!isUserEnabled(id) && h && h.lifecycle !== "probation") return { offReason: "DEFAULT_OFF", offAt: 0 };
+  if (autoOff[id]) return { offReason: "AUTO_OFF_PROBE", offAt: Number(autoOffAt[id] || 0) };
+  if (runtimeToggles[id] === false) {
+    if (h && h.lifecycle === "probation") return { offReason: "DEFAULT_OFF", offAt: 0 };
+    return { offReason: "AUTO_OFF_PROBE", offAt: 0 };
+  }
+  if (probeState.sleeping[id]) return { offReason: "SLEEPING", offAt: Number(probeState.sleepAt[id] || 0) };
+  if (isPlayDead(id)) return { offReason: "PLAY_DEAD", offAt: 0 };
+  return { offReason: null, offAt: 0 };
+}
+
 function getHealthSnapshot() {
   const snapshot = {};
   for (const id of Object.keys(SOURCE_HANDLERS)) {
@@ -3546,6 +3567,7 @@ function getHealthSnapshot() {
     // 误当成整源不可用（单档信息由 qualityShortCircuit 四档布尔单独下发）。
     const gatePlatform = (h.platforms || []).find(p => h.chain && h.chain[p] != null) || (h.platforms || [])[0] || null;
     const gate = computeEligibility(id, gatePlatform, "128k", { runtime: false, qualityShortCircuit: false });
+    const offState = getHealthOffState(id, h);
     snapshot[id] = {
       name: h.name,
       maxQuality: h.maxQuality,
@@ -3559,7 +3581,8 @@ function getHealthSnapshot() {
       // 不能再只拿 enabled=false 猜原因。
       userEnabled: isUserEnabled(id),
       autoOff: !!autoOff[id],
-      offReason: manualOff[id] ? "USER_OFF" : (!isUserEnabled(id) && SOURCE_TOGGLES[id] === false) ? "DEFAULT_OFF" : autoOff[id] ? "AUTO_OFF_PROBE" : probeState.sleeping[id] ? "SLEEPING" : isPlayDead(id) ? "PLAY_DEAD" : null,
+      offReason: offState.offReason,
+      offAt: offState.offAt,
       // 方案 6.2 I1：allowed/reason/code/until 与 computeEligibility 同源，只读不写状态。
       eligible: gate.eligible,
       eligibilityReason: gate.reason,
@@ -3711,6 +3734,7 @@ function collectHealthControls() {
     controls[id] = {
       enabled: isUserEnabled(id),
       manualOff: !!manualOff[id],
+      manualOffAt: Number(manualOffAt[id] || 0),
       autoOff: !!autoOff[id],
       autoOffAt: Number(autoOffAt[id] || 0),
       autoOffReason: autoOffReason[id] || null
@@ -3722,8 +3746,13 @@ function collectHealthControls() {
 function applyHealthControls(controls) {
   for (const [id, c] of Object.entries(controls)) {
     userEnabled[id] = c.enabled;
-    if (c.manualOff) manualOff[id] = true;
-    else delete manualOff[id];
+    if (c.manualOff) {
+      manualOff[id] = true;
+      manualOffAt[id] = Number(c.manualOffAt || c.offAt || 0) || Date.now();
+    } else {
+      delete manualOff[id];
+      delete manualOffAt[id];
+    }
     const autoAge = Date.now() - (c.autoOffAt || 0);
     if (c.autoOff && (!c.autoOffAt || autoAge <= 6 * 60 * 60 * 1000)) {
       autoOff[id] = true;
@@ -3873,11 +3902,13 @@ function restoreHealthState(state) {
       if (!isHealthPlainObject(c)) return { ok: false, reason: `controls.${id} 非法` };
       if (typeof c.enabled !== "boolean") return { ok: false, reason: `controls.${id}.enabled 非法` };
       if (c.manualOff !== undefined && typeof c.manualOff !== "boolean") return { ok: false, reason: `controls.${id}.manualOff 非法` };
+      if (c.manualOffAt !== undefined && !healthNumber(c.manualOffAt, true)) return { ok: false, reason: `controls.${id}.manualOffAt 非法` };
       if (c.autoOff !== undefined && typeof c.autoOff !== "boolean") return { ok: false, reason: `controls.${id}.autoOff 非法` };
       if (c.autoOffAt !== undefined && !healthNumber(c.autoOffAt, true)) return { ok: false, reason: `controls.${id}.autoOffAt 非法` };
       controls[id] = {
         enabled: c.enabled,
         manualOff: !!c.manualOff,
+        manualOffAt: Number(c.manualOffAt || 0),
         autoOff: !!c.autoOff,
         autoOffAt: Number(c.autoOffAt || 0),
         autoOffReason: typeof c.autoOffReason === "string" ? c.autoOffReason.slice(0, 40) : null
