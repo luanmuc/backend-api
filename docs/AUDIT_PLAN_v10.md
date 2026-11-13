@@ -3,7 +3,7 @@
 > 这份文件是**前五轮的唯一合并入口**。前五轮的分册（`audit-plans/round1~5.md`）保留为原文存档，
 > 但"到底审过什么、用什么断言守、哪些还没审"只以本文件为准。
 > 生成日期：2026-11-09；**最近更新：2026-11-13（v8.13.0 + G5/G7/G8 + 单提交发布预检）**。
-> 当前基线：`lx-music-source` 本地单提交（HEAD 以 `git log -1` 为准；parent `2f4d7e4`，ahead 1，未推送），`lx-source.js @version 8.13.0`，SHA-256 `a693c412…`；审计 **403 条** / 压测 **159 条** / 冒烟 **67 组** = **629 条**；变异 **22 killed / 0 survived**；`TESTING.md` 为唯一真值。
+> 当前基线：`lx-music-source` 已推送 `origin/master`（push 前 parent `2f4d7e4`）；CI run `43355462221` SUCCESS；Release b116 已发布，`lx-source.js @version 8.13.0`，SHA-256 `a693c412…`；审计 **403 条** / 压测 **159 条** / 冒烟 **67 组** = **629 条**；变异 **22 killed / 0 survived**；`TESTING.md` 为唯一真值。
 >
 > **2026-11-13 本轮补证（不改变历史轮次结论）**：G5 关闭（App 侧删除固定源名单/版本，动态校验 13/0）；G7 wy 原生链成立（`2668397359` → `wyOuter`/`m701.music.126.net`），tx 只有 60 秒试听（vkeys `quality=6` 503，直连 200 但 ffprobe `60.029s`，源侧 5/5 `NOT_FOUND`），不计完整原生交付；G8 由 App 侧离线闸门复核 rc0（run `43175425887`/head `1bec334`/SUCCESS，远端 `2f4d7e4` 祖先成立）；两仓各压成 1 个本地提交，发布预检 `READY`。
 
@@ -283,7 +283,7 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | 冒烟 | **67 组** | `test/lx-source-smoke-test.js` |
 | 变异 | **22 killed / 0 survived** | `test/mutation/run.js --full --strict` |
 | 文档 | `docs-audit` rc0；`self-check` rc0；`f-repo` 52/0 | 本轮实跑 |
-| 发布边界 | 本地单提交、未 push；远端仍是 8.12.5 | `git status` / `git log` |
+| 发布边界 | 已 push v8.13.0；CI run `43355462221` 绿；b116 已发布 | `git status` / `git log` |
 
 > G7 是真实平台链补证，不是新增平台：wy 原生交付成立；tx 上游只给试听，不能据此宣称 tx 完整原生完成。
 
