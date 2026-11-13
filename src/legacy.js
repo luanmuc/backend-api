@@ -1073,39 +1073,115 @@ function getBreaker(sourceId) {
   }
   return breakerMap.get(sourceId);
 }
+// v8.14（F39/F41）：熔断/限流必须按“源×档”记账。旧账只有源级 state，flac 坏了会连 128k 一起停。
+// 这里给每个档位补独立的 breaker/rateLimit 槽；旧的源级字段继续保留，作为“全档不可达”的聚合摘要。
+function qualityLedger(b, quality) {
+  const key = String(quality || 'default')
+  let q = b.byQuality[key]
+  if (!q) q = b.byQuality[key] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 }
+  if (!q.breaker) q.breaker = { state: 'closed', failureCount: 0, lastFailureTime: 0, trialInFlight: false }
+  if (typeof q.rateLimitCount !== 'number') q.rateLimitCount = 0
+  if (typeof q.rateLimitUntil !== 'number') q.rateLimitUntil = 0
+  if (typeof q.rateLimited !== 'boolean') q.rateLimited = false
+  return q
+}
+// 源级 state 只做聚合：所有已建账档位都 open 才 open；任一半开则半开；否则 closed。
+// 这样 flac 熔断不会误伤 128k，但“全档都不可达”仍能从源级一眼看出。
+function syncSourceBreaker(b) {
+  const ledgers = Object.values(b.byQuality || {}).filter(q => q && q.breaker)
+  if (!ledgers.length) return
+  const allOpen = ledgers.every(q => q.breaker.state === 'open')
+  const anyHalf = ledgers.some(q => q.breaker.state === 'half-open')
+  if (allOpen) {
+    b.state = 'open'
+    b.lastFailureTime = Math.max(...ledgers.map(q => q.breaker.lastFailureTime || 0))
+  } else if (anyHalf) {
+    b.state = 'half-open'
+  } else {
+    b.state = 'closed'
+  }
+}
 // v4.0：429 限流单独处理——短退避(30s)后自动恢复，不计入熔断阈值；连续≥3 次标记"被限"
 function recordRateLimit(sourceId, quality) {
   const b = getBreaker(sourceId);
+  const wasSourceHalfOpen = b.state === 'half-open';
+  const wasSourceOpen = b.state === 'open';
+  const q = qualityLedger(b, quality);
   // v8.10.3：429 不再计入请求/失败分子分母——限流是"源没坏、只是过载"，旧实现记进
   // byQuality.fail/totalRequests 后会被 isQualityHopeless(fail+linkExpired>=3) 当成
   // "该档 3 次全失败"直接短路 1 小时，同时把面板成功率拉低。
+  const backoff = cfg('rateLimitBackoffMs', RATE_LIMIT_BACKOFF_MS);
   b.rateLimitCount = (b.rateLimitCount || 0) + 1;
-  b.rateLimitUntil = Date.now() + cfg('rateLimitBackoffMs', RATE_LIMIT_BACKOFF_MS);
+  b.rateLimitUntil = Date.now() + backoff;
   if (b.rateLimitCount >= RATE_LIMIT_TRIP) b.rateLimited = true;
+  // F41：真正拦执行的是档位槽；源级字段只是聚合/旧 UI 兼容。
+  q.rateLimitCount++;
+  q.rateLimitUntil = Date.now() + backoff;
+  if (q.rateLimitCount >= RATE_LIMIT_TRIP) q.rateLimited = true;
   // v8.10.3：半开试探遇 429 必须收口——canExecute 在 half-open 恒返回 false，
   // 不收口则 state 永久停在 half-open，该源再也不会被调用（只修了业务失败/本地节流两条出口）。
-  if (b.state === "half-open") {
-    b.state = "open";
-    b.lastFailureTime = Date.now();
+  if (q.breaker.state === 'half-open' || b.state === 'half-open') {
+    q.breaker.state = 'open';
+    q.breaker.trialInFlight = false;
+    q.breaker.lastFailureTime = Date.now();
     logWarn(`断路器[${sourceId}] 半开试探失败(${quality || "128k"} 限流429)，重新熔断`);
   }
-  logDebug(`[${sourceId}] 429限流第${b.rateLimitCount}次，退避${cfg('rateLimitBackoffMs', RATE_LIMIT_BACKOFF_MS) / 1000}s${b.rateLimited ? '（已标记被限）' : ''}`);
+  syncSourceBreaker(b);
+  // 旧源级半开语义：试探已发生且失败，源级必须收口回 open，不能停在 half-open。
+  if (wasSourceHalfOpen || wasSourceOpen) {
+    b.state = 'open';
+    b.lastFailureTime = Date.now();
+  }
+  logDebug(`[${sourceId}] 429限流第${b.rateLimitCount}次，退避${backoff / 1000}s${b.rateLimited ? '（已标记被限）' : ''}`);
 }
 // v8.11.2（D-34，V25b 实测暴露）：半开试探被「本地拦截」挡下时必须退回 open。
 // 旧实现只在 wrapExecute 的 catch（handler.fn 之后）里做这件事，但 canExecute/throttleCheck
 // 都在 try 之前抛 isThrottleSkip——catch 根本捕不到，状态就停在 half-open；
 // 而 canExecute 对 half-open 恒返回 false → 该源永久不被调用，只能重启救回（F-01 卡死）。
-function revertHalfOpenOnSkip(sourceId) {
+function revertHalfOpenOnSkip(sourceId, quality) {
   const b = getBreaker(sourceId);
+  const q = quality ? qualityLedger(b, quality) : null;
+  if (q && q.breaker.state === 'half-open') {
+    q.breaker.state = 'open';
+    q.breaker.trialInFlight = false;
+    q.breaker.lastFailureTime = Date.now();
+    logWarn(`断路器[${sourceId}] ${quality} 半开试探被本地拦截，退回熔断等待下次冷却`);
+  }
   if (b.state === "half-open") {
     b.state = "open";
     b.lastFailureTime = Date.now();
     logWarn(`断路器[${sourceId}] 半开试探被本地拦截，退回熔断等待下次冷却`);
   }
+  if (q) syncSourceBreaker(b);
 }
-function canExecute(sourceId) {
+function canExecute(sourceId, quality) {
   const b = getBreaker(sourceId);
-  // v4.0：限流退避期内跳过（源没坏，只是过载/风控）；退避结束自动恢复
+  // F39/F41：带 quality 时先看该档自己的限流/熔断；源级只作为聚合摘要，不能连坐其他档。
+  if (quality) {
+    const qSlot = qualityLedger(b, quality);
+    const qb = qSlot.breaker;
+    if (qSlot.rateLimitUntil > 0) {
+      if (Date.now() < qSlot.rateLimitUntil) return false;
+      qSlot.rateLimitUntil = 0;
+      qSlot.rateLimited = false;
+    }
+    if (qb.state === 'closed') return true;
+    if (qb.state === 'open') {
+      if (Date.now() - qb.lastFailureTime >= cfg('breakerCooldownMs', BREAKER_COOLDOWN_MS)) {
+        qb.state = 'half-open';
+        qb.trialInFlight = true; // F40：冷却到期只放这一枪，后续并发在 trial 结束前全拒绝
+        return true;
+      }
+      return false;
+    }
+    // half-open：已有 trial 在飞就拒绝；上一枪被本地拦截/未落地时才补放一枪。
+    if (!qb.trialInFlight) {
+      qb.trialInFlight = true;
+      return true;
+    }
+    return false;
+  }
+  // 旧入口（诊断/外部直接调用）保留源级行为；源级聚合只在全档 open 时才拦。
   if (b.rateLimitUntil > 0) {
     if (Date.now() < b.rateLimitUntil) return false;
     b.rateLimitUntil = 0; b.rateLimited = false;
@@ -1114,6 +1190,14 @@ function canExecute(sourceId) {
   if (b.state === 'open') {
     if (Date.now() - b.lastFailureTime >= cfg('breakerCooldownMs', BREAKER_COOLDOWN_MS)) {
       b.state = 'half-open';
+      b.trialInFlight = true;
+      return true;
+    }
+    return false;
+  }
+  if (b.state === 'half-open') {
+    if (!b.trialInFlight) {
+      b.trialInFlight = true;
       return true;
     }
     return false;
@@ -1126,10 +1210,18 @@ function recordSuccess(sourceId, duration, quality) {
   b.totalSuccess++;
   b.totalTime += duration;
   b.lastQuality = String(quality || "128k"); // v6.0：记录实际交付音质
-  const q = b.byQuality[String(quality || 'default')] || (b.byQuality[String(quality || 'default')] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+  const q = qualityLedger(b, quality);
   q.req++; q.success++; q.time += duration;
-  if (b.state === 'half-open') { b.state = 'closed'; b.failureCount = 0; logWarn(`断路器[${sourceId}] 半开试探成功，恢复`); }
+  // F40：半开试探成功只关闭命中的档位；源级聚合再看其他档是否仍不可达。
+  if (q.breaker.state === 'half-open' || q.breaker.state === 'open') {
+    q.breaker.state = 'closed';
+    q.breaker.failureCount = 0;
+    q.breaker.trialInFlight = false;
+    logWarn(`断路器[${sourceId}] ${quality || "128k"} 半开试探成功，恢复`);
+  }
+  if (b.state === 'half-open') { b.state = 'closed'; b.failureCount = 0; }
   b.failureCount = 0;
+  syncSourceBreaker(b);
   // v8.14：真实成功同时解除 autoOff（比探测更硬的恢复证据）。
   if (autoOff[sourceId] && isUserEnabled(sourceId)) {
     delete autoOff[sourceId]; delete autoOffReason[sourceId]; delete autoOffAt[sourceId];
@@ -1156,35 +1248,47 @@ function bumpPlayDead(sourceId) {
 }
 function recordFailure(sourceId, quality, opts = {}) {
   const b = getBreaker(sourceId);
+  const wasSourceHalfOpen = b.state === 'half-open';
   b.totalRequests++;
   b.failureCount++;
   b.lastFailureTime = Date.now();
-  const q = b.byQuality[String(quality || 'default')] || (b.byQuality[String(quality || 'default')] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+  const q = qualityLedger(b, quality);
   q.req++; q.fail++;
+  q.breaker.failureCount++;
+  q.breaker.lastFailureTime = Date.now();
   // v8.14：取链失败不再无条件摘除。只有显式 playDead（真实播放失败/策略要求）才累计摘除；
   // 默认旧调用（测试/外部直接驱动）保留原语义，applyAdmission 会显式传 false。
   if (opts.playDead !== false) bumpPlayDead(sourceId);
-  if (b.state === 'half-open') { b.state = 'open'; logWarn(`断路器[${sourceId}] 半开试探失败，重新熔断`); return; }
   const thr = cfg('breakerThreshold', BREAKER_THRESHOLD);
-  if (b.state === 'closed' && b.failureCount >= thr) {
-    b.state = 'open';
-    logWarn(`断路器[${sourceId}] 连续失败${thr}次，熔断${cfg('breakerCooldownMs', BREAKER_COOLDOWN_MS) / 1000}秒`);
+  if (q.breaker.state === 'half-open' || b.state === 'half-open') {
+    q.breaker.state = 'open';
+    q.breaker.trialInFlight = false;
+    logWarn(`断路器[${sourceId}] ${quality || "128k"} 半开试探失败，重新熔断`);
+  } else if (q.breaker.state === 'closed' && q.breaker.failureCount >= thr) {
+    q.breaker.state = 'open';
+    logWarn(`断路器[${sourceId}] ${quality || "128k"} 连续失败${thr}次，熔断${cfg('breakerCooldownMs', BREAKER_COOLDOWN_MS) / 1000}秒`);
   }
+  syncSourceBreaker(b);
+  if (wasSourceHalfOpen) b.state = 'open';
 }
 // v4.0：版权/业务失败单独计数（无版权404、歌不存在、错歌等——源已正常响应，只是这首歌没有/需VIP）
 // 不惩罚健康分、不计入成功率分母、不触发熔断
 function recordBusinessFail(sourceId, quality) {
   const b = getBreaker(sourceId);
+  const wasSourceHalfOpen = b.state === 'half-open';
   b.totalRequests++;
   b.copyrightFail = (b.copyrightFail || 0) + 1;
-  const q = b.byQuality[String(quality || 'default')] || (b.byQuality[String(quality || 'default')] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+  const q = qualityLedger(b, quality);
   q.req++; q.businessFail++;
   // v8.10.2：半开试探失败收口——业务失败（404/错歌/410/空URL）同样说明这次试探没成功，
   // 不能让 state 停在 half-open（canExecute 在 half-open 恒返回 false，源会永久不被调用）。
   // 必须同时刷新 lastFailureTime，否则冷却判定用旧时间戳，会立刻再次放行。
-  if (b.state === "half-open") {
-    b.state = "open";
-    b.lastFailureTime = Date.now();
+  if (q.breaker.state === "half-open" || b.state === "half-open") {
+    q.breaker.state = "open";
+    q.breaker.trialInFlight = false;
+    q.breaker.lastFailureTime = Date.now();
+    syncSourceBreaker(b);
+    if (wasSourceHalfOpen) b.state = 'open';
     logWarn(`断路器[${sourceId}] 半开试探失败(${quality || "128k"} 业务失败)，重新熔断`);
   }
 }
@@ -1208,7 +1312,11 @@ function getSourceStats(sourceId) {
       return [quality, {
         rate: valid === 0 ? null : q.success / valid,
         avgTime: q.success === 0 ? null : q.time / q.success,
-        req: q.req, success: q.success, businessFail: q.businessFail
+        req: q.req, success: q.success, businessFail: q.businessFail,
+        // F39/F41：按档熔断/限流状态必须能被快照/诊断读到，不再只看源级 state。
+        state: q.breaker ? q.breaker.state : 'closed',
+        rateLimited: !!q.rateLimited,
+        rateLimitUntil: Number(q.rateLimitUntil || 0)
       }];
     }))
   };
@@ -2189,11 +2297,19 @@ function computeEligibility(source, platform, quality, opts) {
   if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
   if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
     const br = getBreaker(id);
-    const reason = br.state || "breaker";
-    const code = (br.rateLimitUntil || 0) > Date.now() ? "RATE_LIMITED" : "QUALITY_OPEN";
-    return { eligible: false, reason, code, untilMs: br.rateLimitUntil || null };
+    const qSlot = br.byQuality[q];
+    const qb = qSlot && qSlot.breaker;
+    const reason = (qb && qb.state) || br.state || "breaker";
+    const until = qSlot ? qSlot.rateLimitUntil : br.rateLimitUntil;
+    const code = (until || 0) > Date.now() ? "RATE_LIMITED" : "QUALITY_OPEN";
+    return { eligible: false, reason, code, untilMs: until || null };
   }
-  if ((o.runtime || o.qualityShortCircuit) && cfg('qualityShortCircuit', true) && isQualityHopeless(id, q)) {
+  const brNow = getBreaker(id);
+  const qbNow = brNow.byQuality[q] && brNow.byQuality[q].breaker;
+  // F40：breaker 已进入 half-open 且本次已消费唯一 trial 时，不能再被质量档短路二次拦掉；
+  // 否则 Q3 的首次半开永远拿不到请求，失败也无法把 state 收回 open。
+  const halfOpenTrial = !!(o.runtime && qbNow && qbNow.state === 'half-open');
+  if (!halfOpenTrial && (o.runtime || o.qualityShortCircuit) && cfg('qualityShortCircuit', true) && isQualityHopeless(id, q)) {
     return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: qualitySkipProbeAt.get(qualityShortCircuitKey(id, q)) || null };
   }
   if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
@@ -4014,12 +4130,12 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
     coolErr.isThrottleSkip = true;
     throw coolErr;
   }
-  if (!canExecute(handler.id)) {
+  if (!canExecute(handler.id, quality)) {
     recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "breaker" });
-    logDebug(`[断路器] ${handler.id} 处于${getBreaker(handler.id).state}状态，跳过`);
+    logDebug(`[断路器] ${handler.id} ${quality || "128k"} 处于${(getBreaker(handler.id).byQuality[String(quality || "default")] || {}).breaker?.state || getBreaker(handler.id).state}状态，跳过`);
     // v6.0：熔断跳过打 isThrottleSkip 标记——catch 短路抛出，不再误记 recordRateLimit
     //（旧实现熔断期每轮跳过都虚增 rateLimitCount，App 面板限流计数被污染）
-    revertHalfOpenOnSkip(handler.id); // D-34：half-open 恒 false，必须退回 open 否则永久卡死
+    revertHalfOpenOnSkip(handler.id, quality); // D-34：half-open 恒 false，必须退回 open 否则永久卡死
     const breakerSkip = new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]已熔断`);
     breakerSkip.isThrottleSkip = true;
     throw breakerSkip;
@@ -4028,7 +4144,7 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
     recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "local_throttle" });
     // v6.0：本地并发/限速保护跳过——标记 isThrottleSkip：非上游429，不记限流统计、不污染成功率、
     // 不触发 30s 退避（旧实现误记 recordRateLimit，流量高峰会把源冤枉成"被限"）
-    revertHalfOpenOnSkip(handler.id); // D-34：同上，节流也在 try 之外抛
+    revertHalfOpenOnSkip(handler.id, quality); // D-34：同上，节流也在 try 之外抛
     const skipErr = new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]触发并发/限速保护，本轮跳过`);
     skipErr.isThrottleSkip = true;
     throw skipErr;
@@ -4090,7 +4206,7 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
     if (e && e.isThrottleSkip) {
       // v8.10.2：半开收口——canExecute 放行一次后若被本地节流/熔断拦下，试探并未真正发生，
       // 状态不能停在 half-open（那里恒返回 false，该源会永久不被调用）；退回 open 重新等冷却
-      revertHalfOpenOnSkip(handler.id); // D-34：抽函数统一，三处收口行为一致
+      revertHalfOpenOnSkip(handler.id, quality); // D-34：抽函数统一，三处收口行为一致
       throw e;
     }
     recordHealthEvent({ event: "source_result", traceId, sourceId: handler.id, platform, quality, ok: false, code: extractErrorCode(e), latencyMs: Date.now() - startTime });
@@ -5150,6 +5266,7 @@ if (typeof module !== "undefined" && module.exports) {
     getBreaker,
     recordSuccess,
     recordFailure,
+    recordRateLimit, // v8.14（F41）：按档限流审计需要直接驱动 429 记账
     recordBusinessFail, // v8.10.2：导出供测试断言半开收口
     ERROR_CODES,
     QUALITY_PRIORITY,
@@ -5177,6 +5294,7 @@ if (typeof module !== "undefined" && module.exports) {
   Object.defineProperty(module.exports, "__debug", {
     value: Object.freeze({
       isQualityHopeless,
+      canExecute,
       qualitySkipProbeAt,
       createCancelToken,
       canceledError,

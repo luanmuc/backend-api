@@ -1087,28 +1087,96 @@ var __lxSourceBundle = (() => {
         }
         return breakerMap.get(sourceId);
       }
+      function qualityLedger(b, quality) {
+        const key = String(quality || "default");
+        let q = b.byQuality[key];
+        if (!q) q = b.byQuality[key] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 };
+        if (!q.breaker) q.breaker = { state: "closed", failureCount: 0, lastFailureTime: 0, trialInFlight: false };
+        if (typeof q.rateLimitCount !== "number") q.rateLimitCount = 0;
+        if (typeof q.rateLimitUntil !== "number") q.rateLimitUntil = 0;
+        if (typeof q.rateLimited !== "boolean") q.rateLimited = false;
+        return q;
+      }
+      function syncSourceBreaker(b) {
+        const ledgers = Object.values(b.byQuality || {}).filter((q) => q && q.breaker);
+        if (!ledgers.length) return;
+        const allOpen = ledgers.every((q) => q.breaker.state === "open");
+        const anyHalf = ledgers.some((q) => q.breaker.state === "half-open");
+        if (allOpen) {
+          b.state = "open";
+          b.lastFailureTime = Math.max(...ledgers.map((q) => q.breaker.lastFailureTime || 0));
+        } else if (anyHalf) {
+          b.state = "half-open";
+        } else {
+          b.state = "closed";
+        }
+      }
       function recordRateLimit(sourceId, quality) {
         const b = getBreaker(sourceId);
+        const wasSourceHalfOpen = b.state === "half-open";
+        const wasSourceOpen = b.state === "open";
+        const q = qualityLedger(b, quality);
+        const backoff = cfg("rateLimitBackoffMs", RATE_LIMIT_BACKOFF_MS);
         b.rateLimitCount = (b.rateLimitCount || 0) + 1;
-        b.rateLimitUntil = Date.now() + cfg("rateLimitBackoffMs", RATE_LIMIT_BACKOFF_MS);
+        b.rateLimitUntil = Date.now() + backoff;
         if (b.rateLimitCount >= RATE_LIMIT_TRIP) b.rateLimited = true;
-        if (b.state === "half-open") {
-          b.state = "open";
-          b.lastFailureTime = Date.now();
+        q.rateLimitCount++;
+        q.rateLimitUntil = Date.now() + backoff;
+        if (q.rateLimitCount >= RATE_LIMIT_TRIP) q.rateLimited = true;
+        if (q.breaker.state === "half-open" || b.state === "half-open") {
+          q.breaker.state = "open";
+          q.breaker.trialInFlight = false;
+          q.breaker.lastFailureTime = Date.now();
           logWarn(`\u65AD\u8DEF\u5668[${sourceId}] \u534A\u5F00\u8BD5\u63A2\u5931\u8D25(${quality || "128k"} \u9650\u6D41429)\uFF0C\u91CD\u65B0\u7194\u65AD`);
         }
-        logDebug(`[${sourceId}] 429\u9650\u6D41\u7B2C${b.rateLimitCount}\u6B21\uFF0C\u9000\u907F${cfg("rateLimitBackoffMs", RATE_LIMIT_BACKOFF_MS) / 1e3}s${b.rateLimited ? "\uFF08\u5DF2\u6807\u8BB0\u88AB\u9650\uFF09" : ""}`);
+        syncSourceBreaker(b);
+        if (wasSourceHalfOpen || wasSourceOpen) {
+          b.state = "open";
+          b.lastFailureTime = Date.now();
+        }
+        logDebug(`[${sourceId}] 429\u9650\u6D41\u7B2C${b.rateLimitCount}\u6B21\uFF0C\u9000\u907F${backoff / 1e3}s${b.rateLimited ? "\uFF08\u5DF2\u6807\u8BB0\u88AB\u9650\uFF09" : ""}`);
       }
-      function revertHalfOpenOnSkip(sourceId) {
+      function revertHalfOpenOnSkip(sourceId, quality) {
         const b = getBreaker(sourceId);
+        const q = quality ? qualityLedger(b, quality) : null;
+        if (q && q.breaker.state === "half-open") {
+          q.breaker.state = "open";
+          q.breaker.trialInFlight = false;
+          q.breaker.lastFailureTime = Date.now();
+          logWarn(`\u65AD\u8DEF\u5668[${sourceId}] ${quality} \u534A\u5F00\u8BD5\u63A2\u88AB\u672C\u5730\u62E6\u622A\uFF0C\u9000\u56DE\u7194\u65AD\u7B49\u5F85\u4E0B\u6B21\u51B7\u5374`);
+        }
         if (b.state === "half-open") {
           b.state = "open";
           b.lastFailureTime = Date.now();
           logWarn(`\u65AD\u8DEF\u5668[${sourceId}] \u534A\u5F00\u8BD5\u63A2\u88AB\u672C\u5730\u62E6\u622A\uFF0C\u9000\u56DE\u7194\u65AD\u7B49\u5F85\u4E0B\u6B21\u51B7\u5374`);
         }
+        if (q) syncSourceBreaker(b);
       }
-      function canExecute(sourceId) {
+      function canExecute(sourceId, quality) {
         const b = getBreaker(sourceId);
+        if (quality) {
+          const qSlot = qualityLedger(b, quality);
+          const qb = qSlot.breaker;
+          if (qSlot.rateLimitUntil > 0) {
+            if (Date.now() < qSlot.rateLimitUntil) return false;
+            qSlot.rateLimitUntil = 0;
+            qSlot.rateLimited = false;
+          }
+          if (qb.state === "closed") return true;
+          if (qb.state === "open") {
+            if (Date.now() - qb.lastFailureTime >= cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS)) {
+              qb.state = "half-open";
+              qb.trialInFlight = true;
+              return true;
+            }
+            return false;
+          }
+          if (!qb.trialInFlight) {
+            qb.trialInFlight = true;
+            return true;
+          }
+          return false;
+        }
         if (b.rateLimitUntil > 0) {
           if (Date.now() < b.rateLimitUntil) return false;
           b.rateLimitUntil = 0;
@@ -1118,6 +1186,14 @@ var __lxSourceBundle = (() => {
         if (b.state === "open") {
           if (Date.now() - b.lastFailureTime >= cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS)) {
             b.state = "half-open";
+            b.trialInFlight = true;
+            return true;
+          }
+          return false;
+        }
+        if (b.state === "half-open") {
+          if (!b.trialInFlight) {
+            b.trialInFlight = true;
             return true;
           }
           return false;
@@ -1130,16 +1206,22 @@ var __lxSourceBundle = (() => {
         b.totalSuccess++;
         b.totalTime += duration;
         b.lastQuality = String(quality || "128k");
-        const q = b.byQuality[String(quality || "default")] || (b.byQuality[String(quality || "default")] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+        const q = qualityLedger(b, quality);
         q.req++;
         q.success++;
         q.time += duration;
+        if (q.breaker.state === "half-open" || q.breaker.state === "open") {
+          q.breaker.state = "closed";
+          q.breaker.failureCount = 0;
+          q.breaker.trialInFlight = false;
+          logWarn(`\u65AD\u8DEF\u5668[${sourceId}] ${quality || "128k"} \u534A\u5F00\u8BD5\u63A2\u6210\u529F\uFF0C\u6062\u590D`);
+        }
         if (b.state === "half-open") {
           b.state = "closed";
           b.failureCount = 0;
-          logWarn(`\u65AD\u8DEF\u5668[${sourceId}] \u534A\u5F00\u8BD5\u63A2\u6210\u529F\uFF0C\u6062\u590D`);
         }
         b.failureCount = 0;
+        syncSourceBreaker(b);
         if (autoOff[sourceId] && isUserEnabled(sourceId)) {
           delete autoOff[sourceId];
           delete autoOffReason[sourceId];
@@ -1164,34 +1246,42 @@ var __lxSourceBundle = (() => {
       }
       function recordFailure(sourceId, quality, opts = {}) {
         const b = getBreaker(sourceId);
+        const wasSourceHalfOpen = b.state === "half-open";
         b.totalRequests++;
         b.failureCount++;
         b.lastFailureTime = Date.now();
-        const q = b.byQuality[String(quality || "default")] || (b.byQuality[String(quality || "default")] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+        const q = qualityLedger(b, quality);
         q.req++;
         q.fail++;
+        q.breaker.failureCount++;
+        q.breaker.lastFailureTime = Date.now();
         if (opts.playDead !== false) bumpPlayDead(sourceId);
-        if (b.state === "half-open") {
-          b.state = "open";
-          logWarn(`\u65AD\u8DEF\u5668[${sourceId}] \u534A\u5F00\u8BD5\u63A2\u5931\u8D25\uFF0C\u91CD\u65B0\u7194\u65AD`);
-          return;
-        }
         const thr = cfg("breakerThreshold", BREAKER_THRESHOLD);
-        if (b.state === "closed" && b.failureCount >= thr) {
-          b.state = "open";
-          logWarn(`\u65AD\u8DEF\u5668[${sourceId}] \u8FDE\u7EED\u5931\u8D25${thr}\u6B21\uFF0C\u7194\u65AD${cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS) / 1e3}\u79D2`);
+        if (q.breaker.state === "half-open" || b.state === "half-open") {
+          q.breaker.state = "open";
+          q.breaker.trialInFlight = false;
+          logWarn(`\u65AD\u8DEF\u5668[${sourceId}] ${quality || "128k"} \u534A\u5F00\u8BD5\u63A2\u5931\u8D25\uFF0C\u91CD\u65B0\u7194\u65AD`);
+        } else if (q.breaker.state === "closed" && q.breaker.failureCount >= thr) {
+          q.breaker.state = "open";
+          logWarn(`\u65AD\u8DEF\u5668[${sourceId}] ${quality || "128k"} \u8FDE\u7EED\u5931\u8D25${thr}\u6B21\uFF0C\u7194\u65AD${cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS) / 1e3}\u79D2`);
         }
+        syncSourceBreaker(b);
+        if (wasSourceHalfOpen) b.state = "open";
       }
       function recordBusinessFail(sourceId, quality) {
         const b = getBreaker(sourceId);
+        const wasSourceHalfOpen = b.state === "half-open";
         b.totalRequests++;
         b.copyrightFail = (b.copyrightFail || 0) + 1;
-        const q = b.byQuality[String(quality || "default")] || (b.byQuality[String(quality || "default")] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
+        const q = qualityLedger(b, quality);
         q.req++;
         q.businessFail++;
-        if (b.state === "half-open") {
-          b.state = "open";
-          b.lastFailureTime = Date.now();
+        if (q.breaker.state === "half-open" || b.state === "half-open") {
+          q.breaker.state = "open";
+          q.breaker.trialInFlight = false;
+          q.breaker.lastFailureTime = Date.now();
+          syncSourceBreaker(b);
+          if (wasSourceHalfOpen) b.state = "open";
           logWarn(`\u65AD\u8DEF\u5668[${sourceId}] \u534A\u5F00\u8BD5\u63A2\u5931\u8D25(${quality || "128k"} \u4E1A\u52A1\u5931\u8D25)\uFF0C\u91CD\u65B0\u7194\u65AD`);
         }
       }
@@ -1215,7 +1305,11 @@ var __lxSourceBundle = (() => {
               avgTime: q.success === 0 ? null : q.time / q.success,
               req: q.req,
               success: q.success,
-              businessFail: q.businessFail
+              businessFail: q.businessFail,
+              // F39/F41：按档熔断/限流状态必须能被快照/诊断读到，不再只看源级 state。
+              state: q.breaker ? q.breaker.state : "closed",
+              rateLimited: !!q.rateLimited,
+              rateLimitUntil: Number(q.rateLimitUntil || 0)
             }];
           }))
         };
@@ -2121,11 +2215,17 @@ var __lxSourceBundle = (() => {
         if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
         if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
           const br = getBreaker(id);
-          const reason = br.state || "breaker";
-          const code = (br.rateLimitUntil || 0) > Date.now() ? "RATE_LIMITED" : "QUALITY_OPEN";
-          return { eligible: false, reason, code, untilMs: br.rateLimitUntil || null };
+          const qSlot = br.byQuality[q];
+          const qb = qSlot && qSlot.breaker;
+          const reason = qb && qb.state || br.state || "breaker";
+          const until = qSlot ? qSlot.rateLimitUntil : br.rateLimitUntil;
+          const code = (until || 0) > Date.now() ? "RATE_LIMITED" : "QUALITY_OPEN";
+          return { eligible: false, reason, code, untilMs: until || null };
         }
-        if ((o.runtime || o.qualityShortCircuit) && cfg("qualityShortCircuit", true) && isQualityHopeless(id, q)) {
+        const brNow = getBreaker(id);
+        const qbNow = brNow.byQuality[q] && brNow.byQuality[q].breaker;
+        const halfOpenTrial = !!(o.runtime && qbNow && qbNow.state === "half-open");
+        if (!halfOpenTrial && (o.runtime || o.qualityShortCircuit) && cfg("qualityShortCircuit", true) && isQualityHopeless(id, q)) {
           return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: qualitySkipProbeAt.get(qualityShortCircuitKey(id, q)) || null };
         }
         if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
@@ -3679,6 +3779,7 @@ var __lxSourceBundle = (() => {
         return true;
       }
       async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
+        var _a2;
         throwIfCanceled(cancelToken);
         const traceId = healthTraceOf(songInfo);
         const preGate = SOURCE_HANDLERS[handler.id] ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: false }) : { eligible: true, code: "ELIGIBLE", reason: null };
@@ -3696,17 +3797,17 @@ var __lxSourceBundle = (() => {
           coolErr.isThrottleSkip = true;
           throw coolErr;
         }
-        if (!canExecute(handler.id)) {
+        if (!canExecute(handler.id, quality)) {
           recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "breaker" });
-          logDebug(`[\u65AD\u8DEF\u5668] ${handler.id} \u5904\u4E8E${getBreaker(handler.id).state}\u72B6\u6001\uFF0C\u8DF3\u8FC7`);
-          revertHalfOpenOnSkip(handler.id);
+          logDebug(`[\u65AD\u8DEF\u5668] ${handler.id} ${quality || "128k"} \u5904\u4E8E${((_a2 = (getBreaker(handler.id).byQuality[String(quality || "default")] || {}).breaker) == null ? void 0 : _a2.state) || getBreaker(handler.id).state}\u72B6\u6001\uFF0C\u8DF3\u8FC7`);
+          revertHalfOpenOnSkip(handler.id, quality);
           const breakerSkip = new Error(`${ERROR_CODES.RATE_LIMIT}: \u97F3\u6E90[${handler.name}]\u5DF2\u7194\u65AD`);
           breakerSkip.isThrottleSkip = true;
           throw breakerSkip;
         }
         if (!throttleCheck(handler.id)) {
           recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "local_throttle" });
-          revertHalfOpenOnSkip(handler.id);
+          revertHalfOpenOnSkip(handler.id, quality);
           const skipErr = new Error(`${ERROR_CODES.RATE_LIMIT}: \u97F3\u6E90[${handler.name}]\u89E6\u53D1\u5E76\u53D1/\u9650\u901F\u4FDD\u62A4\uFF0C\u672C\u8F6E\u8DF3\u8FC7`);
           skipErr.isThrottleSkip = true;
           throw skipErr;
@@ -3752,7 +3853,7 @@ var __lxSourceBundle = (() => {
         } catch (e) {
           if (e && (e.canceled === true || e.code === ERROR_CODES.CANCELED)) throw e;
           if (e && e.isThrottleSkip) {
-            revertHalfOpenOnSkip(handler.id);
+            revertHalfOpenOnSkip(handler.id, quality);
             throw e;
           }
           recordHealthEvent({ event: "source_result", traceId, sourceId: handler.id, platform, quality, ok: false, code: extractErrorCode(e), latencyMs: Date.now() - startTime });
@@ -4720,6 +4821,8 @@ var __lxSourceBundle = (() => {
           getBreaker,
           recordSuccess,
           recordFailure,
+          recordRateLimit,
+          // v8.14（F41）：按档限流审计需要直接驱动 429 记账
           recordBusinessFail,
           // v8.10.2：导出供测试断言半开收口
           ERROR_CODES,
@@ -4748,6 +4851,7 @@ var __lxSourceBundle = (() => {
         Object.defineProperty(module.exports, "__debug", {
           value: Object.freeze({
             isQualityHopeless,
+            canExecute,
             qualitySkipProbeAt,
             createCancelToken,
             canceledError,
