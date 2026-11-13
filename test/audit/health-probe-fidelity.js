@@ -117,9 +117,11 @@ await check('F6 extractUrl + 可播校验：文本响应判 FAIL，音频 206 �
 await check('F7 单源探测只影响该源', async () => {
   routes = { '*': ok('{"ok":true}') }
   const m = fresh()
-  const before = JSON.stringify(m.__debug.getHealthSnapshot().changqingVip)
+  // probeEtaMs 是随时间递减的调度投影，不是探测结果；比较时剔除。
+  const stable = s => { const c = { ...s }; delete c.probeEtaMs; return JSON.stringify(c) }
+  const before = stable(m.__debug.getHealthSnapshot().changqingVip)
   await probe(m, [{ quality: '128k', url: 'https://api.test/ok', check: () => true }])
-  const after = JSON.stringify(m.__debug.getHealthSnapshot().changqingVip)
+  const after = stable(m.__debug.getHealthSnapshot().changqingVip)
   assert(before === after, '探测 suyinKuwo 不应改 changqingVip')
 })
 

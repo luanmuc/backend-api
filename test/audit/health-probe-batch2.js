@@ -77,6 +77,7 @@ await check('B3 flac FAIL + 128k PASS → 源 PASS，记录逐档结果且不关
   const s = m.__debug.getHealthSnapshot()[ID]
   assert(s.autoOff === false && s.enabled === true, `不应关源：${JSON.stringify({ autoOff: s.autoOff, enabled: s.enabled })}`)
   assert(s.probeTargets.length === 2, '快照应保留逐档探测结果')
+  assert(s.byQuality && s.byQuality.flac && s.byQuality.flac.lastProbeAt > 0, '快照 byQuality 缺逐档 lastProbeAt')
 })
 
 await check('B4 本地断网 UNKNOWN：不关源、不计 FAIL', async () => {

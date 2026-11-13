@@ -48,7 +48,19 @@ var __lxSourceBundle = (() => {
   // src/legacy.js
   var require_legacy = __commonJS({
     "src/legacy.js"(exports, module) {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+      var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
+      function normalizeProbeSongPool(value) {
+        if (!Array.isArray(value)) return null;
+        const out = [];
+        for (const item of value) {
+          if (typeof item !== "string") continue;
+          const name = item.trim();
+          if (!name || name.length > 20) continue;
+          if (!out.includes(name)) out.push(name);
+        }
+        return out.length && out.length <= 20 ? out : null;
+      }
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
       var USER_CONFIG = {
         ikunApiKey: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.ikunApiKey || "",
         // 填入 ikun 卡密后开启
@@ -99,11 +111,21 @@ var __lxSourceBundle = (() => {
         // 窗口内请求上限
         healthCheckIntervalMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthCheckIntervalMs || 6e5,
         // 探测间隔(10min)
+        healthCheckJitterRatio: (_m = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthCheckJitterRatio) != null ? _m : 0.1,
+        // F21/F06：探测抖动比例 0~0.5
+        healthCheckPauseRetryMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthCheckPauseRetryMs || 6e4,
+        // F21/F06：播放中暂停后重试间隔
+        probeSongPool: normalizeProbeSongPool(typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.probeSongPool) || DEFAULT_PROBE_SONG_POOL,
+        // F06：探测歌曲池可配（数组，1~20 首）
+        probeTierCoreInterval: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.probeTierCoreInterval || 1,
+        // F22：核心源探测轮次间隔
+        probeTierSecondaryInterval: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.probeTierSecondaryInterval || 3,
+        // F22：次要源探测轮次间隔
         probeConcurrency: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.probeConcurrency || 3,
         // v8.14：探测并发上限(默认3,最大8)
         raceMatchWaitMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceMatchWaitMs || 600,
         // verified 等待窗口
-        allFailShortTtlMs: (_m = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) != null ? _m : 3e4,
+        allFailShortTtlMs: (_n = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) != null ? _n : 3e4,
         // v6.0：全链网络类失败短缓存 TTL(补齐 v6.0 漏配键)
         raceBudgetMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBudgetMs || 12e3,
         // v8.8：单次请求总预算(跨音质档共享)
@@ -410,7 +432,7 @@ var __lxSourceBundle = (() => {
       var PROBE_TIER_SECONDARY_INTERVAL = 3;
       var PROBE_SLEEP_AFTER_DEAD = 3;
       var PROBE_WAKE_EVERY_ROUND = 10;
-      var PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
+      var PROBE_SONG_POOL = USER_CONFIG.probeSongPool;
       var PROBE_163_IDS = ["2652820720", "347230"];
       function juheProbeCfg(platform, ids) {
         return {
@@ -418,19 +440,12 @@ var __lxSourceBundle = (() => {
           // 每3轮一探（免费 worker，减少对限流中上游的打扰）
           useHandler: true,
           handlerPlatform: platform,
-          handlerSong: __spreadValues({ name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }, ids),
-          url: `${JUHE_API}/${platform}`,
-          method: "POST",
-          headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent() },
-          body: JSON.stringify({
-            type: "128k",
-            musicInfo: __spreadProps(__spreadValues({ name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", album: "\u53F6\u60E0\u7F8E", duration: 271e3, interval: 271, source: platform }, ids), { quality: "128k" })
-          }),
-          check: (b) => !!b && typeof b === "object" && (Number(b.code) === 200 || Number(b.code) === 303)
+          handlerSong: __spreadValues({ name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }, ids)
         };
       }
       function buildProbeConfig() {
-        const probeSong = PROBE_SONG_POOL[(globalThis.__probeRound || 0) % PROBE_SONG_POOL.length];
+        const probePool = USER_CONFIG.probeSongPool;
+        const probeSong = probePool[(globalThis.__probeRound || 0) % probePool.length];
         const probe163Id = PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length];
         const cfg2 = {
           // ---- 上链源：10 个 ----
@@ -440,26 +455,17 @@ var __lxSourceBundle = (() => {
               {
                 quality: "flac",
                 useHandler: true,
-                songName: probeSong,
-                url: `${SUYIN_KUWO_API}?msg=${encodeURIComponent(probeSong)}&n=1&br=1`,
-                check: (b) => !!b && typeof b === "object" && (!!(b.data && b.data.url) || /音乐链接/.test(String(b.message || ""))),
-                extractUrl: (b) => (b && b.data && b.data.url ? b.data.url : (String(b && b.message || "").match(/音乐链接[：:](\S+)/) || [])[1]) || null
+                songName: probeSong
               },
               {
                 quality: "320k",
                 useHandler: true,
-                songName: probeSong,
-                url: `${SUYIN_KUWO_API}?msg=${encodeURIComponent(probeSong)}&n=1&br=5`,
-                check: (b) => !!b && typeof b === "object" && (!!(b.data && b.data.url) || /音乐链接/.test(String(b.message || ""))),
-                extractUrl: (b) => (b && b.data && b.data.url ? b.data.url : (String(b && b.message || "").match(/音乐链接[：:](\S+)/) || [])[1]) || null
+                songName: probeSong
               },
               {
                 quality: "128k",
                 useHandler: true,
-                songName: probeSong,
-                url: `${SUYIN_KUWO_API}?msg=${encodeURIComponent(probeSong)}&n=1&br=9`,
-                check: (b) => !!b && typeof b === "object" && (!!(b.data && b.data.url) || /音乐链接/.test(String(b.message || ""))),
-                extractUrl: (b) => (b && b.data && b.data.url ? b.data.url : (String(b && b.message || "").match(/音乐链接[：:](\S+)/) || [])[1]) || null
+                songName: probeSong
               }
             ]
           },
@@ -468,69 +474,42 @@ var __lxSourceBundle = (() => {
             quality: "128k",
             useHandler: true,
             handlerPlatform: "kw",
-            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", songmid: "228908", id: "228908", duration: 271e3 },
-            url: `${XINGHAI_BACKEND_API}?source=kw&name=${encodeURIComponent("\u6674\u5929")}&singer=${encodeURIComponent("\u5468\u6770\u4F26")}&songmid=1&interval=&albumName=&quality=128k`,
-            headers: { "X-Client": "lx-aggregate/13.0" },
-            check: (b) => !!b && typeof b === "object" && Number(b.code) === 200 && typeof b.url === "string" && b.url.length > 0
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", songmid: "228908", id: "228908", duration: 271e3 }
           },
           suyin163: {
             tier: "core",
             quality: "128k",
             useHandler: true,
             handlerStyle: "songInfo",
-            handlerSong: { id: probe163Id, name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
-            url: `${SUYIN_163_API}?id=${probe163Id}`,
-            check: (b) => !!b && typeof b === "object" && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0,
-            extractUrl: (b) => b && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0 ? b.data[0].url : null
+            handlerSong: { id: probe163Id, name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }
           },
           wyOuter: {
             tier: "core",
             quality: "128k",
             useHandler: true,
             handlerPlatform: "wy",
-            handlerSong: { id: "2652820720", songmid: "2652820720", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
-            url: WY_OUTER_API.replace("{id}", "2652820720"),
-            headers: { "User-Agent": getMobileUserAgent() },
-            checkRes: (res) => {
-              var _a2;
-              return res.statusCode === 200 && /audio|octet|mpeg/i.test(String(((_a2 = res.headers) == null ? void 0 : _a2["content-type"]) || ""));
-            }
+            handlerSong: { id: "2652820720", songmid: "2652820720", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }
           },
           kuwoOfficial: {
             tier: "secondary",
             quality: "128k",
             useHandler: true,
             handlerPlatform: "kw",
-            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
-            url: `${KUWO_SEARCH_API}?client=kt&all=${encodeURIComponent("\u6674\u5929 \u5468\u6770\u4F26")}&pn=0&rn=1&ft=music&rformat=json&encoding=utf8`,
-            headers: { "User-Agent": getMobileUserAgent() },
-            check: (b) => {
-              const raw = typeof b === "string" ? b : String(b || "");
-              return raw.includes("MP3RID") && raw.includes("abslist");
-            }
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }
           },
           helloworldKw: {
             tier: "secondary",
             quality: "flac",
             useHandler: true,
             handlerPlatform: "kw",
-            handlerSong: { rid: "228908", name: "\u6674\u5929", duration: 0 },
-            url: `${HELLOWORLD_KW_CONVERT_API}?f=web&user=0&source=kwplayerhd_ar_1.1.4.5_tianbao_T1A_qirui.apk&type=convert_url_with_sign&rid=228908&br=2000kflac`,
-            headers: { "User-Agent": getMobileUserAgent() },
-            check: (b) => !!b && typeof b === "object" && Number(b.code) === 200 && !!b.data && typeof b.data.url === "string" && b.data.url.length > 0
+            handlerSong: { rid: "228908", name: "\u6674\u5929", duration: 0 }
           },
           changqingVip: {
             tier: "secondary",
             quality: "128k",
             useHandler: true,
             handlerPlatform: "kw",
-            handlerSong: { rid: "228908", songmid: "228908", id: "228908", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
-            url: CHANGQING_URL_TEMPLATES.kw.replace("{id}", "228908").replace("{level}", "standard"),
-            headers: { "User-Agent": getMobileUserAgent(), "Range": "bytes=0-1023" },
-            checkRes: (res) => {
-              var _a2;
-              return (res.statusCode === 200 || res.statusCode === 206) && /audio|octet|mpeg/i.test(String(((_a2 = res.headers) == null ? void 0 : _a2["content-type"]) || "")) && !/kw\.php/.test(String(res.url || ""));
-            }
+            handlerSong: { rid: "228908", songmid: "228908", id: "228908", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }
           },
           juheTx: juheProbeCfg("tx", { songmid: "228908", id: "228908", quality: "128k" }),
           ikun: {
@@ -538,24 +517,14 @@ var __lxSourceBundle = (() => {
             quality: "128k",
             useHandler: true,
             handlerPlatform: "kw",
-            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", songmid: "228908", id: "228908", duration: 271e3 },
-            url: `${IKUN_API}/music/url`,
-            method: "POST",
-            headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent(), "X-Api-Key": USER_CONFIG.ikunApiKey || "" },
-            body: JSON.stringify({ source: "kw", musicId: "228908", quality: "128k" }),
-            check: (b) => !!b && typeof b === "object" && Number(b.code) === 200 && typeof b.url === "string" && b.url.length > 0,
-            extractUrl: (b) => b && typeof b === "object" && typeof b.url === "string" && b.url.length > 0 ? upgradeToHttps(b.url) : null
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", songmid: "228908", id: "228908", duration: 271e3 }
           },
           huibq: {
             tier: "secondary",
             quality: "128k",
             useHandler: true,
             handlerPlatform: "kw",
-            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", songmid: "228908", id: "228908", duration: 271e3 },
-            url: `${HUIBQ_API}/url/kw/228908/128k`,
-            headers: { "X-Request-Key": HUIBQ_REQUEST_KEY, "User-Agent": getMobileUserAgent() },
-            check: (b) => !!b && typeof b === "object" && Number(b.code) === 0 && typeof b.url === "string" && b.url.length > 0 && !isHuibqFailMsg(b.msg),
-            extractUrl: (b) => b && typeof b === "object" && typeof b.url === "string" && b.url.length > 0 ? b.url : null
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", songmid: "228908", id: "228908", duration: 271e3 }
           },
           // ---- 观察源：2 个（只探测，不进链） ----
           suyinQQ: {
@@ -565,19 +534,13 @@ var __lxSourceBundle = (() => {
                 quality: "128k",
                 useHandler: true,
                 handlerPlatform: "tx",
-                handlerSong: { songmid: "0039MnYb0qxYpD", name: "\u6674\u5929", duration: 0 },
-                url: `${SUYIN_QQ_API}?key=${encodeURIComponent(SUYIN_QQ_KEY)}&type=json&br=7&n=1&mid=0039MnYb0qxYpD`,
-                check: (b) => !!b && typeof b === "object" && !!(b.music || b.url || String(b.message || "").match(/音频链接[：:]/)),
-                extractUrl: (b) => b && (b.music || b.url) || (String(b && b.message || "").match(/音频链接[：:](\S+)/) || [])[1] || null
+                handlerSong: { songmid: "0039MnYb0qxYpD", name: "\u6674\u5929", duration: 0 }
               },
               {
                 quality: "320k",
                 useHandler: true,
                 handlerPlatform: "tx",
-                handlerSong: { songmid: "0039MnYb0qxYpD", name: "\u6674\u5929", duration: 0 },
-                url: `${SUYIN_QQ_API}?key=${encodeURIComponent(SUYIN_QQ_KEY)}&type=json&br=5&n=1&mid=0039MnYb0qxYpD`,
-                check: (b) => !!b && typeof b === "object" && !!(b.music || b.url || String(b.message || "").match(/音频链接[：:]/)),
-                extractUrl: (b) => b && (b.music || b.url) || (String(b && b.message || "").match(/音频链接[：:](\S+)/) || [])[1] || null
+                handlerSong: { songmid: "0039MnYb0qxYpD", name: "\u6674\u5929", duration: 0 }
               }
             ]
           },
@@ -586,10 +549,7 @@ var __lxSourceBundle = (() => {
             quality: "128k",
             useHandler: true,
             handlerStyle: "songInfo",
-            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
-            url: `${SUYIN_MIGU_API}?gm=${encodeURIComponent("\u6674\u5929")}&n=1&num=1&type=json`,
-            check: (b) => !!b && typeof b === "object" && Number(b.code) === 200 && !!b.musicInfo,
-            extractUrl: (b) => b && typeof b.musicInfo === "string" ? b.musicInfo : b && b.musicInfo && typeof b.musicInfo.url === "string" ? b.musicInfo.url : null
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }
           }
         };
         const handlerOnly = (p) => {
@@ -622,17 +582,31 @@ var __lxSourceBundle = (() => {
               delete cfg2[id];
             } else {
               logWarn(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u5230\u8FBE\u590D\u6D3B\u8BD5\u63A2\u8F6E\uFF0C\u91CD\u63A2`);
+              recordHealthEvent({ event: "health_transition", sourceId: id, from: "SLEEPING", to: "PROBING", reason: "probe_wake" });
             }
           }
+        }
+        const pool = USER_CONFIG.probeSongPool;
+        const roundNo = globalThis.__probeRound || 0;
+        for (const pc of Object.values(cfg2)) {
+          if (!pc || typeof pc !== "object") continue;
+          pc.twoSong = true;
+          const targets = pc.probes || [pc];
+          targets.forEach((t, i) => {
+            const song = pool[(roundNo + i) % pool.length];
+            if (t.handlerSong) t.handlerSong = Object.assign({}, t.handlerSong, { name: song });
+            else t.songName = song;
+          });
         }
         return cfg2;
       }
       function tierShouldProbe(round, tier, sourceId) {
-        const interval = tier === "secondary" ? PROBE_TIER_SECONDARY_INTERVAL : PROBE_TIER_CORE_INTERVAL;
+        const interval = tier === "secondary" ? cfg("probeTierSecondaryInterval", PROBE_TIER_SECONDARY_INTERVAL) : cfg("probeTierCoreInterval", PROBE_TIER_CORE_INTERVAL);
         if (round % interval !== 0) return false;
         if (sourceId && (probeState.passStreak[sourceId] || 0) >= 5 && round % 2 !== 0) return false;
         return true;
       }
+      var qualityLastProbeAt = /* @__PURE__ */ new Map();
       var probeState = {
         passCount: {},
         // v6.0：连续通过轮数（不清零的长期连胜，用于探测降频；passCount 到 PROBE_PASS_REQUIRED 会清零，无法承载降频判断）
@@ -646,6 +620,8 @@ var __lxSourceBundle = (() => {
         // v8.14：进入休眠时间，供快照 offAt；醒来/清账时删除
         // v8.14：最近一次逐质量档探测结果，供健康页 matrix / 诊断使用（只存枚举和延迟，不存 URL）
         lastTargets: {},
+        // F35：每源最近一次探测开始时间；调度器另存全局下次探测时间
+        lastProbeAt: {},
         running: false
       };
       function probeErrorOutcome(e) {
@@ -656,7 +632,8 @@ var __lxSourceBundle = (() => {
         return { outcome: "FAIL", code };
       }
       async function probeSingleSource(id, pc) {
-        const probes = pc.probes || [{
+        probeState.lastProbeAt[id] = Date.now();
+        let probes = pc.probes || [{
           quality: pc.quality,
           useHandler: pc.useHandler,
           songName: pc.songName,
@@ -673,6 +650,21 @@ var __lxSourceBundle = (() => {
           checkRes: pc.checkRes,
           extractUrl: pc.extractUrl
         }];
+        if (pc.twoSong) {
+          const pool = USER_CONFIG.probeSongPool;
+          const round = globalThis.__probeRound || 0;
+          const songAt = (i) => pool[(round + i) % pool.length];
+          if (probes.length < 2) {
+            const second = songAt(1);
+            probes = [Object.assign({}, probes[0], { songName: second, handlerSong: probes[0].handlerSong ? Object.assign({}, probes[0].handlerSong, { name: second }) : probes[0].handlerSong })];
+            probes.unshift(Object.assign({}, probes[0], { songName: songAt(0), handlerSong: probes[0].handlerSong ? Object.assign({}, probes[0].handlerSong, { name: songAt(0) }) : probes[0].handlerSong }));
+          } else {
+            probes = probes.map((p, i) => {
+              const song = songAt(i);
+              return Object.assign({}, p, { songName: song, handlerSong: p.handlerSong ? Object.assign({}, p.handlerSong, { name: song }) : p.handlerSong });
+            });
+          }
+        }
         const traceId = `probe:${globalThis.__probeRound || 0}:${id}`;
         try {
           const results = await Promise.all(probes.map(async (p) => {
@@ -721,6 +713,12 @@ var __lxSourceBundle = (() => {
               return { usable: false, outcome: classified.outcome, code: classified.code, quality, duration };
             }
           }));
+          for (const r of results) if (r.quality) {
+            const at = probeState.lastProbeAt[id] || Date.now();
+            qualityLastProbeAt.set(`${id}|${r.quality}`, at);
+            const slot = qualityLedger(getBreaker(id), r.quality);
+            slot.lastProbeAt = at;
+          }
           const passCount = results.filter((r) => r.outcome === "PASS").length;
           const failCount = results.filter((r) => r.outcome === "FAIL").length;
           const unknownCount = results.filter((r) => r.outcome === "UNKNOWN").length;
@@ -833,9 +831,9 @@ var __lxSourceBundle = (() => {
         return { outcome, enabled: effectiveEnabled(id), autoOff: !!autoOff[id], reason: autoOffReason[id] || null };
       }
       var healthHistory = [];
-      var HEALTH_HISTORY_MAX = 144;
+      var HEALTH_HISTORY_MAX = 1008;
       var HEALTH_EVENT_MAX = 500;
-      var HEALTH_EVENT_FIELDS = ["traceId", "event", "sourceId", "platform", "quality", "ok", "code", "latencyMs", "reason", "from", "to"];
+      var HEALTH_EVENT_FIELDS = ["traceId", "eventId", "event", "sourceId", "platform", "quality", "ok", "code", "latencyMs", "reason", "from", "to"];
       var healthEventRing = [];
       var healthEventSeq = 0;
       var healthEventDropped = 0;
@@ -845,6 +843,7 @@ var __lxSourceBundle = (() => {
         if (!entry || typeof entry !== "object") return;
         const e = {
           seq: ++healthEventSeq,
+          eventId: `evt-${healthEventSeq}`,
           ts: Date.now(),
           traceId: clipText(entry.traceId, 64),
           event: clipText(entry.event || "unknown", 32)
@@ -938,7 +937,7 @@ var __lxSourceBundle = (() => {
       function nextHealthCheckDelay(intervalMs, rand) {
         var _a2;
         const iv = Math.max(1e3, Number(intervalMs) || HEALTH_CHECK_INTERVAL_MS);
-        const ratio = Math.max(0, Math.min(0.5, Number((_a2 = (globalThis.__lxSourceConfig || {}).healthCheckJitterRatio) != null ? _a2 : 0.1)));
+        const ratio = Math.max(0, Math.min(0.5, Number((_a2 = cfg("healthCheckJitterRatio", 0.1)) != null ? _a2 : 0.1)));
         const r = typeof rand === "function" ? rand() : Math.random();
         return Math.max(1e3, Math.round(iv * (1 - ratio + 2 * ratio * r)));
       }
@@ -947,21 +946,27 @@ var __lxSourceBundle = (() => {
         for (const n of inflightCount.values()) active += Number(n) || 0;
         return active > 0;
       }
+      var probeSchedule = { lastStartedAt: 0, nextAt: 0 };
       function startHealthCheck() {
-        const schedule = (delay) => setTimeout(async () => {
-          if (hasActiveWork()) {
-            const retry = Math.max(1e3, Number(cfg("healthCheckPauseRetryMs", 6e4)) || 6e4);
-            logDebug(`[\u5065\u5EB7\u63A2\u6D4B] \u68C0\u6D4B\u5230\u64AD\u653E/\u53D6\u94FE\u6D41\u91CF\uFF0C\u6682\u505C\u672C\u8F6E\uFF0C${Math.round(retry / 1e3)}s \u540E\u91CD\u8BD5`);
-            schedule(retry);
-            return;
-          }
-          try {
-            await runHealthCheck();
-          } catch (e) {
-            logWarn(`\u5065\u5EB7\u63A2\u6D4B\u5F02\u5E38: ${e.message}`);
-          }
-          schedule(nextHealthCheckDelay(cfg("healthCheckIntervalMs", HEALTH_CHECK_INTERVAL_MS)));
-        }, delay);
+        const schedule = (delay) => {
+          probeSchedule.nextAt = Date.now() + delay;
+          return setTimeout(async () => {
+            probeSchedule.nextAt = 0;
+            probeSchedule.lastStartedAt = Date.now();
+            if (hasActiveWork()) {
+              const retry = Math.max(1e3, Number(cfg("healthCheckPauseRetryMs", 6e4)) || 6e4);
+              logDebug(`[\u5065\u5EB7\u63A2\u6D4B] \u68C0\u6D4B\u5230\u64AD\u653E/\u53D6\u94FE\u6D41\u91CF\uFF0C\u6682\u505C\u672C\u8F6E\uFF0C${Math.round(retry / 1e3)}s \u540E\u91CD\u8BD5`);
+              schedule(retry);
+              return;
+            }
+            try {
+              await runHealthCheck();
+            } catch (e) {
+              logWarn(`\u5065\u5EB7\u63A2\u6D4B\u5F02\u5E38: ${e.message}`);
+            }
+            schedule(nextHealthCheckDelay(cfg("healthCheckIntervalMs", HEALTH_CHECK_INTERVAL_MS)));
+          }, delay);
+        };
         schedule(HEALTH_CHECK_INITIAL_DELAY_MS);
       }
       var Q = ["128k", "320k", "flac", "flac24bit"];
@@ -3268,7 +3273,18 @@ var __lxSourceBundle = (() => {
             eligibilityUntilMs: gate.untilMs,
             autoOffReason: autoOffReason[id] || null,
             autoOffAt: autoOffAt[id] || 0,
-            probeTargets: probeState.lastTargets && probeState.lastTargets[id] || [],
+            probeTargets: (probeState.lastTargets && probeState.lastTargets[id] || []).map((t) => __spreadProps(__spreadValues({}, t), { at: Number(probeState.lastProbeAt[id] || 0) })),
+            // F35：最近一次探测、下次探测时间与 ETA；没有调度时均为 0，UI 不编造时间。
+            lastProbe: Number(probeState.lastProbeAt && probeState.lastProbeAt[id] || 0),
+            nextProbe: Number(probeSchedule.nextAt || 0),
+            probeEtaMs: probeSchedule.nextAt ? Math.max(0, probeSchedule.nextAt - Date.now()) : 0,
+            // F45/F46：本地限速/冷启动只读可见，不参与 eligible，更不触发自动关闭。
+            localThrottle: peekThrottle(id),
+            coldStart: h.coldStart ? (() => {
+              const warmAt = Number(coldStartWarmAt.get(id) || 0);
+              const warmUntil = warmAt ? warmAt + cfg("coldStartWarmTtlMs", 3e5) : 0;
+              return { active: warmAt > 0 && Date.now() < warmUntil, reason: "COLD_START", warmUntil };
+            })() : null,
             successRate: stats.successRate,
             avgTime: stats.avgTime,
             state: stats.state,
@@ -3279,10 +3295,17 @@ var __lxSourceBundle = (() => {
             probeCount: stats.probeCount,
             // v4.0：休眠状态（连续失败轮休眠，每 PROBE_WAKE_EVERY_ROUND 轮复活试探；App 显示"休眠中"）
             sleeping: !!probeState.sleeping[id],
+            wakeEtaMs: (() => {
+              if (!probeState.sleeping[id]) return 0;
+              const since = probeState.sleepRound[id] || 0;
+              const round = globalThis.__probeRound || 0;
+              const remain = Math.max(0, PROBE_WAKE_EVERY_ROUND - (round - since));
+              return remain * cfg("healthCheckIntervalMs", 6e5);
+            })(),
             // v4.0：版权/业务失败计数（无版权歌等；App 面板可在后续版本展示）
             copyrightFail: stats.copyrightFail,
             // v4.0：按音质分档统计（面板后续版本可消费）
-            byQuality: stats.byQuality,
+            byQuality: Object.fromEntries(Object.entries(stats.byQuality || {}).map(([q, v]) => [q, Object.assign({}, v, { lastProbeAt: Number(qualityLastProbeAt.get(`${id}|${q}`) || 0) })])),
             // v8.14（F43）：质量档短路必须可见，不再只存在于链构建内部判断
             qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map((q) => [q, isQualityHopeless(id, q)])),
             // v7.0：播放实时摘除状态（连续播放失败被摘除；App 可显示"已摘除"）
@@ -3321,12 +3344,15 @@ var __lxSourceBundle = (() => {
         for (const [platform, sourceIds] of Object.entries(PLATFORM_GROUPS)) {
           const enabledSources = sourceIds.filter((id) => snapshot[id] && snapshot[id].enabled);
           if (!enabledSources.length) {
-            platformSummary[platform] = { degraded: false, reason: "no_active_sources", activeCount: 0, eligibleCount: 0, deadCount: 0 };
+            platformSummary[platform] = { degraded: false, reason: "no_active_sources", activeCount: 0, eligibleCount: 0, deadCount: 0, offCount: sourceIds.length, blockedCount: 0, degradedCount: 0 };
             continue;
           }
           const eligible = eligibleByPlatform[platform] || /* @__PURE__ */ new Set();
           const eligibleSources = enabledSources.filter((id) => eligible.has(id));
-          const deadCount = enabledSources.length - eligibleSources.length;
+          const blockedCount = enabledSources.length - eligibleSources.length;
+          const offCount = sourceIds.length - enabledSources.length;
+          const degradedCount = eligibleSources.filter((id) => (snapshot[id].healthScore || 0) < 3).length;
+          const deadCount = blockedCount;
           const allDead = eligibleSources.length === 0;
           const avgScore = eligibleSources.length ? eligibleSources.reduce((sum, id) => sum + (snapshot[id].healthScore || 0), 0) / eligibleSources.length : 0;
           platformSummary[platform] = {
@@ -3335,6 +3361,10 @@ var __lxSourceBundle = (() => {
             activeCount: eligibleSources.length,
             eligibleCount: eligibleSources.length,
             deadCount,
+            offCount,
+            blockedCount,
+            degradedCount,
+            totalCount: sourceIds.length,
             avgScore: Math.round(avgScore * 10) / 10
           };
           if (!allDead) healthyPlatforms.push({ platform, avgScore });
@@ -3794,7 +3824,7 @@ var __lxSourceBundle = (() => {
         return handlers;
       }
       function sortChainByHealth(chain) {
-        return chain.slice().sort((a, b) => {
+        return chain.slice().filter((x) => x && x.eligible !== false && !x.skipReason).sort((a, b) => {
           const av = a.verified ? 0.15 : 0;
           const bv = b.verified ? 0.15 : 0;
           const ha = computeHealthScore(a.id).score + av;
@@ -3913,6 +3943,26 @@ var __lxSourceBundle = (() => {
       var inflightCount = /* @__PURE__ */ new Map();
       var lastUsedAt = /* @__PURE__ */ new Map();
       var reqTimestamps = /* @__PURE__ */ new Map();
+      function peekThrottle(sourceId) {
+        const now = Date.now();
+        const inflight = inflightCount.get(sourceId) || 0;
+        const maxConc = cfg("maxConcurrency", SOURCE_MAX_CONCURRENCY);
+        const winMs = cfg("rateWindowMs", RATE_WINDOW_MS);
+        const winMax = cfg("rateWindowMax", RATE_WINDOW_MAX);
+        const original = reqTimestamps.get(sourceId) || [];
+        const ts = original.filter((t) => now - t < winMs);
+        const concurrent = inflight >= maxConc;
+        const windowFull = ts.length >= winMax;
+        return {
+          active: concurrent || windowFull,
+          reason: concurrent ? "LOCAL_THROTTLE_CONCURRENCY" : windowFull ? "LOCAL_THROTTLE_WINDOW" : null,
+          inflight,
+          maxConcurrency: maxConc,
+          windowCount: ts.length,
+          windowMax: winMax,
+          untilMs: windowFull ? Number(ts[0] || now) + winMs : 0
+        };
+      }
       function throttleCheck(sourceId) {
         const inflight = inflightCount.get(sourceId) || 0;
         const maxConc = cfg("maxConcurrency", SOURCE_MAX_CONCURRENCY);
@@ -4783,7 +4833,11 @@ var __lxSourceBundle = (() => {
             "rateWindowMs",
             "rateWindowMax",
             "healthCheckIntervalMs",
+            "healthCheckJitterRatio",
+            "healthCheckPauseRetryMs",
             "probeConcurrency",
+            "probeTierCoreInterval",
+            "probeTierSecondaryInterval",
             "raceMatchWaitMs",
             "raceBudgetMs",
             "raceBudgetFloorMs",
@@ -4837,6 +4891,14 @@ var __lxSourceBundle = (() => {
             // 最大 20 次
             healthCheckIntervalMs: { min: 60 * 1e3 },
             // 最小 1 分钟（防频繁探测）
+            healthCheckJitterRatio: { min: 0, max: 0.5 },
+            // F06：抖动比例 0~0.5
+            healthCheckPauseRetryMs: { min: 1e3, max: 5 * 60 * 1e3 },
+            // F06：暂停重试 1s~5min
+            probeTierCoreInterval: { min: 1, max: 10 },
+            // F22：核心源间隔 1~10 轮
+            probeTierSecondaryInterval: { min: 1, max: 20 },
+            // F22：次要源间隔 1~20 轮
             probeConcurrency: { min: 1, max: 8 },
             // v8.14 探测并发上限 1~8
             raceBudgetMs: { max: 15 * 1e3 },
@@ -4874,8 +4936,16 @@ var __lxSourceBundle = (() => {
             playDeadReviveMs: { max: 2 * 3600 * 1e3 }
             // 最大 2 小时
           };
+          const ALLOWED_ARRAY_KEYS = ["probeSongPool"];
           const updated = {};
           for (const [key2, value] of Object.entries(info)) {
+            if (ALLOWED_ARRAY_KEYS.includes(key2)) {
+              const pool = normalizeProbeSongPool(value);
+              if (!pool) continue;
+              USER_CONFIG[key2] = pool;
+              updated[key2] = pool;
+              continue;
+            }
             if (ALLOWED_BOOL_KEYS.includes(key2)) {
               if (typeof value !== "boolean") continue;
               USER_CONFIG[key2] = value;
@@ -4992,6 +5062,7 @@ var __lxSourceBundle = (() => {
           KNOWN_COVERAGE_GAPS,
           validateProviderContracts,
           probeState,
+          probeSchedule,
           runtimeToggles,
           SOURCE_TOGGLES,
           // v8.6：导出供测试/巡检断言各源默认开关状态（A 方案默认开启源必须可见）
@@ -5061,6 +5132,10 @@ var __lxSourceBundle = (() => {
             getHealthEvents,
             get healthHistory() {
               return healthHistory.slice();
+            },
+            normalizeProbeSongPool,
+            get probeSongPool() {
+              return USER_CONFIG.probeSongPool.slice();
             },
             suyinKuwoGetUrl,
             // 供测试验证 D-31 端到端：兜底档日志是否落
