@@ -1363,7 +1363,7 @@ function getSourceStats(sourceId) {
       return [quality, {
         rate: valid === 0 ? null : q.success / valid,
         avgTime: q.success === 0 ? null : q.time / q.success,
-        req: q.req, success: q.success, businessFail: q.businessFail,
+        req: q.req, success: q.success, fail: q.fail, businessFail: q.businessFail,
         // F39/F41：按档熔断/限流状态必须能被快照/诊断读到，不再只看源级 state。
         state: q.breaker ? q.breaker.state : 'closed',
         rateLimited: !!q.rateLimited,
