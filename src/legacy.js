@@ -3525,6 +3525,11 @@ function getHealthSnapshot() {
     const h = SOURCE_HANDLERS[id];
     const stats = getSourceStats(id);
     const score = computeHealthScore(id);
+    // 方案 6.2 I1：快照必须给只读裁决，链/跳过/执行门/面板不再各自解释状态。
+    // 用首个上链平台 + 128k 取源级结构资格；qualityShortCircuit 关闭，避免把单档短路
+    // 误当成整源不可用（单档信息由 qualityShortCircuit 四档布尔单独下发）。
+    const gatePlatform = (h.platforms || []).find(p => h.chain && h.chain[p] != null) || (h.platforms || [])[0] || null;
+    const gate = computeEligibility(id, gatePlatform, "128k", { runtime: false, qualityShortCircuit: false });
     snapshot[id] = {
       name: h.name,
       maxQuality: h.maxQuality,
@@ -3539,6 +3544,11 @@ function getHealthSnapshot() {
       userEnabled: isUserEnabled(id),
       autoOff: !!autoOff[id],
       offReason: manualOff[id] ? "USER_OFF" : (!isUserEnabled(id) && SOURCE_TOGGLES[id] === false) ? "DEFAULT_OFF" : autoOff[id] ? "AUTO_OFF_PROBE" : probeState.sleeping[id] ? "SLEEPING" : isPlayDead(id) ? "PLAY_DEAD" : null,
+      // 方案 6.2 I1：allowed/reason/code/until 与 computeEligibility 同源，只读不写状态。
+      eligible: gate.eligible,
+      eligibilityReason: gate.reason,
+      eligibilityCode: gate.code,
+      eligibilityUntilMs: gate.untilMs,
       autoOffReason: autoOffReason[id] || null,
       autoOffAt: autoOffAt[id] || 0,
       probeTargets: (probeState.lastTargets && probeState.lastTargets[id]) || [],
