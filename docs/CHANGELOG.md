@@ -1,3 +1,4 @@
+| **v8.13.1 审计修复版（2026-11-14，已推送）** | **版本号补升，确保 App 更新按钮能识别**：v8.13.0 代码修复后 `@version` 未变，App `Source.tsx` 以版本字符串相等判“已是最新”，会跳过更新；本轮补升 `8.13.1` 并同步 `HEALTH_STATE_SOURCE_VERSION`、golden 夹具、生命周期/持久化断言、构建版本守卫；重建 `lx-source.js` **288771 bytes**。`npm test` 19 脚本 rc0，e-extra **90/0**，冒烟 67/0，L3+L4 18/18，mutation **22/0**，docs-audit 0 红。 | 2026-11-14 |
 | **v8.13.0 单一路径收口（2026-11-13，本地未推送）** | **删除新旧双轨**：移除 `shadowLegacyEligibility`/`eligibilityShadow` 影子裁决；`HEALTH_STATE_ACCEPTED_VERSIONS` 只保留 `[2]`，删除 `healthV2Enabled` v1 回滚导出；`applyHealthControls` 只认 `manualOffAt`，不再回退 `offAt`；删除生产态 `runtimeToggles` 镜像，统一走 `effectiveEnabled`（仅 `__debug` 保留测试投影）；`buildProbeConfig` 生产探测只输出 handler 字段，删除 `probeSingleSource` 的 handler 失败→URL 回退，显式 URL 仅保留给审计夹具。`npm test` 17 脚本 rc0。 |
 
 # 版本历史（CHANGELOG）

@@ -1,6 +1,6 @@
 {
   "name": "lx-music-source",
-  "version": "8.13.0",
+  "version": "8.13.1",
   "private": true,
   "description": "豆包定制聚合音源：12 登记 / 10 上链 / 2 观察，单文件构建",
   "scripts": {

@@ -4,7 +4,7 @@
 > **App 每次云编译（CI）会自动拉取本仓库根目录 `lx-source.js` 覆盖内置数据源**，因此：
 > - 本仓库是唯一权威数据源入口，改数据源只改这里；
 > - App 构建直接拉 `master` 的 `lx-source.js`，实际内置版本以构建日志的跨仓版本闸门和 APK 内 `assets/builtin_source.js` 为准；
-> - Releases 页是归档入口，不参与构建取源。截至 2026-11-12，`v8.12.1`~`v8.12.5` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.13.0` 为本地完全体，尚未建 tag/推送；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
+> - Releases 页是归档入口，不参与构建取源。截至 2026-11-14，`v8.12.1`~`v8.12.5` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.13.0` 已推送 master（b116 发布），`v8.13.1` 为当前审计修复版、尚未建 tag/Release；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
 
 > **免责声明**：本项目仅供学习交流与技术研究。仅做接口聚合，不存储任何媒体文件；第三方接口的可用性与版权责任归相应服务方。使用即代表同意仅限个人学习用途，禁止商用。
 
@@ -12,11 +12,11 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v8.13.0** 源完全体：12 登记源 / 10 上链 / 2 观察；Provider Contract 加载即校验；源生命周期治理（增源七步准入、减源五条退出线、一进一出）；协作式真取消；健康元数据宿主持久化协议 v2（`exportHealthState`/`restoreHealthState`，control 独立 + 仅 v2（v1 拒绝）；仅熔断/音质短路/播放摘除，不含 URL）；跨平台目标收敛为 `tx→wy→kw`（mg/kg 不再作为跨平台目标）；mg/kg 保留直连兜底，但由 `suyinKuwo` 实际交付酷我 CDN 时 `sourcePlatform` 回填 `kw`，不再把酷我链冒充成咪咕/酷狗；单文件构建（`npm run build`）。`lx-source.js` 内 `@version 8.13.0` |
+| 当前版本 | **v8.13.1** 源审计修复版：在 v8.13.0 完全体（12 登记源 / 10 上链 / 2 观察；Provider Contract；生命周期治理；真取消；健康持久化 v2；跨平台 tx→wy→kw）之上，收口链空错误码、限流/熔断/暂停保护态不被跨平台绕过，并补 e-extra/L4 夹具与 MU1/MU5 变异门禁；单文件构建（`npm run build`）。`lx-source.js` 内 `@version 8.13.1` |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
-| 发布入口 | 本仓库 **Releases 页**（归档入口）：发布 SOP 要求每次迭代出 tag + 附 `lx-source.js` 产物；`v8.12.1`~`v8.12.5` 与 `v8.11.7` 资产均已归档；`v8.13.0` 本地完成、未发布，`v8.12.2` tag CI 文档门禁红见上 |
+| 发布入口 | 本仓库 **Releases 页**（归档入口）：发布 SOP 要求每次迭代出 tag + 附 `lx-source.js` 产物；`v8.12.1`~`v8.12.5` 与 `v8.11.7` 资产均已归档；`v8.13.0` 已推送 master、b116 已发布；`v8.13.1` 当前待归档，`v8.12.2` tag CI 文档门禁红见上 |
 | 迭代机制 | 任何豆包账号说「**迭代**」即按 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md) 自动推进下一版本；规则见 [docs/AGENTS.md](./docs/AGENTS.md) |
 
 ## 在线导入（自定义源）
@@ -57,7 +57,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
-| **v8.13.0 健康整功能重构**（2026-11-13，本地未推送） | 开关权威拆分（userEnabled/autoOff/offReason）+ 三值探测（PASS/FAIL/UNKNOWN）+ `playDead` 只认真实播放回传 + 半开只放一个试探 + `controls` 持久化（manualOff 独立；F36/F57 v2 拆独立 control key、仅 v2、无回滚开关） + 统一 `computeEligibility`（含 sleeping 跳过、观察源默认关闭不误报） + `suyinKuwo/helloworldKw/kuwoOfficial/suyinQQ/Juhe 五源/星海后端/ikun/huibq/wyOuter/changqingVip/suyin163/suyinMigu` 探针只走真实 handler（不再回退旧 URL 探针）；`suyinQQ` 观察探针补 320k；`QUALITY_SHORT_CIRCUIT` 并入统一资格入口 + `probeSource` 只读单源探测 + `reportPlayback` + `probeConcurrency` + `getHealthSnapshot` 只读 `eligible/eligibilityCode` | 2026-11-13 |
+| **v8.13.1 审计修复版**（2026-11-14，已推送） | 链空错误码回收（限流升级 `RATE_LIMIT`、其余保护态保留 `NETWORK_ERROR` + `isThrottleSkip`）；跨平台兜底遇本地保护直接 settle；e-extra 纳入 19 脚本；L3/L4 夹具与 MU1/MU5 变异门禁收口；`lx-source.js` 288771 bytes | 2026-11-14 |
+| **v8.13.0 健康整功能重构**（2026-11-13，已推送，b116） | 开关权威拆分（userEnabled/autoOff/offReason）+ 三值探测（PASS/FAIL/UNKNOWN）+ `playDead` 只认真实播放回传 + 半开只放一个试探 + `controls` 持久化（manualOff 独立；F36/F57 v2 拆独立 control key、仅 v2、无回滚开关） + 统一 `computeEligibility`（含 sleeping 跳过、观察源默认关闭不误报） + `suyinKuwo/helloworldKw/kuwoOfficial/suyinQQ/Juhe 五源/星海后端/ikun/huibq/wyOuter/changqingVip/suyin163/suyinMigu` 探针只走真实 handler（不再回退旧 URL 探针）；`suyinQQ` 观察探针补 320k；`QUALITY_SHORT_CIRCUIT` 并入统一资格入口 + `probeSource` 只读单源探测 + `reportPlayback` + `probeConcurrency` + `getHealthSnapshot` 只读 `eligible/eligibilityCode` | 2026-11-13 |
 | **v8.12.4**（P2 负向归因：缺片返回 `TRUNCATED_MEDIA`、`byteLength`/base64 不符返回 `BAD_ENVELOPE`，probe/admit 均保留错误码；X5/X9/X11/X12 先红后绿） | 2026-11-12 |
 | **v8.12.3**（2026-11-12） | **P2 桥媒体信封**：App 二进制响应从 `JSON.stringify(Buffer)` 改为 `{__lxMedia:2,encoding:"base64",byteLength}`，>256KB 按 256KB 分片；源侧 `toBytes` 按片独立解码（base64 分片各自带 `=` 填充，拼大串非法）、`byteLength` 不符返回 null；新增 `test/audit/x-media-envelope.js` X1~X8 | 2026-11-12 |
 | **v8.12.2**（2026-11-12） | **P1 降级所有权**：`inited.sources[platform].fallbackOwner="source"`，App 对显式声明 source 所有权的源不再启动自己的换源，消除 bundled 源双层跨平台搜索；新增 `test/audit/w-fallback-owner.js` W1/W2 | 2026-11-12 |

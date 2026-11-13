@@ -2,7 +2,7 @@
 
 ## 2026-11-13 最终审计与压力计划（当前代码量身定制）
 
-> **适用基线**：源仓 `03fe893`（master，v8.13.0，已推送，`lx-source CI` run `43514977949` success）；App `a87d3f3a` + 修复提交 `785af658`（本地已提交，待源仓 CI 绿后推送）。所有结论必须在当前 HEAD 上实跑，**不沿用历史绿**。
+> **适用基线**：源仓当前 **v8.13.1**（master，本轮审计修复提交待推）；App `785af658` + 文档回填 `8adce795` / `71f5a594`（已推送，App CI `43520302282` success，发布 b117/276）。所有结论必须在当前 HEAD 上实跑，**不沿用历史绿**。
 > **目标**：按最新代码审计「代码正确性 + 运行逻辑 + 全仓完成度」，重点找未完成、遗漏、半成品、文档说完成但代码没落地的项，并实际执行压力测试。
 
 ### 0. 本轮范围与不做的部分
@@ -50,7 +50,7 @@
 ```bash
 rg -n "TODO|FIXME|HACK|未实现|占位|半成品|待补|待做" src test docs scripts
 rg -n "shadowLegacyEligibility|eligibilityShadow|health-shadow-eligibility|runtimeToggles" src test docs
-rg -n "286797|286863|288720|429|655|94" docs README.md
+rg -n "286797|286863|288771|429|655|94" docs README.md
 ```
 
 判定：上游继承的 TODO 标 `upstream`，不冒充本次定制缺口；健康/音源链上的死字段、无消费常量、旧路径、文档计数漂移一律算缺口。
@@ -76,7 +76,7 @@ rg -n "286797|286863|288720|429|655|94" docs README.md
 | S-F02 | 冷却到期的 open 被 `qualityShortCircuit` 抢先剪链，且 resolveDead/playDead trial 被链构建吃掉，半开恢复拿不到请求 | 高 | S5b 冷却后外呼 0 | 已加 `breakerTrialReady`：open 冷却到期与 half-open 等同，短路让路；S5b 复跑外呼 3，`stress-test` 12/0 |
 | S-F03 | `probeSingleSource` handler catch 注释说回退旧探针，代码实为 `throw e` | 低 | 注释与代码相反；生产配置已无 URL | 已改注释为“直接三值失败、不回退 URL” |
 | S-F04 | T2/V18c/V25b/V25c/S5 夹具漂移：跨平台外呼比例、探针预热计数、源级 breaker、本地滑窗 | 中 | 首跑 11/3、130/3、11/1 | 已修夹具：T2 改判冷却+外呼不放大；V18c 显式探针后 resetCounts；V25 改档位槽；S5 提高本地限额并把 playDeadReviveMs 压到 300ms |
-| S-F05 | 文档计数漂移：`CHANGELOG` 写 286797、`TESTING` 写 429/655 | 低 | 实际 288720；测试入口 44 / npm test 19 | 本轮同步 |
+| S-F05 | 文档计数漂移：`CHANGELOG` 写 286797、`TESTING` 写 429/655 | 低 | 实际 288771；测试入口 44 / npm test 19 | 本轮同步 |
 
 ### 6. 当前结论边界
 

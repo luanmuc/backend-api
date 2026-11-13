@@ -91,7 +91,7 @@ check('P4 controls-only 不会误恢复健康元数据', () => {
 check('P5 autoOff 超过 6h 不复活，保留原因字段', () => {
   const m = fresh()
   const oldAt = Date.now() - 7 * 3600 * 1000
-  const res = m.restoreHealthState({ v: 2, sourceVersion: '8.13.0', savedAt: Date.now(), sources: {}, qualityShortCircuit: {}, controls: { suyinQQ: { enabled: true, autoOff: true, autoOffAt: oldAt, autoOffReason: 'AUTO_OFF_PROBE' } } })
+  const res = m.restoreHealthState({ v: 2, sourceVersion: '8.13.1', savedAt: Date.now(), sources: {}, qualityShortCircuit: {}, controls: { suyinQQ: { enabled: true, autoOff: true, autoOffAt: oldAt, autoOffReason: 'AUTO_OFF_PROBE' } } })
   assert(res.ok === true, '旧 autoOff 应可校验通过')
   const snap = m.getHealthSnapshot().suyinQQ
   assert(snap.autoOff !== true, '超过 6h 的 autoOff 不得恢复')
@@ -107,7 +107,7 @@ check('P6 无 v1 回滚开关，始终导出 v2', () => {
 
 check('P7 版本/未知源/超容量/禁止字段全部拒绝', () => {
   const m = fresh()
-  const base = { v: 2, sourceVersion: '8.13.0', savedAt: Date.now(), sources: {}, qualityShortCircuit: {}, controls: { suyinQQ: { enabled: true } } }
+  const base = { v: 2, sourceVersion: '8.13.1', savedAt: Date.now(), sources: {}, qualityShortCircuit: {}, controls: { suyinQQ: { enabled: true } } }
   assert(m.restoreHealthState(Object.assign({}, base, { v: 3 })).ok === false, 'v3 应拒绝')
   assert(m.restoreHealthState(Object.assign({}, base, { controls: { notASource: { enabled: true } } })).ok === false, '未知源应拒绝')
   assert(m.restoreHealthState(Object.assign({}, base, { controls: { suyinQQ: { enabled: true, successUrl: 'https://x' } } })).ok === false, '禁止字段应拒绝')

@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.13.0 源完全体（2026-11-12：12 登记源 / 10 上链 / 2 观察；Provider Contract 加载即校验；源生命周期治理（增源七步准入/减源五条退出线/一进一出）；协作式真取消；单文件构建）。历史版本见 docs/CHANGELOG.md。
- * @version 8.13.0 源完全体（12/10/2 契约 + 生命周期治理 + 真取消 + 单文件构建）
+ * @description v8.13.1 源审计修复版（2026-11-14：12 登记源 / 10 上链 / 2 观察；Provider Contract 加载即校验；生命周期治理；协作式真取消；链空错误码回归与本地保护态不绕过）。历史版本见 docs/CHANGELOG.md。
+ * @version 8.13.1 源审计修复版（12/10/2 契约 + 生命周期治理 + 真取消 + CI L3/L4 收口）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -3755,7 +3755,7 @@ function getHealthSnapshot() {
 // ============================================================
 const HEALTH_STATE_VERSION = 2; // 单一路径：只导出/恢复 v2
 const HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-const HEALTH_STATE_SOURCE_VERSION = "8.13.0";
+const HEALTH_STATE_SOURCE_VERSION = "8.13.1";
 const HEALTH_STATE_MAX_BYTES = 256 * 1024;
 const HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1000;
 const HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1000;
@@ -5526,7 +5526,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.13.0 已加载（12 登记 / 10 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v8.13.1 已加载（12 登记 / 10 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

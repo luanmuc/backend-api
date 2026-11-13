@@ -37,7 +37,7 @@ function main() {
   build();
   const code = fs.readFileSync(DIST, 'utf8');
   if (!/var __lxSourceBundle = \(\(\) => \{/.test(code)) throw new Error('构建产物不是 IIFE 包装');
-  if (!code.includes('@version 8.13.0')) throw new Error('构建产物缺少 8.13.0 版本头');
+  if (!code.includes('@version 8.13.1')) throw new Error('构建产物缺少 8.13.1 版本头');
   // 宿主按 CommonJS 读取导出面；IIFE 产物末尾补桥，不能为了格式丢导出。
   fs.appendFileSync(DIST, '\nif (typeof module !== "undefined" && module.exports) module.exports = __lxSourceBundle;\n');
   if (!/module\.exports\s*=\s*__lxSourceBundle/.test(fs.readFileSync(DIST, 'utf8'))) throw new Error('IIFE 产物缺少 CommonJS 导出桥');

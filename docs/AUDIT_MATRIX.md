@@ -23,7 +23,7 @@
 | `docs/音源架构执行全过程-2026-11-12.md` | 143 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `.github/workflows/ci.yml` | 207 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `.github/workflows/docs-audit.yml` | 48 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
-| `README.md` | 119 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `README.md` | 120 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `README_HEALTH.md` | 44 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AGENTS.md` | 190 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -105,7 +105,7 @@
 | `docs/README.md` | 68 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 54 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/TESTING.md` | 163 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/CHANGELOG.md` | 73 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/CHANGELOG.md` | 74 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AUDIT_MATRIX.md` | 187 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 406 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
 | `test/stress-round3.js` | 356 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
@@ -140,7 +140,7 @@
 ## 汇总
 
 - 文件总数：**147**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**36931**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 总行数：**36933**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_LIFECYCLE.md` | 76 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
