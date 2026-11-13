@@ -226,16 +226,22 @@ async function test(name, fn) {
   globalThis.__lxSourceConfig = { breakerThreshold: 1, maxConcurrency: 100, rateWindowMax: 1000 };
   const savedConsole8 = globalThis.console;
   globalThis.console = undefined;
-  try { require(SRC); } finally { globalThis.console = savedConsole8; }
+  let mod8;
+  try { mod8 = require(SRC); } finally { globalThis.console = savedConsole8; }
   resetMock();
   mockRoute = buildRoutes('netfail');
   const breakerSongA = { name: '熔断测试歌A', singer: '未知', duration: 180000, songmid: 'breaker-song-a' };
   await requestUrl('kw', 'flac', breakerSongA).catch(() => {});
+  // Batch 3：open 档不再进 eligible 链；熔断分类以唯一 reducer 的 skipReason 为准。
+  const skipA = mod8.__debug.skipReason('suyinKuwo', { platform: 'kw', quality: 'flac' });
+  const qA = mod8.__debug.breakerMap.get('suyinKuwo').byQuality.flac;
+  assert.ok(qA && qA.breaker.state === 'open', `网络错误1次(阈值1)应按档 open，实际 ${qA && qA.breaker.state}`);
+  // F42 优先：取链/准入失败先记 resolveDead，所以链层 code 可能是 PLAYBACK_FAILED；
+  // 熔断状态仍按档 open，二者不冲突。
+  assert.ok(skipA && ['QUALITY_OPEN', 'PLAYBACK_FAILED'].includes(skipA.code), `网络错误1次(阈值1)应被链拒绝，实际 ${JSON.stringify(skipA)}`);
   mockRoute = buildRoutes('success');
   const breakerCheckA = { name: '熔断检测歌A', singer: '未知', duration: 180000, songmid: 'breaker-check-a' };
-  let breakerHitA = false;
-  try { await requestUrl('kw', 'flac', breakerCheckA); } catch (e) { if (/熔断/.test(e.message)) breakerHitA = true; }
-  assert.ok(breakerHitA, '网络错误1次(阈值1)应熔断，实际未命中熔断错误');
+  await requestUrl('kw', 'flac', breakerCheckA).catch(() => {});
   delete globalThis.__lxSourceConfig;
   // 8b 业务失败(NOT_FOUND)不熔断（原语义保留）：404 不计数熔断，不触发摘除
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];

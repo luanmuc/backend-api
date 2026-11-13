@@ -2274,7 +2274,17 @@ var __lxSourceBundle = (() => {
         if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
         if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
         if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
-        if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
+        if (o.runtime && o.peekRuntime) {
+          const br = getBreaker(id);
+          const qSlot = br.byQuality[q];
+          const qb = qSlot && qSlot.breaker;
+          const now = Date.now();
+          if (qSlot && qSlot.rateLimitUntil > now) return { eligible: false, reason: "rate-limited", code: "RATE_LIMITED", untilMs: qSlot.rateLimitUntil };
+          if (qb && qb.state === "open" && now - (qb.lastFailureTime || 0) < cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS)) {
+            return { eligible: false, reason: "open", code: "QUALITY_OPEN", untilMs: (qb.lastFailureTime || 0) + cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS) };
+          }
+          if (qb && qb.state === "half-open" && qb.trialInFlight) return { eligible: false, reason: "half-open", code: "QUALITY_OPEN", untilMs: null };
+        } else if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
           const br = getBreaker(id);
           const qSlot = br.byQuality[q];
           const qb = qSlot && qSlot.breaker;
@@ -3770,7 +3780,7 @@ var __lxSourceBundle = (() => {
       function buildSourceChain(platform, quality) {
         const q = String(quality || "128k").toLowerCase();
         const handlers = Object.keys(SOURCE_HANDLERS).map((id) => SOURCE_HANDLERS[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform)).filter((h) => h.chain[platform] != null).filter((h) => qualityRank(h.maxQuality) >= qualityRank(q)).map((h) => {
-          const e = computeEligibility(h.id, platform, q, { runtime: false, qualityShortCircuit: true, consumePlayDeadTrial: true });
+          const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: true });
           if (cfg("eligibilityShadow", false)) {
             const legacy = shadowLegacyEligibility(h.id, platform, q);
             if (legacy.code !== e.code) logDebug(`[\u5F71\u5B50\u88C1\u51B3] ${h.id} ${platform}/${q}: legacy=${legacy.code} modern=${e.code}`);
@@ -5016,6 +5026,10 @@ var __lxSourceBundle = (() => {
             computeEligibility,
             shadowLegacyEligibility,
             // Batch 0：只读旧裁决，仅供影子 diff/审计
+            previewCooldownMap,
+            // Batch 3：只读审计用
+            qualitySkipProbeAt,
+            // Batch 3：只读审计用
             skipReason,
             clearSourceLedger,
             probeAudioDelivery,

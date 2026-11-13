@@ -2358,7 +2358,18 @@ function computeEligibility(source, platform, quality, opts) {
   if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
   if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
   if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
-  if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
+  // Batch 3：链/快照的“运行期预览”只读，不推进 open→half-open、不消费 trial。
+  if (o.runtime && o.peekRuntime) {
+    const br = getBreaker(id);
+    const qSlot = br.byQuality[q];
+    const qb = qSlot && qSlot.breaker;
+    const now = Date.now();
+    if (qSlot && qSlot.rateLimitUntil > now) return { eligible: false, reason: "rate-limited", code: "RATE_LIMITED", untilMs: qSlot.rateLimitUntil };
+    if (qb && qb.state === "open" && now - (qb.lastFailureTime || 0) < cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS)) {
+      return { eligible: false, reason: "open", code: "QUALITY_OPEN", untilMs: (qb.lastFailureTime || 0) + cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS) };
+    }
+    if (qb && qb.state === "half-open" && qb.trialInFlight) return { eligible: false, reason: "half-open", code: "QUALITY_OPEN", untilMs: null };
+  } else if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
     const br = getBreaker(id);
     const qSlot = br.byQuality[q];
     const qb = qSlot && qSlot.breaker;
@@ -4108,7 +4119,7 @@ function buildSourceChain(platform, quality) {
     .filter(h => h.chain[platform] != null)
     .filter(h => qualityRank(h.maxQuality) >= qualityRank(q))
     .map(h => {
-      const e = computeEligibility(h.id, platform, q, { runtime: false, qualityShortCircuit: true, consumePlayDeadTrial: true });
+      const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: true });
       // Batch 0：默认关闭；打开后只写 debug 日志，不写健康事件/不改链/不改快照。
       if (cfg("eligibilityShadow", false)) {
         const legacy = shadowLegacyEligibility(h.id, platform, q);
@@ -5470,6 +5481,8 @@ if (typeof module !== "undefined" && module.exports) {
       admit,
       computeEligibility,
       shadowLegacyEligibility, // Batch 0：只读旧裁决，仅供影子 diff/审计
+      previewCooldownMap, // Batch 3：只读审计用
+      qualitySkipProbeAt, // Batch 3：只读审计用
       skipReason,
       clearSourceLedger,
       probeAudioDelivery,
