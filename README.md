@@ -33,7 +33,7 @@ https://raw.githubusercontent.com/luanmuc/backend-api/master/lx-source.js
 https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-source.js
 ```
 
-## 音源可用性（2026-11-12 核验）
+## 音源可用性（2026-11-13 核验）
 
 > 本表 = 本仓库实测基线 + 生态交叉验证；端点级实时健康状态见 [README_HEALTH.md](./README_HEALTH.md)（`scripts/probe.js` 每日自动刷新）。
 > 口径：pdone 探测来自 CI 服务器 IP，与本仓库 IP 维度不同，分歧 ≠ 某一方错误（典型：溯音咪咕上游域名可用但本机 IP 被封）。
@@ -41,7 +41,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 | 平台 | 可用音质 | 主路子源 | 交叉验证 |
 |---|---|---|---|
 | 网易云 wy | 128k / 320k / flac | 溯音163 / wyOuter / gdWy | oiapi.net ✅；music.163.com ✅；music-api.gdstudio.xyz ❌ 403 被封 |
-| 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v1.0） | oiapi.net ❌ PAYLOAD_DEAD；yy.zddyr.top ✅；search.kuwo.cn ✅；antiserver.kuwo.cn ❌ PAYLOAD_DEAD；nmobi.kuwo.cn ❌ HTTP 404 |
+| 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v1.0） | oiapi.net ❌ PAYLOAD_DEAD；yy.zddyr.top ✅；search.kuwo.cn ✅；antiserver.kuwo.cn ✅；nmobi.kuwo.cn ❌ HTTP 404 |
 | QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | oiapi.net ❌ 403 被封 |
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | —（无独立源，走 kw 兜底） |
 | 咪咕 mg | 128k（走溯音酷我兜底） | 溯音咪咕关闭 | api.xcvts.cn ❌ PAYLOAD_NO_URL |
