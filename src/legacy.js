@@ -818,7 +818,10 @@ function recordHealthEvent(entry) {
   }
   healthEventRing.push(e);
   while (healthEventRing.length > HEALTH_EVENT_MAX) {
-    healthEventRing.shift();
+    // F33：transition 是状态机证据，不能被 probe 洪水挤掉；溢出优先压最早的
+    // 非 transition 事件，只有整环都是 transition 时才丢最旧 transition。
+    const dropAt = healthEventRing.findIndex(x => x.event !== "health_transition");
+    healthEventRing.splice(dropAt >= 0 ? dropAt : 0, 1);
     healthEventDropped++;
   }
 }

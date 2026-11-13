@@ -832,7 +832,8 @@ var __lxSourceBundle = (() => {
         }
         healthEventRing.push(e);
         while (healthEventRing.length > HEALTH_EVENT_MAX) {
-          healthEventRing.shift();
+          const dropAt = healthEventRing.findIndex((x) => x.event !== "health_transition");
+          healthEventRing.splice(dropAt >= 0 ? dropAt : 0, 1);
           healthEventDropped++;
         }
       }

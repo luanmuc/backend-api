@@ -56,7 +56,7 @@
 | `docs/health-daily/2026-11-13.json` | 66 | .json | ✓ | — | — | — | — | — | — | U10 |
 | `docs/health-daily/2026-11-09.md` | 48 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/probe-history.jsonl` | 784 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
-| `lx-source.js` | 5402 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
+| `lx-source.js` | 5403 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
 | `scripts/candidate-audit.js` | 342 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/cn-date.js` | 17 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/doc-sync-map.js` | 111 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
@@ -90,6 +90,7 @@
 | `test/audit/health-scheduler-fake-clock.js` | 58 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | N1~N2/F21 探测 jitter/暂停 |
 | `test/audit/health-persistence-v2.js` | 131 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F36/F57 P1~P8 持久化 v2 |
 | `test/audit/health-probe-outcome.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F20/F22 O1~O9 探测三值 |
+| `test/audit/health-transition-events.js` | 111 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F33 U1~U7 迁移事件优先级 |
 | `test/audit/e-extra.js` | 927 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/candidate-audit-test.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/lx-source-smoke-test.js` | 1618 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
@@ -97,9 +98,9 @@
 | `docs/ARCHITECTURE.md` | 94 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/README.md` | 68 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 54 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/TESTING.md` | 149 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/TESTING.md` | 150 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/CHANGELOG.md` | 62 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_MATRIX.md` | 180 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 181 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 406 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
 | `test/stress-round3.js` | 357 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
 | `test/audit/g-meta.js` | 314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14 |
@@ -128,12 +129,12 @@
 | `test/stress-round4.js` | 1314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 272 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
-| `docs/READTHROUGH.md` | 234 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
+| `docs/READTHROUGH.md` | 235 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
 | `docs/DOC_INDEX.md` | 93 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
 ## 汇总
 
-- 文件总数：**140**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**35447**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**141**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**35565**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_LIFECYCLE.md` | 76 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
@@ -148,7 +149,7 @@
 | `scripts/verify-real-platform-chains.js` | 103 | .js | ✓ | — | — | — | ✓ | ✓ | — | G7 平台 ID 链真实证据 |
 | `src/00-header.js` | 6 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/80-entry.js` | 10 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/legacy.js` | 5456 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/legacy.js` | 5459 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/55-probation.js` | 41 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/changqingVip.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/helloworldKw.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |

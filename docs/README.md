@@ -28,7 +28,7 @@
 | `README_HEALTH.md` | **自动生成**（`scripts/probe.js`） | 端点健康表，别手改 |
 | `docs/ARCHITECTURE.md` | 手写 | 边界、8 段结构、调用链、4 个状态机、账本口径、跨仓契约 |
 | `docs/DEV_GUIDE.md` | 手写 | 逐段职责、机制细节、子源实测总表、已知缺陷 |
-| `docs/TESTING.md` | 手写 | 37 个测试入口、mock 四件事、隔离与新增断言流程 |
+| `docs/TESTING.md` | 手写 | 38 个测试入口、mock 四件事、隔离与新增断言流程 |
 | `docs/SCRIPTS.md` | 手写 | 14 脚本 + 3 hook 的职责/触发/副作用 |
 | `docs/AUDIT_PLAN.md` | 手写 | 方法论 + 维度矩阵（只写"要审什么"） |
 | `docs/AUDIT_PLAN_v10.md` | 手写（**六轮整合活文档**） | 以它为准：维度总表、G1~G12 缺口、待修清单、销项记录、门禁 14 项口径、已知取舍 |
