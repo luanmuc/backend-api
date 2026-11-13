@@ -122,6 +122,8 @@ var __lxSourceBundle = (() => {
         // v8.10：冷启动源探针超时（onrender 冷态 30s，8s 必误判）
         coldStartWarmTtlMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartWarmTtlMs || 3e5,
         // v8.8：冷启动预热间隔
+        eligibilityShadow: !!(typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.eligibilityShadow),
+        // Batch 0：默认关闭，只写 debug 影子 diff
         qualityShortCircuit: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig ? globalThis.__lxSourceConfig.qualityShortCircuit : void 0,
         // v8.8：档位短路开关(缺省 true)
         coldStartWarmEnabled: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig ? globalThis.__lxSourceConfig.coldStartWarmEnabled : void 0,
@@ -2287,6 +2289,14 @@ var __lxSourceBundle = (() => {
         if (pv && pv > Date.now()) return { eligible: false, reason: "preview_cooldown", code: "PREVIEW_COOLDOWN", untilMs: pv };
         return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
       }
+      function shadowLegacyEligibility(source, platform, quality) {
+        const id = source;
+        const q = String(quality || "128k").toLowerCase();
+        if (!SOURCE_HANDLERS[id]) return { eligible: false, reason: "unknown-source", code: "SOURCE_UNREACHABLE", untilMs: null };
+        if (runtimeToggles[id] === false || manualOff[id]) return { eligible: false, reason: "manual-off", code: "USER_OFF", untilMs: null };
+        if (isPlayDead(id)) return { eligible: false, reason: "play-dead", code: "PLAY_DEAD", untilMs: playDeadDeadline.get(id) || null };
+        return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
+      }
       function skipReason(source, ctx) {
         const e = computeEligibility(source, ctx && ctx.platform, ctx && ctx.quality, { runtime: true, consumePlayDeadTrial: false });
         if (e.eligible) return null;
@@ -3731,6 +3741,10 @@ var __lxSourceBundle = (() => {
         const q = String(quality || "128k").toLowerCase();
         const handlers = Object.keys(SOURCE_HANDLERS).map((id) => SOURCE_HANDLERS[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform)).filter((h) => h.chain[platform] != null).filter((h) => qualityRank(h.maxQuality) >= qualityRank(q)).map((h) => {
           const e = computeEligibility(h.id, platform, q, { runtime: false, qualityShortCircuit: true, consumePlayDeadTrial: true });
+          if (cfg("eligibilityShadow", false)) {
+            const legacy = shadowLegacyEligibility(h.id, platform, q);
+            if (legacy.code !== e.code) logDebug(`[\u5F71\u5B50\u88C1\u51B3] ${h.id} ${platform}/${q}: legacy=${legacy.code} modern=${e.code}`);
+          }
           if (!e.eligible) {
             if (LOG_DEBUG) logDebug(`[\u94FE] ${h.id} \u8DF3\u8FC7\uFF08${e.reason}${e.untilMs ? `\uFF0C\u81F3 ${e.untilMs}` : ""}\uFF09`);
             return null;
@@ -4970,6 +4984,8 @@ var __lxSourceBundle = (() => {
             // L4 裁决层：唯一裁决入口 + 读侧查询 + 清账；probe 供桥模拟直接驱动
             admit,
             computeEligibility,
+            shadowLegacyEligibility,
+            // Batch 0：只读旧裁决，仅供影子 diff/审计
             skipReason,
             clearSourceLedger,
             probeAudioDelivery,

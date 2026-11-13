@@ -62,6 +62,7 @@ const USER_CONFIG = {
   coldStartTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartTimeoutMs) || 8000, // v8.8：冷启动源单源超时
   coldStartProbeTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartProbeTimeoutMs) || 30000, // v8.10：冷启动源探针超时（onrender 冷态 30s，8s 必误判）
   coldStartWarmTtlMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartWarmTtlMs) || 300000, // v8.8：冷启动预热间隔
+  eligibilityShadow: !!(typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.eligibilityShadow), // Batch 0：默认关闭，只写 debug 影子 diff
   qualityShortCircuit: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.qualityShortCircuit : undefined, // v8.8：档位短路开关(缺省 true)
   coldStartWarmEnabled: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.coldStartWarmEnabled : undefined, // v8.8：冷启动预热开关(缺省 true)
   qualityShortCircuitSamples: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitSamples) || 3, // v8.8：档位短路样本门槛
@@ -2376,6 +2377,21 @@ function computeEligibility(source, platform, quality, opts) {
   return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
 }
 
+// Batch 0：旧裁决的只读影子。旧结构门只认 runtimeToggles/manualOff + playDead，
+// 运行期只认源级 rateLimit/open/half-open；它看不到 autoOff/sleeping/resolveDead/
+// qualityShortCircuit，所以与新 computeEligibility 必然产生可解释 diff。此函数绝不写状态、
+// 不推进 half-open、不消费 trial、不写事件。
+function shadowLegacyEligibility(source, platform, quality) {
+  const id = source;
+  const q = String(quality || "128k").toLowerCase();
+  if (!SOURCE_HANDLERS[id]) return { eligible: false, reason: "unknown-source", code: "SOURCE_UNREACHABLE", untilMs: null };
+  if (runtimeToggles[id] === false || manualOff[id]) return { eligible: false, reason: "manual-off", code: "USER_OFF", untilMs: null };
+  if (isPlayDead(id)) return { eligible: false, reason: "play-dead", code: "PLAY_DEAD", untilMs: playDeadDeadline.get(id) || null };
+  // 旧 buildSourceChain 的结构门只跑到这里；rate/open/half-open 属于旧 canExecute 的运行期门，
+  // 不在建链时比较，避免把“结构层 vs 运行层”误算成产品 diff。
+  return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
+}
+
 function structuralSkipReason(source, quality, consumePlayDeadTrial) {
   const e = computeEligibility(source, null, quality, { runtime: false, consumePlayDeadTrial: consumePlayDeadTrial === true });
   if (e.eligible) return null;
@@ -4062,6 +4078,11 @@ function buildSourceChain(platform, quality) {
     .filter(h => qualityRank(h.maxQuality) >= qualityRank(q))
     .map(h => {
       const e = computeEligibility(h.id, platform, q, { runtime: false, qualityShortCircuit: true, consumePlayDeadTrial: true });
+      // Batch 0：默认关闭；打开后只写 debug 日志，不写健康事件/不改链/不改快照。
+      if (cfg("eligibilityShadow", false)) {
+        const legacy = shadowLegacyEligibility(h.id, platform, q);
+        if (legacy.code !== e.code) logDebug(`[影子裁决] ${h.id} ${platform}/${q}: legacy=${legacy.code} modern=${e.code}`);
+      }
       if (!e.eligible) {
         if (LOG_DEBUG) logDebug(`[链] ${h.id} 跳过（${e.reason}${e.untilMs ? `，至 ${e.untilMs}` : ""}）`);
         return null;
@@ -5417,6 +5438,7 @@ if (typeof module !== "undefined" && module.exports) {
       // L4 裁决层：唯一裁决入口 + 读侧查询 + 清账；probe 供桥模拟直接驱动
       admit,
       computeEligibility,
+      shadowLegacyEligibility, // Batch 0：只读旧裁决，仅供影子 diff/审计
       skipReason,
       clearSourceLedger,
       probeAudioDelivery,
