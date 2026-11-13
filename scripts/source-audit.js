@@ -21,6 +21,7 @@ const path = require('path');
 const SRC = path.resolve(__dirname, '..', 'lx-source.js');
 const ONLY = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[1] || '';
 const JSON_OUT = process.argv.includes('--json');
+const INCLUDE_PROBATION = process.argv.includes('--include-probation');
 const TIMEOUT = 9000;
 const FOLLOW_MAX = 5;
 
@@ -138,9 +139,28 @@ function rangeCheck(url) {
     }
   }
 
+  if (INCLUDE_PROBATION) {
+    for (const h of Object.values(mod.SOURCE_HANDLERS)) {
+      if (h.lifecycle !== 'probation') continue;
+      if (ONLY && !h.platforms.includes(ONLY)) continue;
+      const plat = ONLY || h.platforms[0];
+      const song = SONGS[plat];
+      const idVal = song.hash || song.songmid || song.id;
+      const t0 = Date.now();
+      try {
+        const url = await h.fn(plat, idVal, '128k', song);
+        rows.push({ src: h.id, plat, probation: true, ok: true, code: 'OK', host: (String(url).match(/^(https?:\/\/[^/]+)/) || [, ''])[1], playable: '', ms: Date.now() - t0 });
+      } catch (e) {
+        const msg = String((e && e.message) || e);
+        const code = (msg.match(/^([A-Z_]+):/) || [, 'ERR'])[1];
+        rows.push({ src: h.id, plat, probation: true, ok: false, code, msg: msg.slice(0, 100), ms: Date.now() - t0 });
+      }
+    }
+  }
+
   if (JSON_OUT) {
     realLog(JSON.stringify({ checkedAt: new Date().toISOString(), total: rows.length, ok: rows.filter(r => r.ok).length, rows }, null, 2));
-    return;
+    process.exit(0);
   }
   realLog('\n=== 全源深度巡检（128k 固定歌 晴天）===');
   realLog('源 | 平台 | 结果 | 码 | 域名/原因 | 可播 | 耗时');

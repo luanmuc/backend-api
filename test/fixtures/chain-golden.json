@@ -1,0 +1,89 @@
+{
+  "version": "8.13.0",
+  "sourceHead": "0cba276",
+  "platforms": {
+    "kw": {
+      "128k": [
+        "suyinKuwo",
+        "xinghaiBackend",
+        "helloworldKw",
+        "kuwoOfficial",
+        "changqingVip",
+        "ikun",
+        "huibq"
+      ],
+      "320k": [
+        "suyinKuwo",
+        "xinghaiBackend",
+        "helloworldKw",
+        "ikun",
+        "huibq"
+      ],
+      "flac": [
+        "suyinKuwo",
+        "xinghaiBackend",
+        "helloworldKw",
+        "ikun"
+      ],
+      "flac24bit": []
+    },
+    "wy": {
+      "128k": [
+        "suyin163",
+        "wyOuter",
+        "ikun",
+        "suyinKuwo",
+        "huibq"
+      ],
+      "320k": [
+        "ikun",
+        "suyinKuwo",
+        "huibq"
+      ],
+      "flac": [
+        "ikun",
+        "suyinKuwo"
+      ],
+      "flac24bit": []
+    },
+    "tx": {
+      "128k": [
+        "suyinKuwo",
+        "juheTx"
+      ],
+      "320k": [
+        "suyinKuwo",
+        "juheTx"
+      ],
+      "flac": [
+        "suyinKuwo",
+        "juheTx"
+      ],
+      "flac24bit": []
+    },
+    "mg": {
+      "128k": [
+        "suyinKuwo"
+      ],
+      "320k": [
+        "suyinKuwo"
+      ],
+      "flac": [
+        "suyinKuwo"
+      ],
+      "flac24bit": []
+    },
+    "kg": {
+      "128k": [
+        "suyinKuwo"
+      ],
+      "320k": [
+        "suyinKuwo"
+      ],
+      "flac": [
+        "suyinKuwo"
+      ],
+      "flac24bit": []
+    }
+  }
+}

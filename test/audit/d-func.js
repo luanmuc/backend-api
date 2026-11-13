@@ -50,10 +50,10 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   handler = null;
   // 先拿一份模块只为读 SOURCE_TOGGLES 键名
   const boot = fresh([]);
-  const kinds = Object.keys(boot.runtimeToggles);
+  const kinds = Object.keys(boot.runtimeToggles).filter(k => boot.SOURCE_HANDLERS[k].lifecycle === 'active');
 
   // ---------- D1 每个源都能被真正调用（不漏源、不崩） ----------
-  console.log('\n[D1] 20 个源逐个开启：handler 是否真的跑起来');
+  console.log('\n[D1] 12 个登记源逐个开启：handler 是否真的跑起来');
   const dead = [];
   const platforms = ['kw', 'wy', 'tx', 'mg', 'kg'];
   for (const k of kinds) {
@@ -69,10 +69,8 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     }
     if (!alive) dead.push(k);
   }
-  const knownDead = ['xinghaiBackup']; // 注释即写明「星海备：域名不可解析」，默认 false，仅非 kg 平台候选
-  const unexpected = dead.filter(k => !knownDead.includes(k));
-  rec('D1', '每个源在其支持的平台上都能被真正调用', unexpected.length === 0,
-    unexpected.length ? `未接线：${unexpected.join(', ')}` : `${kinds.length - knownDead.length}/${kinds.length} 源已接线并触发真实请求（xinghaiBackup 为已知不可解析域名，默认关闭，符合预期）`);
+  rec('D1', '每个登记源在其支持的平台上都能被真正调用', dead.length === 0,
+    dead.length ? `未接线：${dead.join(', ')}` : `${kinds.length}/${kinds.length} 源已接线并触发真实请求`);
 
   // ---------- I4/I5 开关回滚（关键：证明闸门是叠加层） ----------
   console.log('\n[I4/I5] 闸门开关逐个关闭 → 回到 v8.10 行为');

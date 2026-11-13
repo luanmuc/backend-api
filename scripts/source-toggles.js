@@ -17,7 +17,7 @@ const fs = require('fs');
 const path = require('path');
 
 const SRC = path.join(__dirname, '..', 'lx-source.js');
-const MARK = 'const SOURCE_TOGGLES = {';
+const MARK_RE = /(?:const|let|var) SOURCE_TOGGLES = \{/;
 
 /** 从 openIdx（指向 `{`）开始向后扫描，跳过注释与字符串，返回匹配的 `}` 下标 */
 function matchBrace(src, openIdx) {
@@ -73,8 +73,9 @@ function stripLineComment(raw) {
  */
 function parseToggles(srcPath = SRC) {
   const src = fs.readFileSync(srcPath, 'utf8');
-  const start = src.indexOf(MARK);
-  if (start < 0) throw new Error('lx-source.js 中未找到 SOURCE_TOGGLES，无法判定启用状态');
+  const decl = src.match(MARK_RE);
+  if (!decl) throw new Error('lx-source.js 中未找到 SOURCE_TOGGLES，无法判定启用状态');
+  const start = decl.index;
   const open = src.indexOf('{', start);
   const end = matchBrace(src, open);
   if (end < 0) throw new Error('SOURCE_TOGGLES 花括号未闭合');
@@ -117,7 +118,7 @@ function parseToggles(srcPath = SRC) {
   }
 
   const count = Object.keys(toggles).length;
-  if (count < 15) throw new Error(`SOURCE_TOGGLES 只解析出 ${count} 个开关，疑似解析失败`);
+  if (count < 10) throw new Error(`SOURCE_TOGGLES 只解析出 ${count} 个开关（v8.13 预算为 12），疑似解析失败`);
   return { toggles, lineNo };
 }
 

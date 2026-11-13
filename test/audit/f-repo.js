@@ -21,6 +21,7 @@ const rec = (id, name, ok, detail) => {
 };
 const abs = p => path.join(ROOT, p);
 const read = p => fs.readFileSync(abs(p), 'utf8');
+const STATIC_SRC = 'src/legacy.js';
 const exists = p => fs.existsSync(abs(p));
 // core.quotepath=false：否则中文文件名会被转成 "\347\254..." 加引号，statSync 直接 ENOENT
 const files = execFileSync('git', ['-c', 'core.quotepath=false', 'ls-files'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
@@ -93,7 +94,7 @@ console.log('\n[U] 全文件静态合规（' + files.length + ' 个 tracked 文�
   rec('U8', '无明文 token / 40 位密钥', secrets.length === 0, secrets.join(','));
 
   // 只抓「真调试残留」：排除 logInfo/logWarn 里对 console 的绑定与转发
-  const dbg = read('lx-source.js').split('\n')
+  const dbg = read(STATIC_SRC).split('\n')
     .filter(l => /console\.(log|debug|error)/.test(l))
     .filter(l => !/console\.(log|error)\.bind\(console\)/.test(l))
     .filter(l => !/^\s*(\/\/|\*)/.test(l));
@@ -135,7 +136,7 @@ console.log('\n[V] 交叉引用与一致性');
   }
   rec('V1', `全部 ${md.length} 个 .md 相对链接无死链`, dead.length === 0, dead.slice(0, 4).join(' | '));
 
-  const verSrc = (read('lx-source.js').match(/@version\s+([\d.]+)/) || [])[1];
+  const verSrc = (read(STATIC_SRC).match(/@version\s+([\d.]+)/) || [])[1];
   const docsHaveVer = ['README.md', 'docs/ITERATION_ROADMAP.md', 'docs/DEV_GUIDE.md'].map(f => {
     const m = read(f).match(new RegExp('v?' + verSrc.replace(/\./g, '\\.') + '\\b'));
     return m ? null : f;
@@ -147,17 +148,17 @@ console.log('\n[V] 交叉引用与一致性');
   const smokeNum = Math.max(...smokePairs);
   rec('V3', `冒烟实测组数可解析（${smokeNum} 组）`, smokeNum >= 60, 'max=' + smokeNum);
 
-  const toggleKeys = (read('lx-source.js').match(/const SOURCE_TOGGLES = \{([\s\S]*?)\n\};/) || [])[1] || '';
+  const toggleKeys = (read(STATIC_SRC).match(/const SOURCE_TOGGLES = \{([\s\S]*?)\n\};/) || [])[1] || '';
   const toggleN = (toggleKeys.match(/^\s{2}\w+:/gm) || []).length;
   const docN = (read('docs/DEV_GUIDE.md').match(/(\d+)\s*个子源|登记源\s*(\d+)/) || [])[0] || '';
-  // 注意：SOURCE_TOGGLES 是 16 个开关键（juhe 四源写在同一行），对应 20 个源——两者不是一回事
-  const srcCnt = (read('lx-source.js').match(/id:\s*"[\w.]+"/g) || []).length;
+  // v8.13：SOURCE_TOGGLES 12 键 = 12 登记源（10 上链 + 2 观察），一一对应
+  const srcCnt = (read(STATIC_SRC).match(/id:\s*"[\w.]+"/g) || []).length;
   // 注意：juhe 五源写在同一行，按行数统计会得 16，真实是 20 个键（用 parseToggles 的解析结果做真值）
   const parsedN = (() => { try { const o = require(abs('scripts/source-toggles.js')).parseToggles(); return Object.keys(o.toggles || o).length; } catch (e) { return -1; } })();
-  rec('V4', `SOURCE_TOGGLES 实测 ${parsedN} 个开关（文档口径 ${docN || '未声明'}）`, parsedN === 20, `解析 ${parsedN} 键 / 行内 ${toggleN} 行`);
+  rec('V4', `SOURCE_TOGGLES 实测 ${parsedN} 个开关（文档口径 ${docN || '未声明'}）`, parsedN === 12, `解析 ${parsedN} 键 / 行内 ${toggleN} 行`);
 
   const errN = Object.keys(JSON.parse('{}')).length; // placeholder 保持结构
-  const errBlock = (read('lx-source.js').match(/const ERROR_CODES = \{([\s\S]*?)\n\};/) || [])[1] || '';
+  const errBlock = (read(STATIC_SRC).match(/const ERROR_CODES = \{([\s\S]*?)\n\};/) || [])[1] || '';
   const errCnt = (errBlock.match(/^\s{2}\w+:/gm) || []).length;
   const errDoc = (read('docs/DEV_GUIDE.md').match(/ERROR_CODES[^\n]*?(\d+)\s*个/) || [])[1];
   rec('V5', `ERROR_CODES 实测 ${errCnt} 个${errDoc ? `，文档写 ${errDoc}` : '（文档未写死，OK）'}`, !errDoc || Number(errDoc) === errCnt);
@@ -171,7 +172,7 @@ console.log('\n[V] 交叉引用与一致性');
   rec('V6', `文档引用的 ${new Set(scriptsMention.map(x => x[1])).size} 个脚本全部存在`, missScript.length === 0, missScript.slice(0, 3).join(' | '));
 
   const testMention = [];
-  for (const f of md) { const re = /test\/[\w./-]+\.js/g; let m; while ((m = re.exec(read(f)))) testMention.push(m[0]); }
+  for (const f of md) { const re = /test\/[\w./-]+\.js(?![\w])/g; let m; while ((m = re.exec(read(f)))) testMention.push(m[0]); }
   const missTest = [...new Set(testMention)].filter(t => !exists(t));
   rec('V7', `文档引用的 ${new Set(testMention).size} 个测试文件全部存在`, missTest.length === 0, missTest.join(','));
 
@@ -193,13 +194,13 @@ console.log('\n[W] 脚本自洽');
   // 真实字段是 url/sources/kind/note（没有 id）——按 url 唯一性与字段完整性校验
   const urls = list.map(e => e.url);
   const fieldOk = list.every(e => e.url && Array.isArray(e.sources) && e.kind);
-  rec('W5', `endpoint-registry 导出 ${list.length} 条、url 唯一且字段完整`, list.length === 20 && new Set(urls).size === list.length && fieldOk,
+  rec('W5', `endpoint-registry 导出 ${list.length} 条、url 唯一且字段完整`, list.length === 16 && new Set(urls).size === list.length && fieldOk,
     `uniqUrl=${new Set(urls).size} fieldOk=${fieldOk}`);
 
   const tog = require(abs('scripts/source-toggles.js'));
   const raw = typeof tog.parseToggles === 'function' ? tog.parseToggles() : null;
   const t = raw && raw.toggles ? raw.toggles : raw;   // 真实返回是 {toggles, ...}，取内层
-  rec('W6', 'source-toggles 可解析出 20 个开关真值', !!t && Object.keys(t).length === 20, t ? Object.keys(t).length + ' 键' : 'no export');
+  rec('W6', 'source-toggles 可解析出 12 个开关真值', !!t && Object.keys(t).length === 12, t ? Object.keys(t).length + ' 键' : 'no export');
 
   const cn = require(abs('scripts/cn-date.js'));
   const today = typeof cn.todayCN === 'function' ? cn.todayCN() : null;
@@ -221,7 +222,7 @@ console.log('\n[W] 脚本自洽');
 // ══ X 组：功能联动（跨模块契约） ══
 console.log('\n[X] 功能联动（跨模块）');
 {
-  const src = read('lx-source.js');
+  const src = read(STATIC_SRC);
   const probe = read('scripts/probe.js');
   const daily = read('scripts/health-daily.js');
   const rh = read('README_HEALTH.md');
@@ -251,7 +252,7 @@ console.log('\n[X] 功能联动（跨模块）');
   [...srcToggle.matchAll(/(\w+):\s*(true|false)/g)].forEach(m => { srcPairs[m[1]] = m[2] === 'true'; });
   const mismatch = Object.keys(srcPairs).filter(k => tt[k] !== srcPairs[k]);
   rec('X5', `source-toggles 解析值与源码默认值逐键一致（源码 ${Object.keys(srcPairs).length} 键 / 解析 ${Object.keys(tt).length} 键）`,
-    mismatch.length === 0 && Object.keys(srcPairs).length === 20, mismatch.join(','));
+    mismatch.length === 0 && Object.keys(srcPairs).length === 12, mismatch.join(','));
 
   const ruleN = (read('scripts/docs-audit.js').match(/规则\s*(\d+)/g) || []).length;
   const declared = (read('docs/DOC_SEMANTIC_CHECKLIST.md').match(/(\d+)\s*条规则/) || [])[1];
@@ -274,7 +275,7 @@ console.log('\n[X] 功能联动（跨模块）');
 // ══ Y 组：残留与死码 ══
 console.log('\n[Y] 残留与死码');
 {
-  const src = read('lx-source.js');
+  const src = read(STATIC_SRC);
   const fnDefs = [...src.matchAll(/^function (\w+)\(/gm)].map(m => m[1]);
   const dupFn = fnDefs.filter((n, i) => fnDefs.indexOf(n) !== i);
   rec('Y1', `无重复函数定义（${fnDefs.length} 个）`, dupFn.length === 0, dupFn.join(','));

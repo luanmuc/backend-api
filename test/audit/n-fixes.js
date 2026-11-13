@@ -71,11 +71,11 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
 
   // ---------- N1 / N2：Juhe code 类型宽松 ----------
   const juheCase = async (code, redirectBody) => {
-    load(['juheKw']);
+    load(['juheTx']);
     scene = (u) => {
       if (/audio\.test/.test(u)) return okAudio();
       if (/redir\.test/.test(u)) return json(redirectBody);
-      if (/\/kw/.test(u)) {
+      if (/\/tx/.test(u)) {
         return json(code === 'direct'
           ? { code: '200', data: { url: BASE } }
           : {
@@ -89,7 +89,7 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
       return { error: 'ECONNREFUSED' };
     };
     quiet();
-    try { return await call('kw', '128k', GOOD); } finally { console.log = orig; }
+    try { return await call('tx', '128k', GOOD); } finally { console.log = orig; }
   };
 
   try {

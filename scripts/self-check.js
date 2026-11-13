@@ -13,7 +13,7 @@ const path = require('path');
 let failed = false;
 const fail = (msg) => { failed = true; console.error('[自检失败] ' + msg); };
 
-const srcPath = path.join(__dirname, '..', 'lx-source.js');
+const srcPath = path.join(__dirname, '..', 'src', 'legacy.js'); // 静态实现源；发布产物由 build-source.js 生成
 const readmePath = path.join(__dirname, '..', 'README.md');
 const roadmapPath = path.join(__dirname, '..', 'docs', 'ITERATION_ROADMAP.md');
 const src = fs.readFileSync(srcPath, 'utf-8');

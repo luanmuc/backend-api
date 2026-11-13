@@ -902,22 +902,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     rec('G4c', '5 并发返回的一致可用（都拿到 url）', urls.length === 5, `拿到 ${urls.length}/5 err=${dbg}`);
   }
 
-  // ================= G12 星海备平台声明一致性（2026-11-09）=================
-  // PLATFORM_TO_XINGHAI_BACKUP = { wy, tx, kw }——没有 mg 和 kg。
-  // 但链上条件只写了 platform !== "kg"，mg 每次都会被 push 进链、然后必抛 PARAM_ERROR（白耗一次外呼等待）。
-  {
-    const MODX = fresh(['xinghaiBackup'], {});
-    const ids = (pl) => (MODX.buildSourceChain(pl, '128k') || []).map((h) => h.id || h.name);
-    const mgIds = ids('mg'), kgIds = ids('kg'), kwIds = ids('kw'), wyIds = ids('wy');
-    rec('G12a', '星海备不在 mg 链上（映射表没有 mg，进去必抛 PARAM_ERROR 白耗时间）',
-      !mgIds.includes('xinghaiBackup'), `mg 链=[${mgIds.join(',')}]`);
-    rec('G12b', '星海备不在 kg 链上（映射表没有 kg）',
-      !kgIds.includes('xinghaiBackup'), `kg 链=[${kgIds.join(',')}]`);
-    rec('G12c', '星海备在 kw 链上（映射表有 kw，开启即挂）',
-      kwIds.includes('xinghaiBackup'), `kw 链=[${kwIds.join(',')}]`);
-    rec('G12d', '星海备在 wy 链上（映射表有 wy）',
-      wyIds.includes('xinghaiBackup'), `wy 链=[${wyIds.join(',')}]`);
-  }
+  // G12 已随 v8.13 退役 xinghaiBackup 删除；由 y-provider-contract / s-source-lifecycle 接管。
 
   // ===== D-29 回归：0~16 字节空体必须判 empty（旧逻辑会把 206+0 字节当"验真通过"交付出去）=====
   {

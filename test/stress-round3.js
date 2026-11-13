@@ -275,7 +275,7 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
       `开放键=${openOk} ｜ 布尔键=${gateOk} ｜ 非布尔=${gateBad}`);
   }
 
-  // ── T8 14 个错误码逐个：App 必须拿到 code 且有中文文案 ──────
+  // ── T8 16 个错误码逐个：App 必须拿到 code 且有中文文案 ──────
   {
     const m = fresh(['suyinKuwo'], { breakerThreshold: 999 });
     const codes = Object.keys(m.ERROR_CODES);
@@ -289,7 +289,7 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
     // CODE_HINT 只有 3 条（PREVIEW_FRAGMENT/NOT_AUDIO/STREAM_PLAYLIST），是对最需要解释的 3 个码的补充说明，
     // 不是 14 码全表——14 个码的对外值本身就是稳定的英文标识，App 按 code 分类、按 message 展示。
     rec('T8', `${codes.length} 个错误码对外值齐备；网络/业务两类真实注入都带 code`,
-      codes.length === 14 && vals.every(v => typeof v === 'string' && v.length > 0) && !!got.net && !!got.biz,
+      codes.length === 16 && vals.every(v => typeof v === 'string' && v.length > 0) && !!got.net && !!got.biz,
       `网=${got.net} 业务=${got.biz} 码数=${codes.length}`);
   }
 

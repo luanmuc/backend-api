@@ -58,17 +58,16 @@ const dbg = src.__debug;
     rec('R2', 'D-05：配置白名单', false, e.message);
   }
 
-  // ── R3：D-26 mg 不得挂星海备 ──
+  // ── R3：v8.13 观察源即使手动开启也不得进链 ──
   try {
-    await Promise.resolve(handler({ action: 'toggle', source: 'kw', info: { id: 'xinghaiBackup', enabled: true } }));
-    const kwChain = src.buildSourceChain('kw', '128k').map(h => h.id);
-    const mgChain = src.buildSourceChain('mg', '128k').map(h => h.id);
-    rec('R3', 'D-26：开启星海备后 kw 链含它、mg 链不得含它',
-      kwChain.includes('xinghaiBackup') && !mgChain.includes('xinghaiBackup'),
-      `kw=[${kwChain.join(',')}] mg=[${mgChain.join(',')}]`);
-    await Promise.resolve(handler({ action: 'toggle', source: 'kw', info: { id: 'xinghaiBackup', enabled: false } }));
+    await Promise.resolve(handler({ action: 'toggle', source: 'tx', info: { id: 'suyinQQ', enabled: true } }));
+    const txChain = src.buildSourceChain('tx', '128k').map(h => h.id);
+    rec('R3', '观察源 suyinQQ 手动开启后仍不进 tx 链',
+      !txChain.includes('suyinQQ') && txChain.includes('juheTx'),
+      `tx=[${txChain.join(',')}]`);
+    await Promise.resolve(handler({ action: 'toggle', source: 'tx', info: { id: 'suyinQQ', enabled: false } }));
   } catch (e) {
-    rec('R3', 'D-26：星海备平台映射', false, e.message);
+    rec('R3', '观察源不进链', false, e.message);
   }
 
   console.log('');

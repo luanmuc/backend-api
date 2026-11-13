@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.12.5：死代码清理（删除未调用 `getFailCached` 包装与 `safeConsole.error`，行为不变）｜v8.12.4：P2 负向归因（缺片 TRUNCATED_MEDIA / 长度不符 BAD_ENVELOPE）｜v8.12.3：P2 桥媒体信封（base64 + 256KB 分片，`toBytes` 识别 `__lxMedia:2`）**；上一版 v8.12.2：P1 降级所有权；此前 v8.10.12：可播校验错误码修复；v8.10.3：全覆盖审计 15 项隐性缺陷全修（详见 §3.4 与版本表）+ v8.10.2 记账顺序修复（先验后记）+ 半开收口 + 用例真化 + v8.10.1 缓存 LRU delete 补修 + v8.10 分档预算 + 冷启动豁免 + 缓存分级 + 快照扩容 + v8.9：huibq 收窄 + 短路判据拆分 + v8.8：竞速引擎改造（分批错峰并发/跨档12s预算/档位短路/冷启动预热/gdWy降批/verified精确等待）+ v8.7：huibq 假成功治理 + v8.6 huibq 默认开启 + v8.5 巡检工具与监控口径升级 + v8.4 全源全接口深度巡检修复 + v8.3 ikun 默认开启（A 方案）+ v8.2 ikun 探针接入 + POST 探测 method/body 透传修复 + v8.1 ikun 源复活（c.wwwweb.top / 公益免卡密）+ v8.0 全量审计修复版**）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.13.0 源完全体：12 登记 / 10 上链 / 2 观察；Provider Contract；生命周期治理；协作式真取消；单文件构建**；历史版本见 [`CHANGELOG.md`](./CHANGELOG.md)）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -23,11 +23,12 @@
 | ③ 日志 + LRU 双层缓存 + 断路器 | 739~1020 | `logInfo`、`successCache`/`failCache`、熔断 + 半开试探 + 成功率/均时统计 |
 | ④ HTTP 封装 + 交付真实性判据层 + **L0 归一层 + L4 裁决层** | 1021~1984 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`（Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行 `ok:null`）；**v8.11.5 新增 L0**：`decodeBase64Ascii`/`toBytes`/`kindOf`/`headerEvidence`/`totalBytesOf`（认 `view`/数组/`{type:"Buffer",data}`/base64 串）；**v8.11.5 新增 L4**：`ADMISSION_POLICY`/`CODE_RANK`/`verdictOfCode`/`strongestEvidence`/`isFragmentInfo`/`admissionLedger`/`admit`/`skipReason`/`clearSourceLedger`/`trialMarkOf`/`applyAdmission`/`rememberFragmentSource`；**v8.11.6**：`structuralSkipReason`（建链纯结构判据）/`toggleSource`（开/关统一清账）/`probeByHeaders`（HEAD 补证）；**v8.11.7**：`config` 写模式布尔白名单（8 键）+ 数字白名单补齐 13 键，`verifyDurRatio`/`verifyDurGapSec` 允许 0 |
 | ⑤ 歌曲信息与匹配工具 | 1985~2302 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey`、`getHashOrMid` |
-| ⑥ 音源实现 | 2303~3040 | 20 个子源（wyOuter 起至 nianxinVip），每个源自带 `maxQuality` 真实能力与 `platforms` 声明 |
+| ⑥ 音源实现 | 2303~3040 | 1 个子源（10 上链 + 2 观察），每个源自带 `maxQuality`、`platforms`、`lifecycle` 与 `chain` 声明 |
 | ⑦ 注册表 + 调度 + 健康分 | 3041~4106 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，6s grace，10min 缓存，`cross_platform` 事件） |
 | ⑧ 上报 + 事件监听 | 4208~4509（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.12.5 基线（`lx-source.js` 共 4509 行，`@version 8.12.5`）** 实测值，**按 `// 第X部分` 段落头计算**（①~⑧ 首尾相接无空白，1~82 为文件头与 `@version`/`@description` 注释块）；代码增删后需同步本表，`docs-audit` 规则 7 校验末段边界 = EOF。
+> 行段为 **v8.13.0 基线（`lx-source.js` 共 4887 行，`@version 8.13.0`）** 实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 校验末段边界 = EOF。
+> **v8.13.0 构建口径**：`scripts/build-source.js` 使用 esbuild `bundle:true / format:iife / globalName:__lxSourceBundle / platform:neutral / target:es2017`，产物末尾补 CommonJS 桥 `module.exports = __lxSourceBundle`。这样既是单文件 IIFE，又保留洛雪宿主读取的导出面；`verify-bundle` B1 校验 IIFE 包装与导出桥，B2 校验运行 API。10 个 active provider 已拆到 `src/providers/`，核心运行时仍在 `src/legacy.js`（未做 10/20/30/40/60/70 的全量模块拆分）。
 
 ## 三、核心机制详解
 

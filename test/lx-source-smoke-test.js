@@ -499,34 +499,32 @@ async function test(name, fn) {
   for (const s of Object.values(snapV19b)) limitCountB += s.rateLimitCount || 0;
   assert.ok(limitCountB === limitCountA, `退避期内应跳过(计数不增长)：${limitCountA} → ${limitCountB}`);
 
-  console.log('[T20] v4.0 Juhe源族：kw 303重定向协议→直链，独立新源族注册');
+  console.log('[T20] v8.13 Juhe(tx)：303 重定向协议→直链，tx 第二源');
   resetMock();
-  // 解锁 juheKw（此前 T8 网络故障熔断遗留）——toggle 开启应重置熔断
-  const unlockRes = await requestHandler({ action: 'toggle', source: 'kw', info: { id: 'juheKw', enabled: true } });
-  assert.ok(unlockRes && unlockRes.id === 'juheKw', 'toggle 解锁 juheKw 应成功');
+  const unlockRes = await requestHandler({ action: 'toggle', source: 'tx', info: { id: 'juheTx', enabled: true } });
+  assert.ok(unlockRes && unlockRes.id === 'juheTx', 'toggle 解锁 juheTx 应成功');
   const juheRoute = (u) => {
-    if (u.includes('api.music.lerd.dpdns.org/kw')) {
+    if (u.includes('api.music.lerd.dpdns.org/tx')) {
       return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({
         code: 303,
         data: {
-          request: { url: 'http://mobi.kuwo.cn/mobi.s?type=convert_url_with_sign&rid=2289089', options: { method: 'GET', headers: { 'User-Agent': 'okhttp' } } },
+          request: { url: 'https://api.vkeys.cn/v2/music/tencent/geturl?mid=T1&quality=6', options: { method: 'GET', headers: { 'User-Agent': 'okhttp' } } },
           response: { check: { key: ['body', 'code'], value: 200 }, url: ['body', 'data', 'url'] }
         }
       }) };
     }
-    if (u.includes('mobi.kuwo.cn')) {
-      return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, data: { url: 'https://example.com/juhe-kw.flac' } }) };
+    if (u.includes('api.vkeys.cn')) {
+      return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, data: { url: 'https://example.com/juhe-tx.flac' } }) };
     }
-    // 竞速隔离：仅 Juhe 链路可用，验证 juheKw 自身能力
     return { error: 'ECONNREFUSED' };
   };
   mockRoute = juheRoute;
-  const juheUrl = await requestUrl('kw', 'flac', { name: 'Juhe链路测试曲', singer: '测试', duration: 200000, songmid: '2289089' });
-  assert.ok(typeof juheUrl === 'object' && juheUrl.url.includes('example.com/juhe-kw.flac'), `Juhe kw 应经303校验返回直链，实际 ${JSON.stringify(juheUrl)}`);
-  assert.ok(juheUrl.subSource, `Juhe 路径应透出子源(juheKw): ${JSON.stringify(juheUrl)}`);
+  const juheUrl = await requestUrl('tx', 'flac', { name: 'Juhe链路测试曲', singer: '测试', duration: 200000, songmid: '004Z8Ihr0JIu5s' });
+  assert.ok(typeof juheUrl === 'object' && juheUrl.url.includes('example.com/juhe-tx.flac'), `Juhe tx 应经303校验返回直链，实际 ${JSON.stringify(juheUrl)}`);
+  assert.ok(juheUrl.subSource === 'juheTx', `Juhe 路径应透出子源(juheTx): ${JSON.stringify(juheUrl)}`);
   const snapV20 = mod.getHealthSnapshot();
-  assert.ok(snapV20.juheKw, '快照应含 juheKw 新源族');
-  assert.ok(snapV20.juheKw.maxQuality === 'flac', 'juheKw 应支持 flac 音质');
+  assert.ok(snapV20.juheTx, '快照应含 juheTx');
+  assert.ok(snapV20.juheTx.maxQuality === 'flac', 'juheTx 应支持 flac 音质');
 
   console.log('[T21] v4.0 健康分排序源链：verified 源附加优先，串行兜底按健康分降序');
   const fakeChain = [
@@ -618,8 +616,11 @@ async function test(name, fn) {
   assert.ok(typeof txUrl === 'object' && txUrl.url.includes('example.com/juhe-tx.flac'), `Juhe tx 应经303校验返回直链，实际 ${JSON.stringify(txUrl)}`);
   assert.ok(txUrl.subSource, `Juhe tx 路径应透出子源(juheTx): ${JSON.stringify(txUrl)}`);
   const snapV26 = mod.getHealthSnapshot();
-  for (const id of ['juheTx', 'juheWy', 'juheKg', 'juheMg']) {
-    assert.ok(snapV26[id], `快照应含 ${id} 新源族`);
+  for (const id of Object.keys(mod.SOURCE_HANDLERS)) {
+    assert.ok(snapV26[id], `快照应含登记源 ${id}`);
+  }
+  for (const retired of ['gdWy', 'juheKw', 'juheWy', 'juheKg', 'juheMg', 'nianxinVip', 'xinghaiBackup', 'lingchuan']) {
+    assert.ok(!(retired in snapV26), `退役源 ${retired} 不应再出现在快照`);
   }
 
   console.log('[T27] v6.0 并发保护回归：单源并发超限被节流跳过，不误记限流/不污染成功率');
@@ -706,10 +707,11 @@ async function test(name, fn) {
   const modV29 = require(SRC);
   // 1) 默认关闭源(juhe 四源：kw/wy/kg/mg)不在探测清单；v8.12 起 juheTx 默认开启（2026-11-11 实测可用）
   let pcfg = modV29.buildProbeConfig();
-  for (const jid of ['juheKw', 'juheWy', 'juheKg', 'juheMg']) {
-    assert.ok(!(jid in pcfg), '默认关闭源 ' + jid + ' 不应在探测清单');
+  for (const jid of ['gdWy', 'juheKw', 'juheWy', 'juheKg', 'juheMg', 'nianxinVip', 'xinghaiBackup', 'lingchuan']) {
+    assert.ok(!(jid in pcfg), '退役源 ' + jid + ' 不应在探测清单');
   }
-  assert.ok('juheTx' in pcfg, 'v8.12 juheTx 默认开启，应在探测清单');
+  assert.ok('juheTx' in pcfg, 'juheTx 默认开启，应在探测清单');
+  assert.ok('suyinQQ' in pcfg && 'suyinMigu' in pcfg, '两个观察源必须持续探测');
   // 2) 手动关闭源不在探测清单
   await requestHandler({ action: 'toggle', source: 'kw', info: { id: 'suyinKuwo', enabled: false } });
   pcfg = modV29.buildProbeConfig();
@@ -987,14 +989,24 @@ async function test(name, fn) {
     assert.ok(!urls41.some(u => /br=1(?!\d)/.test(u)), `flac(br=1) 死链档不应被实际请求（短路生效），实际请求 ${urls41.filter(u => u.includes('oiapi')).join(' | ')}`);
   }
 
-  console.log('[T42] v8.8 源标签：gdWy 降到后批 + huibq 标记冷启动源');
+  console.log('[T42] v8.13 Provider Contract：12 登记 / 10 上链 / 2 观察 + 冷启动标签');
   {
     const mod42 = require(SRC);
-    assert.strictEqual(mod42.SOURCE_HANDLERS.gdWy.batch, 2, `gdWy 应带 batch:2（配额源降后批），实际=${mod42.SOURCE_HANDLERS.gdWy.batch}`);
-    assert.strictEqual(mod42.SOURCE_HANDLERS.huibq.coldStart, true, `huibq 应带 coldStart:true（冷态预热+放宽超时），实际=${mod42.SOURCE_HANDLERS.huibq.coldStart}`);
-    const wyFlacChain = mod42.buildSourceChain('wy', 'flac');
-    const primary42 = wyFlacChain.filter(h => (h.batch || 1) === 1);
-    assert.ok(!primary42.some(h => h.id === 'gdWy'), `wy flac 首批不应含 gdWy（应排后批省配额），实际首批=${primary42.map(h => h.id).join(',')}`);
+    const ids = Object.keys(mod42.SOURCE_HANDLERS);
+    assert.strictEqual(ids.length, 12, `登记源必须 12，实际 ${ids.length}`);
+    const active = ids.filter(id => mod42.SOURCE_HANDLERS[id].lifecycle === 'active');
+    const probation = ids.filter(id => mod42.SOURCE_HANDLERS[id].lifecycle === 'probation');
+    assert.strictEqual(active.length, 10, `上链源必须 10，实际 ${active.length}`);
+    assert.strictEqual(probation.length, 2, `观察源必须 2，实际 ${probation.length}`);
+    assert.deepStrictEqual(probation.sort(), ['suyinMigu', 'suyinQQ'].sort(), '观察源应为 suyinQQ/suyinMigu');
+    assert.strictEqual(mod42.SOURCE_HANDLERS.huibq.coldStart, true, 'huibq 应带 coldStart:true');
+    for (const p of ['kw', 'wy', 'tx', 'mg', 'kg']) {
+      const chain = mod42.buildSourceChain(p, '128k');
+      assert.ok(chain.length >= 1, `${p} 128k 链不能为空`);
+      assert.ok(!chain.some(h => h.lifecycle === 'probation'), `${p} 链不得含观察源`);
+    }
+    assert.ok(mod42.KNOWN_COVERAGE_GAPS.some(g => g.platform === 'mg'), '必须显式登记 mg 单源缺口');
+    assert.ok(mod42.KNOWN_COVERAGE_GAPS.some(g => g.platform === 'kg'), '必须显式登记 kg 单源缺口');
   }
 
   console.log('[T43] v8.8 跨音质档总预算：源全慢时应到期快速失败，不被降档链拖到分钟级');
@@ -1358,7 +1370,8 @@ async function test(name, fn) {
     const pathx = require('path');
     const { ENDPOINTS } = require(pathx.join(__dirname, '..', 'scripts', 'endpoint-registry.js'));
     const srcx = fsx.readFileSync(pathx.join(__dirname, '..', 'lx-source.js'), 'utf8');
-    const start = srcx.indexOf('const SOURCE_TOGGLES = {');
+    const toggleDecl = srcx.match(/(?:const|let|var) SOURCE_TOGGLES = \{/);
+    const start = toggleDecl ? toggleDecl.index : -1;
     assert.ok(start > 0, 'SOURCE_TOGGLES 必须存在');
     const open = srcx.indexOf('{', start);
     let depth = 0;
@@ -1372,7 +1385,7 @@ async function test(name, fn) {
     const re = /([A-Za-z_$][\w$]*)\s*:\s*(true|false)/g;
     let m;
     while ((m = re.exec(clean))) keys.add(m[1]);
-    assert.ok(keys.size >= 15, 'SOURCE_TOGGLES 解析出的开关数异常：' + keys.size);
+    assert.strictEqual(keys.size, 12, 'SOURCE_TOGGLES 必须为 12 个登记源，实际 ' + keys.size);
     for (const ep of ENDPOINTS) {
       if (ep.toggleable === false) continue;
       for (const sid of ep.sources) {

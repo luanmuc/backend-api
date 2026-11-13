@@ -55,7 +55,7 @@ function ruleSmokeCount() {
 
 // ── 规则 2：lx-source.js @version ↔ README 当前版本行 ───────────────────
 function ruleVersion() {
-  const src = read('lx-source.js');
+  const src = read('src/legacy.js');
   const m = src.match(/@version\s+([\d.]+)/);
   if (!m) { report.push('⚠️ lx-source.js 未找到 @version'); return; }
   const v = m[1];
@@ -123,12 +123,12 @@ function align(p, re, build, label) {
 }
 
 function srcBlock() {
-  const src = read('lx-source.js');
+  const src = read('src/legacy.js');
   return src.split('const SOURCE_TOGGLES = {')[1].split('};')[0];
 }
 
 function handlerBlock() {
-  const src = read('lx-source.js');
+  const src = read('src/legacy.js');
   return src.split('const SOURCE_HANDLERS = {')[1].split('\n};')[0];
 }
 
@@ -160,7 +160,7 @@ function ruleLinesAndSegments() {
 
 // ── 规则 8：setTimeout 实际使用处数 ↔ AGENTS ───────────────────────────
 function ruleHostApi() {
-  const n = (read('lx-source.js').match(/setTimeout\(/g) || []).length;
+  const n = (read('src/legacy.js').match(/setTimeout\(/g) || []).length;
   align('docs/AGENTS.md', /已用 (\d+) 处/, () => `已用 ${n} 处`, 'setTimeout 处数');
 }
 
@@ -195,7 +195,7 @@ function ruleHardcodedGrowing() {
 function ruleCrossRepoAppDoc() {
   const sib = path.resolve(ROOT, '..', 'lx-music-mobile', 'docs', 'MUSIC_SOURCE_GUIDE.md');
   if (!fs.existsSync(sib)) { report.push('⚪ 规则12 跳过：本地无 ../lx-music-mobile（CI 请先 clone App 仓）'); return; }
-  const m = read('lx-source.js').match(/@version[: \t]+([\d.]+)/);
+  const m = read('src/legacy.js').match(/@version[: \t]+([\d.]+)/);
   if (!m) { report.push('⚠️ 规则12：本仓 @version 未找到'); return; }
   const doc = fs.readFileSync(sib, 'utf8');
   const dv = doc.match(/豆包定制 v([\d.]+)/);
@@ -206,7 +206,7 @@ function ruleCrossRepoAppDoc() {
 
 // ── 规则 13：ITERATION_ROADMAP 的「当前最新版本 vX」↔ @version ──────────
 function ruleRoadmapVersion() {
-  const m = read('lx-source.js').match(/@version[: \t]+([\d.]+)/);
+  const m = read('src/legacy.js').match(/@version[: \t]+([\d.]+)/);
   if (!m) { report.push('⚠️ 规则13：本仓 @version 未找到'); return; }
   align('docs/ITERATION_ROADMAP.md', /当前最新版本 v([\d.]+)/, () => `当前最新版本 v${m[1]}`, 'ROADMAP 当前版本');
 }
@@ -252,7 +252,7 @@ function syncRowLines(p, map, label) {
 
 // ── 规则 15：README「当前版本」行 ↔ @version（工具层与音源层已统一版本链）──
 function ruleReadmeCurrentVersion() {
-  const m = read('lx-source.js').match(/@version[: \t]+([\d.]+)/);
+  const m = read('src/legacy.js').match(/@version[: \t]+([\d.]+)/);
   if (!m) { report.push('⚠️ 规则15：@version 未找到'); return; }
   align('README.md', /\| 当前版本 \| \*\*v([\d.]+)\*\*/, () => `| 当前版本 | **v${m[1]}**`, 'README 当前版本行');
   align('README.md', /内 `@version ([\d.]+)`/, () => `内 \`@version ${m[1]}\``, 'README 内 @version 标注');
@@ -297,7 +297,7 @@ function ruleReadThroughLedger() {
   const total = [...map.values()].reduce((x, y) => x + y, 0);
   align('docs/READTHROUGH.md', /文件数：\*\*(\d+)\*\*/, () => `文件数：**${map.size}**`, '台账文件数');
   align('docs/READTHROUGH.md', /总行数：\*\*(\d+)\*\*/, () => `总行数：**${total}**`, '台账总行数');
-  const v = read('lx-source.js').match(/@version[: \t]+([\d.]+)/);
+  const v = read('src/legacy.js').match(/@version[: \t]+([\d.]+)/);
   if (v) {
     // v8.11.5（门禁自指修复）：原实现每次审计都把台账 HEAD 改写成「当前 HEAD」，而任何后续
     // 提交都会让它立刻过期 → 每周 bot 为它单独提交一次，永远追不上（审计自己制造待提交改动）。

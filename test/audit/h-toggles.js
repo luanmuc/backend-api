@@ -2,7 +2,7 @@
  * H 组：默认关闭 / 测试从未开启的源「开启后最小可用性」
  *
  * 动机（第四轮 O 组覆盖率实测）：全部 10 个测试入口只开过 suyinKuwo 等少数源，
- * 9 个源（juhe×5 / helloworldKw / xinghaiBackend / lingchuan / gdWy / suyinQQ / suyinMigu / kuwoOfficial）
+ * 12 源收敛后仍需要手动验证的源（helloworldKw / xinghaiBackend / kuwoOfficial / juheTx / changqingVip / 两个观察源）
  * 的取链函数有 15~35 行从未执行——一旦用户手动打开某个源，那条链路是零验证的。
  *
  * 本组每条：只开目标源 → mock 按该源真实响应形状返回 → 断言「拿到 https 直链 + 子源透出正确」。
@@ -26,10 +26,19 @@ const setLx = () => {
     env: 'mobile',
     utils: { buffer: { from: (d, e) => Buffer.from(d, e), bufToString: (b, e) => b.toString(e) } },
     request(url, opts, cb) {
-      const r = scene(String(url), opts || {});
+      // 模拟 follow_max：3xx + location 继续跟随，最终把 last url 回给源
+      let hops = 0;
+      const go = (u) => {
+        const r = scene(String(u), opts || {});
+        if (r.statusCode >= 300 && r.statusCode < 400 && r.headers && r.headers.location && hops < 5) {
+          hops++; return go(r.headers.location);
+        }
+        return { r, finalUrl: String(u) };
+      };
+      const { r, finalUrl } = go(url);
       setTimeout(() => {
         if (r.error) return cb(Object.assign(new Error(r.error), { code: r.error }), null);
-        cb(null, { statusCode: r.statusCode || 200, headers: r.headers || {}, body: r.body ?? '', url: String(url) });
+        cb(null, { statusCode: r.statusCode || 200, headers: r.headers || {}, body: r.body ?? '', url: finalUrl });
       }, 2);
     },
     on(n, h) { if (n === 'request') handler = h; },
@@ -94,57 +103,41 @@ const call = (platform, type, info, action) => handler({ action: action || 'musi
       ]),
     },
     {
-      id: 'H4', toggle: 'juheKw', platform: 'kw', quality: '128k', expect: 'juheKw',
-      name: 'Juhe(kw) 开启后能出直链',
-      scene: withAudio([{ k: '/kw', v: () => json({ code: 200, data: { url: BASE } }) }]),
-    },
-    {
       id: 'H5', toggle: 'juheTx', platform: 'tx', quality: '128k', expect: 'juheTx',
       name: 'Juhe(tx) 开启后能出直链',
       scene: withAudio([{ k: '/tx', v: () => json({ code: 200, data: { url: BASE } }) }]),
     },
     {
-      id: 'H6', toggle: 'juheWy', platform: 'wy', quality: '128k', expect: 'juheWy',
-      name: 'Juhe(wy) 开启后能出直链',
-      scene: withAudio([{ k: '/wy', v: () => json({ code: 200, data: { url: BASE } }) }]),
-    },
-    {
-      id: 'H7', toggle: 'juheKg', platform: 'kg', quality: '128k', expect: 'juheKg',
-      name: 'Juhe(kg) 开启后能出直链',
-      scene: withAudio([{ k: '/kg', v: () => json({ code: 200, data: { url: BASE } }) }]),
-    },
-    {
-      id: 'H8', toggle: 'juheMg', platform: 'mg', quality: '128k', expect: 'juheMg',
-      name: 'Juhe(mg) 开启后能出直链',
-      scene: withAudio([{ k: '/mg', v: () => json({ code: 200, data: { url: BASE } }) }]),
-    },
-    {
-      id: 'H9', toggle: 'lingchuan', platform: 'kw', quality: '128k', expect: 'lingchuan',
-      name: '聆川 开启后能出直链',
-      scene: withAudio([{ k: 'lingchuan', v: () => json({ code: 200, url: BASE }) }]),
-    },
-    {
-      id: 'H10', toggle: 'gdWy', platform: 'wy', quality: 'flac', expect: 'gdWy',
-      name: 'GD Studio(wy) 开启后能出 flac 直链',
-      scene: withAudio([{ k: 'gdstudio.xyz', v: () => json({ url: BASE }) }]),
-    },
-    {
-      id: 'H11', toggle: 'suyinQQ', platform: 'tx', quality: '128k', expect: 'suyinQQ',
-      name: '溯音QQ 开启后能出直链',
+      id: 'H11', toggle: 'suyinQQ', probation: true, platform: 'tx', quality: '128k', expect: 'suyinQQ',
+      name: '溯音QQ 观察源：即使手动开启也不进链，但探测清单可见',
       scene: withAudio([{ k: 'QQ_Music', v: () => json({ music: BASE }) }]),
     },
     {
-      id: 'H12', toggle: 'suyinMigu', platform: 'mg', quality: '128k', expect: 'suyinMigu',
-      name: '溯音咪咕 开启后能出直链（并过歌名/时长校验）',
+      id: 'H12', toggle: 'suyinMigu', probation: true, platform: 'mg', quality: '128k', expect: 'suyinMigu',
+      name: '溯音咪咕 观察源：即使手动开启也不进链，但探测清单可见',
       scene: withAudio([{ k: 'xcvts.cn', v: () => json({ code: 200, musicInfo: BASE, song: '晴天', singer: '周杰伦', duration: 271 }) }]),
     },
-  ];
+    {
+      id: 'H13', toggle: 'changqingVip', platform: 'kw', quality: '128k', expect: 'changqingVip',
+      name: '长青kw 开启后能出 128k 直链',
+      scene: withAudio([{ k: 'musicapi.haitangw.net', v: () => ({ statusCode: 302, headers: { location: BASE, 'content-type': 'audio/mpeg' }, body: '' }) }]),
+    },
+  ];;
 
   orig('\n[H] 未测源开启后最小可用性');
   for (const c of CHECKS) {
     reset();
-    fresh([c.toggle]);
+    const m = fresh([c.toggle]);
     scene = c.scene;
+    if (c.probation) {
+      // v8.13：观察源只探测、不进链——即使 runtimeToggles 被手动打开，buildSourceChain 也必须为空。
+      const chain = m.buildSourceChain(c.platform, c.quality);
+      const pcfg = m.buildProbeConfig();
+      const ok = !chain.some(h => h.id === c.expect) && !!pcfg[c.expect];
+      rec(c.id, c.name, ok,
+        ok ? `链=[${chain.map(h => h.id).join(',')}]，探测清单含 ${c.expect}` : `链=${chain.map(h => h.id).join(',')}，探测=${!!pcfg[c.expect]}`);
+      continue;
+    }
     let r = null, e0 = null;
     try { r = await call(c.platform, c.quality, { ...GOOD }); } catch (e) { e0 = e; }
     const ok = !!r && r.subSource === c.expect && /^https:/.test(String(r.url));
@@ -164,17 +157,7 @@ const call = (platform, type, info, action) => handler({ action: action || 'musi
     rec('H13', '酷我封面（pic action）能取到 hts_MVPIC', ok, ok ? String(p) : (e0 ? `code=${JSON.stringify(e0.code)}` : `返回 ${JSON.stringify(p)}`));
   }
 
-  // H14：星海备（域名不可解析）——开启后必须"明确失败且码可识别"，不允许伪装成直链
-  {
-    reset();
-    fresh(['xinghaiBackup']);
-    scene = withAudio([]);
-    let e0 = null;
-    try { await call('kw', '128k', { ...GOOD }); } catch (e) { e0 = e; }
-    const ok = !!e0 && e0.code === 'NOT_FOUND';
-    rec('H14', '星海备（域名不可解析）开启后明确失败、不伪装直链', ok,
-      e0 ? `code=${JSON.stringify(e0.code)}` : '竟然成功（会拿 JSON 当音频播）');
-  }
+
 
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   orig(`\nH 组（未测源开启）汇总：${pass} 通过 / ${fail} 失败`);

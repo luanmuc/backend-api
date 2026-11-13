@@ -15,6 +15,7 @@
  *   U10 关闭目标源后，其跨平台缓存与成功缓存均失效
  *   U11 wy 候选归一化：kw 翻唱失败 → tx 无候选 → wy 严格匹配并交付
  *   U12 kw 候选归一化：tx 主平台 NOT_FOUND → wy 无候选 → kw 严格匹配并交付
+ *   U15 mg 经 suyinKuwo 实际交付酷我 CDN，sourcePlatform 必须回填 kw
  *
  * 运行：/usr/local/bin/node20 test/audit/u-cross-platform.js
  */
@@ -253,7 +254,7 @@ function baseScene({ kwCover = true, kwExact = false, qqList = QQ_LIST, wyList =
   // U6 —— 全平台无匹配：NOT_FOUND，而不是 NETWORK_TIMEOUT
   console.log('\n[U6] 全平台无匹配语义');
   fresh(['kuwoOfficial', 'juheTx']);
-  scene = baseScene({ kwCover: true, qqList: [QQ_LIST[5]], wyList: [] });
+  scene = baseScene({ kwCover: false, qqList: [QQ_LIST[5]], wyList: [] });
   try {
     await call('musicUrl', {
       type: '128k', traceId: 'u_cross_6',
@@ -313,6 +314,33 @@ function baseScene({ kwCover = true, kwExact = false, qqList = QQ_LIST, wyList =
     rec('U12', 'kw 候选归一化后按 rid 交付', r && r.sourcePlatform === 'kw' && hit, JSON.stringify({ r, hit }));
   } catch (e) {
     rec('U12', 'kw 候选归一化后按 rid 交付', false, `${e.code || '?'}: ${e.message}`);
+  }
+
+  // U13/U14 —— 跨平台目标收敛为 tx/wy/kw；mg/kg 直连但仍标实际 kw
+  console.log('\n[U13/U14] P3 五平台矩阵');
+  fresh(['kuwoOfficial', 'juheTx']);
+  const order = current.__debug.crossPlatformOrder
+  rec('U13', '跨平台目标顺序 tx>wy>kw', JSON.stringify(order) === JSON.stringify(['tx','wy','kw']), JSON.stringify(order))
+  scene = baseScene({ kwCover: true })
+  const mg = await current.__debug.crossSearchPlatform('mg', { name: 'Cry For Me (feat. Ami)', singer: 'ほんま　めいこ', duration: 302 })
+  rec('U14', 'mg/kg 不再作为跨平台目标', !order.includes('mg') && !order.includes('kg') && mg.length === 0, JSON.stringify({ order, mg }))
+
+  // U15 —— mg 目标经 suyinKuwo 实际交付酷我，标签必须回填实际平台 kw
+  console.log('\n[U15] mg 实际交付平台回填');
+  fresh(['suyinKuwo']);
+  scene = (u) => {
+    if (u.includes('oiapi.net/api/Kuwo')) return json({ data: { url: 'https://kw-er.kuwo.cn/resource/30106/trackmedia/long/M500001GEZeb0vJKqv.mp3' } });
+    if (u.includes('kw-er.kuwo.cn')) return audio(mp3(302));
+    return json({});
+  };
+  try {
+    const r = await call('musicUrl', {
+      type: '128k', traceId: 'u_cross_15',
+      musicInfo: { name: 'Cry For Me (feat. Ami)', singer: 'Michita (ミチタ)', duration: 302 },
+    }, 'mg');
+    rec('U15', 'mg 实际是酷我 CDN，sourcePlatform 必须是 kw', r && /kw-er\.kuwo\.cn/.test(r.url || '') && r.sourcePlatform === 'kw', JSON.stringify(r));
+  } catch (e) {
+    rec('U15', 'mg 实际是酷我 CDN，sourcePlatform 必须是 kw', false, `${e.code || '?'}: ${e.message}`);
   }
 
   // 汇总

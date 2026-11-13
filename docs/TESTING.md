@@ -1,9 +1,9 @@
 # 测试基建索引（test/）
 
-> **25 个入口**，**没有统一 runner**，逐条跑。
+> **29 个入口**，**没有统一 runner**，逐条跑。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
-> 断言实测：冒烟 **67 组** + 审计 **365 条**（a-static 10 / b-logic 30 / d-func 30 / e-extra **94** / f-repo **52** / g-meta **14** / h-toggles **14** / n-fixes **4** / p-gaps **4** / q-dfix **5** / q2-dseries **3** / r-admission **23** / s-health-events **22** / t-health-events-stress **12** / u-cross-platform **12** / **v-cross-platform-stress 13** / w-fallback-owner **2** / q-quickjs-real **3** / candidate-audit **6** / x-media-envelope **12**）+ 压测 **159 条**（12/14/**133**）= **合计 591 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-10 实测）。
+> 断言实测：冒烟 **67 组** + 审计 **403 条**（a-static 10 / b-logic 30 / d-func 30 / e-extra **90** / f-repo **52** / g-meta **14** / h-toggles **8** / n-fixes **4** / p-gaps **4** / q-dfix **5** / q2-dseries **3** / r-admission **23** / s-health-events **22** / t-health-events-stress **12** / u-cross-platform **14** / **v-cross-platform-stress 13** / w-fallback-owner **2** / q-quickjs-real **3** / candidate-audit **6** / x-media-envelope **12** / **y-provider-contract 15** / **s-source-lifecycle 14** / **z-cancel 11**）+ 压测 **159 条**（12/14/**133**）= **合计 629 条**；变异体 **22 个**（按「能否被门禁杀掉」记，`--full --strict` 全量 **22 killed / 0 survived**，2026-11-12 实测（变异器改为改 `src/*` 后重建，锚点全部命中））。
 > 铁律：截图式的"一堆绿字"不算证据，**退出码 + 通过/失败计数**才算。取退出码必须取被测命令本身，不能取管道末端的 `tail`/`grep`。
 
 ## 〇、CI 覆盖（`.github/workflows/ci.yml`）
@@ -12,7 +12,7 @@
 
 | 步骤 | 门禁 | 断言 |
 |---|---|---|
-| L4 | `node test/audit/r-admission.js` / `node test/audit/u-cross-platform.js` / `node test/audit/v-cross-platform-stress.js` | 23 + 12 + 13（L4 裁决层 + 跨平台兜底 + 跨平台压力） |
+| L4 | `node test/audit/r-admission.js` / `node test/audit/u-cross-platform.js` / `node test/audit/v-cross-platform-stress.js` | 23 + 15 + 13（L4 裁决层 + 跨平台兜底 + 跨平台压力） |
 | L1.3 | `node --expose-gc test/stress-test.js` | 12（S 组，压量） |
 | L5 | `node --expose-gc test/stress-round3.js` | 14（T 组，压态） |
 | L5.1 | `node --expose-gc test/stress-round4.js` | 133（V 组，压判据） |
@@ -31,11 +31,11 @@
 | `test/audit/e-extra.js` | **94** | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏；四轮 U 组：上游 HTTP 500/410/404/429/403 码映射；六轮新增 G4b/G4c（同歌 5 并发只 1 次外呼、结果一致）+ G12a~G12d（星海备按 `PLATFORM_TO_XINGHAI_BACKUP` 过滤平台，mg/kg 不再白 push 必败源）+ **Q7**（真删 `globalThis.Buffer` 跑交付验真，JSON 假交付必须判 `NOT_AUDIO`，不得 fail-open 放行）+ **K4c~K4e**（v8.11.7 健康面板配置可管：布尔开关可写读回/非布尔拒写/数字参数白名单补齐） | mock 宿主 | `node test/audit/e-extra.js` |
 | `test/audit/p-gaps.js` | 4 | 六轮新增：通读发现的零覆盖点补测（P1 previewUrlPreFilter 开/关差值 · P2 FLAC 多 metadata 块遍历 · P3 MP3 无 Xing 按码率回填时长 · P4 探测连续 2 次通过才自动启用）；逐条反向改坏实现 → 全红后还原 | mock 宿主 + `__debug` | `node test/audit/p-gaps.js` |
 | `test/audit/q-dfix.js` | 5 | D 系列行为断言：Q1 half-open 遇 429 必须收口回 open（删收口段立刻红）；Q2 closed 态遇 429 只退避不熔断；Q3（v8.11.3）toggle 开启某源后该平台失败缓存必须失效——先红（仍 NOT_FOUND）后绿（none）；Q4（D-08）单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 `PARAM_ERROR`，不得兜底 1 号歌——先红（code=undefined）后绿 | 宿主桩 + `__debug` | `node test/audit/q-dfix.js` |
-| `test/audit/q2-dseries.js` | 3 | D 系列剩余行为断言：R1 D-06 布尔键 `??`（注入 false 必须取到 false）、R2 D-05 真键可写/死键忽略、R3 D-26 mg 链不得含星海备（kw 链必须含，防断言恒真）；三条均已注入回退验证会红 | 宿主桩 + `__debug.cfg` + `buildSourceChain` | `node test/audit/q2-dseries.js` |
+| `test/audit/q2-dseries.js` | 3 | D 系列剩余行为断言：R1 D-06 布尔键 `??`（注入 false 必须取到 false）、R2 D-05 真键可写/死键忽略、R3 v8.13 观察源 `suyinQQ` 手动开启后仍不进 tx 链（tx 链含 `juheTx`）；三条均已注入回退验证会红 | 宿主桩 + `__debug.cfg` + `buildSourceChain` | `node test/audit/q2-dseries.js` |
 | `test/audit/n-fixes.js` | 4 | 六轮新增：通读推断缺陷的红绿回归（N1 Juhe code 字符串 / N2 Juhe 303 校验值类型 / N3 flac24bit 起跑保留 320k / N4 CONFIG_ERROR 5 分钟过期） | mock 宿主 + `__debug` 只读钩子 | `node test/audit/n-fixes.js` |
 | `test/audit/s-health-events.js` | **22** | 2.4 方案：`healthEvents` 只读环形缓冲（schema/capacity 500/dropped）、成功链 `play_start`→`source_attempt`→`source_result`、失败链 `ok:false` 且 code 非空、探测与开关事件、同 traceId 串联、返回副本不回写、隐私边界（不含歌名/URL）、超容丢弃 | mock 宿主 + `__debug` | `node test/audit/s-health-events.js` |
 | `test/audit/t-health-events-stress.js` | **12** | 2.4 方案压力：10000 条灌满后容量 500/dropped 9500/seq 单调、同 trace 链、limit 边界、副本、非法参数、字段白名单、隐私注入、读取吞吐 | mock 宿主 + `__debug` | `node test/audit/t-health-events-stress.js` |
-| `test/audit/h-toggles.js` | 14 | 四轮新增：默认关闭/从未开启的源（helloworldKw·星海后端·酷我官方·Juhe×5·聆川·gdWy·溯音QQ·溯音咪咕·酷我封面·星海备）逐个开启后的最小可用性 | mock 宿主 | `node test/audit/h-toggles.js` |
+| `test/audit/h-toggles.js` | 8 | v8.13 口径：helloworldKw / 星海后端 / 酷我官方 / Juhe(tx) / changqingVip 开启后最小可用性；两个观察源手动开启仍不进链但探测可见；酷我封面透出 | mock 宿主 | `node test/audit/h-toggles.js` |
 | `test/audit/f-repo.js` | 52 | 三轮新增：全仓 **72** 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
 | `test/audit/g-meta.js` | 14 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
 | `test/stress-test.js` | 12 | 压测 S 组压「量」：并发/预算/配额/熔断/缓存容量/长跑/极端参数/闸门对照/定时器 | `--expose-gc` | `node --expose-gc test/stress-test.js` |
@@ -44,11 +44,15 @@
 | `test/candidate-audit-test.js` | 6 | 候选实证流程 | 本地 | `node test/candidate-audit-test.js` |
 | `test/audit/q-quickjs-real.js` | 3（可选） | **真 QuickJS 引擎**跑：能否加载 / 宿主是否真没有 Buffer / 无 Buffer 下 JSON 假交付必须判 NOT_AUDIO（D-28 就靠它抓出） | 需 `quickjs-emscripten`，未装自动 SKIP | `NODE_PATH=<装了它的 node_modules> node test/audit/q-quickjs-real.js` |
 | `test/audit/r-admission.js` | **23** | L4 裁决层：桥序列化体归一 / 无字节凭头判 PASS / JSON 头判 NOT_AUDIO / 5 秒片段 / API 试听标记 / 代表码优先级（NOT_AUDIO 不被 NOT_FOUND 吞）/ weak 证据 TTL≤60s / clearSourceLedger / 裁决幂等 / skipReason / 片段与试听标记边界（A2b/A3b/A3c）/ K14 新增 A9~A15：probe 四种状态映射、交付体四形态、verify medium 尺寸比、admit delivery 全分支、clearSourceLedger 逐档归零、5xx→hardFail→recordFailure；A16~A20（v8.11.6 收尾）：链过滤与 skipReason 同源、关源清账对称、fallback 按 codeRank 取代表码、GET 无字节 HEAD 补证、非 strong 证据 TTL 全遍历 | 纯 mock 宿主，不外呼 | `node test/audit/r-admission.js` |
-| `test/audit/u-cross-platform.js` | **12** | v8.12.1 跨平台兜底 + 缓存失效 + v8.12.4 覆盖补证（按脚本实际 `rec()` 编号）：U1 转 tx 并交付 Michita 原版 / U2 严格匹配 302s 原版（拒绝 remix/翻唱/同名异歌手）/ U3 kw 主平台成功且未搜 QQ / U4 `subSource=juheTx` / U5 二次命中缓存、平台仍 tx、无新搜索 / U6 全平台无匹配抛 `NOT_FOUND` / U7 留下 `cross_platform` 事件 / U8 tx 源只收到 songmid、无 kw rid / U9 慢主平台最终交付 kw，不被跨平台失败提前判死 / U10 关闭目标源后不得再交付其缓存 / U11 wy 候选归一化后按 id 交付 / U12 kw 候选归一化后按 rid 交付 | mock 宿主 | `node test/audit/u-cross-platform.js` |
+| `test/audit/aa-p3-persist.js` | **6** | P3 宿主持久化协议：A1 导出结构/无敏感字段 · A2 合法状态往返一致 · A3 含 `successUrl` 必须拒绝 · A4 版本/过期/超容量拒绝 · A5 restore 不写 `successCache/failCache` · A6 档位短路恢复 | mock 宿主 + `__debug` | `node test/audit/aa-p3-persist.js` |
+| `test/audit/u-cross-platform.js` | **15** | v8.12.1 跨平台兜底 + 缓存失效 + v8.12.4 覆盖补证（按脚本实际 `rec()` 编号）：U1 转 tx 并交付 Michita 原版 / U2 严格匹配 302s 原版（拒绝 remix/翻唱/同名异歌手）/ U3 kw 主平台成功且未搜 QQ / U4 `subSource=juheTx` / U5 二次命中缓存、平台仍 tx、无新搜索 / U6 全平台无匹配抛 `NOT_FOUND` / U7 留下 `cross_platform` 事件 / U8 tx 源只收到 songmid、无 kw rid / U9 慢主平台最终交付 kw，不被跨平台失败提前判死 / U10 关闭目标源后不得再交付其缓存 / U11 wy 候选归一化后按 id 交付 / U12 kw 候选归一化后按 rid 交付 / U13 跨平台目标顺序 tx>wy>kw / U14 mg/kg 不再作为跨平台目标 / U15 mg 经 suyinKuwo 实际交付酷我 CDN 时 `sourcePlatform` 必须回填 `kw` | mock 宿主 | `node test/audit/u-cross-platform.js` |
 | `test/audit/w-fallback-owner.js` | **2** | v8.12.2 P1 降级所有权：W1 `inited` 已上报 / W2 5 个平台均显式声明 `fallbackOwner="source"` | mock 宿主 | `node test/audit/w-fallback-owner.js` |
 | `test/audit/x-media-envelope.js` | **11** | v8.12.4 P2 桥媒体信封：X1 64B body SHA / X2 64B FLAC 信封 `kindOf=audio` / X3 1MiB / X4 8MiB 32 片 / X5 `byteLength` 不符返回 `BAD_ENVELOPE` / X6 旧 `{type:"Buffer",data}` 兼容 / X7 `inited.mediaEnvelope=2` 能力声明 / X8 0 字节零长 / X9 缺片 `TRUNCATED_MEDIA` / X10 1B/1KB roundtrip / X11 缺片进入 admit / X12 1MiB `JSON.parse` ≤10ms | mock 宿主 | `node test/audit/x-media-envelope.js` |
 | `test/audit/v-cross-platform-stress.js` | **12** | v8.12.1 跨平台压力（V 组）：V1 20 并发同歌 20/20 tx / V2 并发 QQ 搜索不放大 / V3 50 次顺序同歌只搜 1 次 / V4 201 首不同歌缓存上限清空后仍可交付 / V5 总开关关闭零跨平台 / V6 关源不交付缓存、重开恢复 / V7 30 次 remix-only 全拒绝 / V8 主/跨交替 40 次标签不串 / V9 目标全 5xx 保留主平台 NOT_FOUND / V10 10 并发慢主平台全部 kw / V11 `cross_platform` 事件 ≥5 且无歌名/URL / V12 100 首主命中零跨平台 | mock 宿主 | `node test/audit/v-cross-platform-stress.js` |
-| `test/mutation/run.js` | 22 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（在临时副本上跑）；2026-11-10 `--full --strict` 全量 **22 killed / 0 survived**；复跑曾出现 1 skipped（MU2 锚点被 F-01 改动失配），修锚点后单跑 killed，锚点失配会被脚本以「锚点命中 0 次」显式报出 | 本地 | `node test/mutation/run.js [--full] [--strict]` |
+| `test/audit/y-provider-contract.js` | **15** | v8.13 Provider Contract：12/10/2 预算、key 对齐、上游族唯一、qualitys/platforms/chain、active 必须有链位次、probation 无链位次且默认关闭 + reviewAt、覆盖缺口、非法契约拒绝加载 | mock 宿主 + `validateProviderContracts` | `node test/audit/y-provider-contract.js` |
+| `test/audit/s-source-lifecycle.js` | **14** | v8.13 生命周期治理：三份治理文档存在、增源七步/减源五条/一进一出、`source-inventory --check`、退役源清零、版本 8.13.0 | 读文件 + 子进程 | `node test/audit/s-source-lifecycle.js` |
+| `test/audit/z-cancel.js` | **10** | v8.13 协作式真取消：预取消零外呼、请求中取消调用宿主 `lx.request` 返回的取消句柄、race 取消全部 launcher、wrapExecute 前后检查、取消不写熔断/失败计数、观察源不进链 | mock 宿主 + `__debug` | `node test/audit/z-cancel.js` |
+| `test/mutation/run.js` | 22 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（在临时副本上跑）；2026-11-12 `--full --strict` 全量 **22 killed / 0 survived**；变异器改为改 `src/*` 后重建再跑门禁，22 个锚点全部命中；2026-11-10 曾因对压缩产物打锚点出现 skipped，已消除 | 本地 | `node test/mutation/run.js [--full] [--strict]` |
 
 ## 二、mock 宿主必须同构的四件事（不照做会出现假故障）
 
@@ -113,11 +117,13 @@ globalThis.__lxSourceConfig = {
 node tools/live/run.js l1l4   # L1 协议 + L2 缓存 + L3 调度 + L4 验真
 node tools/live/run.js l5     # L5 单源逐个开启（每源独立歌曲 + 真实 id，避开共享缓存）
 node tools/live/run.js l6l7   # L6 状态机 + L7 巡检
+node scripts/verify-real-platform-chains.js  # G7 平台 ID 链：先搜 songmid/id，再隔离 tx/wy 取链
 ```
 
 - `tools/live/host.js` 是**真宿主桩**：按 lx 移动端 `request(url, opts, cb)` 契约实现，真 https，支持 `timeout/method/headers/follow_max/binary`，302 手动跟链并记 `hops`；每次调用落 `{url, status, ms, hops, range}`。
 - 计数口径：`fullCalls()` **排除 Range 请求**、`rangeCalls()` 单独计——因为交付前的 1KB 验真本身就是一次外呼，不二分会把「验真」误判成「又解析了一次」。
 - 这几个分支**会真连上游**，结果随上游存活波动；用例本身是固定夹具（含 `NOSONG`/`FRAG_SONG`/`FREE2`），失败要先按「上游 vs 本仓逻辑」归因再动手。
+- `verify-real-platform-chains.js` 是 G7 专用：先走 QQ/网易真实搜索拿 `songmid`/`id`，再分别隔离 `juheTx`、`wyOuter`，避免跨平台兜底掩盖原生结果；失败时保留上游码（如 Juhe 303 目标 vkeys 503、溯音QQ -403），不伪造交付。2026-11-13 复测：vkeys 直连不带 `quality` 可返回 60 秒试听（ffprobe 60.029s / 960887 bytes），但 `quality=6` 仍 503；源侧连续 5 次 `NOT_FOUND`，只能算 tx 间歇试听，不能算完整原生链。
 - 该工具不进 CI（依赖外部网络与上游可用性），只作人工验收/回归。
 
 ## QuickJS 依赖的持久化位置

@@ -32,6 +32,9 @@
 | `docs/PROGRESS_round5.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
 | `docs/README.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/DOC_INDEX.md` | 当前态（本表自身） | 人 | 新增/删除任何 docs 文件时 | 规则19 自校验 |
+| `docs/SOURCE_REGISTRY.md` | 当前态 | 人 | 增删源/版本变更时 | 规则19 |
+| `docs/SOURCE_LIFECYCLE.md` | 当前态 | 人 | 生命周期规则变更时 | 规则19 |
+| `docs/SOURCE_RETIREMENT.md` | 归档（退役记录） | 人 | 只追加，不改历史 | 规则19 |
 | `docs/SCRIPTS.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/SOURCE_AUDIT.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/TESTING.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
@@ -60,6 +63,8 @@
 | `docs/health-daily/2026-11-11.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
 | `docs/health-daily/2026-11-12.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/health-daily/2026-11-12.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
+| `docs/health-daily/2026-11-13.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
+| `docs/health-daily/2026-11-13.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
 | `docs/health-daily/2026-11-09.json` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/health-daily/2026-11-08.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/probe-history.jsonl` | 自动追加 | scripts/probe.js | 每次巡检追加一行 | — |

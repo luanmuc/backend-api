@@ -54,7 +54,7 @@ const MUTANTS = [
   {
     id: 'MU4',
     name: '删掉唯一缓存写入（交付结果不入缓存）',
-    from: 'setCachedUrl(writeKey, url, truthQ, source, platform);',
+    from: 'setCachedUrl(writeKey, url, truthQ, source, actualDeliveryPlatform(source, platform));',
     to: 'void 0; // mutant: no cache write',
   },
   {
@@ -179,6 +179,28 @@ const MUTANTS = [
     gates: ['test/stress-round4.js'] }
 ];
 
+function sourceFiles() {
+  const out = [];
+  const walk = (dir) => {
+    for (const name of fs.readdirSync(dir)) {
+      const p = path.join(dir, name);
+      if (fs.statSync(p).isDirectory()) walk(p);
+      else if (name.endsWith('.js')) out.push(p);
+    }
+  };
+  walk(path.join(ROOT, 'src'));
+  return out;
+}
+
+function findAnchor(files, text) {
+  for (const file of files) {
+    const body = fs.readFileSync(file, 'utf8');
+    const hits = body.split(text).length - 1;
+    if (hits) return { file, body, hits };
+  }
+  return { file: null, body: null, hits: 0 };
+}
+
 function copyRepo() {
   fs.rmSync(WORK, { recursive: true, force: true });
   fs.cpSync(ROOT, WORK, {
@@ -195,7 +217,7 @@ function runGates(repo, gates) {
     // maxBuffer 必须放大：压测脚本日志量远超默认 1MB，溢出会让 spawnSync 以 ENOBUFS/SIGTERM
     // 杀掉进程并返回 status=null —— 那会被误判成「门禁发现」，即假杀。
     const r = cp.spawnSync(process.execPath, ['--expose-gc', g], {
-      cwd: repo, timeout: 300000, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+      cwd: repo, timeout: 120000, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
     });
     const name = path.basename(g, '.js');
     if (r.status === null) {
@@ -203,6 +225,7 @@ function runGates(repo, gates) {
       uncertain.push(`${name}(${r.signal || (r.error && r.error.code) || 'timeout'})`);
     } else if (r.status !== 0) {
       killers.push(name);
+      break; // 任一断言门禁非 0 即已证明变异被杀，不必继续跑后面的慢门禁
     }
   }
   return { killers, uncertain };
@@ -217,29 +240,38 @@ function main() {
   const onlyArg = args.find((a) => a.startsWith('--only='));
   const only = onlyArg ? onlyArg.slice('--only='.length).split(',').filter(Boolean) : [];
 
-  const srcPath = path.join(ROOT, SRC);
-  const original = fs.readFileSync(srcPath, 'utf8');
+  const files = sourceFiles();
   copyRepo();
-  const workSrc = path.join(WORK, SRC);
+  // 构建需要 esbuild；复用工作区 node_modules，避免每个变异体复制一份。
+  fs.symlinkSync(path.join(ROOT, 'node_modules'), path.join(WORK, 'node_modules'), 'dir');
   const rows = [];
 
   try {
     for (const m of MUTANTS) {
       if (only.length && !only.includes(m.id)) continue;
-      const hits = original.split(m.from).length - 1;
-      if (hits !== 1) {
-        rows.push({ id: m.id, name: m.name, status: 'SKIPPED', killers: [`锚点命中 ${hits} 次`] });
+      const hit = findAnchor(files, m.from);
+      if (hit.hits !== 1) {
+        rows.push({ id: m.id, name: m.name, status: 'SKIPPED', killers: [`锚点命中 ${hit.hits} 次`] });
         continue;
       }
-      fs.writeFileSync(workSrc, original.replace(m.from, m.to));
+      const workFile = path.join(WORK, path.relative(ROOT, hit.file));
+      fs.writeFileSync(workFile, hit.body.replace(m.from, m.to));
+      const build = cp.spawnSync(process.execPath, [path.join(WORK, 'scripts/build-source.js')], {
+        cwd: WORK, timeout: 120000, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+      });
+      if (build.status !== 0) {
+        fs.writeFileSync(workFile, hit.body);
+        rows.push({ id: m.id, name: m.name, status: 'BUILD_FAILED', killers: [(build.stderr || '').slice(0, 160)] });
+        continue;
+      }
       const res = runGates(WORK, m.gates || gates);   // 变异体可指定专属门禁（只被压测杀的变异体不必跑全部审计）
       const killers = res.killers;
-      fs.writeFileSync(workSrc, original); // 每个变异体都从原版重来
+      fs.writeFileSync(workFile, hit.body); // 每个变异体都从原版重来
       const status = killers.length ? 'KILLED' : (res.uncertain.length ? 'UNCERTAIN' : 'SURVIVED');
+      console.log(`[mutation] ${m.id} ${status}${killers.length ? ` (${killers.join(',')})` : ''}`);
       rows.push({ id: m.id, name: m.name, status, killers: killers.length ? killers : res.uncertain });
     }
   } finally {
-    fs.writeFileSync(workSrc, original);
     fs.rmSync(WORK, { recursive: true, force: true });
   }
 

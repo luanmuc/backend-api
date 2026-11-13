@@ -1,6 +1,6 @@
 # 脚本索引（scripts/）
 
-> 14 个脚本 + 3 个 git hook。**改任何脚本前先看「副作用」列**——有的会改文件、有的会起定时器、有的会打网络。
+> 16 个脚本 + 3 个 git hook。**改任何脚本前先看「副作用」列**——有的会改文件、有的会起定时器、有的会打网络。
 > 单一真相原则：端点清单只认 `endpoint-registry.js`，开关只认 `source-toggles.js`，日期只认 `cn-date.js`。别在别的脚本里再抄一份。
 
 ## 一、巡检与健康（会打网络）
@@ -14,6 +14,8 @@
 | `recheck-candidates.js` (146) | 判否候选恢复探测，**改** `docs/candidate-status.md` | CI 每日 | 覆写 candidate-status |
 | `ecosystem-scan.js` (147) | 抓 pdone 生态健康表，交叉验证本仓源状态 | CI 每周 | 只打日志 |
 | `health-alert.js` (66) | 读当日 `<date>.json` 生成 GitHub Issue 正文 | 被 health-daily 调用 | 无 |
+| `verify-real-platforms.js` (76) | 真实 HTTP 宿主加载 `lx-source.js`，逐平台调 `musicUrl`，输出 `sourcePlatform/subSource/host`；`--all` / `--without-suyin` 用于区分兜底链 | 手动 | 只打日志，不写仓库文件 |
+| `verify-real-platform-chains.js` (103) | G7 真实平台 ID 链：先走 QQ/网易搜索拿 `songmid/id`，再隔离 `juheTx` / `wyOuter` 调 `musicUrl`，输出输入 ID、实际平台、子源、`subSourceName`、`trial`、host 与失败码 | 手动 | 只打日志，不写仓库文件 |
 
 ## 二、门禁与文档一致性（不联网）
 

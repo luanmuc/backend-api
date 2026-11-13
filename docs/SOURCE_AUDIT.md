@@ -3,15 +3,23 @@
 > 本文件是**源级取链巡检**的对照基线，与 `README_HEALTH.md`（端点连通巡检）互补。
 > 每次巡检后对照"上次状态 → 本次状态"，判断某源是"新坏"还是"本来就好/本来就没救"。
 > **2026-11-09 端到端矩阵补测（与 11-06 基线不同，以此为准）**：加载音源模块本体、`lx.request` 换真实 HTTP，调真实聚合入口 `getUrlWithFallback`，跑「5 平台 × flac/128k」共 10 次 ——
-> **10/10 全部交付**（kw 的 flac 由 `xinghaiBackend` 交付，其余四平台由 `suyinKuwo` 交付；其中 mg/kg 的 128k 首次被本地限流 `RATE_LIMIT` 拦，错开 3s 窗口复测均成功）。
+> **10/10 全部交付**（kw 的 flac 由 `xinghaiBackend` 交付，其余四平台由 `suyinKuwo` 以酷我 CDN 交付、`sourcePlatform` 回填 `kw`；其中 mg/kg 的 128k 首次被本地限流 `RATE_LIMIT` 拦，错开 3s 窗口复测均成功）。
 > 所以 11-06 记的「suyinKuwo flac/320k 为 VIP 死链」「5 平台全 410」是**时点状态，不是固定结论**：链接时效逐次波动，`D-20` 的 1KB 验真闸门正是为这一刻设计的。方法与完整表格见 `docs/reports/v8.11.1-第六轮缺口审计.md` §12.5。
 
 > 最近一次巡检：**2026-11-06**（v8.4 修复后）；**2026-11-07 未巡检**——v8.10.3 只改了链路逻辑（状态机收口/缓存槽/预算/探针），不改变任何上游端点，且沙箱出口 IP 被三平台风控（L4 不可达），故本基线不回填。真实网络下请跑 `node scripts/source-audit.js` 后对照。
 
+## 〇、v8.13.0 当前口径（12 登记 / 10 上链 / 2 观察）
+
+- 登记源：**1 个登记源**；上链源：**10**；观察源：**2**（`suyinQQ` / `suyinMigu`，默认关闭、只探测、不进链）。
+- 巡检默认只跑 10 个上链源；观察源用 `node scripts/source-audit.js --include-probation` 单独取证。
+- 平台结构：kw 7 源 / wy 5 源 / tx 2 源 / mg 1 源（高风险单源） / kg 1 源（高风险单源）。
+- 单源缺口与复核日期见 `docs/SOURCE_REGISTRY.md` 与 `KNOWN_COVERAGE_GAPS`；本文件下方的 21/35 是 v8.4 历史时点基线，不代表 v8.13 源表。
+
 ## 一、巡检方法
 
 ```bash
-node scripts/source-audit.js            # 表格输出（35 组 = 20 个登记源在各平台上的可测组合，不是 20×5 全矩阵）
+node scripts/source-audit.js            # 表格输出（默认只跑 10 个上链源）
+node scripts/source-audit.js --include-probation  # 追加 2 个观察源取证
 node scripts/source-audit.js --only=kw  # 只测单平台
 node scripts/source-audit.js --json     # 机器可读，供对比基线
 ```
@@ -19,7 +27,7 @@ node scripts/source-audit.js --json     # 机器可读，供对比基线
 原理：mock 宿主加载 `lx-source.js`（真实网络转发、支持 302 跟随）→ 临时全开 `runtimeToggles` → 对每个平台 `buildSourceChain()` 取全部 handler → 逐个调用 `fn(platform, songId, '128k', songInfo)`（固定歌：晴天 rid=228908 / wy id=2652820720 / tx songmid=004Z8Ihr0JIu5s）→ 直链做 Range 可播校验。
 **与 probe.js 的区别**：probe.js 探"端点是否活着"；本脚本探"源能否真的出可播链接"。
 
-## 二、当前基线：21/35 可用（2026-11-06，v8.4 修复后）
+## 二、历史基线：21/35 可用（2026-11-06，v8.4，历史快照）
 
 ### 可用源（21/35）
 
@@ -79,8 +87,8 @@ huibq 存在**假成功**通路：对某平台拿不到链接时仍返回 `code:
 | kw 128k | suyinKuwo(v) → xinghaiBackend → helloworldKw → kuwoOfficial → changqingVip → nianxinVip → ikun → huibq | 8 |
 | wy flac | suyinKuwo(v) → gdWy → ikun | 3 |
 | wy 128k | suyinKuwo(v) → suyin163 → wyOuter → ikun → huibq | 5 |
-| tx/mg/kg 128k | suyinKuwo(v) | 1 |
-| tx/mg/kg flac | 仅 suyinKuwo 单源 | 1 |
+| tx/mg/kg 128k | suyinKuwo(v)，实际酷我 CDN、标签 kw | 1 |
+| tx/mg/kg flac | 仅 suyinKuwo 单源，实际酷我 CDN、标签 kw | 1 |
 
 **关键修正**：全仓只有 2 个 `verified` 源（`suyinKuwo`、`suyinMigu`），而 `suyinKuwo` 排在每条链首位，所以"600ms 白等"在默认态并不发生；真实短板是串行兜底与必败档位空转。
 

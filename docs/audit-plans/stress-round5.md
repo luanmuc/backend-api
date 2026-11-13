@@ -1,5 +1,10 @@
 # 第五轮压测：覆盖率盲区清零计划（V 组 82 → 250+）
 
+> **2026-11-13 当前执行口径**：本轮不新增压测批次；以既有三代脚本实跑为准：
+> `node test/stress-test.js`（12）+ `node test/stress-round3.js`（14）+ `node --expose-gc test/stress-round4.js`（133/129 条 V 组）= **159 条**。
+> 第五轮累计 V 组 82→133；全量变异 `node test/mutation/run.js --full --strict` = **22 killed / 0 survived**。
+> 压测与变异不可同跑；计时类断言在高 CPU 抢占下会假红。
+
 > 目标不是"多写断言"，而是把 §26 覆盖率实测标出的**未执行行**逐类清空，
 > 并顺着每一行反查"这条保护到底有没有生效"。
 

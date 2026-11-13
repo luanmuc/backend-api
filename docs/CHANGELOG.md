@@ -8,6 +8,8 @@
 
 | 版本 | 核心功能 |
 |---|---|
+| **v8.13.0 验证补证**（2026-11-13） | **G7 平台 ID 链真实验证**：新增 `scripts/verify-real-platform-chains.js`，先走 QQ/网易搜索拿 `songmid/id`，再隔离 `juheTx` / `wyOuter` 调 `musicUrl`。实测 wy 输入 ID `2668397359` → `sourcePlatform=wy`、`subSource=wyOuter`、host `m701.music.126.net`；tx 输入 songmid `0039MnYb0qxYhV` → Juhe 303 指向 vkeys，vkeys 返回 `code:503`，溯音QQ `-403`，源侧正确拒绝为 `NOT_FOUND`，不伪造 tx 交付。结论：wy 原生 ID 链成立；tx 原生链当前被上游 503/403 阻断，属于外部依赖缺口。2026-11-13 09:44 复测：vkeys 直连不带 quality 可返回 `code:200` 的 60 秒试听（ffprobe 60.029s / 960887 bytes），但 Juhe `quality=6` 仍 `503`，源侧连续 5 次 `NOT_FOUND: Juhe重定向校验失败`；tx 既不稳定也不是完整曲目，G7 未闭环。 | 2026-11-13 |
+| **v8.13.0**（源完全体：12 登记源 / 10 上链 / 2 观察；Provider Contract 加载即校验；生命周期治理（七步准入/五条退出/一进一出）；协作式真取消；单文件构建；退役 8 源。**P3**：新增 `exportHealthState`/`restoreHealthState`（schema v1、源版本 8.13.0、7 天 TTL、256KB、禁止 URL/歌名键），只恢复 `breaker/byQuality/playDead/qualityShortCircuit`，不写 `successCache/failCache`；跨平台目标收敛为 `tx→wy→kw`；mg/kg 保留直连但由 `suyinKuwo` 实际交付酷我 CDN 时 `sourcePlatform` 回填 `kw`，不再冒充咪咕/酷狗；`aa-p3-persist` 6/0、`u-cross-platform` 15/15（U15 先红后绿）） | 2026-11-12 |
 | **v8.12.5**（死代码清理：删除未被任何路径调用的 `getFailCached` 包装与 `safeConsole.error`，运行行为不变；源仓 25 个测试入口全量回归（核心 19 + 压测 3 + 专项 3）） | 2026-11-12 |
 | **v8.12.4**（P2 负向归因：缺片返回 `TRUNCATED_MEDIA`、`byteLength`/base64 不符返回 `BAD_ENVELOPE`，probe/admit 均保留错误码；X5/X9/X11/X12 先红后绿；T8 错误码总数 12→14） | 2026-11-12 |
 | **v8.12.3**（2026-11-12） | **P2 桥媒体信封**：App 二进制响应改 base64 信封（1MiB 从 3.57x/87ms 降到 1.33x/4.43ms 量级），>256KB 按 256KB 分片；源侧 `toBytes` 识别 `__lxMedia:2`，`body` 与 `chunks` 均支持，分片逐片解码（避免拼串后中间 `=` 非法），`byteLength` 不符返回 null，0 字节返回零长 `Uint8Array`；旧 `{type:"Buffer",data}` 继续兼容；新增 `x-media-envelope` X1~X8，首跑 2/4 红、修后 8/0 | 2026-11-12 |

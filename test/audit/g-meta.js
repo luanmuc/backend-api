@@ -9,7 +9,7 @@ const path = require('path');
 const child = require('child_process');
 
 const ROOT = path.join(__dirname, '../..');
-const SRC = path.join(ROOT, 'lx-source.js');
+const SRC = path.join(ROOT, 'src', 'legacy.js');
 const AUDIT = __dirname;
 const TESTS = path.join(ROOT, 'test');
 const SCRIPTS = path.join(ROOT, 'scripts');
@@ -225,7 +225,7 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
   const byLine = /split\('\\n'\)[\s\S]{0,80}SOURCE_TOGGLES/.test(fRepo) ||
                  /SOURCE_TOGGLES[\s\S]{0,80}filter\([\s\S]{0,40}\w+:\s*/.test(fRepo);
   const usesParse = /parseToggles/.test(fRepo);
-  rec('M10', '开关数口径只认 parseToggles 解析出的 20 键', usesParse && !byLine,
+  rec('M10', '开关数口径只认 parseToggles 解析出的 12 键', usesParse && !byLine,
     `parseToggles=${usesParse} 按行数统计=${byLine}`);
 }
 

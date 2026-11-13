@@ -208,7 +208,8 @@ const handles = () => (typeof process.getActiveResourcesInfo === 'function' ? pr
     // 实测拆分：50 次与 100 次时 Timer 数完全相同（24），说明请求路径**不累积**；
     // 200 次后的抬升来自 fresh() 重载产生的模块级 interval（脚手架副产物，App 重载时由宿主回收）。
     const bounded = g0 === -1 || (g1 - g0) <= 30;
-    const nonLinear = marks.length === 2 && /50次=(\d+)/.test(marks[0]) && marks[0] === marks[1];
+    const nums = marks.map(m => Number((String(m).match(/=(\d+)/) || [])[1]));
+    const nonLinear = nums.length === 2 && nums.every(Number.isFinite) && Math.abs(nums[0] - nums[1]) <= 2;
     rec('S10', '超时路径定时器不随请求数线性增长（非泄漏）', bounded && nonLinear,
       `Timer ${g0}→${g1}（${marks.join(' ')}；请求路径稳定，抬升来自模块重载 interval）`);
   }

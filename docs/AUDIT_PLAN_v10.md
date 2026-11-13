@@ -2,8 +2,10 @@
 
 > 这份文件是**前五轮的唯一合并入口**。前五轮的分册（`audit-plans/round1~5.md`）保留为原文存档，
 > 但"到底审过什么、用什么断言守、哪些还没审"只以本文件为准。
-> 生成日期：2026-11-09；**最近更新：2026-11-11（v8.12.1 跨平台兜底/缓存失效 + 跨平台压力矩阵）**。
-> 当前基线：`lx-music-source` HEAD `1bec334`，`lx-source.js @version 8.12.5`，审计 **365 条** / 压测 **159 条** / 冒烟 **67 组** = **591 条**；`TESTING.md` 为唯一真值。
+> 生成日期：2026-11-09；**最近更新：2026-11-13（v8.13.0 + G5/G7/G8 + 单提交发布预检）**。
+> 当前基线：`lx-music-source` 本地单提交（HEAD 以 `git log -1` 为准；parent `2f4d7e4`，ahead 1，未推送），`lx-source.js @version 8.13.0`，SHA-256 `a693c412…`；审计 **403 条** / 压测 **159 条** / 冒烟 **67 组** = **629 条**；变异 **22 killed / 0 survived**；`TESTING.md` 为唯一真值。
+>
+> **2026-11-13 本轮补证（不改变历史轮次结论）**：G5 关闭（App 侧删除固定源名单/版本，动态校验 13/0）；G7 wy 原生链成立（`2668397359` → `wyOuter`/`m701.music.126.net`），tx 只有 60 秒试听（vkeys `quality=6` 503，直连 200 但 ffprobe `60.029s`，源侧 5/5 `NOT_FOUND`），不计完整原生交付；G8 由 App 侧离线闸门复核 rc0（run `43175425887`/head `1bec334`/SUCCESS，远端 `2f4d7e4` 祖先成立）；两仓各压成 1 个本地提交，发布预检 `READY`。
 
 ## 0. 为什么要有 v10
 
@@ -66,12 +68,12 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 > | 类别 | 数量 | 构成 |
 > |---|---|---|
 > | 冒烟 | **67 组** | `lx-source-smoke-test.js` |
-> | 审计 | **365 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 94 / f-repo 52 / g-meta 14 / h-toggles 14 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2-dseries 3 / r-admission 23 / s-health-events 22 / t-health-events-stress 12 / u-cross-platform 12 / **v-cross-platform-stress 13** / w-fallback-owner 2 / x-media-envelope 12 / QuickJS 3 / candidate 6 |
+> | 审计 | **395 条** | a-static 10 / b-logic 30 / d-func 30 / e-extra 90 / f-repo 52 / g-meta 14 / h-toggles 8 / n-fixes 4 / p-gaps 4 / q-dfix 5 / q2-dseries 3 / r-admission 23 / s-health-events 22 / t-health-events-stress 12 / u-cross-platform 12 / **v-cross-platform-stress 13** / w-fallback-owner 2 / x-media-envelope 12 / **y-provider-contract 15** / **s-source-lifecycle 14** / **z-cancel 11** / QuickJS 3 / candidate 6 |
 > | 压测 | **159 条** | stress 12 / round3 14 / round4（V 组）133 |
 > | 变异体 | **22 个** | MU1~MU22，`--full --strict` 下 killed 率必须 100% |
-> | **合计** | **365 条审计断言**（+ 159 压测 + 67 冒烟 = 591） | e-extra 的 94 已在 365 内，不再二次相加 |
+> | **合计** | **395 条审计断言**（+ 159 压测 + 67 冒烟 = 621） | e-extra 的 94 已在 365 内，不再二次相加 |
 >
-> **注意历史 232 的偏差**：旧口径 232 = 10+30+30+92+50+14+6，**漏算 h-toggles 14 与 QuickJS 3**。
+> **注意历史 232 的偏差**：旧口径 232 = 10+30+30+92+50+14+6，**漏算 h-toggles 8 与 QuickJS 3**。
 > 与其并列的「256 条断言」是 v10 当时的分项快照（含 INV/EDGE/FAULT/MEM 细分），与本表口径不可直接相加。
 > 当前唯一可信来源是 [`TESTING.md`](./TESTING.md)。A 级 22 条，其余为 B/C。
 
@@ -134,7 +136,7 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | V12 | ✓ | 100 首主命中 100/100 kw，QQ 搜索 = 0 |
 | V13 | ✓ | 同名同歌手时长差 199s 被拒绝，`accepted=0`、`code=NOT_FOUND` |
 
-> 全量回归：`a-static 10/0`、`b-logic 30/0`、`d-func 30/0`、`e-extra 94/0`、`f-repo 52/0`、`g-meta 14/0`、`h-toggles 14/0`、`n-fixes 4/0`、`p-gaps 4/0`、`q-dfix 5/0`、`q2-dseries 3/0`、`r-admission 23/0`、`s-health-events 22/0`、`t-health-events-stress 12/0`、`u-cross-platform 10/0`、`v-cross-platform-stress 13/0`、QuickJS 3/0、candidate 6/0；`stress-test 12/0`、`round3 14/0`、`round4 133/0`；`self-check` rc=0。
+> 全量回归：`a-static 10/0`、`b-logic 30/0`、`d-func 30/0`、`e-extra 90/0`、`f-repo 52/0`、`g-meta 14/0`、`h-toggles 8/0`、`n-fixes 4/0`、`p-gaps 4/0`、`q-dfix 5/0`、`q2-dseries 3/0`、`r-admission 23/0`、`s-health-events 22/0`、`t-health-events-stress 12/0`、`u-cross-platform 10/0`、`v-cross-platform-stress 13/0`、QuickJS 3/0、candidate 6/0；`stress-test 12/0`、`round3 14/0`、`round4 133/0`；`self-check` rc=0。
 
 ### V 组注入反证（2026-11-11）
 
@@ -184,15 +186,15 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 
 完整记录：`docs/reports/v8.11.1-第六轮缺口审计.md`
 
-### Z 组：v8.12.5 发布后收口审计面（2026-11-12）
+### Z 组：v8.13.0 源完全体审计面（2026-11-12）
 
 | ID | 判据 | 命令/证据 | 证据级 |
 |---|---|---|---|
 | Z1 | 死代码清理真实生效：`getFailCached` 包装与 `safeConsole.error` 不再存在，且无调用点；`safeConsole.log/warn` 仍被 `logInfo/logWarn/logDebug` 使用 | `rg` 反查 + `a-static` / `f-repo` | L0/L1 |
-| Z2 | 版本与文档同步：`lx-source.js @version=8.12.5`，README/ROADMAP/DEV_GUIDE/CHANGELOG 同步 | `scripts/self-check.js` + `scripts/docs-audit.js` | L1 |
+| Z2 | 版本与文档同步：`lx-source.js @version=8.13.0`，README/ROADMAP/DEV_GUIDE/CHANGELOG 同步 | `scripts/self-check.js` + `scripts/docs-audit.js` | L1 |
 | Z3 | 发布归档字节一致：`v8.12.1`~`v8.12.5` 与 `v8.11.7` 的 Release 资产与 tag 内容 `cmp` 一致 | GitHub API + `git show tag:lx-source.js` + `cmp` | L3 |
 | Z4 | App 内置源一致：b115 `assets/builtin_source.js` 的版本/SHA-256 与源仓 `v8.12.5` 资产一致 | APK 解包 + `sha256sum` + `cmp` | L3 |
-| Z5 | 全量测试矩阵：25 个入口完成；核心 19 项、压测 12/14/133 均 rc=0；变异 22 killed/0 survived（全量日志汇总） | `docs/TESTING.md` 命令逐条 | L2/L3 |
+| Z5 | 全量测试矩阵：28 个入口完成；核心 19 项、压测 12/14/133 均 rc=0；变异 22 killed/0 survived（全量日志汇总） | `docs/TESTING.md` 命令逐条 | L2/L3 |
 | Z6 | 历史红项不冒充：`v8.12.2` tag 的 V2 文档门禁红保留记录，tag 不移动 | CI run 证据 + Release note | L3 |
 
 ## 4. 执行顺序与记录要求
@@ -270,6 +272,20 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | 7 | 口径统一 | ✅ 已修 | v10 §6.2 给出 14 项逐项清单；第五轮报告注「不含 docs-audit」 |
 | 8 | 验证补全 | ✅ 完成 | PARAM_LIMITS 15/15 拦住；G9 数值 15/15 一致；G5 成功路径 200/600 次长跑缓存生效、超限淘汰不增长 |
 | 9 | D-26 | ✅ 已修 | `ee7ebaf`：星海备按 `PLATFORM_TO_XINGHAI_BACKUP` 过滤；G12a 红→绿 |
+
+## 6.3 v8.13.0 当前执行口径（2026-11-13）
+
+| 项 | 当前值 | 证据 |
+|---|---|---|
+| 源文件 | `lx-source.js` 8.13.0，252405 bytes，SHA-256 `a693c412…` | `sha256sum lx-source.js` |
+| 审计 | **403 条**（历史汇总口径；本轮 22 个 audit 入口 401/0 + QuickJS 3/0，全部 0 失败） | 本轮 `test/audit/*` 逐项实跑 |
+| 压测 | **159 条**（`stress-test` 12 + `stress-round3` 14 + `stress-round4` 133） | 三个脚本逐项实跑 |
+| 冒烟 | **67 组** | `test/lx-source-smoke-test.js` |
+| 变异 | **22 killed / 0 survived** | `test/mutation/run.js --full --strict` |
+| 文档 | `docs-audit` rc0；`self-check` rc0；`f-repo` 52/0 | 本轮实跑 |
+| 发布边界 | 本地单提交、未 push；远端仍是 8.12.5 | `git status` / `git log` |
+
+> G7 是真实平台链补证，不是新增平台：wy 原生交付成立；tx 上游只给试听，不能据此宣称 tx 完整原生完成。
 
 ## 七、已知取舍（2026-11-09 用户已确认，不再作为待决项）
 

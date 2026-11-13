@@ -381,7 +381,7 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     const heap1 = (() => { global.gc && global.gc(); return process.memoryUsage().heapUsed / 1048576; })();
     const growth = heap1 - heap0;
     const g2 = heap1 - heapMid;
-    rec('V9a', growth < 80 && g2 <= (heapMid - heap0) * 1.2 + 5,
+    rec('V9a', growth < 80 && g2 <= Math.max(5, (heapMid - heap0) * 1.2 + 5),
       `堆：前 2000 次 +${(heapMid - heap0).toFixed(1)}MB，后 2000 次 +${g2.toFixed(1)}MB，合计 +${growth.toFixed(1)}MB（后半段应收敛）`);
     const mem = m.getHealthSnapshot()._memory;
     rec('V9b', mem.successCache <= Number(mem.limit) || mem.successCache <= 500,

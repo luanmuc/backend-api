@@ -21,7 +21,7 @@
 | ③ 日志/缓存/断路器 | `logInfo/logWarn`、`createLRUCache`（success 500 / fail 300）、`getBreaker` |
 | ④ HTTP/判据/L0/L4 | `httpRequest` 重试、`normalizeErrCode`、1KB Range 探针、真实时长解析、交付验真；**v8.11.5**：L0 归一（`toBytes`/`kindOf`/`headerEvidence`）、L4 裁决（`ADMISSION_POLICY`/`admit`/`skipReason`/`clearSourceLedger`/`applyAdmission`）；**v8.11.6** 收尾：`structuralSkipReason`（建链无副作用过滤）、`probeByHeaders`（HEAD 1500ms / 405 回退 GET 只取头） |
 | ⑤ 匹配工具 | `normalizeKeyword`、`getHashOrMid`、平台映射 |
-| ⑥ 源实现 | 20 个源 handler，各自 `getUrl` + 能力声明 |
+| ⑥ 源实现 | 12 个登记源 handler（10 上链 / 2 观察），各自 `getUrl` + 能力声明 |
 | ⑦ 注册表与调度 | `sourceConfig`、`buildSourceChain`、`fallbackRace`、`raceFirst`、`wrapExecute`（成功/失败都走 `admit`）、健康分、`getHealthSnapshot`；`getUrlWithFallback` 用 `attempts + noteAttempt + 末尾 admit` 出代表码；`fallbackRace` 删 `mergeCode` 改 `attempts + admit({stage:'fallback'})`；`toggleSource` 开/关都清账 |
 | ⑧ 上报与事件 | `on(EVENT_NAMES.request)` action 分发、`inited` 上报、导出面 |
 
@@ -47,6 +47,7 @@ App → lx.on(EVENT_NAMES.request)
       ├ lyric / pic → 直连源（wy 有稳定接口，其余明确 NOT_FOUND）；出口 normalizeErrCode
       ├ health → getHealthSnapshot()（只读，零外呼）
       ├ healthEvents → getHealthEvents()（只读环形缓冲 500 条；traceId 串联一次播放的多次取链，不记歌名/URL/账号/设备）
+      ├ exportHealthState / restoreHealthState → 宿主持久化协议（schema v1、7 天 TTL、256KB；只含熔断/档位短路/播放摘除，禁止 URL/歌名）
       ├ toggle → 校验 handlerId ∈ SOURCE_HANDLERS → 清 manualOff/probeState/deadCount + 重置熔断
       ├ probe  → 正在跑则 {running:true}，否则 runHealthCheck(false)
       ├ config → 读（卡密脱敏）/ 写（28 个数字 ALLOWED_KEYS + 9 个布尔 ALLOWED_BOOL_KEYS + 范围钳制；其余对象/密钥键只读）

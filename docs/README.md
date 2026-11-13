@@ -12,7 +12,7 @@
 | 找某个脚本干什么、会不会改文件 | [`SCRIPTS.md`](./SCRIPTS.md) |
 | 要审计 / 想知道历史上审出过什么 | 计划 [`AUDIT_PLAN.md`](./AUDIT_PLAN.md) → 结果 [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) → 覆盖矩阵 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md) |
 | 查某版本改了什么 | [`CHANGELOG.md`](./CHANGELOG.md) → 规划 [`ITERATION_ROADMAP.md`](./ITERATION_ROADMAP.md) |
-| 看音源架构从 v8.8 到 v8.12.5 的完整执行链 | [`音源架构执行全过程-2026-11-12.md`](./音源架构执行全过程-2026-11-12.md) |
+| 看音源架构从 v8.8 到 v8.13.0 的完整执行链 | [`音源架构执行全过程-2026-11-12.md`](./音源架构执行全过程-2026-11-12.md) |
 | 源挂了 / 平台改接口 | [`INTERFACE_CHANGE_PLAYBOOK.md`](./INTERFACE_CHANGE_PLAYBOOK.md) |
 | 查当前源可用性基线 | [`SOURCE_AUDIT.md`](./SOURCE_AUDIT.md) |
 | 文档改了怕不同步 | [`DOC_SEMANTIC_CHECKLIST.md`](./DOC_SEMANTIC_CHECKLIST.md)（机器管不了的靠人） |
@@ -28,7 +28,7 @@
 | `README_HEALTH.md` | **自动生成**（`scripts/probe.js`） | 端点健康表，别手改 |
 | `docs/ARCHITECTURE.md` | 手写 | 边界、8 段结构、调用链、4 个状态机、账本口径、跨仓契约 |
 | `docs/DEV_GUIDE.md` | 手写 | 逐段职责、机制细节、子源实测总表、已知缺陷 |
-| `docs/TESTING.md` | 手写 | 25 个测试入口、mock 四件事、隔离与新增断言流程 |
+| `docs/TESTING.md` | 手写 | 29 个测试入口、mock 四件事、隔离与新增断言流程 |
 | `docs/SCRIPTS.md` | 手写 | 14 脚本 + 3 hook 的职责/触发/副作用 |
 | `docs/AUDIT_PLAN.md` | 手写 | 方法论 + 维度矩阵（只写"要审什么"） |
 | `docs/AUDIT_PLAN_v10.md` | 手写（**六轮整合活文档**） | 以它为准：维度总表、G1~G12 缺口、待修清单、销项记录、门禁 14 项口径、已知取舍 |
@@ -37,6 +37,9 @@
 | `docs/reports/*.md` | 手写（每轮一份） | 分轮审计报告：`v8.11.1-全面审计报告.md`、`-第五轮审计结算.md`、`-第六轮缺口审计.md` |
 | `docs/AUDIT_RESULTS.md` | 手写 | 三代审计总账 + **D-01~D-39** 缺陷编号 + 结论性事实 + 历轮过程 |
 | `docs/READTHROUGH.md` | 手写（**活文档·每版本必刷**） | 全仓通读台账：2026-11-10 快照 75 文件逐条结论；当前 99 文件覆盖见 `AUDIT_MATRIX.md`；规则18 校验 |
+| `docs/SOURCE_REGISTRY.md` | 活文档（人工维护 + `source-inventory --check` 机器闸门，**12/10/2 唯一登记表**） | 登记源、上链/观察、平台拓扑、质量、复核日期 |
+| `docs/SOURCE_LIFECYCLE.md` | 手写 | 增源七步准入、减源五条退出线、一进一出、复核节奏 |
+| `docs/SOURCE_RETIREMENT.md` | 归档（退役台账） | v8.13.0 退役 8 源的原因与取证，只追加 |
 | `docs/DOC_INDEX.md` | 手写（**活文档·新增文档必登**） | docs 下逐文件登记（性质/生成者/刷新时机/机器校验）；规则19 校验，漏登即红 |
 | `docs/AUDIT_MATRIX.md` | 手写（每轮更新） | **99 tracked 文件 × 审计维度覆盖矩阵**（含逐行行数与漏登检测），证明"每个文件都被审过" |
 | `docs/CHANGELOG.md` | 手写 | 完整版本历史；README 只留最近摘要 |
