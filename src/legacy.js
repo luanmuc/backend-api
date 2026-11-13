@@ -1040,6 +1040,42 @@ const PLAY_DEAD_TRIAL_TTL_MS = 60 * 1000;
 function clearPlayDeadTrials(sourceId) {
   for (const k of playDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) playDeadTrialAt.delete(k);
 }
+// F42：取链失败与真实播放失败分层。resolveDead 只由“取链/准入失败”累计，
+// playDead 只由 App reportPlayback 的真实播放失败累计；二者都阻塞执行，但解除路径不同。
+const resolveDeadStreak = new Map();
+const resolveDeadDeadline = new Map();
+const resolveDeadTrialAt = new Map();
+const RESOLVE_DEAD_TRIAL_TTL_MS = 60 * 1000;
+function clearResolveDeadTrials(sourceId) {
+  for (const k of resolveDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) resolveDeadTrialAt.delete(k);
+}
+function clearResolveDead(sourceId) {
+  resolveDeadStreak.delete(sourceId);
+  resolveDeadDeadline.delete(sourceId);
+  clearResolveDeadTrials(sourceId);
+}
+function isResolveDead(sourceId, quality, consume) {
+  const streak = resolveDeadStreak.get(sourceId) || 0;
+  if (streak < PLAY_DEAD_STREAK) return false;
+  const reviveMs = cfg('resolveDeadReviveMs', cfg('playDeadReviveMs', 5 * 60 * 1000));
+  const age = Date.now() - (resolveDeadDeadline.get(sourceId) || 0);
+  if (age < reviveMs) return true;
+  const trialKey = sourceId;
+  const lastTrial = resolveDeadTrialAt.get(trialKey) || 0;
+  if (Date.now() - lastTrial < RESOLVE_DEAD_TRIAL_TTL_MS) return true;
+  if (!consume) return true;
+  resolveDeadTrialAt.set(trialKey, Date.now());
+  logDebug(`[取链摘除] ${sourceId} 半开试探放行 quality=${quality || "default"} age=${age}ms revive=${reviveMs}ms`);
+  return false;
+}
+function bumpResolveDead(sourceId) {
+  resolveDeadStreak.set(sourceId, (resolveDeadStreak.get(sourceId) || 0) + 1);
+  if (resolveDeadStreak.get(sourceId) >= PLAY_DEAD_STREAK) {
+    resolveDeadDeadline.set(sourceId, Date.now());
+    clearResolveDeadTrials(sourceId);
+  }
+  if (isResolveDead(sourceId)) logWarn(`取链摘除: [${sourceId}] 连续${PLAY_DEAD_STREAK}次取链/准入失败，已从竞速链摘除(${Math.round(cfg('resolveDeadReviveMs', cfg('playDeadReviveMs', 5 * 60 * 1000)) / 60000)}分钟后半开试探自动复活)`);
+}
 function isPlayDead(sourceId, quality, consume) {
   const streak = playDeadStreak.get(sourceId) || 0;
   if (streak < PLAY_DEAD_STREAK) return false;
@@ -1204,7 +1240,7 @@ function canExecute(sourceId, quality) {
   }
   return false;
 }
-function recordSuccess(sourceId, duration, quality) {
+function recordSuccess(sourceId, duration, quality, opts = {}) {
   const b = getBreaker(sourceId);
   b.totalRequests++;
   b.totalSuccess++;
@@ -1228,12 +1264,13 @@ function recordSuccess(sourceId, duration, quality) {
     syncRuntimeToggle(sourceId);
     recordHealthEvent({ event: "health_transition", sourceId, from: "AUTO_OFF", to: "ELIGIBLE", reason: "real_success" });
   }
-  // v7.0：播放成功 → 解除摘除
-  if ((playDeadStreak.get(sourceId) || 0) > 0) {
+  // F42：取链成功只能解除 resolveDead；playDead 必须等 App 真实播放成功（opts.playback）。
+  clearResolveDead(sourceId);
+  if (opts.playback === true && (playDeadStreak.get(sourceId) || 0) > 0) {
     playDeadStreak.set(sourceId, 0);
     playDeadDeadline.delete(sourceId);
     clearPlayDeadTrials(sourceId);
-    logWarn(`播放摘除: [${sourceId}] 播放成功，解除摘除`);
+    logWarn(`播放摘除: [${sourceId}] 真实播放成功，解除摘除`);
   }
 }
 // v8.10.3：播放失败累计抽成单点——半开试探失败同样算一次真实播放失败（旧实现 return 跳过累加，
@@ -1256,8 +1293,8 @@ function recordFailure(sourceId, quality, opts = {}) {
   q.req++; q.fail++;
   q.breaker.failureCount++;
   q.breaker.lastFailureTime = Date.now();
-  // v8.14：取链失败不再无条件摘除。只有显式 playDead（真实播放失败/策略要求）才累计摘除；
-  // 默认旧调用（测试/外部直接驱动）保留原语义，applyAdmission 会显式传 false。
+  // F42：取链/准入失败只累计 resolveDead；playDead 只由 reportPlayback 的真实播放失败累计。
+  if (opts.resolveDead === true) bumpResolveDead(sourceId);
   if (opts.playDead !== false) bumpPlayDead(sourceId);
   const thr = cfg('breakerThreshold', BREAKER_THRESHOLD);
   if (q.breaker.state === 'half-open' || b.state === 'half-open') {
@@ -2060,13 +2097,13 @@ async function verifyDelivery(audioUrl, ctx = {}, cancelToken = null) {
 // ============================================================
 const ADMISSION_POLICY = {
   // verdict    是否可交付  歌×档 TTL   健康分类        是否计入摘除   源级冷却
-  PASS:         { deliverable: true,  ttlMs: 0,       health: "success",      playDead: false, sourceCooldownMs: 0 },
-  FRAGMENT:     { deliverable: true,  ttlMs: 30000,   health: "businessFail", playDead: false, sourceCooldownMs: 0 },
-  NOT_AUDIO:    { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, sourceCooldownMs: 0 },
-  RATE_LIMITED: { deliverable: false, ttlMs: 0,       health: "businessFail", playDead: false, sourceCooldownMs: 45000 },
-  BUSINESS:     { deliverable: false, ttlMs: 3600000, health: "businessFail", playDead: false, sourceCooldownMs: 0 },
-  TRANSIENT:    { deliverable: false, ttlMs: 0,       health: "hardFail",     playDead: false, sourceCooldownMs: 0 },
-  BROKEN:       { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, sourceCooldownMs: 0 },
+  PASS:         { deliverable: true,  ttlMs: 0,       health: "success",      playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+  FRAGMENT:     { deliverable: true,  ttlMs: 30000,   health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+  NOT_AUDIO:    { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+  RATE_LIMITED: { deliverable: false, ttlMs: 0,       health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 45000 },
+  BUSINESS:     { deliverable: false, ttlMs: 3600000, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+  TRANSIENT:    { deliverable: false, ttlMs: 0,       health: "hardFail",     playDead: false, resolveDead: true,  sourceCooldownMs: 0 },
+  BROKEN:       { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
 };
 
 // 代表码优先级：确定性业务码(1) < 交付类码(2) < 网络类码(3)。高优先不被低覆盖。
@@ -2134,6 +2171,7 @@ function admissionLedger(verdict, code, evidence) {
     ttlMs,
     health: policy.health,
     playDead: evidence === "strong" ? policy.playDead : false,
+    resolveDead: evidence === "strong" ? policy.resolveDead : false,
     sourceCooldownMs: policy.sourceCooldownMs,
   };
 }
@@ -2294,6 +2332,7 @@ function computeEligibility(source, platform, quality, opts) {
   }
   if (probeState.sleeping[id]) return { eligible: false, reason: "sleeping", code: "SOURCE_SLEEPING", untilMs: null };
   if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
+  if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
   if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
   if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
     const br = getBreaker(id);
@@ -2361,6 +2400,7 @@ function clearSourceLedger(source) {
   }
   playDeadStreak.delete(source);
   playDeadDeadline.delete(source);
+  clearResolveDead(source);
   clearPlayDeadTrials(source);
   delete probeState.sleeping[source];
   delete probeState.deadCount[source];
@@ -2388,7 +2428,7 @@ function applyAdmission(adm, ctx) {
     return adm;
   }
   if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q);
-  else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true });
+  else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true });
   else recordBusinessFail(id, q);
   const err = ctx.error || {};
   if (adm.code === ERROR_CODES.PREVIEW_FRAGMENT) {
@@ -3493,6 +3533,7 @@ function getHealthSnapshot() {
       qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map(q => [q, isQualityHopeless(id, q)])),
       // v7.0：播放实时摘除状态（连续播放失败被摘除；App 可显示"已摘除"）
       playDead: isPlayDead(id),
+      resolveDead: isResolveDead(id),
       // v4.0：限流状态（被限=连续429，App 显示"被限"而非"熔断"）
       rateLimited: !!getBreaker(id).rateLimited,
       rateLimitCount: getBreaker(id).rateLimitCount || 0,
@@ -5050,8 +5091,8 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
     const quality = (info && info.quality) || "128k";
     const ok = !!(info && info.ok === true);
     if (ok) {
-      recordSuccess(id, Number(info && info.latencyMs) || 0, quality);
-      return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id) });
+      recordSuccess(id, Number(info && info.latencyMs) || 0, quality, { playback: true });
+      return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id), resolveDead: isResolveDead(id) });
     }
     recordFailure(id, quality, { playDead: true });
     return Promise.resolve({ ok: false, id, state: getBreaker(id).state, playDead: isPlayDead(id), code: (info && info.code) || ERROR_CODES.NETWORK_ERROR });
@@ -5322,6 +5363,7 @@ if (typeof module !== "undefined" && module.exports) {
       crossSearchPlatform,
       buildCrossTargetInfo,
       applyAdmission,      // K14：reducer 的 PASS/记账分支
+      getHealthSnapshot,   // F42：取链/播放摘除分层断言
       trialMarkOf,
       ADMISSION_POLICY,
       admissionLedger,
@@ -5338,6 +5380,10 @@ if (typeof module !== "undefined" && module.exports) {
       breakerMap,
       recordRateLimit,   // D-04 回归：半开态遇 429 必须收口回 open（否则永久卡死）
       playDeadStreak,
+      resolveDeadStreak,
+      isPlayDead,
+      isResolveDead,
+      bumpResolveDead,
       toggleSource,
       get playDeadDeadline() { return playDeadDeadline; },
       qualityShortCircuitKey,

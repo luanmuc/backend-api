@@ -1045,6 +1045,40 @@ var __lxSourceBundle = (() => {
       function clearPlayDeadTrials(sourceId) {
         for (const k of playDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) playDeadTrialAt.delete(k);
       }
+      var resolveDeadStreak = /* @__PURE__ */ new Map();
+      var resolveDeadDeadline = /* @__PURE__ */ new Map();
+      var resolveDeadTrialAt = /* @__PURE__ */ new Map();
+      var RESOLVE_DEAD_TRIAL_TTL_MS = 60 * 1e3;
+      function clearResolveDeadTrials(sourceId) {
+        for (const k of resolveDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) resolveDeadTrialAt.delete(k);
+      }
+      function clearResolveDead(sourceId) {
+        resolveDeadStreak.delete(sourceId);
+        resolveDeadDeadline.delete(sourceId);
+        clearResolveDeadTrials(sourceId);
+      }
+      function isResolveDead(sourceId, quality, consume) {
+        const streak = resolveDeadStreak.get(sourceId) || 0;
+        if (streak < PLAY_DEAD_STREAK) return false;
+        const reviveMs = cfg("resolveDeadReviveMs", cfg("playDeadReviveMs", 5 * 60 * 1e3));
+        const age = Date.now() - (resolveDeadDeadline.get(sourceId) || 0);
+        if (age < reviveMs) return true;
+        const trialKey = sourceId;
+        const lastTrial = resolveDeadTrialAt.get(trialKey) || 0;
+        if (Date.now() - lastTrial < RESOLVE_DEAD_TRIAL_TTL_MS) return true;
+        if (!consume) return true;
+        resolveDeadTrialAt.set(trialKey, Date.now());
+        logDebug(`[\u53D6\u94FE\u6458\u9664] ${sourceId} \u534A\u5F00\u8BD5\u63A2\u653E\u884C quality=${quality || "default"} age=${age}ms revive=${reviveMs}ms`);
+        return false;
+      }
+      function bumpResolveDead(sourceId) {
+        resolveDeadStreak.set(sourceId, (resolveDeadStreak.get(sourceId) || 0) + 1);
+        if (resolveDeadStreak.get(sourceId) >= PLAY_DEAD_STREAK) {
+          resolveDeadDeadline.set(sourceId, Date.now());
+          clearResolveDeadTrials(sourceId);
+        }
+        if (isResolveDead(sourceId)) logWarn(`\u53D6\u94FE\u6458\u9664: [${sourceId}] \u8FDE\u7EED${PLAY_DEAD_STREAK}\u6B21\u53D6\u94FE/\u51C6\u5165\u5931\u8D25\uFF0C\u5DF2\u4ECE\u7ADE\u901F\u94FE\u6458\u9664(${Math.round(cfg("resolveDeadReviveMs", cfg("playDeadReviveMs", 5 * 60 * 1e3)) / 6e4)}\u5206\u949F\u540E\u534A\u5F00\u8BD5\u63A2\u81EA\u52A8\u590D\u6D3B)`);
+      }
       function isPlayDead(sourceId, quality, consume) {
         const streak = playDeadStreak.get(sourceId) || 0;
         if (streak < PLAY_DEAD_STREAK) return false;
@@ -1200,7 +1234,7 @@ var __lxSourceBundle = (() => {
         }
         return false;
       }
-      function recordSuccess(sourceId, duration, quality) {
+      function recordSuccess(sourceId, duration, quality, opts = {}) {
         const b = getBreaker(sourceId);
         b.totalRequests++;
         b.totalSuccess++;
@@ -1229,11 +1263,12 @@ var __lxSourceBundle = (() => {
           syncRuntimeToggle(sourceId);
           recordHealthEvent({ event: "health_transition", sourceId, from: "AUTO_OFF", to: "ELIGIBLE", reason: "real_success" });
         }
-        if ((playDeadStreak.get(sourceId) || 0) > 0) {
+        clearResolveDead(sourceId);
+        if (opts.playback === true && (playDeadStreak.get(sourceId) || 0) > 0) {
           playDeadStreak.set(sourceId, 0);
           playDeadDeadline.delete(sourceId);
           clearPlayDeadTrials(sourceId);
-          logWarn(`\u64AD\u653E\u6458\u9664: [${sourceId}] \u64AD\u653E\u6210\u529F\uFF0C\u89E3\u9664\u6458\u9664`);
+          logWarn(`\u64AD\u653E\u6458\u9664: [${sourceId}] \u771F\u5B9E\u64AD\u653E\u6210\u529F\uFF0C\u89E3\u9664\u6458\u9664`);
         }
       }
       function bumpPlayDead(sourceId) {
@@ -1255,6 +1290,7 @@ var __lxSourceBundle = (() => {
         q.fail++;
         q.breaker.failureCount++;
         q.breaker.lastFailureTime = Date.now();
+        if (opts.resolveDead === true) bumpResolveDead(sourceId);
         if (opts.playDead !== false) bumpPlayDead(sourceId);
         const thr = cfg("breakerThreshold", BREAKER_THRESHOLD);
         if (q.breaker.state === "half-open" || b.state === "half-open") {
@@ -1974,13 +2010,13 @@ var __lxSourceBundle = (() => {
       }
       var ADMISSION_POLICY = {
         // verdict    是否可交付  歌×档 TTL   健康分类        是否计入摘除   源级冷却
-        PASS: { deliverable: true, ttlMs: 0, health: "success", playDead: false, sourceCooldownMs: 0 },
-        FRAGMENT: { deliverable: true, ttlMs: 3e4, health: "businessFail", playDead: false, sourceCooldownMs: 0 },
-        NOT_AUDIO: { deliverable: false, ttlMs: 6e4, health: "businessFail", playDead: false, sourceCooldownMs: 0 },
-        RATE_LIMITED: { deliverable: false, ttlMs: 0, health: "businessFail", playDead: false, sourceCooldownMs: 45e3 },
-        BUSINESS: { deliverable: false, ttlMs: 36e5, health: "businessFail", playDead: false, sourceCooldownMs: 0 },
-        TRANSIENT: { deliverable: false, ttlMs: 0, health: "hardFail", playDead: false, sourceCooldownMs: 0 },
-        BROKEN: { deliverable: false, ttlMs: 6e4, health: "businessFail", playDead: false, sourceCooldownMs: 0 }
+        PASS: { deliverable: true, ttlMs: 0, health: "success", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+        FRAGMENT: { deliverable: true, ttlMs: 3e4, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+        NOT_AUDIO: { deliverable: false, ttlMs: 6e4, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+        RATE_LIMITED: { deliverable: false, ttlMs: 0, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 45e3 },
+        BUSINESS: { deliverable: false, ttlMs: 36e5, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+        TRANSIENT: { deliverable: false, ttlMs: 0, health: "hardFail", playDead: false, resolveDead: true, sourceCooldownMs: 0 },
+        BROKEN: { deliverable: false, ttlMs: 6e4, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 }
       };
       var CODE_RANK = {
         [ERROR_CODES.NOT_AUDIO]: 3,
@@ -2043,6 +2079,7 @@ var __lxSourceBundle = (() => {
           ttlMs,
           health: policy.health,
           playDead: evidence === "strong" ? policy.playDead : false,
+          resolveDead: evidence === "strong" ? policy.resolveDead : false,
           sourceCooldownMs: policy.sourceCooldownMs
         };
       }
@@ -2212,6 +2249,7 @@ var __lxSourceBundle = (() => {
         }
         if (probeState.sleeping[id]) return { eligible: false, reason: "sleeping", code: "SOURCE_SLEEPING", untilMs: null };
         if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
+        if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
         if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
         if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
           const br = getBreaker(id);
@@ -2266,6 +2304,7 @@ var __lxSourceBundle = (() => {
         }
         playDeadStreak.delete(source);
         playDeadDeadline.delete(source);
+        clearResolveDead(source);
         clearPlayDeadTrials(source);
         delete probeState.sleeping[source];
         delete probeState.deadCount[source];
@@ -2297,7 +2336,7 @@ var __lxSourceBundle = (() => {
           return adm;
         }
         if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q);
-        else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true });
+        else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true });
         else recordBusinessFail(id, q);
         const err = ctx.error || {};
         if (adm.code === ERROR_CODES.PREVIEW_FRAGMENT) {
@@ -3164,6 +3203,7 @@ var __lxSourceBundle = (() => {
             qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map((q) => [q, isQualityHopeless(id, q)])),
             // v7.0：播放实时摘除状态（连续播放失败被摘除；App 可显示"已摘除"）
             playDead: isPlayDead(id),
+            resolveDead: isResolveDead(id),
             // v4.0：限流状态（被限=连续429，App 显示"被限"而非"熔断"）
             rateLimited: !!getBreaker(id).rateLimited,
             rateLimitCount: getBreaker(id).rateLimitCount || 0,
@@ -4575,8 +4615,8 @@ var __lxSourceBundle = (() => {
           const quality2 = info && info.quality || "128k";
           const ok = !!(info && info.ok === true);
           if (ok) {
-            recordSuccess(id, Number(info && info.latencyMs) || 0, quality2);
-            return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id) });
+            recordSuccess(id, Number(info && info.latencyMs) || 0, quality2, { playback: true });
+            return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id), resolveDead: isResolveDead(id) });
           }
           recordFailure(id, quality2, { playDead: true });
           return Promise.resolve({ ok: false, id, state: getBreaker(id).state, playDead: isPlayDead(id), code: info && info.code || ERROR_CODES.NETWORK_ERROR });
@@ -4882,6 +4922,8 @@ var __lxSourceBundle = (() => {
             buildCrossTargetInfo,
             applyAdmission,
             // K14：reducer 的 PASS/记账分支
+            getHealthSnapshot,
+            // F42：取链/播放摘除分层断言
             trialMarkOf,
             ADMISSION_POLICY,
             admissionLedger,
@@ -4905,6 +4947,10 @@ var __lxSourceBundle = (() => {
             recordRateLimit,
             // D-04 回归：半开态遇 429 必须收口回 open（否则永久卡死）
             playDeadStreak,
+            resolveDeadStreak,
+            isPlayDead,
+            isResolveDead,
+            bumpResolveDead,
             toggleSource,
             get playDeadDeadline() {
               return playDeadDeadline;
