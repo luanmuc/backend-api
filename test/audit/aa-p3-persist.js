@@ -152,6 +152,22 @@ check('A6 qualityShortCircuit 恢复后仍短路/到期放行', () => {
   assert(m.__debug.isQualityHopeless('suyinKuwo', 'flac') === false, '到期后应放行探路')
 })
 
+
+// A7 开关权威恢复：默认关闭不得被写成 manualOff；用户手动关闭必须保留
+check('A7 controls 恢复：default-off 不冒充用户关闭，manual-off 保留', () => {
+  const m = fresh()
+  const init = m.exportHealthState()
+  assert(init.controls.suyinQQ && init.controls.suyinQQ.enabled === false, 'suyinQQ 默认关闭')
+  assert(init.controls.suyinQQ.manualOff === false, '默认关闭不得带 manualOff')
+  assert(m.getHealthSnapshot().suyinQQ.offReason === 'DEFAULT_OFF', '默认关闭 reason 应为 DEFAULT_OFF')
+  call('toggle', { id: 'suyinQQ', enabled: false })
+  const state = m.exportHealthState()
+  assert(state.controls.suyinQQ.manualOff === true, '手动关闭应持久化 manualOff')
+  const m2 = fresh()
+  assert(m2.restoreHealthState(state).ok === true, 'restore 应成功')
+  assert(m2.getHealthSnapshot().suyinQQ.offReason === 'USER_OFF', '恢复后应为 USER_OFF')
+})
+
 console.log(`\n${passed} passed, ${failures.length} failed`)
 if (failures.length) {
   for (const f of failures) console.log(`- ${f}`)

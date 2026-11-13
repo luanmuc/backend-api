@@ -98,6 +98,8 @@ var __lxSourceBundle = (() => {
         // 窗口内请求上限
         healthCheckIntervalMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthCheckIntervalMs || 6e5,
         // 探测间隔(10min)
+        probeConcurrency: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.probeConcurrency || 3,
+        // v8.14：探测并发上限(默认3,最大8)
         raceMatchWaitMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceMatchWaitMs || 600,
         // verified 等待窗口
         allFailShortTtlMs: (_m = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) != null ? _m : 3e4,
@@ -363,6 +365,22 @@ var __lxSourceBundle = (() => {
         // 观察源：2026-11-11 实测上游 502，只探测，不进链，复核 2026-11-26
       };
       var runtimeToggles = __spreadValues({}, SOURCE_TOGGLES);
+      var userEnabled = __spreadValues({}, SOURCE_TOGGLES);
+      var autoOff = {};
+      var autoOffReason = {};
+      var autoOffAt = {};
+      function isUserEnabled(id) {
+        return userEnabled[id] !== false;
+      }
+      function isAutoOff(id) {
+        return !!autoOff[id];
+      }
+      function effectiveEnabled(id) {
+        return isUserEnabled(id) && !isAutoOff(id);
+      }
+      function syncRuntimeToggle(id) {
+        runtimeToggles[id] = effectiveEnabled(id);
+      }
       var manualOff = {};
       var HEALTH_CHECK_INTERVAL_MS = 10 * 60 * 1e3;
       var HEALTH_CHECK_INITIAL_DELAY_MS = 60 * 1e3;
@@ -379,6 +397,9 @@ var __lxSourceBundle = (() => {
         return {
           tier: "secondary",
           // 每3轮一探（免费 worker，减少对限流中上游的打扰）
+          useHandler: true,
+          handlerPlatform: platform,
+          handlerSong: __spreadValues({ name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }, ids),
           url: `${JUHE_API}/${platform}`,
           method: "POST",
           headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent() },
@@ -391,17 +412,32 @@ var __lxSourceBundle = (() => {
       }
       function buildProbeConfig() {
         const probeSong = PROBE_SONG_POOL[(globalThis.__probeRound || 0) % PROBE_SONG_POOL.length];
+        const probe163Id = PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length];
         const cfg2 = {
           // ---- 上链源：10 个 ----
           suyinKuwo: {
             tier: "core",
             probes: [
               {
+                quality: "flac",
+                useHandler: true,
+                songName: probeSong,
                 url: `${SUYIN_KUWO_API}?msg=${encodeURIComponent(probeSong)}&n=1&br=1`,
                 check: (b) => !!b && typeof b === "object" && (!!(b.data && b.data.url) || /音乐链接/.test(String(b.message || ""))),
                 extractUrl: (b) => (b && b.data && b.data.url ? b.data.url : (String(b && b.message || "").match(/音乐链接[：:](\S+)/) || [])[1]) || null
               },
               {
+                quality: "320k",
+                useHandler: true,
+                songName: probeSong,
+                url: `${SUYIN_KUWO_API}?msg=${encodeURIComponent(probeSong)}&n=1&br=5`,
+                check: (b) => !!b && typeof b === "object" && (!!(b.data && b.data.url) || /音乐链接/.test(String(b.message || ""))),
+                extractUrl: (b) => (b && b.data && b.data.url ? b.data.url : (String(b && b.message || "").match(/音乐链接[：:](\S+)/) || [])[1]) || null
+              },
+              {
+                quality: "128k",
+                useHandler: true,
+                songName: probeSong,
                 url: `${SUYIN_KUWO_API}?msg=${encodeURIComponent(probeSong)}&n=1&br=9`,
                 check: (b) => !!b && typeof b === "object" && (!!(b.data && b.data.url) || /音乐链接/.test(String(b.message || ""))),
                 extractUrl: (b) => (b && b.data && b.data.url ? b.data.url : (String(b && b.message || "").match(/音乐链接[：:](\S+)/) || [])[1]) || null
@@ -410,18 +446,30 @@ var __lxSourceBundle = (() => {
           },
           xinghaiBackend: {
             tier: "core",
+            quality: "128k",
+            useHandler: true,
+            handlerPlatform: "kw",
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", songmid: "228908", id: "228908", duration: 271e3 },
             url: `${XINGHAI_BACKEND_API}?source=kw&name=${encodeURIComponent("\u6674\u5929")}&singer=${encodeURIComponent("\u5468\u6770\u4F26")}&songmid=1&interval=&albumName=&quality=128k`,
             headers: { "X-Client": "lx-aggregate/13.0" },
             check: (b) => !!b && typeof b === "object" && Number(b.code) === 200 && typeof b.url === "string" && b.url.length > 0
           },
           suyin163: {
             tier: "core",
-            url: `${SUYIN_163_API}?id=${PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length]}`,
+            quality: "128k",
+            useHandler: true,
+            handlerStyle: "songInfo",
+            handlerSong: { id: probe163Id, name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
+            url: `${SUYIN_163_API}?id=${probe163Id}`,
             check: (b) => !!b && typeof b === "object" && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0,
             extractUrl: (b) => b && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0 ? b.data[0].url : null
           },
           wyOuter: {
             tier: "core",
+            quality: "128k",
+            useHandler: true,
+            handlerPlatform: "wy",
+            handlerSong: { id: "2652820720", songmid: "2652820720", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
             url: WY_OUTER_API.replace("{id}", "2652820720"),
             headers: { "User-Agent": getMobileUserAgent() },
             checkRes: (res) => {
@@ -431,6 +479,10 @@ var __lxSourceBundle = (() => {
           },
           kuwoOfficial: {
             tier: "secondary",
+            quality: "128k",
+            useHandler: true,
+            handlerPlatform: "kw",
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
             url: `${KUWO_SEARCH_API}?client=kt&all=${encodeURIComponent("\u6674\u5929 \u5468\u6770\u4F26")}&pn=0&rn=1&ft=music&rformat=json&encoding=utf8`,
             headers: { "User-Agent": getMobileUserAgent() },
             check: (b) => {
@@ -440,12 +492,20 @@ var __lxSourceBundle = (() => {
           },
           helloworldKw: {
             tier: "secondary",
+            quality: "flac",
+            useHandler: true,
+            handlerPlatform: "kw",
+            handlerSong: { rid: "228908", name: "\u6674\u5929", duration: 0 },
             url: `${HELLOWORLD_KW_CONVERT_API}?f=web&user=0&source=kwplayerhd_ar_1.1.4.5_tianbao_T1A_qirui.apk&type=convert_url_with_sign&rid=228908&br=2000kflac`,
             headers: { "User-Agent": getMobileUserAgent() },
             check: (b) => !!b && typeof b === "object" && Number(b.code) === 200 && !!b.data && typeof b.data.url === "string" && b.data.url.length > 0
           },
           changqingVip: {
             tier: "secondary",
+            quality: "128k",
+            useHandler: true,
+            handlerPlatform: "kw",
+            handlerSong: { rid: "228908", songmid: "228908", id: "228908", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
             url: CHANGQING_URL_TEMPLATES.kw.replace("{id}", "228908").replace("{level}", "standard"),
             headers: { "User-Agent": getMobileUserAgent(), "Range": "bytes=0-1023" },
             checkRes: (res) => {
@@ -453,9 +513,13 @@ var __lxSourceBundle = (() => {
               return (res.statusCode === 200 || res.statusCode === 206) && /audio|octet|mpeg/i.test(String(((_a2 = res.headers) == null ? void 0 : _a2["content-type"]) || "")) && !/kw\.php/.test(String(res.url || ""));
             }
           },
-          juheTx: juheProbeCfg("tx", { songmid: "228908", id: "228908" }),
+          juheTx: juheProbeCfg("tx", { songmid: "228908", id: "228908", quality: "128k" }),
           ikun: {
             tier: "secondary",
+            quality: "128k",
+            useHandler: true,
+            handlerPlatform: "kw",
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", songmid: "228908", id: "228908", duration: 271e3 },
             url: `${IKUN_API}/music/url`,
             method: "POST",
             headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent(), "X-Api-Key": USER_CONFIG.ikunApiKey || "" },
@@ -465,6 +529,10 @@ var __lxSourceBundle = (() => {
           },
           huibq: {
             tier: "secondary",
+            quality: "128k",
+            useHandler: true,
+            handlerPlatform: "kw",
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", songmid: "228908", id: "228908", duration: 271e3 },
             url: `${HUIBQ_API}/url/kw/228908/128k`,
             headers: { "X-Request-Key": HUIBQ_REQUEST_KEY, "User-Agent": getMobileUserAgent() },
             check: (b) => !!b && typeof b === "object" && Number(b.code) === 0 && typeof b.url === "string" && b.url.length > 0 && !isHuibqFailMsg(b.msg),
@@ -473,12 +541,33 @@ var __lxSourceBundle = (() => {
           // ---- 观察源：2 个（只探测，不进链） ----
           suyinQQ: {
             tier: "secondary",
-            url: `${SUYIN_QQ_API}?key=${encodeURIComponent(SUYIN_QQ_KEY)}&type=json&br=7&n=1&mid=0039MnYb0qxYpD`,
-            check: (b) => !!b && typeof b === "object" && !!(b.music || b.url || String(b.message || "").match(/音频链接[：:]/)),
-            extractUrl: (b) => b && (b.music || b.url) || (String(b && b.message || "").match(/音频链接[：:](\S+)/) || [])[1] || null
+            probes: [
+              {
+                quality: "128k",
+                useHandler: true,
+                handlerPlatform: "tx",
+                handlerSong: { songmid: "0039MnYb0qxYpD", name: "\u6674\u5929", duration: 0 },
+                url: `${SUYIN_QQ_API}?key=${encodeURIComponent(SUYIN_QQ_KEY)}&type=json&br=7&n=1&mid=0039MnYb0qxYpD`,
+                check: (b) => !!b && typeof b === "object" && !!(b.music || b.url || String(b.message || "").match(/音频链接[：:]/)),
+                extractUrl: (b) => b && (b.music || b.url) || (String(b && b.message || "").match(/音频链接[：:](\S+)/) || [])[1] || null
+              },
+              {
+                quality: "320k",
+                useHandler: true,
+                handlerPlatform: "tx",
+                handlerSong: { songmid: "0039MnYb0qxYpD", name: "\u6674\u5929", duration: 0 },
+                url: `${SUYIN_QQ_API}?key=${encodeURIComponent(SUYIN_QQ_KEY)}&type=json&br=5&n=1&mid=0039MnYb0qxYpD`,
+                check: (b) => !!b && typeof b === "object" && !!(b.music || b.url || String(b.message || "").match(/音频链接[：:]/)),
+                extractUrl: (b) => b && (b.music || b.url) || (String(b && b.message || "").match(/音频链接[：:](\S+)/) || [])[1] || null
+              }
+            ]
           },
           suyinMigu: {
             tier: "secondary",
+            quality: "128k",
+            useHandler: true,
+            handlerStyle: "songInfo",
+            handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
             url: `${SUYIN_MIGU_API}?gm=${encodeURIComponent("\u6674\u5929")}&n=1&num=1&type=json`,
             check: (b) => !!b && typeof b === "object" && Number(b.code) === 200 && !!b.musicInfo,
             extractUrl: (b) => b && typeof b.musicInfo === "string" ? b.musicInfo : b && b.musicInfo && typeof b.musicInfo.url === "string" ? b.musicInfo.url : null
@@ -495,7 +584,7 @@ var __lxSourceBundle = (() => {
             continue;
           }
           const probation = SOURCE_HANDLERS[id].lifecycle === "probation";
-          if (!probation && SOURCE_TOGGLES[id] === false && runtimeToggles[id] !== true) {
+          if (!probation && !isUserEnabled(id)) {
             delete cfg2[id];
             continue;
           }
@@ -525,10 +614,20 @@ var __lxSourceBundle = (() => {
         deadCount: {},
         sleeping: {},
         sleepRound: {},
+        // v8.14：最近一次逐质量档探测结果，供健康页 matrix / 诊断使用（只存枚举和延迟，不存 URL）
+        lastTargets: {},
         running: false
       };
+      function probeErrorOutcome(e) {
+        const code = extractErrorCode(e);
+        const msg = String(e && e.message || "");
+        if (code === ERROR_CODES.NETWORK_TIMEOUT) return { outcome: "UNKNOWN", code };
+        if (code === ERROR_CODES.NETWORK_ERROR && !/^NETWORK_ERROR:\s*HTTP\s+\d+/i.test(msg)) return { outcome: "UNKNOWN", code };
+        return { outcome: "FAIL", code };
+      }
       async function probeSingleSource(id, pc) {
         const probes = pc.probes || [{
+          quality: pc.quality,
           url: pc.url,
           // v8.2 修复：method/body 漏透传——juheProbeCfg(juhe 五源)与 ikun 探针都是 POST 协议型源，
           // 旧实现只透传 url/headers/check，实际发出 GET → 上游 404/405 误判失败（juhe 探测长期"失败"的隐藏原因之一）
@@ -539,12 +638,29 @@ var __lxSourceBundle = (() => {
           checkRes: pc.checkRes,
           extractUrl: pc.extractUrl
         }];
+        const traceId = `probe:${globalThis.__probeRound || 0}:${id}`;
         try {
           const results = await Promise.all(probes.map(async (p) => {
             const startProbe = Date.now();
+            const quality = p.quality || pc.quality || null;
             try {
               const h = SOURCE_HANDLERS[id];
               const probeTimeout = h && h.coldStart ? cfg("coldStartProbeTimeoutMs", 3e4) : HEALTH_CHECK_TIMEOUT;
+              if (p.useHandler) {
+                try {
+                  const h2 = SOURCE_HANDLERS[id];
+                  if (h2 && typeof h2.fn === "function") {
+                    const hSong = p.handlerSong || { name: p.songName, duration: 0 };
+                    const url = p.handlerStyle === "songInfo" ? await h2.fn(hSong, null) : await h2.fn(p.handlerPlatform || "kw", "", quality, hSong, null);
+                    const playable = typeof url === "string" && await isAudioPlayable(upgradeToHttps(url), probeTimeout);
+                    const duration2 = Date.now() - startProbe;
+                    recordHealthEvent({ event: "probe_result", traceId, sourceId: id, quality, ok: playable, code: playable ? "" : "PROBE_FAIL", latencyMs: duration2, reason: playable ? "PASS" : "FAIL" });
+                    return { usable: playable, outcome: playable ? "PASS" : "FAIL", code: playable ? "" : "PROBE_FAIL", quality, duration: duration2, viaHandler: true };
+                  }
+                } catch (e) {
+                  if (typeof logDebug === "function") logDebug(`[\u63A2\u6D4B] ${id} handler \u63A2\u9488\u56DE\u9000\uFF1A${extractErrorCode(e)}`);
+                }
+              }
               const res = await httpRequest(p.url || "", {
                 method: p.method || "GET",
                 headers: __spreadValues({ "User-Agent": getMobileUserAgent() }, p.headers || {}),
@@ -558,21 +674,41 @@ var __lxSourceBundle = (() => {
                 const audioUrl = p.extractUrl(res.body);
                 usable2 = audioUrl ? await isAudioPlayable(audioUrl, probeTimeout) : false;
               }
-              return { usable: usable2, duration: Date.now() - startProbe };
+              const outcome2 = usable2 ? "PASS" : "FAIL";
+              const duration = Date.now() - startProbe;
+              recordHealthEvent({ event: "probe_result", traceId, sourceId: id, quality, ok: usable2, code: usable2 ? "" : "PROBE_FAIL", latencyMs: duration, reason: outcome2 });
+              return { usable: usable2, outcome: outcome2, code: usable2 ? "" : "PROBE_FAIL", quality, duration };
             } catch (e) {
               const duration = Date.now() - startProbe;
-              recordHealthEvent({ event: "probe_result", traceId: `probe:${globalThis.__probeRound || 0}:${id}`, sourceId: id, ok: false, code: extractErrorCode(e), latencyMs: duration });
-              return { usable: false, duration };
+              const classified = probeErrorOutcome(e);
+              recordHealthEvent({ event: "probe_result", traceId, sourceId: id, quality, ok: false, code: classified.code, latencyMs: duration, reason: classified.outcome });
+              return { usable: false, outcome: classified.outcome, code: classified.code, quality, duration };
             }
           }));
-          const usable = results.some((r) => r.usable);
-          recordHealthEvent({ event: "probe_result", traceId: `probe:${globalThis.__probeRound || 0}:${id}`, sourceId: id, ok: usable, code: usable ? "" : "PROBE_FAIL", latencyMs: Math.round(results.reduce((s, r) => s + r.duration, 0) / Math.max(results.length, 1)) });
+          const passCount = results.filter((r) => r.outcome === "PASS").length;
+          const failCount = results.filter((r) => r.outcome === "FAIL").length;
+          const unknownCount = results.filter((r) => r.outcome === "UNKNOWN").length;
+          const outcome = passCount > 0 ? "PASS" : failCount > 0 ? "FAIL" : "UNKNOWN";
+          const usable = outcome === "PASS";
+          const code = passCount > 0 ? "" : (results.find((r) => r.code) || {}).code || (outcome === "UNKNOWN" ? "PROBE_UNKNOWN" : "PROBE_FAIL");
           recordProbeResult(id, usable, results.reduce((s, r) => s + r.duration, 0) / Math.max(results.length, 1));
-          return { usable, raw: null };
+          return {
+            usable,
+            outcome,
+            code,
+            results,
+            targets: results.map((r) => ({ quality: r.quality, outcome: r.outcome, code: r.code || null, latencyMs: r.duration, viaHandler: !!r.viaHandler })),
+            passCount,
+            failCount,
+            unknownCount,
+            viaHandler: results.some((r) => r.viaHandler === true),
+            raw: null
+          };
         } catch (e) {
-          recordHealthEvent({ event: "probe_result", traceId: `probe:${globalThis.__probeRound || 0}:${id}`, sourceId: id, ok: false, code: extractErrorCode(e), latencyMs: 0 });
+          const classified = probeErrorOutcome(e);
+          recordHealthEvent({ event: "probe_result", traceId, sourceId: id, ok: false, code: classified.code, latencyMs: 0, reason: classified.outcome });
           recordProbeResult(id, false, 0);
-          return { usable: false, raw: null };
+          return { usable: false, outcome: classified.outcome, code: classified.code, results: [], targets: [], passCount: 0, failCount: 0, unknownCount: 0, raw: null };
         }
       }
       function recordProbeResult(id, usable, avgDuration) {
@@ -583,7 +719,16 @@ var __lxSourceBundle = (() => {
           b.probeTime = (b.probeTime || 0) + (avgDuration || 0);
         }
       }
-      function applyProbeResult(id, usable) {
+      function applyProbeResult(id, usable, detail = {}) {
+        const outcome = detail.outcome || (usable ? "PASS" : "FAIL");
+        if (Array.isArray(detail.targets) && detail.targets.length) probeState.lastTargets[id] = detail.targets.map((t) => ({ quality: t.quality || null, outcome: t.outcome || outcome, code: t.code || null, latencyMs: Number(t.latencyMs || 0) }));
+        if (outcome === "UNKNOWN") {
+          probeState.passCount[id] = 0;
+          probeState.passStreak[id] = 0;
+          logInfo(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u7ED3\u679C UNKNOWN\uFF08\u672C\u5730\u7F51\u7EDC/\u8D85\u65F6/\u672A\u53D6\u8BC1\uFF09\uFF0C\u4E0D\u5173\u95ED\u3001\u4E0D\u7D2F\u8BA1\u5931\u8D25`);
+          recordHealthEvent({ event: "health_transition", sourceId: id, reason: "probe_unknown" });
+          return { outcome, enabled: runtimeToggles[id] !== false, autoOff: !!autoOff[id] };
+        }
         if (usable) {
           const br = getBreaker(id);
           if (br.state !== "closed" || br.failureCount > 0 || br.rateLimited) {
@@ -598,20 +743,25 @@ var __lxSourceBundle = (() => {
           probeState.failCount[id] = 0;
           probeState.passCount[id] = (probeState.passCount[id] || 0) + 1;
           probeState.passStreak[id] = (probeState.passStreak[id] || 0) + 1;
-          if ((playDeadStreak.get(id) || 0) > 0) {
-            playDeadStreak.set(id, 0);
-            playDeadDeadline.delete(id);
-          }
           delete probeState.deadCount[id];
           delete probeState.sleeping[id];
           delete probeState.sleepRound[id];
           if (probeState.passCount[id] >= PROBE_PASS_REQUIRED) {
-            const wasOff = runtimeToggles[id] === false;
             const h = SOURCE_HANDLERS[id];
+            const canAutoOn = isUserEnabled(id) && !manualOff[id];
             if (h && h.lifecycle === PROVIDER_LIFECYCLE.PROBATION) {
-              if (wasOff) logInfo(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u89C2\u5BDF\u6E90\u63A2\u6D4B\u901A\u8FC7\uFF08\u4FDD\u6301\u4E0D\u8FDB\u94FE\uFF0C\u590D\u6838\u65E5 ${h.reviewAt || "\u672A\u5B9A"}\uFF09`);
-            } else if (wasOff && !manualOff[id]) {
-              runtimeToggles[id] = true;
+              logInfo(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u89C2\u5BDF\u6E90\u63A2\u6D4B\u901A\u8FC7\uFF08\u4FDD\u6301\u4E0D\u8FDB\u94FE\uFF0C\u590D\u6838\u65E5 ${h.reviewAt || "\u672A\u5B9A"}\uFF09`);
+            } else if (canAutoOn && autoOff[id]) {
+              const from = "AUTO_OFF";
+              delete autoOff[id];
+              delete autoOffReason[id];
+              delete autoOffAt[id];
+              syncRuntimeToggle(id);
+              logInfo(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_PASS_REQUIRED}\u6B21\u63A2\u6D4B\u901A\u8FC7\uFF0C\u81EA\u52A8\u5173\u95ED\u5DF2\u89E3\u9664\uFF08AUTO_ON_PROBE\uFF09`);
+              recordHealthEvent({ event: "health_transition", sourceId: id, from, to: "ELIGIBLE", reason: "auto_on_probe" });
+            } else if (canAutoOn && runtimeToggles[id] === false) {
+              autoOff[id] = false;
+              syncRuntimeToggle(id);
               logInfo(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_PASS_REQUIRED}\u6B21\u63A2\u6D4B\u901A\u8FC7\uFF0C\u5DF2\u81EA\u52A8\u542F\u7528`);
             }
             probeState.passCount[id] = 0;
@@ -621,13 +771,17 @@ var __lxSourceBundle = (() => {
           probeState.passStreak[id] = 0;
           probeState.failCount[id] = (probeState.failCount[id] || 0) + 1;
           if (probeState.failCount[id] >= PROBE_FAIL_REQUIRED) {
-            const wasOn = runtimeToggles[id] === true;
             const h = SOURCE_HANDLERS[id];
             const isColdStart = h && h.coldStart;
-            if (wasOn && !isColdStart) {
-              runtimeToggles[id] = false;
-              logWarn(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_FAIL_REQUIRED}\u6B21\u63A2\u6D4B\u5931\u8D25\uFF0C\u5DF2\u81EA\u52A8\u5173\u95ED(\u6062\u590D\u540E\u4F1A\u81EA\u52A8\u542F\u7528)`);
-            } else if (wasOn && isColdStart) {
+            const shouldAutoOff = isUserEnabled(id) && !manualOff[id] && !isColdStart && !autoOff[id];
+            if (shouldAutoOff) {
+              autoOff[id] = true;
+              autoOffReason[id] = "AUTO_OFF_PROBE";
+              autoOffAt[id] = Date.now();
+              syncRuntimeToggle(id);
+              logWarn(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_FAIL_REQUIRED}\u6B21\u63A2\u6D4B\u5931\u8D25\uFF0C\u5DF2\u81EA\u52A8\u5173\u95ED\uFF08AUTO_OFF_PROBE\uFF0C\u6062\u590D\u540E\u81EA\u52A8\u63A2\u6D4B\u5F00\u542F\uFF09`);
+              recordHealthEvent({ event: "health_transition", sourceId: id, from: "ELIGIBLE", to: "AUTO_OFF", reason: "auto_off_probe" });
+            } else if (isColdStart) {
               logWarn(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_FAIL_REQUIRED}\u6B21\u63A2\u6D4B\u5931\u8D25\uFF0C\u51B7\u542F\u52A8\u8C41\u514D\u81EA\u52A8\u5173\u95ED\uFF08\u51B7\u6001\u53EF\u80FD\u672A\u5524\u9192\uFF0C\u4FDD\u7559\u542F\u7528\uFF09`);
             }
             probeState.failCount[id] = 0;
@@ -638,16 +792,18 @@ var __lxSourceBundle = (() => {
               probeState.sleeping[id] = true;
               probeState.sleepRound[id] = globalThis.__probeRound || 0;
               logWarn(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_SLEEP_AFTER_DEAD}\u8F6E\u5931\u8D25\uFF0C\u8FDB\u5165\u4F11\u7720(\u6BCF${PROBE_WAKE_EVERY_ROUND}\u8F6E\u590D\u6D3B\u8BD5\u63A2\u4E00\u6B21)`);
+              recordHealthEvent({ event: "health_transition", sourceId: id, from: autoOff[id] ? "AUTO_OFF" : "ELIGIBLE", to: "SLEEPING", reason: "probe_sleep" });
             } else {
               probeState.sleepRound[id] = globalThis.__probeRound || 0;
             }
           }
         }
+        return { outcome, enabled: runtimeToggles[id] !== false, autoOff: !!autoOff[id], reason: autoOffReason[id] || null };
       }
       var healthHistory = [];
       var HEALTH_HISTORY_MAX = 144;
       var HEALTH_EVENT_MAX = 500;
-      var HEALTH_EVENT_FIELDS = ["traceId", "event", "sourceId", "platform", "quality", "ok", "code", "latencyMs", "reason"];
+      var HEALTH_EVENT_FIELDS = ["traceId", "event", "sourceId", "platform", "quality", "ok", "code", "latencyMs", "reason", "from", "to"];
       var healthEventRing = [];
       var healthEventSeq = 0;
       var healthEventDropped = 0;
@@ -711,10 +867,17 @@ var __lxSourceBundle = (() => {
           const probeConfig = buildProbeConfig();
           const ids = Object.keys(probeConfig).filter((id) => tierShouldProbe(round, probeConfig[id].tier || "core", id));
           logInfo(`\u5065\u5EB7\u63A2\u6D4B: \u5F00\u59CB\u7B2C${round}\u8F6E\uFF0C\u5171${ids.length}\u4E2A\u6E90(\u6838\u5FC3\u6BCF\u8F6E/\u6B21\u8981${PROBE_TIER_SECONDARY_INTERVAL}\u8F6E\u4E00\u63A2)`);
-          await Promise.all(ids.map(async (id) => {
-            const result = await probeSingleSource(id, probeConfig[id]);
-            applyProbeResult(id, result.usable);
-          }));
+          const concurrency = Math.max(1, Math.min(8, Number(cfg("probeConcurrency", 3)) || 3));
+          const queue = ids.slice();
+          const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+            while (queue.length) {
+              const id = queue.shift();
+              if (!id) break;
+              const result = await probeSingleSource(id, probeConfig[id]);
+              applyProbeResult(id, result.usable, result);
+            }
+          });
+          await Promise.all(workers);
           const active = Object.keys(runtimeToggles).filter((k) => runtimeToggles[k]);
           logInfo(`\u5065\u5EB7\u63A2\u6D4B: \u672C\u8F6E\u5B8C\u6210\uFF0C\u5F53\u524D\u81EA\u52A8\u542F\u7528: ${active.join(", ")}`);
           if (saveHistory) {
@@ -877,13 +1040,24 @@ var __lxSourceBundle = (() => {
       var PLAY_DEAD_STREAK = 3;
       var playDeadStreak = /* @__PURE__ */ new Map();
       var playDeadDeadline = /* @__PURE__ */ new Map();
-      function isPlayDead(sourceId) {
+      var playDeadTrialAt = /* @__PURE__ */ new Map();
+      var PLAY_DEAD_TRIAL_TTL_MS = 60 * 1e3;
+      function clearPlayDeadTrials(sourceId) {
+        for (const k of playDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) playDeadTrialAt.delete(k);
+      }
+      function isPlayDead(sourceId, quality, consume) {
         const streak = playDeadStreak.get(sourceId) || 0;
         if (streak < PLAY_DEAD_STREAK) return false;
         const reviveMs = cfg("playDeadReviveMs", 5 * 60 * 1e3);
         const age = Date.now() - (playDeadDeadline.get(sourceId) || 0);
-        logDebug(`[\u6458\u9664\u5224\u5B9A] ${sourceId} streak=${streak} age=${age}ms revive=${reviveMs}ms \u7ED3\u679C=${age < reviveMs}`);
-        return age < reviveMs;
+        if (age < reviveMs) return true;
+        const trialKey = sourceId;
+        const lastTrial = playDeadTrialAt.get(trialKey) || 0;
+        if (Date.now() - lastTrial < PLAY_DEAD_TRIAL_TTL_MS) return true;
+        if (!consume) return true;
+        playDeadTrialAt.set(trialKey, Date.now());
+        logDebug(`[\u6458\u9664\u5224\u5B9A] ${sourceId} \u534A\u5F00\u8BD5\u63A2\u653E\u884C quality=${quality || "default"} age=${age}ms revive=${reviveMs}ms`);
+        return false;
       }
       function getBreaker(sourceId) {
         if (!breakerMap.has(sourceId)) {
@@ -966,18 +1140,29 @@ var __lxSourceBundle = (() => {
           logWarn(`\u65AD\u8DEF\u5668[${sourceId}] \u534A\u5F00\u8BD5\u63A2\u6210\u529F\uFF0C\u6062\u590D`);
         }
         b.failureCount = 0;
+        if (autoOff[sourceId] && isUserEnabled(sourceId)) {
+          delete autoOff[sourceId];
+          delete autoOffReason[sourceId];
+          delete autoOffAt[sourceId];
+          syncRuntimeToggle(sourceId);
+          recordHealthEvent({ event: "health_transition", sourceId, from: "AUTO_OFF", to: "ELIGIBLE", reason: "real_success" });
+        }
         if ((playDeadStreak.get(sourceId) || 0) > 0) {
           playDeadStreak.set(sourceId, 0);
           playDeadDeadline.delete(sourceId);
+          clearPlayDeadTrials(sourceId);
           logWarn(`\u64AD\u653E\u6458\u9664: [${sourceId}] \u64AD\u653E\u6210\u529F\uFF0C\u89E3\u9664\u6458\u9664`);
         }
       }
       function bumpPlayDead(sourceId) {
         playDeadStreak.set(sourceId, (playDeadStreak.get(sourceId) || 0) + 1);
-        if (playDeadStreak.get(sourceId) >= PLAY_DEAD_STREAK) playDeadDeadline.set(sourceId, Date.now());
+        if (playDeadStreak.get(sourceId) >= PLAY_DEAD_STREAK) {
+          playDeadDeadline.set(sourceId, Date.now());
+          clearPlayDeadTrials(sourceId);
+        }
         if (isPlayDead(sourceId)) logWarn(`\u64AD\u653E\u6458\u9664: [${sourceId}] \u8FDE\u7EED${PLAY_DEAD_STREAK}\u6B21\u64AD\u653E\u5931\u8D25\uFF0C\u5DF2\u4ECE\u7ADE\u901F\u94FE\u6458\u9664(${Math.round(cfg("playDeadReviveMs", 5 * 60 * 1e3) / 6e4)}\u5206\u949F\u540E\u534A\u5F00\u8BD5\u63A2\u81EA\u52A8\u590D\u6D3B)`);
       }
-      function recordFailure(sourceId, quality) {
+      function recordFailure(sourceId, quality, opts = {}) {
         const b = getBreaker(sourceId);
         b.totalRequests++;
         b.failureCount++;
@@ -985,7 +1170,7 @@ var __lxSourceBundle = (() => {
         const q = b.byQuality[String(quality || "default")] || (b.byQuality[String(quality || "default")] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
         q.req++;
         q.fail++;
-        bumpPlayDead(sourceId);
+        if (opts.playDead !== false) bumpPlayDead(sourceId);
         if (b.state === "half-open") {
           b.state = "open";
           logWarn(`\u65AD\u8DEF\u5668[${sourceId}] \u534A\u5F00\u8BD5\u63A2\u5931\u8D25\uFF0C\u91CD\u65B0\u7194\u65AD`);
@@ -1918,36 +2103,59 @@ var __lxSourceBundle = (() => {
         const ledger = admissionLedger(verdict, code, evidence);
         return { verdict, code: code || null, evidence, deliverable, quality, reason, ledger };
       }
-      function structuralSkipReason(source) {
+      function computeEligibility(source, platform, quality, opts) {
         const id = source;
-        if (!SOURCE_HANDLERS[id]) return { reason: "unknown-source", untilMs: null };
-        if (runtimeToggles[id] === false || manualOff[id]) return { reason: "manual-off", untilMs: null };
-        if (isPlayDead(id)) return { reason: "play-dead", untilMs: playDeadDeadline.get(id) || null };
-        return null;
+        const o = opts || {};
+        const q = String(quality || "128k").toLowerCase();
+        if (!SOURCE_HANDLERS[id]) return { eligible: false, reason: "unknown-source", code: "SOURCE_UNREACHABLE", untilMs: null };
+        const h = SOURCE_HANDLERS[id];
+        if (manualOff[id]) return { eligible: false, reason: "user-off", code: "USER_OFF", untilMs: null };
+        if (!isUserEnabled(id) && h.lifecycle !== "probation") return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
+        if (autoOff[id]) return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: autoOffAt[id] ? autoOffAt[id] + cfg("playDeadReviveMs", 5 * 60 * 1e3) : null };
+        if (runtimeToggles[id] === false) {
+          if (h.lifecycle === "probation") return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
+          return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: null };
+        }
+        if (probeState.sleeping[id]) return { eligible: false, reason: "sleeping", code: "SOURCE_SLEEPING", untilMs: null };
+        if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
+        if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
+        if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
+          const br = getBreaker(id);
+          const reason = br.state || "breaker";
+          const code = (br.rateLimitUntil || 0) > Date.now() ? "RATE_LIMITED" : "QUALITY_OPEN";
+          return { eligible: false, reason, code, untilMs: br.rateLimitUntil || null };
+        }
+        if ((o.runtime || o.qualityShortCircuit) && cfg("qualityShortCircuit", true) && isQualityHopeless(id, q)) {
+          return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: qualitySkipProbeAt.get(qualityShortCircuitKey(id, q)) || null };
+        }
+        if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
+        const pv = previewCooldownMap.get(id);
+        if (pv && pv > Date.now()) return { eligible: false, reason: "preview_cooldown", code: "PREVIEW_COOLDOWN", untilMs: pv };
+        return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
       }
       function skipReason(source, ctx) {
-        const id = source;
-        const structural = structuralSkipReason(id);
-        if (structural) return structural;
-        if (typeof canExecute === "function" && !canExecute(id)) {
-          const br = getBreaker(id);
-          return { reason: br.state || "breaker", untilMs: br.rateLimitUntil || null };
-        }
-        const pv = previewCooldownMap.get(id);
-        if (pv && pv > Date.now()) return { reason: "rate-limited", untilMs: pv };
-        return null;
+        const e = computeEligibility(source, ctx && ctx.platform, ctx && ctx.quality, { runtime: true, consumePlayDeadTrial: false });
+        if (e.eligible) return null;
+        return { reason: e.reason, code: e.code, untilMs: e.untilMs };
       }
       function toggleSource(target, enabled) {
         if (!target || !SOURCE_HANDLERS[target]) throw new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`);
         const next = enabled !== false;
-        runtimeToggles[target] = next;
-        if (next) delete manualOff[target];
-        else manualOff[target] = true;
+        userEnabled[target] = next;
+        if (next) {
+          delete manualOff[target];
+          delete autoOff[target];
+          delete autoOffReason[target];
+          delete autoOffAt[target];
+        } else {
+          manualOff[target] = true;
+        }
+        syncRuntimeToggle(target);
         clearSourceLedger(target);
         clearCrossFallbackCache();
         logInfo(`[\u6E90\u5F00\u5173] ${target} ${next ? "\u5F00\u542F" : "\u5173\u95ED"}\uFF0C\u5DF2\u6E05\u8D26\uFF08\u5931\u8D25\u7F13\u5B58/\u6458\u9664/\u7194\u65AD\u9650\u6D41/\u63A2\u6D4B\u6001/\u8DE8\u5E73\u53F0\u7F13\u5B58\uFF09`);
         recordHealthEvent({ event: "config_change", sourceId: target, reason: next ? "toggle_on" : "toggle_off" });
-        return { id: target, enabled: next };
+        return { id: target, enabled: next, userEnabled: next, autoOff: false };
       }
       function clearSourceLedger(source) {
         const handler = SOURCE_HANDLERS[source];
@@ -1958,6 +2166,7 @@ var __lxSourceBundle = (() => {
         }
         playDeadStreak.delete(source);
         playDeadDeadline.delete(source);
+        clearPlayDeadTrials(source);
         delete probeState.sleeping[source];
         delete probeState.deadCount[source];
         delete probeState.sleepRound[source];
@@ -1988,7 +2197,7 @@ var __lxSourceBundle = (() => {
           return adm;
         }
         if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q);
-        else if (L.health === "hardFail") recordFailure(id, q);
+        else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true });
         else recordBusinessFail(id, q);
         const err = ctx.error || {};
         if (adm.code === ERROR_CODES.PREVIEW_FRAGMENT) {
@@ -2829,6 +3038,14 @@ var __lxSourceBundle = (() => {
             reviewAt: h.reviewAt,
             platforms: h.platforms,
             enabled: runtimeToggles[id] !== false,
+            // v8.14：开关权威拆分。App 必须能区分“用户关闭 / 系统自动关闭 / 休眠 / 默认关闭”，
+            // 不能再只拿 enabled=false 猜原因。
+            userEnabled: isUserEnabled(id),
+            autoOff: !!autoOff[id],
+            offReason: manualOff[id] ? "USER_OFF" : !isUserEnabled(id) && SOURCE_TOGGLES[id] === false ? "DEFAULT_OFF" : autoOff[id] ? "AUTO_OFF_PROBE" : probeState.sleeping[id] ? "SLEEPING" : isPlayDead(id) ? "PLAY_DEAD" : null,
+            autoOffReason: autoOffReason[id] || null,
+            autoOffAt: autoOffAt[id] || 0,
+            probeTargets: probeState.lastTargets && probeState.lastTargets[id] || [],
             successRate: stats.successRate,
             avgTime: stats.avgTime,
             state: stats.state,
@@ -2843,6 +3060,8 @@ var __lxSourceBundle = (() => {
             copyrightFail: stats.copyrightFail,
             // v4.0：按音质分档统计（面板后续版本可消费）
             byQuality: stats.byQuality,
+            // v8.14（F43）：质量档短路必须可见，不再只存在于链构建内部判断
+            qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map((q) => [q, isQualityHopeless(id, q)])),
             // v7.0：播放实时摘除状态（连续播放失败被摘除；App 可显示"已摘除"）
             playDead: isPlayDead(id),
             // v4.0：限流状态（被限=连续429，App 显示"被限"而非"熔断"）
@@ -2984,7 +3203,17 @@ var __lxSourceBundle = (() => {
           const n = Number(at);
           if (Number.isFinite(n) && n > 0) qualityShortCircuit[`${id}:${quality}`] = n;
         }
-        return { v: HEALTH_STATE_VERSION, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit };
+        const controls = {};
+        for (const id of Object.keys(SOURCE_HANDLERS)) {
+          controls[id] = {
+            enabled: isUserEnabled(id),
+            manualOff: !!manualOff[id],
+            autoOff: !!autoOff[id],
+            autoOffAt: Number(autoOffAt[id] || 0),
+            autoOffReason: autoOffReason[id] || null
+          };
+        }
+        return { v: HEALTH_STATE_VERSION, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
       }
       function restoreHealthState(state) {
         try {
@@ -3060,6 +3289,24 @@ var __lxSourceBundle = (() => {
             if (!healthNumber(at, false)) return { ok: false, reason: `qualityShortCircuit.${key} \u975E\u6CD5` };
             qualityShortCircuit[`${id}:${quality}`] = at;
           }
+          const controlsRaw = state.controls === void 0 ? {} : state.controls;
+          if (!isHealthPlainObject(controlsRaw)) return { ok: false, reason: "controls \u975E\u6CD5" };
+          const controls = {};
+          for (const [id, c] of Object.entries(controlsRaw)) {
+            if (!SOURCE_HANDLERS[id]) return { ok: false, reason: `controls.${id} \u672A\u77E5\u6E90` };
+            if (!isHealthPlainObject(c)) return { ok: false, reason: `controls.${id} \u975E\u6CD5` };
+            if (typeof c.enabled !== "boolean") return { ok: false, reason: `controls.${id}.enabled \u975E\u6CD5` };
+            if (c.manualOff !== void 0 && typeof c.manualOff !== "boolean") return { ok: false, reason: `controls.${id}.manualOff \u975E\u6CD5` };
+            if (c.autoOff !== void 0 && typeof c.autoOff !== "boolean") return { ok: false, reason: `controls.${id}.autoOff \u975E\u6CD5` };
+            if (c.autoOffAt !== void 0 && !healthNumber(c.autoOffAt, true)) return { ok: false, reason: `controls.${id}.autoOffAt \u975E\u6CD5` };
+            controls[id] = {
+              enabled: c.enabled,
+              manualOff: !!c.manualOff,
+              autoOff: !!c.autoOff,
+              autoOffAt: Number(c.autoOffAt || 0),
+              autoOffReason: typeof c.autoOffReason === "string" ? c.autoOffReason.slice(0, 40) : null
+            };
+          }
           let restored = 0;
           for (const [id, item] of Object.entries(sanitized)) {
             const b = getBreaker(id);
@@ -3070,6 +3317,22 @@ var __lxSourceBundle = (() => {
             if (item.playDead.deadline > 0) playDeadDeadline.set(id, item.playDead.deadline);
             else playDeadDeadline.delete(id);
             restored++;
+          }
+          for (const [id, c] of Object.entries(controls)) {
+            userEnabled[id] = c.enabled;
+            if (c.manualOff) manualOff[id] = true;
+            else delete manualOff[id];
+            const autoAge = Date.now() - (c.autoOffAt || 0);
+            if (c.autoOff && (!c.autoOffAt || autoAge <= 6 * 60 * 60 * 1e3)) {
+              autoOff[id] = true;
+              autoOffAt[id] = c.autoOffAt || Date.now();
+              autoOffReason[id] = c.autoOffReason || "AUTO_OFF_PROBE";
+            } else {
+              delete autoOff[id];
+              delete autoOffAt[id];
+              delete autoOffReason[id];
+            }
+            syncRuntimeToggle(id);
           }
           qualitySkipProbeAt.clear();
           for (const [key, at] of Object.entries(qualityShortCircuit)) qualitySkipProbeAt.set(key, at);
@@ -3266,15 +3529,14 @@ var __lxSourceBundle = (() => {
       }
       function buildSourceChain(platform, quality) {
         const q = String(quality || "128k").toLowerCase();
-        const handlers = Object.keys(SOURCE_HANDLERS).map((id) => SOURCE_HANDLERS[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform)).filter((h) => h.chain[platform] != null).filter((h) => qualityRank(h.maxQuality) >= qualityRank(q)).filter((h) => {
-          const skip = structuralSkipReason(h.id);
-          if (skip) {
-            if (LOG_DEBUG) logDebug(`[\u94FE] ${h.id} \u8DF3\u8FC7\uFF08${skip.reason}${skip.untilMs ? `\uFF0C\u81F3 ${skip.untilMs}` : ""}\uFF09`);
-            return false;
+        const handlers = Object.keys(SOURCE_HANDLERS).map((id) => SOURCE_HANDLERS[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform)).filter((h) => h.chain[platform] != null).filter((h) => qualityRank(h.maxQuality) >= qualityRank(q)).map((h) => {
+          const e = computeEligibility(h.id, platform, q, { runtime: false, qualityShortCircuit: true, consumePlayDeadTrial: true });
+          if (!e.eligible) {
+            if (LOG_DEBUG) logDebug(`[\u94FE] ${h.id} \u8DF3\u8FC7\uFF08${e.reason}${e.untilMs ? `\uFF0C\u81F3 ${e.untilMs}` : ""}\uFF09`);
+            return null;
           }
-          if (runtimeToggles[h.id] === false || manualOff[h.id]) return false;
-          return true;
-        }).sort((a, b) => (a.chain[platform] || 999) - (b.chain[platform] || 999));
+          return Object.assign({}, h, { eligibility: e });
+        }).filter(Boolean).sort((a, b) => (a.chain[platform] || 999) - (b.chain[platform] || 999));
         if (LOG_DEBUG) logDebug(`[\u94FE] ${platform} ${q}: ${handlers.map((h) => h.id).join(" \u2192 ")}`);
         return handlers;
       }
@@ -3419,6 +3681,13 @@ var __lxSourceBundle = (() => {
       async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
         throwIfCanceled(cancelToken);
         const traceId = healthTraceOf(songInfo);
+        const preGate = SOURCE_HANDLERS[handler.id] ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: false }) : { eligible: true, code: "ELIGIBLE", reason: null };
+        if (!preGate.eligible) {
+          recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: preGate.reason || "eligibility" });
+          const gateErr = new Error(`${preGate.code || ERROR_CODES.RATE_LIMIT}: \u97F3\u6E90[${handler.name}]\u53D1\u8BF7\u6C42\u524D\u8D44\u683C\u5931\u6548\uFF08${preGate.reason || "eligibility"}\uFF09`);
+          gateErr.isThrottleSkip = true;
+          throw gateErr;
+        }
         const previewCoolUntil = previewCooldownMap.get(handler.id);
         const is128k = String(quality || "").toLowerCase() === "128k";
         if (previewCoolUntil && previewCoolUntil > Date.now() && !is128k) {
@@ -3736,7 +4005,7 @@ var __lxSourceBundle = (() => {
           const isLast = qi === qualityChain.length - 1;
           const selectedQuality = q;
           const chainAll = sortChainByHealth(buildSourceChain(platform, selectedQuality));
-          let chain = cfg("qualityShortCircuit", true) ? chainAll.filter((h) => !isQualityHopeless(h.id, selectedQuality)) : chainAll;
+          let chain = chainAll;
           if (cfg("qualityFloor", true) && selectedQuality !== "128k" && chain.length > 1) {
             const frag = getFragmentSources(platform, songInfo);
             if (frag.size) {
@@ -4161,7 +4430,8 @@ var __lxSourceBundle = (() => {
         if (platform === "wy") actions.push("lyric", "pic");
         else if (platform === "kw") actions.push("pic");
         actions.push("health");
-        actions.push("toggle", "probe");
+        actions.push("toggle", "probe", "probeSource");
+        actions.push("reportPlayback");
         actions.push("config");
         actions.push("trend");
         actions.push("healthEvents");
@@ -4180,6 +4450,35 @@ var __lxSourceBundle = (() => {
       on(EVENT_NAMES.request, ({ action, source, info }) => {
         if (action === "healthEvents") {
           return Promise.resolve(getHealthEvents(info || {}));
+        }
+        if (action === "probeSource") {
+          const id = info && (info.id || info.sourceId);
+          const pc = id ? buildProbeConfig()[id] : null;
+          if (!pc) return Promise.resolve({ ok: false, reason: "source-not-probeable", id: id || null });
+          return probeSingleSource(id, pc).then((result) => {
+            if (info && info.apply === true) applyProbeResult(id, result.usable, result);
+            return {
+              ok: true,
+              id,
+              outcome: result.outcome,
+              usable: result.usable,
+              code: result.code || null,
+              targets: result.targets || [],
+              applied: !!(info && info.apply === true)
+            };
+          });
+        }
+        if (action === "reportPlayback") {
+          const id = info && (info.sourceId || info.source);
+          if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
+          const quality2 = info && info.quality || "128k";
+          const ok = !!(info && info.ok === true);
+          if (ok) {
+            recordSuccess(id, Number(info && info.latencyMs) || 0, quality2);
+            return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id) });
+          }
+          recordFailure(id, quality2, { playDead: true });
+          return Promise.resolve({ ok: false, id, state: getBreaker(id).state, playDead: isPlayDead(id), code: info && info.code || ERROR_CODES.NETWORK_ERROR });
         }
         if (action === "health") {
           return Promise.resolve(getHealthSnapshot());
@@ -4230,6 +4529,7 @@ var __lxSourceBundle = (() => {
             "rateWindowMs",
             "rateWindowMax",
             "healthCheckIntervalMs",
+            "probeConcurrency",
             "raceMatchWaitMs",
             "raceBudgetMs",
             "raceBudgetFloorMs",
@@ -4283,6 +4583,8 @@ var __lxSourceBundle = (() => {
             // 最大 20 次
             healthCheckIntervalMs: { min: 60 * 1e3 },
             // 最小 1 分钟（防频繁探测）
+            probeConcurrency: { min: 1, max: 8 },
+            // v8.14 探测并发上限 1~8
             raceBudgetMs: { max: 15 * 1e3 },
             // v8.10.3：总预算（死键 raceOverallTimeoutMs 已移除，唯一真相）
             raceBudgetFloorMs: { max: 15 * 1e3 },
@@ -4462,6 +4764,7 @@ var __lxSourceBundle = (() => {
             mediaEnvelopeErrorCode,
             // L4 裁决层：唯一裁决入口 + 读侧查询 + 清账；probe 供桥模拟直接驱动
             admit,
+            computeEligibility,
             skipReason,
             clearSourceLedger,
             probeAudioDelivery,

@@ -367,6 +367,10 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
 
   // ============ V9 soak：4000 次混合操作 ============
   console.log('\n[V9] soak 4000 次：堆增长有界、定时器不累积');
+  if (typeof global.gc !== 'function') {
+    console.error('V9a 需要 --expose-gc 才能形成稳定堆结论；请用 node --expose-gc test/stress-round4.js')
+    process.exit(3)
+  }
   {
     const m = fresh({}, ['suyinKuwo']);
     const heap0 = (() => { global.gc && global.gc(); return process.memoryUsage().heapUsed / 1048576; })();

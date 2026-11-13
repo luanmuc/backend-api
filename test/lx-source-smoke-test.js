@@ -122,10 +122,12 @@ function buildRoutes(mode) {
     expired: { // 410：签名死链
       'oiapi.net/api/Kuwo': json({ message: '音乐链接：https://example.com/expired.mp3' }), // 可解析出 URL
     },
-    netfail: {}, // 全部网络错误
+    netfail: {}, // 全部网络错误（v8.14：探测侧归类 UNKNOWN，不累计自动关闭）
+    httpfail: {}, // 全部 HTTP 500（探测侧可判定 FAIL，用于验证自动关闭）
   };
   return (u, opts) => {
     if (mode === 'netfail') return { error: 'ETIMEDOUT' };
+    if (mode === 'httpfail') return { statusCode: 500, headers: {}, body: 'upstream error' };
     for (const [needle, route] of Object.entries(map[mode] || {})) {
       if (u.includes(needle)) return route;
     }
@@ -718,7 +720,7 @@ async function test(name, fn) {
   assert.ok(!('suyinKuwo' in pcfg), '手动关闭源 suyinKuwo 不应在探测清单');
   await requestHandler({ action: 'toggle', source: 'kw', info: { id: 'suyinKuwo', enabled: true } });
   // 3) 自动关闭源保留探测（自愈闭环）：netfail 探测 2 轮 → 自动关闭(enabled=false) → 探测清单仍含它
-  mockRoute = buildRoutes('netfail');
+  mockRoute = buildRoutes('httpfail');
   for (let i = 0; i < 2; i++) await requestHandler({ action: 'probe', source: 'kw', info: {} }).catch(() => {});
   const snap29 = modV29.getHealthSnapshot();
   assert.ok(snap29.suyinKuwo.enabled === false, '探测连续失败应自动关闭 suyinKuwo: ' + snap29.suyinKuwo.enabled);
@@ -749,7 +751,7 @@ async function test(name, fn) {
   // 断言3：聚合错误 detail 数组透出（App 失败原因展示）
   assert.ok(Array.isArray(t30Err && t30Err.detail) && t30Err.detail.length >= 2, '聚合错误应带结构化 detail');
 
-  console.log('[T31] v7.0 自动摘死源：播放连续失败摘除出链 + 快照 playDead + 探测/半开试探复活');
+  console.log('[T31] v8.14 自动摘死源：真实播放连续失败摘除出链 + 快照 playDead + 真实成功复活');
   if (require.cache[require.resolve(SRC)]) delete require.cache[require.resolve(SRC)];
   requestHandler = null;
   globalThis.__lxSourceConfig = { logDebug: false, breakerThreshold: 100, playDeadReviveMs: 60000, maxConcurrency: 100, rateWindowMax: 1000 };
@@ -761,18 +763,23 @@ async function test(name, fn) {
   mockRoute = buildRoutes('netfail');
   let sq31 = 0;
   const req31 = () => requestHandler({ action: 'musicUrl', source: 'kw', info: { type: '128k', musicInfo: { name: '海阔天空', singer: 'Beyond', duration: 343000, songmid: 'M31' + (sq31++) } } }).catch(e => e);
-  // 1) 3 次播放失败 → 摘除（快照 playDead=true）
-  for (let i = 0; i < 3; i++) await req31();
+  // 1) 3 次真实播放失败 → 摘除（v8.14：取链失败不再冒充播放失败，必须走 reportPlayback）
+  for (const id of ['suyinKuwo', 'xinghaiBackend', 'kuwoOfficial']) {
+    for (let i = 0; i < 3; i++) await requestHandler({ action: 'reportPlayback', source: 'kw', info: { sourceId: id, ok: false, quality: '128k', code: 'PLAYBACK_ERROR' } }).catch(() => {});
+  }
   let snap31 = modV31.getHealthSnapshot();
-  assert.ok(snap31.suyinKuwo.playDead === true && snap31.xinghaiBackend.playDead === true && snap31.kuwoOfficial.playDead === true, '连续3次失败应摘除出链(playDead=true)');
-  // 2) 探测通过 → 核心源复活；非探测源(128k兜底)保持摘除（靠半开试探）
-  // 探测含 CDN Range 二次可播校验：局部路由补 example.com 206（不污染全局 success 路由）
+  assert.ok(snap31.suyinKuwo.playDead === true && snap31.xinghaiBackend.playDead === true && snap31.kuwoOfficial.playDead === true, '连续3次真实播放失败应摘除出链(playDead=true)');
+  // 2) v8.14：探测通过不再清 playDead（探测通过 ≠ 真实播放通过）
   const probeRoutes = buildRoutes('success');
   mockRoute = (u) => (u.includes('example.com') ? { statusCode: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-1023/4315200' }, body: REAL_MP3_128K_BODY(269.7) } : probeRoutes(u));
   for (let i = 0; i < 2; i++) await requestHandler({ action: 'probe', source: 'kw', info: {} }).catch(() => {});
   snap31 = modV31.getHealthSnapshot();
-  assert.ok(snap31.suyinKuwo.playDead === false && snap31.xinghaiBackend.playDead === false, '探测通过核心源应复活');
-  assert.ok(snap31.kuwoOfficial.playDead === true, '非探测源应保持摘除(半开试探复活)');
+  assert.ok(snap31.suyinKuwo.playDead === true && snap31.xinghaiBackend.playDead === true, '探测通过不应清 playDead，需真实播放成功');
+  // 3) 真实播放成功 → 解除摘除
+  await requestHandler({ action: 'reportPlayback', source: 'kw', info: { sourceId: 'suyinKuwo', ok: true, quality: '128k', latencyMs: 20 } }).catch(() => {});
+  await requestHandler({ action: 'reportPlayback', source: 'kw', info: { sourceId: 'xinghaiBackend', ok: true, quality: '128k', latencyMs: 20 } }).catch(() => {});
+  snap31 = modV31.getHealthSnapshot();
+  assert.ok(snap31.suyinKuwo.playDead === false && snap31.xinghaiBackend.playDead === false, '真实播放成功应解除摘除');
   delete globalThis.__lxSourceConfig;
 
   console.log('[T32] v7.0 helloworld 实证接入：kw 链注册 + convert_url 主通道端到端 + htw v1 备用通道');

@@ -49,6 +49,7 @@ const USER_CONFIG = {
   rateWindowMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.rateWindowMs) || 3000,             // 限速窗口
   rateWindowMax: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.rateWindowMax) || 5,              // 窗口内请求上限
   healthCheckIntervalMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthCheckIntervalMs) || 600000, // 探测间隔(10min)
+  probeConcurrency: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.probeConcurrency) || 3, // v8.14：探测并发上限(默认3,最大8)
   raceMatchWaitMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceMatchWaitMs) || 600,         // verified 等待窗口
   allFailShortTtlMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) ?? 30000,      // v6.0：全链网络类失败短缓存 TTL(补齐 v6.0 漏配键)
   raceBudgetMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBudgetMs) || 12000,          // v8.8：单次请求总预算(跨音质档共享)
@@ -321,6 +322,17 @@ const SOURCE_TOGGLES = {
 // ============================================================
 // 运行时开关：随探测结果自动变化；buildSourceChain 以它为准
 const runtimeToggles = { ...SOURCE_TOGGLES };
+// v8.14：用户意图与自动状态分离。
+// userEnabled = 用户是否愿意使用该源；autoOff = 系统因连续探测失败临时关闭。
+// runtimeToggles 继续作为兼容镜像/链读取入口，避免一次性改坏所有消费者。
+const userEnabled = { ...SOURCE_TOGGLES };
+const autoOff = {}; // { [id]: true }
+const autoOffReason = {}; // { [id]: 'AUTO_OFF_PROBE' | 'AUTO_OFF_UNREACHABLE' }
+const autoOffAt = {}; // { [id]: timestamp }
+function isUserEnabled(id) { return userEnabled[id] !== false; }
+function isAutoOff(id) { return !!autoOff[id]; }
+function effectiveEnabled(id) { return isUserEnabled(id) && !isAutoOff(id); }
+function syncRuntimeToggle(id) { runtimeToggles[id] = effectiveEnabled(id); }
 // v4.0：用户手动关闭锁定——手动 toggle(false) 的源，探测通过也不再自动启用（除非用户手动开启）
 const manualOff = {};
 
@@ -344,6 +356,9 @@ const PROBE_163_IDS = ["2652820720", "347230"];
 function juheProbeCfg(platform, ids) {
   return {
     tier: "secondary",  // 每3轮一探（免费 worker，减少对限流中上游的打扰）
+    useHandler: true,
+    handlerPlatform: platform,
+    handlerSong: { name: "晴天", singer: "周杰伦", duration: 271000, ...ids },
     url: `${JUHE_API}/${platform}`,
     method: "POST",
     headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent() },
@@ -358,17 +373,32 @@ function juheProbeCfg(platform, ids) {
 // 各源探测请求定义：仅保留当前可用源，失效源不再每轮空打
 function buildProbeConfig() {
   const probeSong = PROBE_SONG_POOL[(globalThis.__probeRound || 0) % PROBE_SONG_POOL.length];
+  const probe163Id = PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length];
   const cfg = {
     // ---- 上链源：10 个 ----
     suyinKuwo: {
       tier: "core",
       probes: [
         {
+          quality: "flac",
+          useHandler: true,
+          songName: probeSong,
           url: `${SUYIN_KUWO_API}?msg=${encodeURIComponent(probeSong)}&n=1&br=1`,
           check: b => !!b && typeof b === "object" && (!!(b.data && b.data.url) || /音乐链接/.test(String(b.message || ""))),
           extractUrl: b => ((b && b.data && b.data.url) ? b.data.url : (String((b && b.message) || "").match(/音乐链接[：:](\S+)/) || [])[1]) || null
         },
         {
+          quality: "320k",
+          useHandler: true,
+          songName: probeSong,
+          url: `${SUYIN_KUWO_API}?msg=${encodeURIComponent(probeSong)}&n=1&br=5`,
+          check: b => !!b && typeof b === "object" && (!!(b.data && b.data.url) || /音乐链接/.test(String(b.message || ""))),
+          extractUrl: b => ((b && b.data && b.data.url) ? b.data.url : (String((b && b.message) || "").match(/音乐链接[：:](\S+)/) || [])[1]) || null
+        },
+        {
+          quality: "128k",
+          useHandler: true,
+          songName: probeSong,
           url: `${SUYIN_KUWO_API}?msg=${encodeURIComponent(probeSong)}&n=1&br=9`,
           check: b => !!b && typeof b === "object" && (!!(b.data && b.data.url) || /音乐链接/.test(String(b.message || ""))),
           extractUrl: b => ((b && b.data && b.data.url) ? b.data.url : (String((b && b.message) || "").match(/音乐链接[：:](\S+)/) || [])[1]) || null
@@ -377,24 +407,40 @@ function buildProbeConfig() {
     },
     xinghaiBackend: {
       tier: "core",
+      quality: "128k",
+      useHandler: true,
+      handlerPlatform: "kw",
+      handlerSong: { name: "晴天", singer: "周杰伦", songmid: "228908", id: "228908", duration: 271000 },
       url: `${XINGHAI_BACKEND_API}?source=kw&name=${encodeURIComponent("晴天")}&singer=${encodeURIComponent("周杰伦")}&songmid=1&interval=&albumName=&quality=128k`,
       headers: { "X-Client": "lx-aggregate/13.0" },
       check: b => !!b && typeof b === "object" && Number(b.code) === 200 && typeof b.url === "string" && b.url.length > 0
     },
     suyin163: {
       tier: "core",
-      url: `${SUYIN_163_API}?id=${PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length]}`,
+      quality: "128k",
+      useHandler: true,
+      handlerStyle: "songInfo",
+      handlerSong: { id: probe163Id, name: "晴天", singer: "周杰伦", duration: 271000 },
+      url: `${SUYIN_163_API}?id=${probe163Id}`,
       check: b => !!b && typeof b === "object" && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0,
       extractUrl: b => (b && Array.isArray(b.data) && typeof (b.data[0] || {}).url === "string" && b.data[0].url.length > 0) ? b.data[0].url : null
     },
     wyOuter: {
       tier: "core",
+      quality: "128k",
+      useHandler: true,
+      handlerPlatform: "wy",
+      handlerSong: { id: "2652820720", songmid: "2652820720", name: "晴天", singer: "周杰伦", duration: 271000 },
       url: WY_OUTER_API.replace("{id}", "2652820720"),
       headers: { "User-Agent": getMobileUserAgent() },
       checkRes: res => res.statusCode === 200 && /audio|octet|mpeg/i.test(String(res.headers?.["content-type"] || ""))
     },
     kuwoOfficial: {
       tier: "secondary",
+      quality: "128k",
+      useHandler: true,
+      handlerPlatform: "kw",
+      handlerSong: { name: "晴天", singer: "周杰伦", duration: 271000 },
       url: `${KUWO_SEARCH_API}?client=kt&all=${encodeURIComponent("晴天 周杰伦")}&pn=0&rn=1&ft=music&rformat=json&encoding=utf8`,
       headers: { "User-Agent": getMobileUserAgent() },
       check: b => {
@@ -404,19 +450,31 @@ function buildProbeConfig() {
     },
     helloworldKw: {
       tier: "secondary",
+      quality: "flac",
+      useHandler: true,
+      handlerPlatform: "kw",
+      handlerSong: { rid: "228908", name: "晴天", duration: 0 },
       url: `${HELLOWORLD_KW_CONVERT_API}?f=web&user=0&source=kwplayerhd_ar_1.1.4.5_tianbao_T1A_qirui.apk&type=convert_url_with_sign&rid=228908&br=2000kflac`,
       headers: { "User-Agent": getMobileUserAgent() },
       check: b => !!b && typeof b === "object" && Number(b.code) === 200 && !!b.data && typeof b.data.url === "string" && b.data.url.length > 0
     },
     changqingVip: {
       tier: "secondary",
+      quality: "128k",
+      useHandler: true,
+      handlerPlatform: "kw",
+      handlerSong: { rid: "228908", songmid: "228908", id: "228908", name: "晴天", singer: "周杰伦", duration: 271000 },
       url: CHANGQING_URL_TEMPLATES.kw.replace("{id}", "228908").replace("{level}", "standard"),
       headers: { "User-Agent": getMobileUserAgent(), "Range": "bytes=0-1023" },
       checkRes: res => (res.statusCode === 200 || res.statusCode === 206) && /audio|octet|mpeg/i.test(String(res.headers?.["content-type"] || "")) && !/kw\.php/.test(String(res.url || ""))
     },
-    juheTx: juheProbeCfg("tx", { songmid: "228908", id: "228908" }),
+    juheTx: juheProbeCfg("tx", { songmid: "228908", id: "228908", quality: "128k" }),
     ikun: {
       tier: "secondary",
+      quality: "128k",
+      useHandler: true,
+      handlerPlatform: "kw",
+      handlerSong: { name: "晴天", singer: "周杰伦", songmid: "228908", id: "228908", duration: 271000 },
       url: `${IKUN_API}/music/url`,
       method: "POST",
       headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent(), "X-Api-Key": USER_CONFIG.ikunApiKey || "" },
@@ -426,6 +484,10 @@ function buildProbeConfig() {
     },
     huibq: {
       tier: "secondary",
+      quality: "128k",
+      useHandler: true,
+      handlerPlatform: "kw",
+      handlerSong: { name: "晴天", singer: "周杰伦", songmid: "228908", id: "228908", duration: 271000 },
       url: `${HUIBQ_API}/url/kw/228908/128k`,
       headers: { "X-Request-Key": HUIBQ_REQUEST_KEY, "User-Agent": getMobileUserAgent() },
       check: b => !!b && typeof b === "object" && Number(b.code) === 0 && typeof b.url === "string" && b.url.length > 0 && !isHuibqFailMsg(b.msg),
@@ -434,12 +496,33 @@ function buildProbeConfig() {
     // ---- 观察源：2 个（只探测，不进链） ----
     suyinQQ: {
       tier: "secondary",
-      url: `${SUYIN_QQ_API}?key=${encodeURIComponent(SUYIN_QQ_KEY)}&type=json&br=7&n=1&mid=0039MnYb0qxYpD`,
-      check: b => !!b && typeof b === "object" && !!(b.music || b.url || (String(b.message || "").match(/音频链接[：:]/))),
-      extractUrl: b => (b && (b.music || b.url)) || (String((b && b.message) || "").match(/音频链接[：:](\S+)/) || [])[1] || null
+      probes: [
+        {
+          quality: "128k",
+          useHandler: true,
+          handlerPlatform: "tx",
+          handlerSong: { songmid: "0039MnYb0qxYpD", name: "晴天", duration: 0 },
+          url: `${SUYIN_QQ_API}?key=${encodeURIComponent(SUYIN_QQ_KEY)}&type=json&br=7&n=1&mid=0039MnYb0qxYpD`,
+          check: b => !!b && typeof b === "object" && !!(b.music || b.url || (String(b.message || "").match(/音频链接[：:]/))),
+          extractUrl: b => (b && (b.music || b.url)) || (String((b && b.message) || "").match(/音频链接[：:](\S+)/) || [])[1] || null
+        },
+        {
+          quality: "320k",
+          useHandler: true,
+          handlerPlatform: "tx",
+          handlerSong: { songmid: "0039MnYb0qxYpD", name: "晴天", duration: 0 },
+          url: `${SUYIN_QQ_API}?key=${encodeURIComponent(SUYIN_QQ_KEY)}&type=json&br=5&n=1&mid=0039MnYb0qxYpD`,
+          check: b => !!b && typeof b === "object" && !!(b.music || b.url || (String(b.message || "").match(/音频链接[：:]/))),
+          extractUrl: b => (b && (b.music || b.url)) || (String((b && b.message) || "").match(/音频链接[：:](\S+)/) || [])[1] || null
+        }
+      ]
     },
     suyinMigu: {
       tier: "secondary",
+      quality: "128k",
+      useHandler: true,
+      handlerStyle: "songInfo",
+      handlerSong: { name: "晴天", singer: "周杰伦", duration: 271000 },
       url: `${SUYIN_MIGU_API}?gm=${encodeURIComponent("晴天")}&n=1&num=1&type=json`,
       check: b => !!b && typeof b === "object" && Number(b.code) === 200 && !!b.musicInfo,
       extractUrl: b => (b && typeof b.musicInfo === "string") ? b.musicInfo : (b && b.musicInfo && typeof b.musicInfo.url === "string" ? b.musicInfo.url : null)
@@ -450,10 +533,11 @@ function buildProbeConfig() {
   const round = globalThis.__probeRound || 0;
   for (const id of Object.keys(cfg)) {
     if (!SOURCE_HANDLERS[id]) { delete cfg[id]; continue; }
+    // v8.14：只有用户关闭才排除探测；autoOff 源必须继续探测才能自动恢复。
     if (manualOff[id]) { delete cfg[id]; continue; }
+    // 默认关闭的观察源（probation）仍要探测以观察上游；默认关闭的非观察源不探测。
     const probation = SOURCE_HANDLERS[id].lifecycle === "probation";
-    // 观察源要持续探测（即使默认关闭），否则无法判断是否恢复；上链源默认关闭且未被手动开启时不探测。
-    if (!probation && SOURCE_TOGGLES[id] === false && runtimeToggles[id] !== true) { delete cfg[id]; continue; }
+    if (!probation && !isUserEnabled(id)) { delete cfg[id]; continue; }
     if (probeState.sleeping[id]) {
       const since = probeState.sleepRound[id] || 0;
       if (round - since < PROBE_WAKE_EVERY_ROUND) {
@@ -485,16 +569,28 @@ const probeState = {
   deadCount: {},
   sleeping: {},
   sleepRound: {},
+  // v8.14：最近一次逐质量档探测结果，供健康页 matrix / 诊断使用（只存枚举和延迟，不存 URL）
+  lastTargets: {},
   running: false
 };
+
+function probeErrorOutcome(e) {
+  const code = extractErrorCode(e);
+  const msg = String((e && e.message) || "");
+  // 只有“本地没拿到可信响应”的超时/连接错误才是 UNKNOWN；HTTP 4xx/5xx 是上游明确失败。
+  if (code === ERROR_CODES.NETWORK_TIMEOUT) return { outcome: "UNKNOWN", code };
+  if (code === ERROR_CODES.NETWORK_ERROR && !/^NETWORK_ERROR:\s*HTTP\s+\d+/i.test(msg)) return { outcome: "UNKNOWN", code };
+  return { outcome: "FAIL", code };
+}
 
 async function probeSingleSource(id, pc) {
   // v8.10.3：形参从 cfg 改名 pc —— 旧名遮蔽了全局配置读取函数 cfg(key, def)，
   // 而下面冷启动分支要调 cfg('coldStartProbeTimeoutMs')，直接 TypeError 被 catch 吞成"探测失败"。
   // 全仓唯一 coldStart 源是 huibq → 它的探针 100% 失败（实测：正常响应也不发请求、score 恒为负）。
-  // v1.0 P0：支持多路探测(probes)，任一路"结构+可播"通过即算源存活；
-  // 解决溯音酷我"flac已恢复但128k仍410"时，单路(仅128k)探测误判整体失效、误摘高音质源的问题
+  // v8.14：逐目标三值探测。每个质量档单独给 PASS/FAIL/UNKNOWN，源级只做聚合：
+  //   任一目标 PASS = 源可达（但不能证明所有档可交付）；全部 FAIL = 源失败；否则 UNKNOWN。
   const probes = pc.probes || [{
+    quality: pc.quality,
     url: pc.url,
     // v8.2 修复：method/body 漏透传——juheProbeCfg(juhe 五源)与 ikun 探针都是 POST 协议型源，
     // 旧实现只透传 url/headers/check，实际发出 GET → 上游 404/405 误判失败（juhe 探测长期"失败"的隐藏原因之一）
@@ -505,13 +601,35 @@ async function probeSingleSource(id, pc) {
     checkRes: pc.checkRes,
     extractUrl: pc.extractUrl
   }];
+  const traceId = `probe:${globalThis.__probeRound || 0}:${id}`;
   try {
     const results = await Promise.all(probes.map(async p => {
       const startProbe = Date.now();
+      const quality = p.quality || pc.quality || null;
       try {
         // v8.10：冷启动源探针超时放宽（onrender 冷态 30s，6s 必误判）
         const h = SOURCE_HANDLERS[id];
         const probeTimeout = (h && h.coldStart) ? cfg('coldStartProbeTimeoutMs', 30000) : HEALTH_CHECK_TIMEOUT;
+        if (p.useHandler) {
+          // v8.14：优先复用真实 handler 的取链路径，避免探针维护第二套 URL/解析规则；
+          // handler 抛错时回退旧探针（兼容测试 mock 与上游临时变更，不让探测整体失效）。
+          try {
+            const h = SOURCE_HANDLERS[id];
+            if (h && typeof h.fn === "function") {
+              const hSong = p.handlerSong || { name: p.songName, duration: 0 };
+              // 少数源的签名是 (songInfo, cancelToken)，用显式风格标记适配，不硬套五参。
+              const url = p.handlerStyle === "songInfo"
+                ? await h.fn(hSong, null)
+                : await h.fn(p.handlerPlatform || "kw", "", quality, hSong, null);
+              const playable = typeof url === "string" && await isAudioPlayable(upgradeToHttps(url), probeTimeout);
+              const duration = Date.now() - startProbe;
+              recordHealthEvent({ event: "probe_result", traceId, sourceId: id, quality, ok: playable, code: playable ? "" : "PROBE_FAIL", latencyMs: duration, reason: playable ? "PASS" : "FAIL" });
+              return { usable: playable, outcome: playable ? "PASS" : "FAIL", code: playable ? "" : "PROBE_FAIL", quality, duration, viaHandler: true };
+            }
+          } catch (e) {
+            if (typeof logDebug === "function") logDebug(`[探测] ${id} handler 探针回退：${extractErrorCode(e)}`);
+          }
+        }
         const res = await httpRequest(p.url || "", {
           method: p.method || "GET",
           headers: { "User-Agent": getMobileUserAgent(), ...(p.headers || {}) },
@@ -526,23 +644,43 @@ async function probeSingleSource(id, pc) {
           const audioUrl = p.extractUrl(res.body);
           usable = audioUrl ? await isAudioPlayable(audioUrl, probeTimeout) : false; // v8.10：冷启动源可播校验同放宽
         }
-        return { usable, duration: Date.now() - startProbe };
+        const outcome = usable ? "PASS" : "FAIL";
+        const duration = Date.now() - startProbe;
+        recordHealthEvent({ event: "probe_result", traceId, sourceId: id, quality, ok: usable, code: usable ? "" : "PROBE_FAIL", latencyMs: duration, reason: outcome });
+        return { usable, outcome, code: usable ? "" : "PROBE_FAIL", quality, duration };
       } catch (e) {
         const duration = Date.now() - startProbe;
-        recordHealthEvent({ event: "probe_result", traceId: `probe:${globalThis.__probeRound || 0}:${id}`, sourceId: id, ok: false, code: extractErrorCode(e), latencyMs: duration });
-        return { usable: false, duration };
+        const classified = probeErrorOutcome(e);
+        recordHealthEvent({ event: "probe_result", traceId, sourceId: id, quality, ok: false, code: classified.code, latencyMs: duration, reason: classified.outcome });
+        return { usable: false, outcome: classified.outcome, code: classified.code, quality, duration };
       }
     }));
-    const usable = results.some(r => r.usable);
-    recordHealthEvent({ event: "probe_result", traceId: `probe:${globalThis.__probeRound || 0}:${id}`, sourceId: id, ok: usable, code: usable ? "" : "PROBE_FAIL", latencyMs: Math.round(results.reduce((s, r) => s + r.duration, 0) / Math.max(results.length, 1)) });
+    const passCount = results.filter(r => r.outcome === "PASS").length;
+    const failCount = results.filter(r => r.outcome === "FAIL").length;
+    const unknownCount = results.filter(r => r.outcome === "UNKNOWN").length;
+    const outcome = passCount > 0 ? "PASS" : failCount > 0 ? "FAIL" : "UNKNOWN";
+    const usable = outcome === "PASS";
+    const code = passCount > 0 ? "" : (results.find(r => r.code) || {}).code || (outcome === "UNKNOWN" ? "PROBE_UNKNOWN" : "PROBE_FAIL");
     // v1.0：探测结果并入竞速统计（成功率/均时供 sortChainByHealth 排序复用；
     // 只更新统计、不触发熔断——熔断仅由真实播放请求触发，避免探测与熔断双机制打架）
     recordProbeResult(id, usable, results.reduce((s, r) => s + r.duration, 0) / Math.max(results.length, 1));
-    return { usable, raw: null };
+    return {
+      usable,
+      outcome,
+      code,
+      results,
+      targets: results.map(r => ({ quality: r.quality, outcome: r.outcome, code: r.code || null, latencyMs: r.duration, viaHandler: !!r.viaHandler })),
+      passCount,
+      failCount,
+      unknownCount,
+      viaHandler: results.some(r => r.viaHandler === true),
+      raw: null
+    };
   } catch (e) {
-    recordHealthEvent({ event: "probe_result", traceId: `probe:${globalThis.__probeRound || 0}:${id}`, sourceId: id, ok: false, code: extractErrorCode(e), latencyMs: 0 });
+    const classified = probeErrorOutcome(e);
+    recordHealthEvent({ event: "probe_result", traceId, sourceId: id, ok: false, code: classified.code, latencyMs: 0, reason: classified.outcome });
     recordProbeResult(id, false, 0);
-    return { usable: false, raw: null };
+    return { usable: false, outcome: classified.outcome, code: classified.code, results: [], targets: [], passCount: 0, failCount: 0, unknownCount: 0, raw: null };
   }
 }
 
@@ -557,10 +695,19 @@ function recordProbeResult(id, usable, avgDuration) {
   }
 }
 
-function applyProbeResult(id, usable) {
+function applyProbeResult(id, usable, detail = {}) {
+  const outcome = detail.outcome || (usable ? "PASS" : "FAIL");
+  if (Array.isArray(detail.targets) && detail.targets.length) probeState.lastTargets[id] = detail.targets.map(t => ({ quality: t.quality || null, outcome: t.outcome || outcome, code: t.code || null, latencyMs: Number(t.latencyMs || 0) }));
+  // v8.14：三值探测。本地网络/DNS/超时不能当“源已死”证据，只记录不累计失败。
+  if (outcome === "UNKNOWN") {
+    probeState.passCount[id] = 0;
+    probeState.passStreak[id] = 0;
+    logInfo(`健康探测: [${id}] 结果 UNKNOWN（本地网络/超时/未取证），不关闭、不累计失败`);
+    recordHealthEvent({ event: "health_transition", sourceId: id, reason: "probe_unknown" });
+    return { outcome, enabled: runtimeToggles[id] !== false, autoOff: !!autoOff[id] };
+  }
   if (usable) {
-    // v8.10.3：探测通过 → 一并复位断路器与限流退避。旧实现只清 sleeping/playDead/passCount，
-    // 面板会出现"探针正常 + 熔断中"的矛盾态；更关键的是 half-open 卡死（F-01）只能靠重启救回。
+    // v8.10.3：探测通过 → 复位断路器与限流退避（仅“可达性”证据，不等价于真实播放成功）
     const br = getBreaker(id);
     if (br.state !== "closed" || br.failureCount > 0 || br.rateLimited) {
       br.state = "closed"; br.failureCount = 0; br.lastFailureTime = 0;
@@ -569,38 +716,50 @@ function applyProbeResult(id, usable) {
     }
     probeState.failCount[id] = 0;
     probeState.passCount[id] = (probeState.passCount[id] || 0) + 1;
-    probeState.passStreak[id] = (probeState.passStreak[id] || 0) + 1; // v6.0：连胜累计（降频判断用）
-    // v7.0：探测通过 → 播放摘除解除（源恢复即回归竞速链）
-    if ((playDeadStreak.get(id) || 0) > 0) { playDeadStreak.set(id, 0); playDeadDeadline.delete(id); }
-    // v3.0：探测通过即复活（清休眠），避免复活试探成功后被下一次抖动打回休眠
+    probeState.passStreak[id] = (probeState.passStreak[id] || 0) + 1;
+    // v8.14：探测通过不再清 playDead/resolveDead。播放失败只能由真实取链/播放成功解除；
+    // 探针只证明“源可达”，不能证明“真实歌曲可交付”，否则会制造假阳性复活。
+    // v3.0：探测通过即清休眠（休眠是探测态，不是播放态）。
     delete probeState.deadCount[id];
     delete probeState.sleeping[id];
     delete probeState.sleepRound[id];
     if (probeState.passCount[id] >= PROBE_PASS_REQUIRED) {
-      const wasOff = runtimeToggles[id] === false;
       const h = SOURCE_HANDLERS[id];
-      // v8.13：观察源只探测、不自动上链。探测通过只记录“已恢复”，不把 runtimeToggles 打开。
+      const canAutoOn = isUserEnabled(id) && !manualOff[id];
       if (h && h.lifecycle === PROVIDER_LIFECYCLE.PROBATION) {
-        if (wasOff) logInfo(`健康探测: [${id}] 观察源探测通过（保持不进链，复核日 ${h.reviewAt || "未定"}）`);
-      } else if (wasOff && !manualOff[id]) { // v4.0：手动关闭锁定的源不自动复活
-        runtimeToggles[id] = true;
+        logInfo(`健康探测: [${id}] 观察源探测通过（保持不进链，复核日 ${h.reviewAt || "未定"}）`);
+      } else if (canAutoOn && autoOff[id]) {
+        const from = "AUTO_OFF";
+        delete autoOff[id];
+        delete autoOffReason[id];
+        delete autoOffAt[id];
+        syncRuntimeToggle(id);
+        logInfo(`健康探测: [${id}] 连续${PROBE_PASS_REQUIRED}次探测通过，自动关闭已解除（AUTO_ON_PROBE）`);
+        recordHealthEvent({ event: "health_transition", sourceId: id, from, to: "ELIGIBLE", reason: "auto_on_probe" });
+      } else if (canAutoOn && runtimeToggles[id] === false) {
+        // 兼容旧测试/旧宿主直接改 runtimeToggles 的入口：仍按自动关闭恢复。
+        autoOff[id] = false;
+        syncRuntimeToggle(id);
         logInfo(`健康探测: [${id}] 连续${PROBE_PASS_REQUIRED}次探测通过，已自动启用`);
       }
-      probeState.passCount[id] = 0; // 重置，避免反复打日志
+      probeState.passCount[id] = 0;
     }
   } else {
     probeState.passCount[id] = 0;
-    probeState.passStreak[id] = 0; // v6.0：连胜中断
+    probeState.passStreak[id] = 0;
     probeState.failCount[id] = (probeState.failCount[id] || 0) + 1;
     if (probeState.failCount[id] >= PROBE_FAIL_REQUIRED) {
-      const wasOn = runtimeToggles[id] === true;
-      // v8.10：冷启动源豁免自动关闭——onrender 冷态 30s，两轮探测失败可能是冷态未唤醒，不是真死
       const h = SOURCE_HANDLERS[id];
       const isColdStart = h && h.coldStart;
-      if (wasOn && !isColdStart) {
-        runtimeToggles[id] = false;
-        logWarn(`健康探测: [${id}] 连续${PROBE_FAIL_REQUIRED}次探测失败，已自动关闭(恢复后会自动启用)`);
-      } else if (wasOn && isColdStart) {
+      const shouldAutoOff = isUserEnabled(id) && !manualOff[id] && !isColdStart && !autoOff[id];
+      if (shouldAutoOff) {
+        autoOff[id] = true;
+        autoOffReason[id] = "AUTO_OFF_PROBE";
+        autoOffAt[id] = Date.now();
+        syncRuntimeToggle(id);
+        logWarn(`健康探测: [${id}] 连续${PROBE_FAIL_REQUIRED}次探测失败，已自动关闭（AUTO_OFF_PROBE，恢复后自动探测开启）`);
+        recordHealthEvent({ event: "health_transition", sourceId: id, from: "ELIGIBLE", to: "AUTO_OFF", reason: "auto_off_probe" });
+      } else if (isColdStart) {
         logWarn(`健康探测: [${id}] 连续${PROBE_FAIL_REQUIRED}次探测失败，冷启动豁免自动关闭（冷态可能未唤醒，保留启用）`);
       }
       probeState.failCount[id] = 0;
@@ -612,13 +771,13 @@ function applyProbeResult(id, usable) {
         probeState.sleeping[id] = true;
         probeState.sleepRound[id] = globalThis.__probeRound || 0;
         logWarn(`健康探测: [${id}] 连续${PROBE_SLEEP_AFTER_DEAD}轮失败，进入休眠(每${PROBE_WAKE_EVERY_ROUND}轮复活试探一次)`);
+        recordHealthEvent({ event: "health_transition", sourceId: id, from: autoOff[id] ? "AUTO_OFF" : "ELIGIBLE", to: "SLEEPING", reason: "probe_sleep" });
       } else {
-        // v6.0：休眠中复活试探失败 → 重置休眠起点轮。
-        // 旧实现不更新 sleepRound，round-since 恒≥10 → 复活轮失败后每轮都重探（失去休眠意义、白耗外呼）
         probeState.sleepRound[id] = globalThis.__probeRound || 0;
       }
     }
   }
+  return { outcome, enabled: runtimeToggles[id] !== false, autoOff: !!autoOff[id], reason: autoOffReason[id] || null };
 }
 
 // v8.0：健康历史趋势记录（每次自动探测完成后存一条）；v8.10：上限 60→144（10min/条 ≈ 24h）
@@ -629,7 +788,7 @@ const HEALTH_HISTORY_MAX = 144; // v8.10：历史快照上限（60→144，10min
 // 只服务本地排障：记录"一次播放走到哪个子源、哪一步、什么错误码、多久"，
 // 不记歌名、URL、搜索词、账号、设备 ID、位置。App 通过 healthEvents action 只读拉取。
 const HEALTH_EVENT_MAX = 500;
-const HEALTH_EVENT_FIELDS = ["traceId", "event", "sourceId", "platform", "quality", "ok", "code", "latencyMs", "reason"];
+const HEALTH_EVENT_FIELDS = ["traceId", "event", "sourceId", "platform", "quality", "ok", "code", "latencyMs", "reason", "from", "to"];
 const healthEventRing = [];
 let healthEventSeq = 0;
 let healthEventDropped = 0;
@@ -696,11 +855,18 @@ async function runHealthCheck(saveHistory = true) {
   // v3.0：分级探测——核心源每轮，次要源每 PROBE_TIER_SECONDARY_INTERVAL 轮一探
   const ids = Object.keys(probeConfig).filter(id => tierShouldProbe(round, probeConfig[id].tier || "core", id));
   logInfo(`健康探测: 开始第${round}轮，共${ids.length}个源(核心每轮/次要${PROBE_TIER_SECONDARY_INTERVAL}轮一探)`);
-  // v1.0 P2：改并发探测，一轮从~50s降到~6s
-  await Promise.all(ids.map(async id => {
-    const result = await probeSingleSource(id, probeConfig[id]);
-    applyProbeResult(id, result.usable);
-  }));
+  // v8.14：探测限并发，避免一轮把上游打出 429 再被判失败（探测 traffic 不得扰动被测系统）。
+  const concurrency = Math.max(1, Math.min(8, Number(cfg('probeConcurrency', 3)) || 3));
+  const queue = ids.slice();
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length) {
+      const id = queue.shift();
+      if (!id) break;
+      const result = await probeSingleSource(id, probeConfig[id]);
+      applyProbeResult(id, result.usable, result);
+    }
+  });
+  await Promise.all(workers);
   const active = Object.keys(runtimeToggles).filter(k => runtimeToggles[k]);
   logInfo(`健康探测: 本轮完成，当前自动启用: ${active.join(", ")}`);
   // v8.0：记录历史快照（用于趋势图）——v30.1：手动探测不存历史，避免污染趋势
@@ -869,14 +1035,26 @@ const FRAGMENT_URL_TTL_MS = 600000;      // 片段直链是临时签名，10 分
 const PLAY_DEAD_STREAK = 3;
 const playDeadStreak = new Map();
 const playDeadDeadline = new Map(); // 摘除计时起点（半开试探冷却）
-function isPlayDead(sourceId) {
+const playDeadTrialAt = new Map(); // v8.14 半开试探：source|quality → 已放行试探的时间（防整链同时涌入）
+const PLAY_DEAD_TRIAL_TTL_MS = 60 * 1000;
+function clearPlayDeadTrials(sourceId) {
+  for (const k of playDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) playDeadTrialAt.delete(k);
+}
+function isPlayDead(sourceId, quality, consume) {
   const streak = playDeadStreak.get(sourceId) || 0;
   if (streak < PLAY_DEAD_STREAK) return false;
-  // 冷却期满 → 允许半开试探（返回 false 放行进链；试探失败 recordFailure 会重新计时）
   const reviveMs = cfg('playDeadReviveMs', 5 * 60 * 1000);
   const age = Date.now() - (playDeadDeadline.get(sourceId) || 0);
-  logDebug(`[摘除判定] ${sourceId} streak=${streak} age=${age}ms revive=${reviveMs}ms 结果=${age < reviveMs}`);
-  return age < reviveMs;
+  if (age < reviveMs) return true;
+  // 冷却期满 → half-open：每个 源×音质档 只放一个试探请求，成功才真正复活，
+  // 失败由 recordFailure 重新计时；绝不放整条链同时涌入。
+  const trialKey = sourceId; // 半开只允许一个请求/源，不按档各放一个
+  const lastTrial = playDeadTrialAt.get(trialKey) || 0;
+  if (Date.now() - lastTrial < PLAY_DEAD_TRIAL_TTL_MS) return true;
+  if (!consume) return true; // 快照/UI 仍显示“已摘除”，只有链构建可 consume
+  playDeadTrialAt.set(trialKey, Date.now());
+  logDebug(`[摘除判定] ${sourceId} 半开试探放行 quality=${quality || "default"} age=${age}ms revive=${reviveMs}ms`);
+  return false;
 }
 function getBreaker(sourceId) {
   if (!breakerMap.has(sourceId)) {
@@ -952,10 +1130,17 @@ function recordSuccess(sourceId, duration, quality) {
   q.req++; q.success++; q.time += duration;
   if (b.state === 'half-open') { b.state = 'closed'; b.failureCount = 0; logWarn(`断路器[${sourceId}] 半开试探成功，恢复`); }
   b.failureCount = 0;
+  // v8.14：真实成功同时解除 autoOff（比探测更硬的恢复证据）。
+  if (autoOff[sourceId] && isUserEnabled(sourceId)) {
+    delete autoOff[sourceId]; delete autoOffReason[sourceId]; delete autoOffAt[sourceId];
+    syncRuntimeToggle(sourceId);
+    recordHealthEvent({ event: "health_transition", sourceId, from: "AUTO_OFF", to: "ELIGIBLE", reason: "real_success" });
+  }
   // v7.0：播放成功 → 解除摘除
   if ((playDeadStreak.get(sourceId) || 0) > 0) {
     playDeadStreak.set(sourceId, 0);
     playDeadDeadline.delete(sourceId);
+    clearPlayDeadTrials(sourceId);
     logWarn(`播放摘除: [${sourceId}] 播放成功，解除摘除`);
   }
 }
@@ -963,17 +1148,22 @@ function recordSuccess(sourceId, duration, quality) {
 // 与"真实播放失败累计"的注释语义不符，导致反复半开失败的源永远凑不够摘除阈值）
 function bumpPlayDead(sourceId) {
   playDeadStreak.set(sourceId, (playDeadStreak.get(sourceId) || 0) + 1);
-  if (playDeadStreak.get(sourceId) >= PLAY_DEAD_STREAK) playDeadDeadline.set(sourceId, Date.now()); // 摘除/续计时（半开试探冷却）
+  if (playDeadStreak.get(sourceId) >= PLAY_DEAD_STREAK) {
+    playDeadDeadline.set(sourceId, Date.now()); // 摘除/续计时（半开试探冷却）
+    clearPlayDeadTrials(sourceId);             // 旧试探已失败，新周期重新只放一个
+  }
   if (isPlayDead(sourceId)) logWarn(`播放摘除: [${sourceId}] 连续${PLAY_DEAD_STREAK}次播放失败，已从竞速链摘除(${Math.round(cfg('playDeadReviveMs', 5 * 60 * 1000) / 60000)}分钟后半开试探自动复活)`);
 }
-function recordFailure(sourceId, quality) {
+function recordFailure(sourceId, quality, opts = {}) {
   const b = getBreaker(sourceId);
   b.totalRequests++;
   b.failureCount++;
   b.lastFailureTime = Date.now();
   const q = b.byQuality[String(quality || 'default')] || (b.byQuality[String(quality || 'default')] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 });
   q.req++; q.fail++;
-  bumpPlayDead(sourceId);
+  // v8.14：取链失败不再无条件摘除。只有显式 playDead（真实播放失败/策略要求）才累计摘除；
+  // 默认旧调用（测试/外部直接驱动）保留原语义，applyAdmission 会显式传 false。
+  if (opts.playDead !== false) bumpPlayDead(sourceId);
   if (b.state === 'half-open') { b.state = 'open'; logWarn(`断路器[${sourceId}] 半开试探失败，重新熔断`); return; }
   const thr = cfg('breakerThreshold', BREAKER_THRESHOLD);
   if (b.state === 'closed' && b.failureCount >= thr) {
@@ -1975,39 +2165,74 @@ function admit(input) {
 // 读侧唯一查询：能不能用这个源（null=可用）
 // 纯结构判据（无副作用）：建链阶段只能问这三个，不能碰 breaker/限流——
 // canExecute() 会把 open 推进到 half-open，在建链时调用会提前消耗掉半开试探。
-function structuralSkipReason(source) {
+// v8.14：统一资格入口。v2 优先级：
+// USER_OFF > AUTO_OFF_PROBE > SOURCE_SLEEPING > PLAYBACK_FAILED > SOURCE_UNREACHABLE
+// > QUALITY_OPEN > QUALITY_SHORT_CIRCUIT > RATE_LIMITED > PREVIEW_COOLDOWN > LOCAL_THROTTLE > COLD_START > ELIGIBLE
+// 链构建只跑结构层（runtime=false），诊断 skipReason 再叠加运行期层（runtime=true）；
+// 半开试探只有链构建传 consumePlayDeadTrial=true 才会消费，诊断/UI 不会消耗试探额度。
+function computeEligibility(source, platform, quality, opts) {
   const id = source;
-  if (!SOURCE_HANDLERS[id]) return { reason: "unknown-source", untilMs: null };
-  if (runtimeToggles[id] === false || manualOff[id]) return { reason: "manual-off", untilMs: null };
-  if (isPlayDead(id)) return { reason: "play-dead", untilMs: playDeadDeadline.get(id) || null };
-  return null;
+  const o = opts || {};
+  const q = String(quality || "128k").toLowerCase();
+  if (!SOURCE_HANDLERS[id]) return { eligible: false, reason: "unknown-source", code: "SOURCE_UNREACHABLE", untilMs: null };
+  const h = SOURCE_HANDLERS[id];
+  if (manualOff[id]) return { eligible: false, reason: "user-off", code: "USER_OFF", untilMs: null };
+  if (!isUserEnabled(id) && h.lifecycle !== "probation") return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
+  if (autoOff[id]) return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: autoOffAt[id] ? autoOffAt[id] + cfg("playDeadReviveMs", 5 * 60 * 1000) : null };
+  if (runtimeToggles[id] === false) {
+    // 兼容旧入口：观察源默认关闭时 runtimeToggles 也是 false，不能误报成探测自动关闭。
+    if (h.lifecycle === "probation") return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
+    return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: null };
+  }
+  if (probeState.sleeping[id]) return { eligible: false, reason: "sleeping", code: "SOURCE_SLEEPING", untilMs: null };
+  if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
+  if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
+  if (o.runtime && typeof canExecute === "function" && !canExecute(id, q)) {
+    const br = getBreaker(id);
+    const reason = br.state || "breaker";
+    const code = (br.rateLimitUntil || 0) > Date.now() ? "RATE_LIMITED" : "QUALITY_OPEN";
+    return { eligible: false, reason, code, untilMs: br.rateLimitUntil || null };
+  }
+  if ((o.runtime || o.qualityShortCircuit) && cfg('qualityShortCircuit', true) && isQualityHopeless(id, q)) {
+    return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: qualitySkipProbeAt.get(qualityShortCircuitKey(id, q)) || null };
+  }
+  if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
+  const pv = previewCooldownMap.get(id);
+  if (pv && pv > Date.now()) return { eligible: false, reason: "preview_cooldown", code: "PREVIEW_COOLDOWN", untilMs: pv };
+  return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
+}
+
+function structuralSkipReason(source, quality, consumePlayDeadTrial) {
+  const e = computeEligibility(source, null, quality, { runtime: false, consumePlayDeadTrial: consumePlayDeadTrial === true });
+  if (e.eligible) return null;
+  return { reason: e.reason, code: e.code, untilMs: e.untilMs };
 }
 
 function skipReason(source, ctx) {
-  const id = source;
-  const structural = structuralSkipReason(id);
-  if (structural) return structural;
-  if (typeof canExecute === "function" && !canExecute(id)) {
-    const br = getBreaker(id);
-    return { reason: br.state || "breaker", untilMs: br.rateLimitUntil || null };
-  }
-  const pv = previewCooldownMap.get(id);
-  if (pv && pv > Date.now()) return { reason: "rate-limited", untilMs: pv };
-  return null;
+  const e = computeEligibility(source, ctx && ctx.platform, ctx && ctx.quality, { runtime: true, consumePlayDeadTrial: false });
+  if (e.eligible) return null;
+  return { reason: e.reason, code: e.code, untilMs: e.untilMs };
 }
 
 // 源级开关唯一入口：开/关都清账（对称），并把动作写进日志
 function toggleSource(target, enabled) {
   if (!target || !SOURCE_HANDLERS[target]) throw new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`);
   const next = enabled !== false;
-  runtimeToggles[target] = next;
-  if (next) delete manualOff[target];
-  else manualOff[target] = true;
+  userEnabled[target] = next;
+  if (next) {
+    delete manualOff[target];
+    delete autoOff[target];
+    delete autoOffReason[target];
+    delete autoOffAt[target];
+  } else {
+    manualOff[target] = true;
+  }
+  syncRuntimeToggle(target);
   clearSourceLedger(target);
   clearCrossFallbackCache();
   logInfo(`[源开关] ${target} ${next ? "开启" : "关闭"}，已清账（失败缓存/摘除/熔断限流/探测态/跨平台缓存）`);
   recordHealthEvent({ event: "config_change", sourceId: target, reason: next ? "toggle_on" : "toggle_off" });
-  return { id: target, enabled: next };
+  return { id: target, enabled: next, userEnabled: next, autoOff: false };
 }
 
 // 写侧唯一清账：开开关 / 播放成功 / 面板重置，都走这里
@@ -2020,6 +2245,7 @@ function clearSourceLedger(source) {
   }
   playDeadStreak.delete(source);
   playDeadDeadline.delete(source);
+  clearPlayDeadTrials(source);
   delete probeState.sleeping[source];
   delete probeState.deadCount[source];
   delete probeState.sleepRound[source];
@@ -2046,7 +2272,7 @@ function applyAdmission(adm, ctx) {
     return adm;
   }
   if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q);
-  else if (L.health === "hardFail") recordFailure(id, q);
+  else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true });
   else recordBusinessFail(id, q);
   const err = ctx.error || {};
   if (adm.code === ERROR_CODES.PREVIEW_FRAGMENT) {
@@ -3125,6 +3351,14 @@ function getHealthSnapshot() {
       reviewAt: h.reviewAt,
       platforms: h.platforms,
       enabled: runtimeToggles[id] !== false,
+      // v8.14：开关权威拆分。App 必须能区分“用户关闭 / 系统自动关闭 / 休眠 / 默认关闭”，
+      // 不能再只拿 enabled=false 猜原因。
+      userEnabled: isUserEnabled(id),
+      autoOff: !!autoOff[id],
+      offReason: manualOff[id] ? "USER_OFF" : (!isUserEnabled(id) && SOURCE_TOGGLES[id] === false) ? "DEFAULT_OFF" : autoOff[id] ? "AUTO_OFF_PROBE" : probeState.sleeping[id] ? "SLEEPING" : isPlayDead(id) ? "PLAY_DEAD" : null,
+      autoOffReason: autoOffReason[id] || null,
+      autoOffAt: autoOffAt[id] || 0,
+      probeTargets: (probeState.lastTargets && probeState.lastTargets[id]) || [],
       successRate: stats.successRate,
       avgTime: stats.avgTime,
       state: stats.state,
@@ -3139,6 +3373,8 @@ function getHealthSnapshot() {
       copyrightFail: stats.copyrightFail,
       // v4.0：按音质分档统计（面板后续版本可消费）
       byQuality: stats.byQuality,
+      // v8.14（F43）：质量档短路必须可见，不再只存在于链构建内部判断
+      qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map(q => [q, isQualityHopeless(id, q)])),
       // v7.0：播放实时摘除状态（连续播放失败被摘除；App 可显示"已摘除"）
       playDead: isPlayDead(id),
       // v4.0：限流状态（被限=连续429，App 显示"被限"而非"熔断"）
@@ -3287,7 +3523,18 @@ function exportHealthState() {
     const n = Number(at);
     if (Number.isFinite(n) && n > 0) qualityShortCircuit[`${id}:${quality}`] = n;
   }
-  return { v: HEALTH_STATE_VERSION, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit };
+  // v8.14：用户意图永久持久化；autoOff 只做短期临时态，也一并导出供启动复验。
+  const controls = {};
+  for (const id of Object.keys(SOURCE_HANDLERS)) {
+    controls[id] = {
+      enabled: isUserEnabled(id),
+      manualOff: !!manualOff[id],
+      autoOff: !!autoOff[id],
+      autoOffAt: Number(autoOffAt[id] || 0),
+      autoOffReason: autoOffReason[id] || null
+    };
+  }
+  return { v: HEALTH_STATE_VERSION, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
 }
 
 function restoreHealthState(state) {
@@ -3365,6 +3612,26 @@ function restoreHealthState(state) {
       qualityShortCircuit[`${id}:${quality}`] = at;
     }
 
+    // v8.14：恢复用户意图（永久）与 autoOff（短期临时态）。旧状态没有 controls 时保持默认。
+    const controlsRaw = state.controls === undefined ? {} : state.controls;
+    if (!isHealthPlainObject(controlsRaw)) return { ok: false, reason: "controls 非法" };
+    const controls = {};
+    for (const [id, c] of Object.entries(controlsRaw)) {
+      if (!SOURCE_HANDLERS[id]) return { ok: false, reason: `controls.${id} 未知源` };
+      if (!isHealthPlainObject(c)) return { ok: false, reason: `controls.${id} 非法` };
+      if (typeof c.enabled !== "boolean") return { ok: false, reason: `controls.${id}.enabled 非法` };
+      if (c.manualOff !== undefined && typeof c.manualOff !== "boolean") return { ok: false, reason: `controls.${id}.manualOff 非法` };
+      if (c.autoOff !== undefined && typeof c.autoOff !== "boolean") return { ok: false, reason: `controls.${id}.autoOff 非法` };
+      if (c.autoOffAt !== undefined && !healthNumber(c.autoOffAt, true)) return { ok: false, reason: `controls.${id}.autoOffAt 非法` };
+      controls[id] = {
+        enabled: c.enabled,
+        manualOff: !!c.manualOff,
+        autoOff: !!c.autoOff,
+        autoOffAt: Number(c.autoOffAt || 0),
+        autoOffReason: typeof c.autoOffReason === "string" ? c.autoOffReason.slice(0, 40) : null
+      };
+    }
+
     let restored = 0;
     for (const [id, item] of Object.entries(sanitized)) {
       const b = getBreaker(id);
@@ -3375,6 +3642,22 @@ function restoreHealthState(state) {
       if (item.playDead.deadline > 0) playDeadDeadline.set(id, item.playDead.deadline);
       else playDeadDeadline.delete(id);
       restored++;
+    }
+    for (const [id, c] of Object.entries(controls)) {
+      userEnabled[id] = c.enabled;
+      if (c.manualOff) manualOff[id] = true;
+      else delete manualOff[id];
+      const autoAge = Date.now() - (c.autoOffAt || 0);
+      if (c.autoOff && (!c.autoOffAt || autoAge <= 6 * 60 * 60 * 1000)) {
+        autoOff[id] = true;
+        autoOffAt[id] = c.autoOffAt || Date.now();
+        autoOffReason[id] = c.autoOffReason || "AUTO_OFF_PROBE";
+      } else {
+        delete autoOff[id];
+        delete autoOffAt[id];
+        delete autoOffReason[id];
+      }
+      syncRuntimeToggle(id);
     }
     qualitySkipProbeAt.clear();
     for (const [key, at] of Object.entries(qualityShortCircuit)) qualitySkipProbeAt.set(key, at);
@@ -3556,15 +3839,17 @@ function buildSourceChain(platform, quality) {
     .filter(h => h.platforms.includes(platform))
     .filter(h => h.chain[platform] != null)
     .filter(h => qualityRank(h.maxQuality) >= qualityRank(q))
-    .filter(h => {
-      const skip = structuralSkipReason(h.id);
-      if (skip) {
-        if (LOG_DEBUG) logDebug(`[链] ${h.id} 跳过（${skip.reason}${skip.untilMs ? `，至 ${skip.untilMs}` : ""}）`);
-        return false;
+    .map(h => {
+      const e = computeEligibility(h.id, platform, q, { runtime: false, qualityShortCircuit: true, consumePlayDeadTrial: true });
+      if (!e.eligible) {
+        if (LOG_DEBUG) logDebug(`[链] ${h.id} 跳过（${e.reason}${e.untilMs ? `，至 ${e.untilMs}` : ""}）`);
+        return null;
       }
-      if (runtimeToggles[h.id] === false || manualOff[h.id]) return false;
-      return true;
+      // v8.14（F61）：链项必须带本次裁决的 eligibility，后续竞速/执行门/诊断不再各自猜原因。
+      // 用浅拷贝而不是改 SOURCE_HANDLERS：全局 handler 是注册表事实源，不能被链构建污染。
+      return Object.assign({}, h, { eligibility: e });
     })
+    .filter(Boolean)
     .sort((a, b) => (a.chain[platform] || 999) - (b.chain[platform] || 999));
   if (LOG_DEBUG) logDebug(`[链] ${platform} ${q}: ${handlers.map(h => h.id).join(" → ")}`);
   return handlers;
@@ -3705,6 +3990,18 @@ function throttleCheck(sourceId) {
 async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
   throwIfCanceled(cancelToken);
   const traceId = healthTraceOf(songInfo);
+  // v8.14（F64）：建链到真正发请求之间可能发生用户关源/自动关闭/休眠/播放摘除。
+  // 在发请求前重取一次结构资格，避免拿旧链继续打已失效源；运行期 breaker/限流仍由下面 canExecute 复核。
+  // 合成 handler（测试哨兵/外部临时源）不在注册表里，不参与本仓的资格门禁。
+  const preGate = SOURCE_HANDLERS[handler.id]
+    ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: false })
+    : { eligible: true, code: 'ELIGIBLE', reason: null };
+  if (!preGate.eligible) {
+    recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: preGate.reason || "eligibility" });
+    const gateErr = new Error(`${preGate.code || ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]发请求前资格失效（${preGate.reason || "eligibility"}）`);
+    gateErr.isThrottleSkip = true;
+    throw gateErr;
+  }
   // v8.11：源级限流冷却——同一源对同一首歌三档都只给片段时判定为源被限流，
   // 冷却期内直接跳过（实测密集请求时整个源会统一返回同一个 84972 字节片段，跑三档纯属白等）
   // v8.11.1（二轮压测 S9 实测）：冷却期若整源跳过，新歌会连片段都拿不到（与「整站只有片段时给片段」冲突）。
@@ -4111,10 +4408,10 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     const q = qualityChain[qi];
     const isLast = qi === qualityChain.length - 1;
     const selectedQuality = q; // v1.0 (D10)：buildQualityChain 已产出具体音质，无需再选
+    // v8.14：档位短路已收口到 computeEligibility，链构建返回的就是最终可用链；
+    // 这里不再二次过滤，避免短路配置被两处各判一次。
     const chainAll = sortChainByHealth(buildSourceChain(platform, selectedQuality));
-    let chain = cfg('qualityShortCircuit', true)
-      ? chainAll.filter(h => !isQualityHopeless(h.id, selectedQuality))
-      : chainAll;
+    let chain = chainAll;
     // v8.11：降档时跳过「已判定只给试听片段」的源，别在同一首歌上重复白等；
     // 128k 档例外——它是最后保底机会，永远保留（实测有歌只有 128k 能给完整版）
     if (cfg('qualityFloor', true) && selectedQuality !== "128k" && chain.length > 1) {
@@ -4589,7 +4886,8 @@ Object.keys(PLATFORM_QUALITIES).forEach(platform => {
   if (platform === "wy") actions.push("lyric", "pic");
   else if (platform === "kw") actions.push("pic");
   actions.push("health"); // v4.0：健康快照 action（App fork 声明即注册 getHealth，与平台无关的聚合查询）
-  actions.push("toggle", "probe"); // v4.0：源级开关 + 手动探测 action（App fork 声明即注册，健康面板「管」能力）
+  actions.push("toggle", "probe", "probeSource"); // v4.0：源级开关 + 手动探测；v8.14：单源只读探测
+  actions.push("reportPlayback"); // v8.14：App 真实播放回传（playDead 的唯一真实播放入口）
   actions.push("config"); // v8.0：配置热更新 action（App 设置页读写 USER_CONFIG 内存值，免重载音源）
   actions.push("trend"); // v8.0：健康趋势 action（返回历史健康快照数组，App 折线图展示）
   actions.push("healthEvents"); // 2.4：只读事件环形缓冲（本地排障；不记歌名/URL）
@@ -4609,6 +4907,38 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
   // 2.4：只读事件环形缓冲（App 健康页/导出诊断包消费；不提供任何写能力）
   if (action === "healthEvents") {
     return Promise.resolve(getHealthEvents(info || {}));
+  }
+  if (action === "probeSource") {
+    // v8.14：单源探测默认只读；只有显式 apply:true 才改健康状态（全局“手动探测”仍走 probe apply）。
+    const id = info && (info.id || info.sourceId);
+    const pc = id ? buildProbeConfig()[id] : null;
+    if (!pc) return Promise.resolve({ ok: false, reason: "source-not-probeable", id: id || null });
+    return probeSingleSource(id, pc).then((result) => {
+      if (info && info.apply === true) applyProbeResult(id, result.usable, result);
+      return {
+        ok: true,
+        id,
+        outcome: result.outcome,
+        usable: result.usable,
+        code: result.code || null,
+        targets: result.targets || [],
+        applied: !!(info && info.apply === true)
+      };
+    });
+  }
+  if (action === "reportPlayback") {
+    // v8.14：真实播放回传。这是 playDead 的唯一“真实播放失败”入口；
+    // App 播放器启动/失败/成功时调用，源侧不再把取链 HTTP 失败当播放失败。
+    const id = info && (info.sourceId || info.source);
+    if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
+    const quality = (info && info.quality) || "128k";
+    const ok = !!(info && info.ok === true);
+    if (ok) {
+      recordSuccess(id, Number(info && info.latencyMs) || 0, quality);
+      return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id) });
+    }
+    recordFailure(id, quality, { playDead: true });
+    return Promise.resolve({ ok: false, id, state: getBreaker(id).state, playDead: isPlayDead(id), code: (info && info.code) || ERROR_CODES.NETWORK_ERROR });
   }
   // v4.0：健康快照 action（聚合查询，与请求的 source 无关）
   if (action === "health") {
@@ -4662,7 +4992,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
     const ALLOWED_KEYS = ["cacheTtlMs", "cacheTtlHighQualityMs", "failCacheNotFoundMs", "failCacheExpiredMs",
       "breakerThreshold", "breakerCooldownMs", "rateLimitBackoffMs",
       "maxConcurrency", "rateWindowMs", "rateWindowMax",
-      "healthCheckIntervalMs", "raceMatchWaitMs", "raceBudgetMs", "raceBudgetFloorMs",
+      "healthCheckIntervalMs", "probeConcurrency", "raceMatchWaitMs", "raceBudgetMs", "raceBudgetFloorMs",
       "raceBatchSize", "raceBatchStaggerMs", "coldStartTimeoutMs", "coldStartProbeTimeoutMs",
       "coldStartWarmTtlMs", "qualityShortCircuitSamples", "qualityShortCircuitProbeMs",
       "verifyTimeoutMs", "verifyMinOriginalSec", "verifyDurRatio", "verifyDurGapSec",
@@ -4685,6 +5015,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       rateWindowMs: { max: 10 * 1000 },                  // 最大 10 秒
       rateWindowMax: { max: 20 },                         // 最大 20 次
       healthCheckIntervalMs: { min: 60 * 1000 },        // 最小 1 分钟（防频繁探测）
+      probeConcurrency: { min: 1, max: 8 },              // v8.14 探测并发上限 1~8
       raceBudgetMs: { max: 15 * 1000 },                     // v8.10.3：总预算（死键 raceOverallTimeoutMs 已移除，唯一真相）
       raceBudgetFloorMs: { max: 15 * 1000 },            // 末档保底不得超过总预算上限
       raceBatchSize: { max: 10 },                         // 每批并发源数
@@ -4862,6 +5193,7 @@ if (typeof module !== "undefined" && module.exports) {
       mediaEnvelopeErrorCode,
       // L4 裁决层：唯一裁决入口 + 读侧查询 + 清账；probe 供桥模拟直接驱动
       admit,
+      computeEligibility,
       skipReason,
       clearSourceLedger,
       probeAudioDelivery,

@@ -57,6 +57,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
+| **v8.13.0 健康整功能重构**（2026-11-13，本地未推送） | 开关权威拆分（userEnabled/autoOff/offReason）+ 三值探测（PASS/FAIL/UNKNOWN）+ `playDead` 只认真实播放回传 + 半开只放一个试探 + `controls` 持久化（manualOff 独立） + 统一 `computeEligibility`（含 sleeping 跳过、观察源默认关闭不误报） + `suyinKuwo/helloworldKw/kuwoOfficial/suyinQQ/Juhe 五源/星海后端/ikun/huibq/wyOuter/changqingVip/suyin163/suyinMigu` 探针优先复用真实 handler（失败回退旧探针）；`suyinQQ` 观察探针补 320k；`QUALITY_SHORT_CIRCUIT` 并入统一资格入口 + `probeSource` 只读单源探测 + `reportPlayback` + `probeConcurrency` | 2026-11-13 |
 | **v8.12.4**（P2 负向归因：缺片返回 `TRUNCATED_MEDIA`、`byteLength`/base64 不符返回 `BAD_ENVELOPE`，probe/admit 均保留错误码；X5/X9/X11/X12 先红后绿） | 2026-11-12 |
 | **v8.12.3**（2026-11-12） | **P2 桥媒体信封**：App 二进制响应从 `JSON.stringify(Buffer)` 改为 `{__lxMedia:2,encoding:"base64",byteLength}`，>256KB 按 256KB 分片；源侧 `toBytes` 按片独立解码（base64 分片各自带 `=` 填充，拼大串非法）、`byteLength` 不符返回 null；新增 `test/audit/x-media-envelope.js` X1~X8 | 2026-11-12 |
 | **v8.12.2**（2026-11-12） | **P1 降级所有权**：`inited.sources[platform].fallbackOwner="source"`，App 对显式声明 source 所有权的源不再启动自己的换源，消除 bundled 源双层跨平台搜索；新增 `test/audit/w-fallback-owner.js` W1/W2 | 2026-11-12 |
