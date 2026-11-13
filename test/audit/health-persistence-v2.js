@@ -2,8 +2,8 @@
 /**
  * F36/F57 持久化 v2 审计（P1~P8）
  *
- * 覆盖：v2 结构、v1 兼容、controls-only 不受 sourceVersion 影响、
- * autoOff 6h 复验、回滚开关、容量/版本拒绝、敏感字段不落盘。
+ * 覆盖：v2 结构、v1 拒绝、controls-only 不受 sourceVersion 影响、
+ * autoOff 6h 复验、无回滚开关、容量/版本拒绝、敏感字段不落盘。
  *
  * 用法：node test/audit/health-persistence-v2.js
  */
@@ -55,13 +55,13 @@ check('P1 v2 导出：controls 与健康元数据同包但字段独立', () => {
   assert(st.controls.suyinQQ.successUrl === undefined, 'controls 不得带 URL')
 })
 
-check('P2 v1 完整态仍可恢复', () => {
+check('P2 v1 完整态必须拒绝', () => {
   const m = fresh()
   const state = m.exportHealthState()
   state.v = 1
   const m2 = fresh()
   const res = m2.restoreHealthState(state)
-  assert(res.ok === true, `v1 应兼容：${JSON.stringify(res)}`)
+  assert(res.ok === false, `v1 必须拒绝：${JSON.stringify(res)}`)
 })
 
 check('P3 controls-only：sourceVersion 不匹配仍恢复用户意图', () => {
@@ -97,11 +97,11 @@ check('P5 autoOff 超过 6h 不复活，保留原因字段', () => {
   assert(snap.offReason !== 'AUTO_OFF_PROBE', '过期 autoOff 不应留原因')
 })
 
-check('P6 healthV2Enabled=false 回旧 v1 导出', () => {
+check('P6 无 v1 回滚开关，始终导出 v2', () => {
   const m = fresh({ healthV2Enabled: false })
   const st = m.exportHealthState()
-  assert(st.v === 1, `回滚态应为 v1，实际 ${st.v}`)
-  assert(st.controls && st.controls.suyinQQ, '回滚态仍双写 controls')
+  assert(st.v === 2, `应始终导出 v2，实际 ${st.v}`)
+  assert(st.controls && st.controls.suyinQQ, 'v2 应带 controls')
 })
 
 check('P7 版本/未知源/超容量/禁止字段全部拒绝', () => {

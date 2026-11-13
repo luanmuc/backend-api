@@ -48,7 +48,7 @@ var __lxSourceBundle = (() => {
   // src/legacy.js
   var require_legacy = __commonJS({
     "src/legacy.js"(exports, module) {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
       var USER_CONFIG = {
         ikunApiKey: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.ikunApiKey || "",
         // 填入 ikun 卡密后开启
@@ -72,12 +72,11 @@ var __lxSourceBundle = (() => {
         previewUrlPreFilter: (_g = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.previewUrlPreFilter) != null ? _g : false,
         fragmentFallback: (_h = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.fragmentFallback) != null ? _h : true,
         // F57：持久化 v2 回滚开关；false 时导出旧 v1，旧宿主忽略 v2。
-        healthV2Enabled: (_i = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthV2Enabled) != null ? _i : true,
         // v8.11.2（D-35，V26c/d/f 实测暴露）：验真族阈值用 || 读配置时，传 0 会被吞成默认值（0 比例/0 间隔=不设限 是合法值），统一改 ?? 。
-        verifyTimeoutMs: (_j = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyTimeoutMs) != null ? _j : 3e3,
-        verifyMinOriginalSec: (_k = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyMinOriginalSec) != null ? _k : 90,
-        verifyDurRatio: (_l = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurRatio) != null ? _l : 0.6,
-        verifyDurGapSec: (_m = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurGapSec) != null ? _m : 15,
+        verifyTimeoutMs: (_i = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyTimeoutMs) != null ? _i : 3e3,
+        verifyMinOriginalSec: (_j = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyMinOriginalSec) != null ? _j : 90,
+        verifyDurRatio: (_k = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurRatio) != null ? _k : 0.6,
+        verifyDurGapSec: (_l = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyDurGapSec) != null ? _l : 15,
         cacheTtlMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.cacheTtlMs || 216e5,
         // 成功缓存 TTL(6h，低音质用)
         cacheTtlHighQualityMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.cacheTtlHighQualityMs || 18e5,
@@ -104,7 +103,7 @@ var __lxSourceBundle = (() => {
         // v8.14：探测并发上限(默认3,最大8)
         raceMatchWaitMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceMatchWaitMs || 600,
         // verified 等待窗口
-        allFailShortTtlMs: (_n = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) != null ? _n : 3e4,
+        allFailShortTtlMs: (_m = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.allFailShortTtlMs) != null ? _m : 3e4,
         // v6.0：全链网络类失败短缓存 TTL(补齐 v6.0 漏配键)
         raceBudgetMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBudgetMs || 12e3,
         // v8.8：单次请求总预算(跨音质档共享)
@@ -122,8 +121,6 @@ var __lxSourceBundle = (() => {
         // v8.10：冷启动源探针超时（onrender 冷态 30s，8s 必误判）
         coldStartWarmTtlMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartWarmTtlMs || 3e5,
         // v8.8：冷启动预热间隔
-        eligibilityShadow: !!(typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.eligibilityShadow),
-        // Batch 0：默认关闭，只写 debug 影子 diff
         qualityShortCircuit: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig ? globalThis.__lxSourceConfig.qualityShortCircuit : void 0,
         // v8.8：档位短路开关(缺省 true)
         coldStartWarmEnabled: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig ? globalThis.__lxSourceConfig.coldStartWarmEnabled : void 0,
@@ -368,7 +365,6 @@ var __lxSourceBundle = (() => {
         suyinMigu: false
         // 观察源：2026-11-11 实测上游 502，只探测，不进链，复核 2026-11-26
       };
-      var runtimeToggles = __spreadValues({}, SOURCE_TOGGLES);
       var userEnabled = __spreadValues({}, SOURCE_TOGGLES);
       var autoOff = {};
       var autoOffReason = {};
@@ -382,9 +378,27 @@ var __lxSourceBundle = (() => {
       function effectiveEnabled(id) {
         return isUserEnabled(id) && !isAutoOff(id);
       }
-      function syncRuntimeToggle(id) {
-        runtimeToggles[id] = effectiveEnabled(id);
-      }
+      var runtimeToggles = new Proxy({}, {
+        get(_t, id) {
+          if (typeof id !== "string") return void 0;
+          return effectiveEnabled(id);
+        },
+        set(_t, id, value) {
+          if (typeof id !== "string") return false;
+          userEnabled[id] = !!value;
+          if (value) delete autoOff[id];
+          return true;
+        },
+        has(_t, id) {
+          return typeof id === "string" && id in userEnabled;
+        },
+        ownKeys() {
+          return Object.keys(userEnabled);
+        },
+        getOwnPropertyDescriptor() {
+          return { enumerable: true, configurable: true };
+        }
+      });
       var manualOff = {};
       var manualOffAt = {};
       var HEALTH_CHECK_INTERVAL_MS = 10 * 60 * 1e3;
@@ -578,6 +592,15 @@ var __lxSourceBundle = (() => {
             extractUrl: (b) => b && typeof b.musicInfo === "string" ? b.musicInfo : b && b.musicInfo && typeof b.musicInfo.url === "string" ? b.musicInfo.url : null
           }
         };
+        const handlerOnly = (p) => {
+          if (!p || !p.useHandler) return p;
+          for (const k of ["url", "method", "body", "headers", "check", "checkRes", "extractUrl"]) delete p[k];
+          return p;
+        };
+        for (const id of Object.keys(cfg2)) {
+          if (Array.isArray(cfg2[id].probes)) cfg2[id].probes = cfg2[id].probes.map(handlerOnly);
+          else cfg2[id] = handlerOnly(cfg2[id]);
+        }
         const round = globalThis.__probeRound || 0;
         for (const id of Object.keys(cfg2)) {
           if (!SOURCE_HANDLERS[id]) {
@@ -635,6 +658,11 @@ var __lxSourceBundle = (() => {
       async function probeSingleSource(id, pc) {
         const probes = pc.probes || [{
           quality: pc.quality,
+          useHandler: pc.useHandler,
+          songName: pc.songName,
+          handlerSong: pc.handlerSong,
+          handlerPlatform: pc.handlerPlatform,
+          handlerStyle: pc.handlerStyle,
           url: pc.url,
           // v8.2 修复：method/body 漏透传——juheProbeCfg(juhe 五源)与 ikun 探针都是 POST 协议型源，
           // 旧实现只透传 url/headers/check，实际发出 GET → 上游 404/405 误判失败（juhe 探测长期"失败"的隐藏原因之一）
@@ -665,7 +693,8 @@ var __lxSourceBundle = (() => {
                     return { usable: playable, outcome: playable ? "PASS" : "FAIL", code: playable ? "" : "PROBE_FAIL", quality, duration: duration2, viaHandler: true };
                   }
                 } catch (e) {
-                  if (typeof logDebug === "function") logDebug(`[\u63A2\u6D4B] ${id} handler \u63A2\u9488\u56DE\u9000\uFF1A${extractErrorCode(e)}`);
+                  if (typeof logDebug === "function") logDebug(`[\u63A2\u6D4B] ${id} handler \u63A2\u9488\u5931\u8D25\uFF1A${extractErrorCode(e)}`);
+                  throw e;
                 }
               }
               const res = await httpRequest(p.url || "", {
@@ -734,7 +763,7 @@ var __lxSourceBundle = (() => {
           probeState.passStreak[id] = 0;
           logInfo(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u7ED3\u679C UNKNOWN\uFF08\u672C\u5730\u7F51\u7EDC/\u8D85\u65F6/\u672A\u53D6\u8BC1\uFF09\uFF0C\u4E0D\u5173\u95ED\u3001\u4E0D\u7D2F\u8BA1\u5931\u8D25`);
           recordHealthEvent({ event: "health_transition", sourceId: id, reason: "probe_unknown" });
-          return { outcome, enabled: runtimeToggles[id] !== false, autoOff: !!autoOff[id] };
+          return { outcome, enabled: effectiveEnabled(id), autoOff: !!autoOff[id] };
         }
         if (usable) {
           const br = getBreaker(id);
@@ -764,13 +793,8 @@ var __lxSourceBundle = (() => {
               delete autoOff[id];
               delete autoOffReason[id];
               delete autoOffAt[id];
-              syncRuntimeToggle(id);
               logInfo(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_PASS_REQUIRED}\u6B21\u63A2\u6D4B\u901A\u8FC7\uFF0C\u81EA\u52A8\u5173\u95ED\u5DF2\u89E3\u9664\uFF08AUTO_ON_PROBE\uFF09`);
               recordHealthEvent({ event: "health_transition", sourceId: id, from, to: "ELIGIBLE", reason: "auto_on_probe" });
-            } else if (canAutoOn && runtimeToggles[id] === false) {
-              autoOff[id] = false;
-              syncRuntimeToggle(id);
-              logInfo(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_PASS_REQUIRED}\u6B21\u63A2\u6D4B\u901A\u8FC7\uFF0C\u5DF2\u81EA\u52A8\u542F\u7528`);
             }
             probeState.passCount[id] = 0;
           }
@@ -786,7 +810,6 @@ var __lxSourceBundle = (() => {
               autoOff[id] = true;
               autoOffReason[id] = "AUTO_OFF_PROBE";
               autoOffAt[id] = Date.now();
-              syncRuntimeToggle(id);
               logWarn(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u8FDE\u7EED${PROBE_FAIL_REQUIRED}\u6B21\u63A2\u6D4B\u5931\u8D25\uFF0C\u5DF2\u81EA\u52A8\u5173\u95ED\uFF08AUTO_OFF_PROBE\uFF0C\u6062\u590D\u540E\u81EA\u52A8\u63A2\u6D4B\u5F00\u542F\uFF09`);
               recordHealthEvent({ event: "health_transition", sourceId: id, from: "ELIGIBLE", to: "AUTO_OFF", reason: "auto_off_probe" });
             } else if (isColdStart) {
@@ -807,7 +830,7 @@ var __lxSourceBundle = (() => {
             }
           }
         }
-        return { outcome, enabled: runtimeToggles[id] !== false, autoOff: !!autoOff[id], reason: autoOffReason[id] || null };
+        return { outcome, enabled: effectiveEnabled(id), autoOff: !!autoOff[id], reason: autoOffReason[id] || null };
       }
       var healthHistory = [];
       var HEALTH_HISTORY_MAX = 144;
@@ -888,7 +911,7 @@ var __lxSourceBundle = (() => {
             }
           });
           await Promise.all(workers);
-          const active = Object.keys(runtimeToggles).filter((k) => runtimeToggles[k]);
+          const active = Object.keys(userEnabled).filter(effectiveEnabled);
           logInfo(`\u5065\u5EB7\u63A2\u6D4B: \u672C\u8F6E\u5B8C\u6210\uFF0C\u5F53\u524D\u81EA\u52A8\u542F\u7528: ${active.join(", ")}`);
           if (saveHistory) {
             const snap = getHealthSnapshot();
@@ -1282,7 +1305,6 @@ var __lxSourceBundle = (() => {
           delete autoOff[sourceId];
           delete autoOffReason[sourceId];
           delete autoOffAt[sourceId];
-          syncRuntimeToggle(sourceId);
           recordHealthEvent({ event: "health_transition", sourceId, from: "AUTO_OFF", to: "ELIGIBLE", reason: "real_success" });
         }
         clearResolveDead(sourceId);
@@ -2264,12 +2286,8 @@ var __lxSourceBundle = (() => {
         if (!SOURCE_HANDLERS[id]) return { eligible: false, reason: "unknown-source", code: "SOURCE_UNREACHABLE", untilMs: null };
         const h = SOURCE_HANDLERS[id];
         if (manualOff[id]) return { eligible: false, reason: "user-off", code: "USER_OFF", untilMs: null };
-        if (!isUserEnabled(id) && h.lifecycle !== "probation") return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
+        if (!isUserEnabled(id)) return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
         if (autoOff[id]) return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: autoOffAt[id] ? autoOffAt[id] + cfg("playDeadReviveMs", 5 * 60 * 1e3) : null };
-        if (runtimeToggles[id] === false) {
-          if (h.lifecycle === "probation") return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
-          return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: null };
-        }
         if (probeState.sleeping[id]) return { eligible: false, reason: "sleeping", code: "SOURCE_SLEEPING", untilMs: null };
         if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
         if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
@@ -2304,14 +2322,6 @@ var __lxSourceBundle = (() => {
         if (pv && pv > Date.now()) return { eligible: false, reason: "preview_cooldown", code: "PREVIEW_COOLDOWN", untilMs: pv };
         return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
       }
-      function shadowLegacyEligibility(source, platform, quality) {
-        const id = source;
-        const q = String(quality || "128k").toLowerCase();
-        if (!SOURCE_HANDLERS[id]) return { eligible: false, reason: "unknown-source", code: "SOURCE_UNREACHABLE", untilMs: null };
-        if (runtimeToggles[id] === false || manualOff[id]) return { eligible: false, reason: "manual-off", code: "USER_OFF", untilMs: null };
-        if (isPlayDead(id)) return { eligible: false, reason: "play-dead", code: "PLAY_DEAD", untilMs: playDeadDeadline.get(id) || null };
-        return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
-      }
       function skipReason(source, ctx) {
         const e = computeEligibility(source, ctx && ctx.platform, ctx && ctx.quality, { runtime: true, consumePlayDeadTrial: false });
         if (e.eligible) return null;
@@ -2331,7 +2341,6 @@ var __lxSourceBundle = (() => {
           manualOff[target] = true;
           manualOffAt[target] = Date.now();
         }
-        syncRuntimeToggle(target);
         clearSourceLedger(target, { scope: "authority" });
         clearCrossFallbackCache();
         logInfo(`[\u6E90\u5F00\u5173] ${target} ${next ? "\u5F00\u542F" : "\u5173\u95ED"}\uFF0C\u5DF2\u6E05\u7528\u6237\u8D26\uFF08\u5931\u8D25\u7F13\u5B58/\u6458\u9664/\u7194\u65AD\u9650\u6D41/\u63A2\u6D4B\u6001\uFF09\uFF0C\u4FDD\u7559\u8D28\u91CF\u5386\u53F2`);
@@ -3221,12 +3230,8 @@ var __lxSourceBundle = (() => {
       }
       function getHealthOffState(id, h) {
         if (manualOff[id]) return { offReason: "USER_OFF", offAt: Number(manualOffAt[id] || 0) };
-        if (!isUserEnabled(id) && h && h.lifecycle !== "probation") return { offReason: "DEFAULT_OFF", offAt: 0 };
+        if (!isUserEnabled(id)) return { offReason: "DEFAULT_OFF", offAt: 0 };
         if (autoOff[id]) return { offReason: "AUTO_OFF_PROBE", offAt: Number(autoOffAt[id] || 0) };
-        if (runtimeToggles[id] === false) {
-          if (h && h.lifecycle === "probation") return { offReason: "DEFAULT_OFF", offAt: 0 };
-          return { offReason: "AUTO_OFF_PROBE", offAt: 0 };
-        }
         if (probeState.sleeping[id]) return { offReason: "SLEEPING", offAt: Number(probeState.sleepAt[id] || 0) };
         if (isPlayDead(id)) return { offReason: "PLAY_DEAD", offAt: 0 };
         return { offReason: null, offAt: 0 };
@@ -3249,7 +3254,7 @@ var __lxSourceBundle = (() => {
             auth: h.auth,
             reviewAt: h.reviewAt,
             platforms: h.platforms,
-            enabled: runtimeToggles[id] !== false,
+            enabled: effectiveEnabled(id),
             // v8.14：开关权威拆分。App 必须能区分“用户关闭 / 系统自动关闭 / 休眠 / 默认关闭”，
             // 不能再只拿 enabled=false 猜原因。
             userEnabled: isUserEnabled(id),
@@ -3355,7 +3360,7 @@ var __lxSourceBundle = (() => {
         return snapshot;
       }
       var HEALTH_STATE_VERSION = 2;
-      var HEALTH_STATE_ACCEPTED_VERSIONS = [1, 2];
+      var HEALTH_STATE_ACCEPTED_VERSIONS = [2];
       var HEALTH_STATE_SOURCE_VERSION = "8.13.0";
       var HEALTH_STATE_MAX_BYTES = 256 * 1024;
       var HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1e3;
@@ -3412,7 +3417,7 @@ var __lxSourceBundle = (() => {
           userEnabled[id] = c.enabled;
           if (c.manualOff) {
             manualOff[id] = true;
-            manualOffAt[id] = Number(c.manualOffAt || c.offAt || 0) || Date.now();
+            manualOffAt[id] = Number(c.manualOffAt || 0) || Date.now();
           } else {
             delete manualOff[id];
             delete manualOffAt[id];
@@ -3427,7 +3432,6 @@ var __lxSourceBundle = (() => {
             delete autoOffAt[id];
             delete autoOffReason[id];
           }
-          syncRuntimeToggle(id);
         }
       }
       function exportHealthState() {
@@ -3472,8 +3476,7 @@ var __lxSourceBundle = (() => {
           if (Number.isFinite(n) && n > 0) qualityShortCircuit[`${id}:${quality}`] = n;
         }
         const controls = collectHealthControls();
-        const version2 = cfg("healthV2Enabled", true) ? HEALTH_STATE_VERSION : 1;
-        return { v: version2, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
+        return { v: HEALTH_STATE_VERSION, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
       }
       function restoreHealthState(state) {
         try {
@@ -3781,10 +3784,6 @@ var __lxSourceBundle = (() => {
         const q = String(quality || "128k").toLowerCase();
         const handlers = Object.keys(SOURCE_HANDLERS).map((id) => SOURCE_HANDLERS[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform)).filter((h) => h.chain[platform] != null).filter((h) => qualityRank(h.maxQuality) >= qualityRank(q)).map((h) => {
           const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: true });
-          if (cfg("eligibilityShadow", false)) {
-            const legacy = shadowLegacyEligibility(h.id, platform, q);
-            if (legacy.code !== e.code) logDebug(`[\u5F71\u5B50\u88C1\u51B3] ${h.id} ${platform}/${q}: legacy=${legacy.code} modern=${e.code}`);
-          }
           if (!e.eligible) {
             if (LOG_DEBUG) logDebug(`[\u94FE] ${h.id} \u8DF3\u8FC7\uFF08${e.reason}${e.untilMs ? `\uFF0C\u81F3 ${e.untilMs}` : ""}\uFF09`);
             return null;
@@ -4155,7 +4154,7 @@ var __lxSourceBundle = (() => {
       var coldStartWarmAt = /* @__PURE__ */ new Map();
       function warmUpColdStartSources(platform) {
         for (const h of Object.values(SOURCE_HANDLERS)) {
-          if (!h || !h.coldStart || runtimeToggles[h.id] !== true) continue;
+          if (!h || !h.coldStart || !effectiveEnabled(h.id)) continue;
           if (Date.now() - (coldStartWarmAt.get(h.id) || 0) < cfg("coldStartWarmTtlMs", 3e5)) continue;
           if (!buildSourceChain(platform, "128k").some((x) => x.id === h.id)) continue;
           coldStartWarmAt.set(h.id, Date.now());
@@ -4195,7 +4194,7 @@ var __lxSourceBundle = (() => {
             }
           }
         }
-        const cachedSourceDisabled = !!(cached && cached.url && cached.source && (runtimeToggles[cached.source] === false || manualOff[cached.source]));
+        const cachedSourceDisabled = !!(cached && cached.url && cached.source && (!effectiveEnabled(cached.source) || manualOff[cached.source]));
         if (cachedSourceDisabled) {
           logInfo(`[\u7F13\u5B58\u5931\u6548] ${(songInfo == null ? void 0 : songInfo.name) || ""} \u7F13\u5B58\u6765\u81EA\u5DF2\u5173\u95ED\u6E90 ${cached.source}\uFF0C\u4E22\u5F03\u5E76\u91CD\u65B0\u89E3\u6790`);
           successCache.delete(cacheKey);
@@ -4759,7 +4758,7 @@ var __lxSourceBundle = (() => {
             running: false,
             doneAt: Date.now(),
             round: globalThis.__probeRound || 0,
-            active: Object.keys(runtimeToggles).filter((k) => runtimeToggles[k]),
+            active: Object.keys(userEnabled).filter(effectiveEnabled),
             sleeping: Object.keys(probeState.sleeping).filter((k) => probeState.sleeping[k])
           })).catch((err) => Promise.reject(err));
         }
@@ -4812,8 +4811,7 @@ var __lxSourceBundle = (() => {
             "fragmentFallback",
             "qualityShortCircuit",
             "coldStartWarmEnabled",
-            "crossPlatformEnabled",
-            "healthV2Enabled"
+            "crossPlatformEnabled"
           ];
           const ZERO_ALLOWED_KEYS = ["verifyDurRatio", "verifyDurGapSec"];
           const PARAM_LIMITS = {
@@ -5024,11 +5022,7 @@ var __lxSourceBundle = (() => {
             // L4 裁决层：唯一裁决入口 + 读侧查询 + 清账；probe 供桥模拟直接驱动
             admit,
             computeEligibility,
-            shadowLegacyEligibility,
-            // Batch 0：只读旧裁决，仅供影子 diff/审计
             previewCooldownMap,
-            // Batch 3：只读审计用
-            qualitySkipProbeAt,
             // Batch 3：只读审计用
             skipReason,
             clearSourceLedger,

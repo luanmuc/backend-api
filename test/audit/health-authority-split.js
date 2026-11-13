@@ -3,7 +3,7 @@
  * Batch 1 开关权威拆分（A1~A9）
  *
  * 目标：userEnabled / manualOff / autoOff / effectiveEnabled 分层；
- * runtimeToggles 只做派生镜像；toggle 只写用户，probe 只写 auto；
+ * 生产态只有 userEnabled/autoOff 权威；runtimeToggles 仅测试夹具；toggle 只写用户，probe 只写 auto；
  * 快照必须给 offReason/offAt；重启保留手动关闭；UNKNOWN 不自动关源。
  *
  * 用法：node test/audit/health-authority-split.js
@@ -112,12 +112,12 @@ check('A8 offAt 与 offReason 同源：手动/自动/默认', () => {
   assert(snap(m3, 'suyinQQ').offAt === 0, '默认关闭不应伪造 offAt')
 })
 
-check('A9 runtimeToggles 仍是派生镜像，不反向改 userEnabled', () => {
+check('A9 runtimeToggles 只是测试夹具，不构成生产第二套开关', () => {
   const m = fresh()
   m.runtimeToggles[ID] = false
   const s = snap(m, ID)
-  assert(s.userEnabled === true, 'runtimeToggles 不应反向改 userEnabled')
-  assert(s.offReason === 'AUTO_OFF_PROBE', `旧入口关闭应解释为 autoOff，实际 ${s.offReason}`)
+  assert(s.userEnabled === false, '夹具关闭应写回唯一权威 userEnabled')
+  assert(s.offReason === 'DEFAULT_OFF', `夹具关闭应解释为默认关闭，实际 ${s.offReason}`)
 })
 
 console.log(`\n${passed} passed, ${failures.length} failed`)

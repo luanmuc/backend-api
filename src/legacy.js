@@ -34,7 +34,6 @@ const USER_CONFIG = {
   previewUrlPreFilter: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.previewUrlPreFilter) ?? false,
   fragmentFallback: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.fragmentFallback) ?? true,
   // F57：持久化 v2 回滚开关；false 时导出旧 v1，旧宿主忽略 v2。
-  healthV2Enabled: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.healthV2Enabled) ?? true,
   // v8.11.2（D-35，V26c/d/f 实测暴露）：验真族阈值用 || 读配置时，传 0 会被吞成默认值（0 比例/0 间隔=不设限 是合法值），统一改 ?? 。
   verifyTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyTimeoutMs) ?? 3000,
   verifyMinOriginalSec: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.verifyMinOriginalSec) ?? 90,
@@ -62,7 +61,6 @@ const USER_CONFIG = {
   coldStartTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartTimeoutMs) || 8000, // v8.8：冷启动源单源超时
   coldStartProbeTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartProbeTimeoutMs) || 30000, // v8.10：冷启动源探针超时（onrender 冷态 30s，8s 必误判）
   coldStartWarmTtlMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartWarmTtlMs) || 300000, // v8.8：冷启动预热间隔
-  eligibilityShadow: !!(typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.eligibilityShadow), // Batch 0：默认关闭，只写 debug 影子 diff
   qualityShortCircuit: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.qualityShortCircuit : undefined, // v8.8：档位短路开关(缺省 true)
   coldStartWarmEnabled: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.coldStartWarmEnabled : undefined, // v8.8：冷启动预热开关(缺省 true)
   qualityShortCircuitSamples: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitSamples) || 3, // v8.8：档位短路样本门槛
@@ -324,10 +322,9 @@ const SOURCE_TOGGLES = {
 // 第二部分B：健康探测模块（v1.0：探测清单收敛为当前可用源 + 并发探测 + 统一跟随302）
 // ============================================================
 // 运行时开关：随探测结果自动变化；buildSourceChain 以它为准
-const runtimeToggles = { ...SOURCE_TOGGLES };
 // v8.14：用户意图与自动状态分离。
 // userEnabled = 用户是否愿意使用该源；autoOff = 系统因连续探测失败临时关闭。
-// runtimeToggles 继续作为兼容镜像/链读取入口，避免一次性改坏所有消费者。
+// 运行期不再维护 runtimeToggles 镜像；需要“当前是否可用”一律走 effectiveEnabled()。
 const userEnabled = { ...SOURCE_TOGGLES };
 const autoOff = {}; // { [id]: true }
 const autoOffReason = {}; // { [id]: 'AUTO_OFF_PROBE' | 'AUTO_OFF_UNREACHABLE' }
@@ -335,7 +332,23 @@ const autoOffAt = {}; // { [id]: timestamp }
 function isUserEnabled(id) { return userEnabled[id] !== false; }
 function isAutoOff(id) { return !!autoOff[id]; }
 function effectiveEnabled(id) { return isUserEnabled(id) && !isAutoOff(id); }
-function syncRuntimeToggle(id) { runtimeToggles[id] = effectiveEnabled(id); }
+// 测试夹具：runtimeToggles 是 userEnabled/autoOff 的只读投影 + 写回 userEnabled。
+// 生产代码不得读取它；仅 __debug 暴露给审计脚本做临时开关。
+const runtimeToggles = new Proxy({}, {
+  get(_t, id) {
+    if (typeof id !== "string") return undefined;
+    return effectiveEnabled(id);
+  },
+  set(_t, id, value) {
+    if (typeof id !== "string") return false;
+    userEnabled[id] = !!value;
+    if (value) delete autoOff[id];
+    return true;
+  },
+  has(_t, id) { return typeof id === "string" && id in userEnabled; },
+  ownKeys() { return Object.keys(userEnabled); },
+  getOwnPropertyDescriptor() { return { enumerable: true, configurable: true }; },
+});
 // v4.0：用户手动关闭锁定——手动 toggle(false) 的源，探测通过也不再自动启用（除非用户手动开启）
 const manualOff = {};
 const manualOffAt = {}; // v8.14：手动关闭时间，供快照 offAt 与诊断解释
@@ -532,6 +545,16 @@ function buildProbeConfig() {
       extractUrl: b => (b && typeof b.musicInfo === "string") ? b.musicInfo : (b && b.musicInfo && typeof b.musicInfo.url === "string" ? b.musicInfo.url : null)
     }
   };
+  // 单一路径：生产探测只走 handler；URL/check/headers 等旧探针字段一律不进入运行时配置。
+  const handlerOnly = (p) => {
+    if (!p || !p.useHandler) return p;
+    for (const k of ["url", "method", "body", "headers", "check", "checkRes", "extractUrl"]) delete p[k];
+    return p;
+  };
+  for (const id of Object.keys(cfg)) {
+    if (Array.isArray(cfg[id].probes)) cfg[id].probes = cfg[id].probes.map(handlerOnly);
+    else cfg[id] = handlerOnly(cfg[id]);
+  }
   // 休眠源过滤——连续 PROBE_SLEEP_AFTER_DEAD 轮失败后不再每轮空打；
   // 每 PROBE_WAKE_EVERY_ROUND 轮做一次复活试探（上游恢复/新端点时自动回归）
   const round = globalThis.__probeRound || 0;
@@ -596,6 +619,11 @@ async function probeSingleSource(id, pc) {
   //   任一目标 PASS = 源可达（但不能证明所有档可交付）；全部 FAIL = 源失败；否则 UNKNOWN。
   const probes = pc.probes || [{
     quality: pc.quality,
+    useHandler: pc.useHandler,
+    songName: pc.songName,
+    handlerSong: pc.handlerSong,
+    handlerPlatform: pc.handlerPlatform,
+    handlerStyle: pc.handlerStyle,
     url: pc.url,
     // v8.2 修复：method/body 漏透传——juheProbeCfg(juhe 五源)与 ikun 探针都是 POST 协议型源，
     // 旧实现只透传 url/headers/check，实际发出 GET → 上游 404/405 误判失败（juhe 探测长期"失败"的隐藏原因之一）
@@ -632,9 +660,11 @@ async function probeSingleSource(id, pc) {
               return { usable: playable, outcome: playable ? "PASS" : "FAIL", code: playable ? "" : "PROBE_FAIL", quality, duration, viaHandler: true };
             }
           } catch (e) {
-            if (typeof logDebug === "function") logDebug(`[探测] ${id} handler 探针回退：${extractErrorCode(e)}`);
+            if (typeof logDebug === "function") logDebug(`[探测] ${id} handler 探针失败：${extractErrorCode(e)}`);
+            throw e;
           }
         }
+        // 低层显式 url 仅用于审计夹具；生产 buildProbeConfig 不再输出任何 URL 字段。
         const res = await httpRequest(p.url || "", {
           method: p.method || "GET",
           headers: { "User-Agent": getMobileUserAgent(), ...(p.headers || {}) },
@@ -709,7 +739,7 @@ function applyProbeResult(id, usable, detail = {}) {
     probeState.passStreak[id] = 0;
     logInfo(`健康探测: [${id}] 结果 UNKNOWN（本地网络/超时/未取证），不关闭、不累计失败`);
     recordHealthEvent({ event: "health_transition", sourceId: id, reason: "probe_unknown" });
-    return { outcome, enabled: runtimeToggles[id] !== false, autoOff: !!autoOff[id] };
+    return { outcome, enabled: effectiveEnabled(id), autoOff: !!autoOff[id] };
   }
   if (usable) {
     // v8.10.3：探测通过 → 复位断路器与限流退避（仅“可达性”证据，不等价于真实播放成功）
@@ -739,14 +769,8 @@ function applyProbeResult(id, usable, detail = {}) {
         delete autoOff[id];
         delete autoOffReason[id];
         delete autoOffAt[id];
-        syncRuntimeToggle(id);
         logInfo(`健康探测: [${id}] 连续${PROBE_PASS_REQUIRED}次探测通过，自动关闭已解除（AUTO_ON_PROBE）`);
         recordHealthEvent({ event: "health_transition", sourceId: id, from, to: "ELIGIBLE", reason: "auto_on_probe" });
-      } else if (canAutoOn && runtimeToggles[id] === false) {
-        // 兼容旧测试/旧宿主直接改 runtimeToggles 的入口：仍按自动关闭恢复。
-        autoOff[id] = false;
-        syncRuntimeToggle(id);
-        logInfo(`健康探测: [${id}] 连续${PROBE_PASS_REQUIRED}次探测通过，已自动启用`);
       }
       probeState.passCount[id] = 0;
     }
@@ -762,7 +786,6 @@ function applyProbeResult(id, usable, detail = {}) {
         autoOff[id] = true;
         autoOffReason[id] = "AUTO_OFF_PROBE";
         autoOffAt[id] = Date.now();
-        syncRuntimeToggle(id);
         logWarn(`健康探测: [${id}] 连续${PROBE_FAIL_REQUIRED}次探测失败，已自动关闭（AUTO_OFF_PROBE，恢复后自动探测开启）`);
         recordHealthEvent({ event: "health_transition", sourceId: id, from: "ELIGIBLE", to: "AUTO_OFF", reason: "auto_off_probe" });
       } else if (isColdStart) {
@@ -784,7 +807,7 @@ function applyProbeResult(id, usable, detail = {}) {
       }
     }
   }
-  return { outcome, enabled: runtimeToggles[id] !== false, autoOff: !!autoOff[id], reason: autoOffReason[id] || null };
+  return { outcome, enabled: effectiveEnabled(id), autoOff: !!autoOff[id], reason: autoOffReason[id] || null };
 }
 
 // v8.0：健康历史趋势记录（每次自动探测完成后存一条）；v8.10：上限 60→144（10min/条 ≈ 24h）
@@ -877,7 +900,7 @@ async function runHealthCheck(saveHistory = true) {
     }
   });
   await Promise.all(workers);
-  const active = Object.keys(runtimeToggles).filter(k => runtimeToggles[k]);
+  const active = Object.keys(userEnabled).filter(effectiveEnabled);
   logInfo(`健康探测: 本轮完成，当前自动启用: ${active.join(", ")}`);
   // v8.0：记录历史快照（用于趋势图）——v30.1：手动探测不存历史，避免污染趋势
   if (saveHistory) {
@@ -1285,7 +1308,6 @@ function recordSuccess(sourceId, duration, quality, opts = {}) {
   // v8.14：真实成功同时解除 autoOff（比探测更硬的恢复证据）。
   if (autoOff[sourceId] && isUserEnabled(sourceId)) {
     delete autoOff[sourceId]; delete autoOffReason[sourceId]; delete autoOffAt[sourceId];
-    syncRuntimeToggle(sourceId);
     recordHealthEvent({ event: "health_transition", sourceId, from: "AUTO_OFF", to: "ELIGIBLE", reason: "real_success" });
   }
   // F42：取链成功只能解除 resolveDead；playDead 必须等 App 真实播放成功（opts.playback）。
@@ -2347,13 +2369,8 @@ function computeEligibility(source, platform, quality, opts) {
   if (!SOURCE_HANDLERS[id]) return { eligible: false, reason: "unknown-source", code: "SOURCE_UNREACHABLE", untilMs: null };
   const h = SOURCE_HANDLERS[id];
   if (manualOff[id]) return { eligible: false, reason: "user-off", code: "USER_OFF", untilMs: null };
-  if (!isUserEnabled(id) && h.lifecycle !== "probation") return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
+  if (!isUserEnabled(id)) return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
   if (autoOff[id]) return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: autoOffAt[id] ? autoOffAt[id] + cfg("playDeadReviveMs", 5 * 60 * 1000) : null };
-  if (runtimeToggles[id] === false) {
-    // 兼容旧入口：观察源默认关闭时 runtimeToggles 也是 false，不能误报成探测自动关闭。
-    if (h.lifecycle === "probation") return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
-    return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: null };
-  }
   if (probeState.sleeping[id]) return { eligible: false, reason: "sleeping", code: "SOURCE_SLEEPING", untilMs: null };
   if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
   if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
@@ -2392,21 +2409,6 @@ function computeEligibility(source, platform, quality, opts) {
   return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
 }
 
-// Batch 0：旧裁决的只读影子。旧结构门只认 runtimeToggles/manualOff + playDead，
-// 运行期只认源级 rateLimit/open/half-open；它看不到 autoOff/sleeping/resolveDead/
-// qualityShortCircuit，所以与新 computeEligibility 必然产生可解释 diff。此函数绝不写状态、
-// 不推进 half-open、不消费 trial、不写事件。
-function shadowLegacyEligibility(source, platform, quality) {
-  const id = source;
-  const q = String(quality || "128k").toLowerCase();
-  if (!SOURCE_HANDLERS[id]) return { eligible: false, reason: "unknown-source", code: "SOURCE_UNREACHABLE", untilMs: null };
-  if (runtimeToggles[id] === false || manualOff[id]) return { eligible: false, reason: "manual-off", code: "USER_OFF", untilMs: null };
-  if (isPlayDead(id)) return { eligible: false, reason: "play-dead", code: "PLAY_DEAD", untilMs: playDeadDeadline.get(id) || null };
-  // 旧 buildSourceChain 的结构门只跑到这里；rate/open/half-open 属于旧 canExecute 的运行期门，
-  // 不在建链时比较，避免把“结构层 vs 运行层”误算成产品 diff。
-  return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
-}
-
 function structuralSkipReason(source, quality, consumePlayDeadTrial) {
   const e = computeEligibility(source, null, quality, { runtime: false, consumePlayDeadTrial: consumePlayDeadTrial === true });
   if (e.eligible) return null;
@@ -2434,7 +2436,6 @@ function toggleSource(target, enabled) {
     manualOff[target] = true;
     manualOffAt[target] = Date.now();
   }
-  syncRuntimeToggle(target);
   clearSourceLedger(target, { scope: 'authority' });
   clearCrossFallbackCache();
   logInfo(`[源开关] ${target} ${next ? "开启" : "关闭"}，已清用户账（失败缓存/摘除/熔断限流/探测态），保留质量历史`);
@@ -3556,12 +3557,8 @@ function getPlatformSongId(platform, songInfo) {
 // v8.14：offReason/offAt 单一来源；与 computeEligibility 的优先序保持一致。
 function getHealthOffState(id, h) {
   if (manualOff[id]) return { offReason: "USER_OFF", offAt: Number(manualOffAt[id] || 0) };
-  if (!isUserEnabled(id) && h && h.lifecycle !== "probation") return { offReason: "DEFAULT_OFF", offAt: 0 };
+  if (!isUserEnabled(id)) return { offReason: "DEFAULT_OFF", offAt: 0 };
   if (autoOff[id]) return { offReason: "AUTO_OFF_PROBE", offAt: Number(autoOffAt[id] || 0) };
-  if (runtimeToggles[id] === false) {
-    if (h && h.lifecycle === "probation") return { offReason: "DEFAULT_OFF", offAt: 0 };
-    return { offReason: "AUTO_OFF_PROBE", offAt: 0 };
-  }
   if (probeState.sleeping[id]) return { offReason: "SLEEPING", offAt: Number(probeState.sleepAt[id] || 0) };
   if (isPlayDead(id)) return { offReason: "PLAY_DEAD", offAt: 0 };
   return { offReason: null, offAt: 0 };
@@ -3587,7 +3584,7 @@ function getHealthSnapshot() {
       auth: h.auth,
       reviewAt: h.reviewAt,
       platforms: h.platforms,
-      enabled: runtimeToggles[id] !== false,
+      enabled: effectiveEnabled(id),
       // v8.14：开关权威拆分。App 必须能区分“用户关闭 / 系统自动关闭 / 休眠 / 默认关闭”，
       // 不能再只拿 enabled=false 猜原因。
       userEnabled: isUserEnabled(id),
@@ -3708,8 +3705,8 @@ function getHealthSnapshot() {
 // 官方移动版自定义源没有 storage API，持久化只能由 App 宿主承担；
 // 源侧只负责导出白名单快照、校验后恢复，successCache/failCache 永远不落盘。
 // ============================================================
-const HEALTH_STATE_VERSION = 2; // F57：v2 独立 controls；仍接受 v1
-const HEALTH_STATE_ACCEPTED_VERSIONS = [1, 2];
+const HEALTH_STATE_VERSION = 2; // 单一路径：只导出/恢复 v2
+const HEALTH_STATE_ACCEPTED_VERSIONS = [2];
 const HEALTH_STATE_SOURCE_VERSION = "8.13.0";
 const HEALTH_STATE_MAX_BYTES = 256 * 1024;
 const HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1000;
@@ -3759,7 +3756,7 @@ function applyHealthControls(controls) {
     userEnabled[id] = c.enabled;
     if (c.manualOff) {
       manualOff[id] = true;
-      manualOffAt[id] = Number(c.manualOffAt || c.offAt || 0) || Date.now();
+      manualOffAt[id] = Number(c.manualOffAt || 0) || Date.now();
     } else {
       delete manualOff[id];
       delete manualOffAt[id];
@@ -3774,7 +3771,6 @@ function applyHealthControls(controls) {
       delete autoOffAt[id];
       delete autoOffReason[id];
     }
-    syncRuntimeToggle(id);
   }
 }
 
@@ -3821,9 +3817,7 @@ function exportHealthState() {
   }
   // v8.14：用户意图永久持久化；autoOff 只做短期临时态，也一并导出供启动复验。
   const controls = collectHealthControls();
-  // F36/F57：healthV2Enabled=false 时回旧 v1 导出；旧宿主忽略 v2。双写 controls 始终保留。
-  const version = cfg("healthV2Enabled", true) ? HEALTH_STATE_VERSION : 1;
-  return { v: version, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
+  return { v: HEALTH_STATE_VERSION, sourceVersion: HEALTH_STATE_SOURCE_VERSION, savedAt: Date.now(), sources, qualityShortCircuit, controls };
 }
 
 function restoreHealthState(state) {
@@ -4120,11 +4114,6 @@ function buildSourceChain(platform, quality) {
     .filter(h => qualityRank(h.maxQuality) >= qualityRank(q))
     .map(h => {
       const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: true });
-      // Batch 0：默认关闭；打开后只写 debug 日志，不写健康事件/不改链/不改快照。
-      if (cfg("eligibilityShadow", false)) {
-        const legacy = shadowLegacyEligibility(h.id, platform, q);
-        if (legacy.code !== e.code) logDebug(`[影子裁决] ${h.id} ${platform}/${q}: legacy=${legacy.code} modern=${e.code}`);
-      }
       if (!e.eligible) {
         if (LOG_DEBUG) logDebug(`[链] ${h.id} 跳过（${e.reason}${e.untilMs ? `，至 ${e.untilMs}` : ""}）`);
         return null;
@@ -4552,7 +4541,7 @@ function isQualityHopeless(sourceId, quality) {
 const coldStartWarmAt = new Map();
 function warmUpColdStartSources(platform) {
   for (const h of Object.values(SOURCE_HANDLERS)) {
-    if (!h || !h.coldStart || runtimeToggles[h.id] !== true) continue;
+    if (!h || !h.coldStart || !effectiveEnabled(h.id)) continue;
     if (Date.now() - (coldStartWarmAt.get(h.id) || 0) < cfg('coldStartWarmTtlMs', 300000)) continue;
     if (!buildSourceChain(platform, "128k").some(x => x.id === h.id)) continue;
     coldStartWarmAt.set(h.id, Date.now());
@@ -4606,7 +4595,7 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     }
   }
   const cachedSourceDisabled = !!(cached && cached.url && cached.source &&
-    (runtimeToggles[cached.source] === false || manualOff[cached.source]));
+    (!effectiveEnabled(cached.source) || manualOff[cached.source]));
   if (cachedSourceDisabled) {
     logInfo(`[缓存失效] ${songInfo?.name || ""} 缓存来自已关闭源 ${cached.source}，丢弃并重新解析`);
     successCache.delete(cacheKey);
@@ -5253,7 +5242,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       running: false,
       doneAt: Date.now(),
       round: globalThis.__probeRound || 0,
-      active: Object.keys(runtimeToggles).filter(k => runtimeToggles[k]),
+      active: Object.keys(userEnabled).filter(effectiveEnabled),
       sleeping: Object.keys(probeState.sleeping).filter(k => probeState.sleeping[k])
     })).catch(err => Promise.reject(err));
   }
@@ -5283,7 +5272,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       "allFailShortTtlMs", "playDeadReviveMs", "memoryMapMax"];
     const ALLOWED_BOOL_KEYS = ["verifyDelivery", "truthfulQuality", "qualityFloor", "verifyOnCacheHit",
       "previewUrlPreFilter", "fragmentFallback", "qualityShortCircuit", "coldStartWarmEnabled",
-      "crossPlatformEnabled", "healthV2Enabled"];
+      "crossPlatformEnabled"];
     // v8.11.7：这两个阈值 0 是合法值（0=不设比例/间隔门槛），不能被 <=0 校验吞掉
     const ZERO_ALLOWED_KEYS = ["verifyDurRatio", "verifyDurGapSec"];
     // v30.1：每个参数的合理上下限（防极端值触发上游风控/雪崩）
@@ -5480,9 +5469,7 @@ if (typeof module !== "undefined" && module.exports) {
       // L4 裁决层：唯一裁决入口 + 读侧查询 + 清账；probe 供桥模拟直接驱动
       admit,
       computeEligibility,
-      shadowLegacyEligibility, // Batch 0：只读旧裁决，仅供影子 diff/审计
       previewCooldownMap, // Batch 3：只读审计用
-      qualitySkipProbeAt, // Batch 3：只读审计用
       skipReason,
       clearSourceLedger,
       probeAudioDelivery,

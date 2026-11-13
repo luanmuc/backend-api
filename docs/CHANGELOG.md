@@ -1,3 +1,5 @@
+| **v8.13.0 单一路径收口（2026-11-13，本地未推送）** | **删除新旧双轨**：移除 `shadowLegacyEligibility`/`eligibilityShadow` 影子裁决；`HEALTH_STATE_ACCEPTED_VERSIONS` 只保留 `[2]`，删除 `healthV2Enabled` v1 回滚导出；`applyHealthControls` 只认 `manualOffAt`，不再回退 `offAt`；删除生产态 `runtimeToggles` 镜像，统一走 `effectiveEnabled`（仅 `__debug` 保留测试投影）；`buildProbeConfig` 生产探测只输出 handler 字段，删除 `probeSingleSource` 的 handler 失败→URL 回退，显式 URL 仅保留给审计夹具。`npm test` 17 脚本 rc0。 |
+
 # 版本历史（CHANGELOG）
 
 > 根 `README.md` 的版本历史表是**摘要**（同时被 `docs-audit` 用来校验数字，不要删改其结构）。

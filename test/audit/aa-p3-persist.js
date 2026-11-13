@@ -169,13 +169,13 @@ check('A7 controls 恢复：default-off 不冒充用户关闭，manual-off 保�
   assert(m2.getHealthSnapshot().suyinQQ.offReason === 'USER_OFF', '恢复后应为 USER_OFF')
 })
 
-// A8 v1 兼容
-check('A8 v1 状态仍可恢复', () => {
+// A8 单一路径：v1 必须拒绝
+check('A8 v1 状态必须拒绝', () => {
   const m = fresh()
   const v1 = m.exportHealthState()
   v1.v = 1
   const m2 = fresh()
-  assert(m2.restoreHealthState(v1).ok === true, 'v1 应兼容')
+  assert(m2.restoreHealthState(v1).ok === false, 'v1 必须拒绝')
 })
 
 // A9 controls-only：sourceVersion 不匹配只丢健康元数据，不丢用户意图
@@ -183,7 +183,7 @@ check('A9 controls-only 不受 sourceVersion 影响', () => {
   const m = fresh()
   call('toggle', { id: 'suyinQQ', enabled: false })
   const controls = m.exportHealthState().controls
-  const m2 = fresh({ healthV2Enabled: false })
+  const m2 = fresh()
   const controlState = {
     v: 2,
     sourceVersion: '0.0.0',
@@ -196,12 +196,12 @@ check('A9 controls-only 不受 sourceVersion 影响', () => {
   assert(m2.getHealthSnapshot().suyinQQ.offReason === 'USER_OFF', '用户关闭必须保留')
 })
 
-// A10 healthV2Enabled=false 回旧 v1 导出
-check('A10 healthV2Enabled=false 导出 v1 回滚态', () => {
+// A10 无 v1 回滚开关，始终导出 v2
+check('A10 无回滚开关，始终导出 v2', () => {
   const m = fresh({ healthV2Enabled: false })
   const state = m.exportHealthState()
-  assert(state.v === 1, `回滚态应为 v1，实际 ${state.v}`)
-  assert(state.controls && state.controls.suyinQQ, '回滚态仍需双写 controls')
+  assert(state.v === 2, `应始终为 v2，实际 ${state.v}`)
+  assert(state.controls && state.controls.suyinQQ, 'v2 应带 controls')
 })
 
 console.log(`\n${passed} passed, ${failures.length} failed`)

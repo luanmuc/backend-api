@@ -556,10 +556,7 @@ async function test(name, fn) {
     globalThis.__probeRound = i;
     const cfg = mod.buildProbeConfig();
     const kwProbe = (cfg.suyinKuwo?.probes || [])[0];
-    if (kwProbe && kwProbe.url) {
-      const m = kwProbe.url.match(/msg=([^&]+)/);
-      if (m) probeSongs.add(decodeURIComponent(m[1]));
-    }
+    if (kwProbe && kwProbe.songName) probeSongs.add(kwProbe.songName);
   }
   assert.ok(probeSongs.size >= 10, `探测歌曲池应≥10首，实际 ${probeSongs.size} 首`);
 
@@ -908,12 +905,14 @@ async function test(name, fn) {
     const huibqDefault = modV36.SOURCE_TOGGLES.huibq; // v8.6：默认已开启，取默认值以便复原
     modV36.runtimeToggles.huibq = true; // 临时确保开启以验证探针配置存在
     const probeCfg37 = modV36.buildProbeConfig();
-    assert.ok(Array.isArray(probeCfg37.suyinKuwo?.probes) && JSON.stringify(probeCfg37.suyinKuwo.probes).includes('br=9'),
-      `suyinKuwo 128k 探针应使用 br=9（唯一可播档），实际 ${JSON.stringify(probeCfg37.suyinKuwo?.probes || null).slice(0, 160)}`);
+    assert.ok(Array.isArray(probeCfg37.suyinKuwo?.probes)
+      && probeCfg37.suyinKuwo.probes.length === 3
+      && probeCfg37.suyinKuwo.probes.every(p => p.useHandler === true && !p.url),
+      `suyinKuwo 三档探针应全走 handler 且不带 URL，实际 ${JSON.stringify(probeCfg37.suyinKuwo?.probes || null).slice(0, 160)}`);
     assert.ok(!(probeCfg37.xinghaiBackend?.headers && 'X-Token' in probeCfg37.xinghaiBackend.headers),
       `xinghaiBackend 探针不应再发自定义 X-Token（无效 token 会被上游 403），实际 ${JSON.stringify(probeCfg37.xinghaiBackend?.headers || {})}`);
-    assert.ok(probeCfg37.huibq && /lxmusicapi\.onrender\.com/.test(String(probeCfg37.huibq.url)),
-      `huibq 探针应存在且指向 huibq 端点，实际 ${JSON.stringify(probeCfg37.huibq || null).slice(0, 120)}`);
+    assert.ok(probeCfg37.huibq && probeCfg37.huibq.useHandler === true && !probeCfg37.huibq.url,
+      `huibq 探针应存在且只走 handler，实际 ${JSON.stringify(probeCfg37.huibq || null).slice(0, 120)}`);
     modV36.runtimeToggles.huibq = huibqDefault; // 复原为默认状态（避免污染后续 T38）
   }
 
@@ -930,7 +929,7 @@ async function test(name, fn) {
       assert.ok(!chain38.some(h => h.id === 'huibq'), `${plat} 链不应含 huibq（v8.9 收窄），实际 ${chain38.map(h => h.id).join('→')}`);
     }
     const probeCfg38 = modV36.buildProbeConfig();
-    assert.ok(probeCfg38.huibq && /lxmusicapi\.onrender\.com/.test(String(probeCfg38.huibq.url)),
+    assert.ok(probeCfg38.huibq && probeCfg38.huibq.useHandler === true && !probeCfg38.huibq.url,
       `huibq 默认开启后探针应默认在册，实际 ${JSON.stringify(probeCfg38.huibq || null).slice(0, 100)}`);
   }
 
@@ -1266,8 +1265,8 @@ async function test(name, fn) {
     await requestHandler({ action: 'probe', source: 'kw', info: {} });
     await wait(50);
     const b = mod.getBreaker('huibq');
-    assert.ok((counts['https://lxmusicapi.onrender.com/url/kw/228908/128k'] || 0) >= 1,
-      'huibq 探针必须真的发出请求（旧实现形参遮蔽 cfg() 在冷启动分支 TypeError，请求从未发出）');
+    assert.ok(Object.entries(counts).some(([u, n]) => u.includes('lxmusicapi.onrender.com') && n >= 1),
+      'huibq 探针必须真的发出请求，实际 counts=' + JSON.stringify(counts).slice(0, 200));
     assert.ok(b.probeSuccess >= 1, '上游正常返回时探针应记成功，实际成功=' + b.probeSuccess + ' 探测次数=' + b.probeRequests);
   }
 
