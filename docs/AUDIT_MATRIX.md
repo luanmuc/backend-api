@@ -89,6 +89,7 @@
 | `test/audit/health-scoped-reset.js` | 74 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | S1~S2/F38 scoped 清账 |
 | `test/audit/health-scheduler-fake-clock.js` | 58 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | N1~N2/F21 探测 jitter/暂停 |
 | `test/audit/health-persistence-v2.js` | 131 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F36/F57 P1~P8 持久化 v2 |
+| `test/audit/health-probe-outcome.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F20/F22 O1~O9 探测三值 |
 | `test/audit/e-extra.js` | 927 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/candidate-audit-test.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/lx-source-smoke-test.js` | 1618 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
@@ -96,9 +97,9 @@
 | `docs/ARCHITECTURE.md` | 94 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/README.md` | 68 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 54 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/TESTING.md` | 148 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/TESTING.md` | 149 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/CHANGELOG.md` | 62 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_MATRIX.md` | 179 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 180 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 406 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
 | `test/stress-round3.js` | 357 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
 | `test/audit/g-meta.js` | 314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14 |
@@ -127,12 +128,12 @@
 | `test/stress-round4.js` | 1314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 272 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
-| `docs/READTHROUGH.md` | 233 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
+| `docs/READTHROUGH.md` | 234 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
 | `docs/DOC_INDEX.md` | 93 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
 ## 汇总
 
-- 文件总数：**139**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**35309**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**140**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**35447**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_LIFECYCLE.md` | 76 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
