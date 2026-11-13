@@ -123,6 +123,20 @@ const main = async () => {
     assert(called === false, '资格失效后不得调用源函数')
   })
 
+  check('L5', 'platformSummary 只按 eligible 聚合，playDead 源不计 active（F17/F68）', () => {
+    for (let i = 0; i < 3; i++) m.recordFailure('suyinKuwo', '128k', { playDead: true })
+    const snap = d.getHealthSnapshot()
+    const eligibleIds = new Set()
+    for (const q of ['128k', '320k', 'flac', 'flac24bit']) {
+      for (const h of d.buildSourceChain('kw', q)) eligibleIds.add(h.id)
+    }
+    const sum = snap._platformSummary && snap._platformSummary.kw
+    assert(sum, '缺少 kw platformSummary')
+    assert(sum.activeCount === eligibleIds.size, `activeCount=${sum.activeCount}，eligible=${eligibleIds.size}`)
+    assert(sum.deadCount >= 1, `playDead 源应计入 deadCount，实际 ${sum.deadCount}`)
+    assert(!eligibleIds.has('suyinKuwo'), 'playDead 源不应在 eligible 集合')
+  })
+
   console.log(`\n${passed} passed, ${failures.length} failed`)
   if (failures.length) {
     for (const f of failures) console.log(`- ${f}`)

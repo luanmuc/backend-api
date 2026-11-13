@@ -162,7 +162,7 @@ node scripts/self-check.js      # 发布自检：@version 与 @description/logIn
 
 ### L1 模拟环境盲区自查（每次冒烟前过一遍）
 - `console`：Node 有、移动端无（D11）→ 日志类改动必须加宿主防御；
-- `setTimeout/clearTimeout`：移动端可用（本仓库已用 10 处 `setTimeout` + 5 处 `clearTimeout`）；
+- `setTimeout/clearTimeout`：移动端可用（本仓库已用 7 处 `setTimeout` + 5 处 `clearTimeout`）；
 - 内置属性冻结：`Array.prototype.push = ...` 无效，但可扩展新属性；
 - `lx.utils` 部分能力：zlib 未实现、buffer 仅 base64/hex/utf8、aes 仅 cbc/ecb。
 

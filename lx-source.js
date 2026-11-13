@@ -902,22 +902,34 @@ var __lxSourceBundle = (() => {
           probeState.running = false;
         }
       }
+      function nextHealthCheckDelay(intervalMs, rand) {
+        var _a2;
+        const iv = Math.max(1e3, Number(intervalMs) || HEALTH_CHECK_INTERVAL_MS);
+        const ratio = Math.max(0, Math.min(0.5, Number((_a2 = (globalThis.__lxSourceConfig || {}).healthCheckJitterRatio) != null ? _a2 : 0.1)));
+        const r = typeof rand === "function" ? rand() : Math.random();
+        return Math.max(1e3, Math.round(iv * (1 - ratio + 2 * ratio * r)));
+      }
+      function hasActiveWork() {
+        let active = inflightUrl.size;
+        for (const n of inflightCount.values()) active += Number(n) || 0;
+        return active > 0;
+      }
       function startHealthCheck() {
-        setTimeout(async () => {
+        const schedule = (delay) => setTimeout(async () => {
+          if (hasActiveWork()) {
+            const retry = Math.max(1e3, Number(cfg("healthCheckPauseRetryMs", 6e4)) || 6e4);
+            logDebug(`[\u5065\u5EB7\u63A2\u6D4B] \u68C0\u6D4B\u5230\u64AD\u653E/\u53D6\u94FE\u6D41\u91CF\uFF0C\u6682\u505C\u672C\u8F6E\uFF0C${Math.round(retry / 1e3)}s \u540E\u91CD\u8BD5`);
+            schedule(retry);
+            return;
+          }
           try {
             await runHealthCheck();
           } catch (e) {
             logWarn(`\u5065\u5EB7\u63A2\u6D4B\u5F02\u5E38: ${e.message}`);
           }
-          setTimeout(function tick() {
-            const iv = cfg("healthCheckIntervalMs", HEALTH_CHECK_INTERVAL_MS);
-            runHealthCheck().then(() => {
-              setTimeout(tick, iv);
-            }).catch(() => {
-              setTimeout(tick, iv);
-            });
-          }, cfg("healthCheckIntervalMs", HEALTH_CHECK_INTERVAL_MS));
-        }, HEALTH_CHECK_INITIAL_DELAY_MS);
+          schedule(nextHealthCheckDelay(cfg("healthCheckIntervalMs", HEALTH_CHECK_INTERVAL_MS)));
+        }, delay);
+        schedule(HEALTH_CHECK_INITIAL_DELAY_MS);
       }
       var Q = ["128k", "320k", "flac", "flac24bit"];
       var PLATFORM_QUALITIES = { wy: Q, tx: Q, kw: Q, kg: Q, mg: Q };
@@ -2289,13 +2301,14 @@ var __lxSourceBundle = (() => {
           manualOff[target] = true;
         }
         syncRuntimeToggle(target);
-        clearSourceLedger(target);
+        clearSourceLedger(target, { scope: "authority" });
         clearCrossFallbackCache();
-        logInfo(`[\u6E90\u5F00\u5173] ${target} ${next ? "\u5F00\u542F" : "\u5173\u95ED"}\uFF0C\u5DF2\u6E05\u8D26\uFF08\u5931\u8D25\u7F13\u5B58/\u6458\u9664/\u7194\u65AD\u9650\u6D41/\u63A2\u6D4B\u6001/\u8DE8\u5E73\u53F0\u7F13\u5B58\uFF09`);
+        logInfo(`[\u6E90\u5F00\u5173] ${target} ${next ? "\u5F00\u542F" : "\u5173\u95ED"}\uFF0C\u5DF2\u6E05\u7528\u6237\u8D26\uFF08\u5931\u8D25\u7F13\u5B58/\u6458\u9664/\u7194\u65AD\u9650\u6D41/\u63A2\u6D4B\u6001\uFF09\uFF0C\u4FDD\u7559\u8D28\u91CF\u5386\u53F2`);
         recordHealthEvent({ event: "config_change", sourceId: target, reason: next ? "toggle_on" : "toggle_off" });
         return { id: target, enabled: next, userEnabled: next, autoOff: false };
       }
-      function clearSourceLedger(source) {
+      function clearSourceLedger(source, opts = {}) {
+        const scope = opts.scope || "all";
         const handler = SOURCE_HANDLERS[source];
         if (!handler) return false;
         const prefixes = (handler.platforms || []).map((p) => `fail_${p}`);
@@ -2318,10 +2331,23 @@ var __lxSourceBundle = (() => {
         br.rateLimited = false;
         if (br.byQuality) for (const q of Object.keys(br.byQuality)) {
           const s = br.byQuality[q];
-          if (s && typeof s === "object") {
+          if (!s || typeof s !== "object") continue;
+          if (s.breaker && typeof s.breaker === "object") {
+            s.breaker.state = "closed";
+            s.breaker.failureCount = 0;
+            s.breaker.lastFailureTime = 0;
+            s.breaker.trialInFlight = false;
+          }
+          s.rateLimitCount = 0;
+          s.rateLimitUntil = 0;
+          s.rateLimited = false;
+          if (scope !== "authority") {
             s.fail = 0;
             s.success = 0;
             s.linkExpired = 0;
+            s.businessFail = 0;
+            s.req = 0;
+            s.time = 0;
           }
         }
         return true;
@@ -3221,27 +3247,38 @@ var __lxSourceBundle = (() => {
           };
         }
         const PLATFORM_GROUPS = {};
+        const eligibleByPlatform = {};
         for (const p of Object.keys(PLATFORM_QUALITIES)) {
-          const set = /* @__PURE__ */ new Set();
+          const all = /* @__PURE__ */ new Set();
+          const eligible = /* @__PURE__ */ new Set();
           for (const q of ["128k", "320k", "flac", "flac24bit"]) {
-            for (const h of buildSourceChain(p, q)) set.add(h.id);
+            for (const h of buildSourceChain(p, q)) eligible.add(h.id);
           }
-          PLATFORM_GROUPS[p] = [...set];
+          for (const id of Object.keys(SOURCE_HANDLERS)) if (SOURCE_HANDLERS[id] && (SOURCE_HANDLERS[id].platforms || []).includes(p)) all.add(id);
+          PLATFORM_GROUPS[p] = [...all];
+          eligibleByPlatform[p] = eligible;
         }
         const platformSummary = {};
         const healthyPlatforms = [];
         for (const [platform, sourceIds] of Object.entries(PLATFORM_GROUPS)) {
-          const activeSources = sourceIds.filter((id) => snapshot[id] && snapshot[id].enabled);
-          if (!activeSources.length) {
-            platformSummary[platform] = { degraded: false, reason: "no_active_sources" };
+          const enabledSources = sourceIds.filter((id) => snapshot[id] && snapshot[id].enabled);
+          if (!enabledSources.length) {
+            platformSummary[platform] = { degraded: false, reason: "no_active_sources", activeCount: 0, eligibleCount: 0, deadCount: 0 };
             continue;
           }
-          const deadCount = activeSources.filter(
-            (id) => snapshot[id].playDead || snapshot[id].sleeping || snapshot[id].state === "open" || snapshot[id].state === "half-open"
-          ).length;
-          const allDead = deadCount === activeSources.length;
-          const avgScore = activeSources.reduce((sum, id) => sum + (snapshot[id].healthScore || 0), 0) / activeSources.length;
-          platformSummary[platform] = { degraded: allDead, activeCount: activeSources.length, deadCount, avgScore: Math.round(avgScore * 10) / 10 };
+          const eligible = eligibleByPlatform[platform] || /* @__PURE__ */ new Set();
+          const eligibleSources = enabledSources.filter((id) => eligible.has(id));
+          const deadCount = enabledSources.length - eligibleSources.length;
+          const allDead = eligibleSources.length === 0;
+          const avgScore = eligibleSources.length ? eligibleSources.reduce((sum, id) => sum + (snapshot[id].healthScore || 0), 0) / eligibleSources.length : 0;
+          platformSummary[platform] = {
+            degraded: allDead,
+            reason: allDead ? "no_eligible_sources" : null,
+            activeCount: eligibleSources.length,
+            eligibleCount: eligibleSources.length,
+            deadCount,
+            avgScore: Math.round(avgScore * 10) / 10
+          };
           if (!allDead) healthyPlatforms.push({ platform, avgScore });
         }
         snapshot._coverageGaps = KNOWN_COVERAGE_GAPS.map((g) => Object.assign({}, g));
@@ -4932,6 +4969,15 @@ var __lxSourceBundle = (() => {
             // v8.11.2（覆盖率补测）：健康巡检主流程 L572-626 整段此前零覆盖——runHealthCheck 未导出，
             // 只能从定时器间接触发（初始延迟 60s），测试无法稳定驱动。此处只读导出（healthHistory 返回副本）。
             runHealthCheck,
+            nextHealthCheckDelay,
+            // F21：jitter 边界（可注入 rand 做确定性断言）
+            hasActiveWork,
+            // F21：播放中暂停判定
+            inflightCount,
+            // F21：断言构造“有播放流量”
+            get inflightUrl() {
+              return inflightUrl;
+            },
             recordHealthEvent,
             // 2.4 压测：注入事件验证容量/白名单（只读 action 不暴露写口）
             getHealthEvents,
