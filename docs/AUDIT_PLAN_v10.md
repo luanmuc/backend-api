@@ -69,6 +69,35 @@
 
 ---
 
+## 2b. 定制功能逐项明细（排除车机版）
+
+> 每个定制功能单列一行：功能 → 关键位置 → 守的脚本/断言 → 状态。音源仓无车机版；App 侧车机版不在本计划范围。
+
+| 定制功能 | 关键位置 | 守的脚本/断言 | 状态 |
+|---|---|---|---|
+| 请求处理全流程（getUrlWithFallback） | `lx-source.js` | `b-logic` | ✅ |
+| 音质降级链（128k/320k/flac/flac24bit） | `lx-source.js` | `stress-test` S 组 12/0 | ✅ |
+| 竞速回退（fallbackRace） | `lx-source.js` | `b-logic` | ✅ |
+| L4 裁决层（admit 判定+记账唯一入口/证据分级/codeRank） | `lx-source.js` | `r-admission` 23 | ✅ |
+| 健康自愈（健康探测/10 分制/断路器/休眠/playDead） | `lx-source.js` + `health-*.js` | `s-health-events` 22 + 18 个 `health-*` 分项 | ✅ |
+| 音质政策优化（能力备档不续期/definitiveFail 分类/短路判据/唯一源探路/forceQualityProbe） | `lx-source.js` | `quality-policy-v2` 12 | ✅ |
+| 音质真实标签（qualityFromDelivery/sniffAudioBytes/qualityConfidence/片段语义） | `lx-source.js` | `quality-truth` 9 | ✅ |
+| 缓存与防死链（分级 TTL/单写点/1min 失败缓存） | `lx-source.js` | `e-extra` | ✅ |
+| 跨平台兜底（主平台失败识别/ID 隔离/grace） | `lx-source.js` | `u-cross-platform` 12、`v-cross-platform-stress` 13 | ✅ |
+| 降级所有权（fallbackOwner host/source） | `lx-source.js` | `w-fallback-owner` 2 | ✅ |
+| 媒体信封（`__lxMedia:2`/分片/解码） | `lx-source.js` | `x-media-envelope` 12 | ✅ |
+| 取消语义（真取消/在途清理） | `lx-source.js` | `z-cancel` 11 | ✅ |
+| Provider Contract（12/10/2/链位不重复） | `lx-source.js` | `y-provider-contract` 15 | ✅ |
+| 候选源接入（fish/helloworld/hyw/jiexiang/lx/qdy） | `lx-source.js` | `candidate-audit-test` 6 | ✅ |
+| 健康事件（白名单/去重/脱敏） | `lx-source.js` | `s-health-events` 22、`t-health-events-stress` 12 | ✅ |
+| QuickJS 真引擎（宿主无 Buffer） | `lx-source.js` | `q-quickjs-real` 3 | ✅ |
+| 配置键体系（config action 面板可写/只读/已删键） | `lx-source.js` | `e-extra` 配置面 | ✅ |
+| 接口生命周期管理 | `lx-source.js` | `s-source-lifecycle` 14 | ✅ |
+
+**状态说明**：✅ 有脚本断言且已审；车机版相关项已移出本计划。
+
+---
+
 ## 3. 音质政策优化审计面（本轮核心变更，`fb94fcf`）
 
 > 方案见 `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md`。这不是「音质真实标签」，而是**能力备档与档位短路的记账口径修正**——修两个真实缺陷：①重复播放低质把 6h 备档续成永久降级；②3 次网络超时把唯一 flac 源短路 1h。

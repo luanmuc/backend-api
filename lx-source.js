@@ -4890,6 +4890,8 @@ var __lxSourceBundle = (() => {
         actions.push("trend");
         actions.push("healthEvents");
         actions.push("exportHealthState", "restoreHealthState");
+        // v8.13.x：第 14 个 action forceQualityProbe（强制探路旁路），分发已在 request 处理器，此处补声明保证宿主白名单与 App SOURCE_ACTIONS 14 个对齐
+        actions.push("forceQualityProbe");
         sourceConfig[platform] = {
           name: PLATFORM_NAMES[platform],
           type: "music",
