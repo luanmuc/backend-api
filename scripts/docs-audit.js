@@ -301,8 +301,9 @@ function ruleReadThroughLedger() {
   if (v) {
     // v8.11.5（门禁自指修复）：原实现每次审计都把台账 HEAD 改写成「当前 HEAD」，而任何后续
     // 提交都会让它立刻过期 → 每周 bot 为它单独提交一次，永远追不上（审计自己制造待提交改动）。
-    // 现规则：记录的 sha 只须是 HEAD 的祖先（证明审计确实发生过）；落后 ≤20 条只 🟡 提示、
-    // 不改写；非祖先或落后 >20 才重置。
+    // 现规则：记录的 sha 只须是 HEAD 的祖先（证明审计确实发生过）；本次台账提交本身必然
+    // 让 HEAD 前进 1 条（sha 无法自指），lag=1 视为同步；lag>1 才 🟡 提示，不改写；非祖先
+    // 或落后 >20 才重置。
     const head = execSync('git rev-parse --short HEAD', { encoding: 'utf8', cwd: ROOT }).trim();
     const line = read('docs/READTHROUGH.md').match(/HEAD `([0-9a-f]{7,})`（v([\d.]+)）/);
     const rewrite = () => `HEAD \`${head}\`（v${v[1]}）`;
@@ -322,10 +323,10 @@ function ruleReadThroughLedger() {
         if (lag > 20) {
           align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, rewrite, '台账 HEAD 与版本');
           report.push(`🟡 台账 HEAD 落后 ${lag} 条（>20），已重置`);
-        } else if (lag > 0) {
-          report.push(`🟡 台账 HEAD 落后 ${lag} 条（≤20 容忍，不自动改写）`);
+        } else if (lag > 1) {
+          report.push(`🟡 台账 HEAD 落后 ${lag} 条（>1，不自动改写）`);
         } else {
-          report.push('🟢 台账 HEAD 与当前一致');
+          report.push(lag === 1 ? '🟢 台账 HEAD 与当前一致（lag=1 为本次台账提交自指）' : '🟢 台账 HEAD 与当前一致');
         }
       }
     }

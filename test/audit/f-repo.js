@@ -366,7 +366,44 @@ console.log('\n[Z] 资源与启动');
       pushAt >= 0 && /if ! git push/.test(pushBlock) && /exit 1/.test(pushBlock),
       pushAt < 0 ? '未找到 git push' : 'ok');
 
+    // Z9：真实失败注入。抽健康表写回 step 的完整 run 块，用假 git 让 push 返回 1，
+    // 断言进程退出码为 1 且 step summary / ::error 都有失败信号。
+    const stepHead = lines.findIndex(l => l.includes('- name: 健康表写回'));
+    const stepRun = stepHead >= 0 ? lines.findIndex((l, i) => i > stepHead && /^\s+run: \|\s*$/.test(l)) : -1;
+    let writeback = '';
+    if (stepHead >= 0 && stepRun >= 0) {
+      const body = [];
+      for (let i = stepRun + 1; i < lines.length; i++) {
+        const l = lines[i];
+        if (/^\s*$/.test(l)) { body.push(''); continue; }
+        if (l.match(/^\s*/)[0].length <= 8) break;
+        body.push(l.slice(10));
+      }
+      writeback = body.join('\n');
+    }
     const os = require('os');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-push-fail-'));
+    fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'bin/git'), '#!/bin/sh\necho "fatal: unable to access remote" >&2\nexit 1\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(dir, 'run.sh'), writeback, { mode: 0o755 });
+    const summaryPath = path.join(dir, 'summary.md');
+    let pushOut = '', pushCode = 0;
+    try {
+      pushOut = execFileSync('bash', ['run.sh'], {
+        cwd: dir, encoding: 'utf8', timeout: 20000,
+        env: { ...process.env, PATH: path.join(dir, 'bin') + ':' + process.env.PATH, GITHUB_REF_NAME: 'master', GITHUB_STEP_SUMMARY: summaryPath },
+      });
+    } catch (e) {
+      pushCode = Number(e.status || 0);
+      pushOut = String(e.stdout || '') + String(e.stderr || '');
+    }
+    const summary = fs.existsSync(summaryPath) ? fs.readFileSync(summaryPath, 'utf8') : '';
+    fs.rmSync(dir, { recursive: true, force: true });
+    rec('Z9', '健康表写回 push 失败真实注入：退出 1 且摘要留痕（S-01）',
+      !!writeback && pushCode === 1 && /::error::自动提交 push 失败/.test(pushOut) && /巡检产物 push 失败/.test(summary),
+      `exit=${pushCode} out=${pushOut.includes('::error') ? '有' : '无'} summary=${summary.includes('巡检产物 push 失败') ? '有' : '无'}`);
+
+
     const runCi = (listOut, createOk) => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-alert-'));
       fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
