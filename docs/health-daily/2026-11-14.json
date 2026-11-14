@@ -1,0 +1,65 @@
+{
+  "date": "2026-11-14",
+  "prevDate": "2026-11-13",
+  "prevDateMode": "uniform",
+  "prevDates": {
+    "https://oiapi.net/api/QQ_Music": "2026-11-13",
+    "https://oiapi.net/api/Music_163": "2026-11-13",
+    "https://oiapi.net/api/Kuwo": "2026-11-13",
+    "https://api.xcvts.cn/api/music/migu": "2026-11-13",
+    "https://lxmusicapi.onrender.com": "2026-11-13",
+    "https://api.music.lerd.dpdns.org": "2026-11-13",
+    "https://yy.zddyr.top/lx/api/": "2026-11-13",
+    "http://antiserver.kuwo.cn/anti.s": "2026-11-13",
+    "https://c.wwwweb.top": "2026-11-13",
+    "http://nmobi.kuwo.cn/mobi.s": "2026-11-13",
+    "https://musicserver.haitangw.cc/v1/music/resolve-url": "2026-11-13",
+    "https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}": "2026-11-13",
+    "https://music.163.com/song/media/outer/url?id={id}.mp3": "2026-11-13",
+    "https://music.163.com/api/song/lyric": "2026-11-13",
+    "https://music.163.com/api/song/detail": "2026-11-13",
+    "http://search.kuwo.cn/r.s": "2026-11-13"
+  },
+  "registered": 16,
+  "judged": 10,
+  "handle": [
+    {
+      "label": "juheTx",
+      "sources": [
+        "juheTx"
+      ],
+      "url": "https://api.music.lerd.dpdns.org",
+      "kind": "payload",
+      "rate": 47.4,
+      "total": 19,
+      "consecutiveFail": 6,
+      "reason": "PAYLOAD_NO_URL"
+    }
+  ],
+  "watch": [
+    {
+      "label": "suyinKuwo",
+      "url": "https://oiapi.net/api/Kuwo",
+      "rate": 52.6,
+      "total": 19
+    },
+    {
+      "label": "kuwoOfficial",
+      "url": "http://antiserver.kuwo.cn/anti.s",
+      "rate": 73.7,
+      "total": 19
+    },
+    {
+      "label": "kuwoSearch 酷我搜索接口",
+      "url": "http://search.kuwo.cn/r.s",
+      "rate": 78.9,
+      "total": 19
+    }
+  ],
+  "fragment": [],
+  "changes": [
+    "🟢 **suyinKuwo**：2026-11-13 失败 → 2026-11-14 **恢复**",
+    "🟢 **ikun**：2026-11-13 失败 → 2026-11-14 **恢复**",
+    "🔴 **kuwoSearch 酷我搜索接口**：2026-11-13 可用 → 2026-11-14 **失败**（ETIMEDOUT）"
+  ]
+}
