@@ -360,7 +360,7 @@ console.log('\n[Z] 资源与启动');
 
     // Z8：健康表写回的 push 失败必须让 job 红（S-01）。旧实现只写 warning，
     // run 仍绿，健康表没写进仓库也无人发现。
-    const pushAt = lines.findIndex(l => l.includes('git push origin HEAD:'));
+    const pushAt = lines.findIndex(l => /git push origin/.test(l));
     const pushBlock = pushAt < 0 ? '' : lines.slice(pushAt, pushAt + 9).join('\n');
     rec('Z8', '健康表写回 push 失败必须 exit 1（S-01 fail-closed）',
       pushAt >= 0 && /if ! git push/.test(pushBlock) && /exit 1/.test(pushBlock),
@@ -384,7 +384,7 @@ console.log('\n[Z] 资源与启动');
     const os = require('os');
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-push-fail-'));
     fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'bin/git'), '#!/bin/sh\necho "fatal: unable to access remote" >&2\nexit 1\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(dir, 'bin/git'), '#!/bin/sh\ncase "$1" in\n  push) echo "fatal: unable to access remote" >&2; exit 1 ;;\n  *) exit 0 ;;\nesac\n', { mode: 0o755 });
     fs.writeFileSync(path.join(dir, 'run.sh'), writeback, { mode: 0o755 });
     const summaryPath = path.join(dir, 'summary.md');
     let pushOut = '', pushCode = 0;
