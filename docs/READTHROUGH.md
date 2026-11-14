@@ -9,7 +9,7 @@
 HEAD `e0a4590`（v8.13.1）
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `e0a4590`。
-文件数：**153**　总行数：**38147**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**153**　总行数：**38003**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -61,7 +61,7 @@ HEAD `e0a4590`（v8.13.1）
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
 | `docs/AUDIT_MATRIX.md` | 193 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/AUDIT_PLAN.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
-| `docs/AUDIT_PLAN_v10.md` | 331 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
+| `docs/AUDIT_PLAN_v10.md` | 172 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
 | `docs/CHANGELOG.md` | 77 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 518 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
@@ -82,7 +82,7 @@ HEAD `e0a4590`（v8.13.1）
 | `docs/audit-plans/round4.md` | 235 | 全文 | 归档计划；**N 组已完成**（39 条配对 16/23 + 6 条真回退）、O 组覆盖率已落地（94.8%）；M13/M14 仍未落地 |
 | `docs/audit-plans/round5.md` | 111 | 全文 | MUT 12 算子 / 16 实例口径区分；EDGE/TTL ±1ms、`songmid` 含 `|` 未做理由 |
 | `docs/audit-plans/stress-round4.md` | 99 | 归档 | V 组 21 组·66 条 → 落地 133 |
-| `docs/audit-plans/stress-round5.md` | 59 | 归档 | 第五轮压测设计 |
+| `docs/audit-plans/stress-round5.md` | 57 | 归档 | 第五轮压测设计 |
 | `docs/candidate-status.md` | 8 | 生成 | hyw 已恢复 / huanyin 需人工；依赖 recheck 是否真跑 |
 | `docs/health-daily/2026-11-03.md` | 42 | 生成 | 首份日报（19 端点 / 9 建议摘除） |
 | `docs/health-daily/2026-11-04.md` | 41 | 生成 | 同上系列 |
