@@ -9,7 +9,7 @@
 HEAD `7e78e63`（v8.13.1）
 
 > 复核说明（2026-11-12）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前值。
-文件数：**149**　总行数：**37080**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**149**　总行数：**37092**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -50,7 +50,7 @@ HEAD `7e78e63`（v8.13.1）
 
 | 文件 | 行 | 读法 | 结论 |
 |---|---|---|---|
-| `.github/workflows/ci.yml` | 209 | 全文 | 13 个 job；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
+| `.github/workflows/ci.yml` | 212 | 全文 | 13 个 job；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 2 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
 | `README.md` | 120 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
@@ -64,7 +64,7 @@ HEAD `7e78e63`（v8.13.1）
 | `docs/AUDIT_PLAN_v10.md` | 303 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
 | `docs/CHANGELOG.md` | 74 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
-| `docs/DEV_GUIDE.md` | 514 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
+| `docs/DEV_GUIDE.md` | 515 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 61 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
 | `docs/ITERATION_ROADMAP.md` | 325 | 全文 | 三层目标；**32 断言/49 文件/897→430/白名单 14/趋势 60 条 全过期**；3 条 `[ ] 待开发`（服务器）/ 2 条触发式未闭环 |
@@ -127,7 +127,7 @@ HEAD `7e78e63`（v8.13.1）
 | `test/audit/b-logic.js` | 232 | 断言 | 30 条（C4~C10 等，含循环生成）；实跑 30/0 |
 | `test/audit/d-func.js` | 230 | 断言 | 30 条（D1/I3~I5/E1~E4）；实跑 30/0 |
 | `test/audit/e-extra.js` | 927 | 断言 | 94 条（含 U500/U410/U404/U429/U403 状态码族、EDGE/FAULT 五轮补测）；实跑 94/0 |
-| `test/audit/f-repo.js` | 406 | 断言 | U~Z 52 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支）；实跑 52/0 |
+| `test/audit/f-repo.js` | 414 | 断言 | U~Z 52 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支）；实跑 52/0 |
 | `test/audit/g-meta.js` | 314 | 断言 | 14 条 M1~M14（审断言本身）；实跑 14/0 |
 | `test/audit/p-gaps.js` | 170 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
 | `test/audit/q-dfix.js` | 133 | 断言 | 5 条：Q1 D-04 half-open 遇 429 收口回 open（删收口段立刻红）；Q2 closed 态 429 只退避不熔断；Q3（v8.11.3）D-01 toggle 开启后失败缓存失效，先红后绿；Q4 D-08 单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 PARAM_ERROR，先红后绿；实跑 5/0 |

@@ -133,10 +133,13 @@ jobs:
           # v8.10.5：补 README.md —— probe 每天整段重写其中「音源可用性」表格，此前不在 add 清单里等于白写（V14/V15）
           git add README_HEALTH.md README.md docs/probe-history.jsonl docs/health-daily/ docs/candidate-status.md
           git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录+v8.0健康日报 [自动]" -q || echo "健康表无变化，跳过提交"
-          git push origin HEAD:${GITHUB_REF_NAME} || {
-            echo "::warning::自动提交 push 失败（无权限/远端已更新），巡检产物只在本次 run 日志里，仓库内不会更新";
-            echo "## ⚠️ 巡检产物 push 失败" >> "$GITHUB_STEP_SUMMARY";
-          }
+          # v8.13.2（S-01）：巡检产物是发布/健康判定的依据，push 失败必须让 job 红。
+          # 此前只写 warning + step summary，run 仍绿，等于静默丢失健康表。
+          if ! git push origin HEAD:${GITHUB_REF_NAME}; then
+            echo "::error::自动提交 push 失败（无权限/远端已更新）；巡检产物未写入仓库，本次 run 判失败"
+            echo "## ❌ 巡检产物 push 失败" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: 巡检告警（需处理项非空才开 Issue，避免刷屏）
         # v8.10.5：日报此前只写入仓库、无任何通知，等于档案。这里把"需处理"变成一条 GitHub Issue，

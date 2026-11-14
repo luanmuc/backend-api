@@ -323,7 +323,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 | T9 | ✅ 通过 | md 首屏"登记 15 / 参与判定 10 / 需处理 1"与同名 `.json` 的 `registered`/`judged`/`handle` 完全一致 | — |
 | T10 | ✅ 通过（含实测） | 空 handle → 0 字节退出 0；非空 → 生成正文；CI 上**真实创建了 Issue #1**；"已有 open Issue 跳过"分支未单独实测 | — |
 | T11 | ❌ **未通过**（漏登记无保护） | 4 类反例：漏登记（登记表删一条）→ 冒烟**退出码 0**，拦不住；残登记 / `sources` 错 / toggle 改名 → 均退出码 1，能拦。附：恢复后仍红一次，断言是 T33「降档到 128k 实际 320k」，文件 diff 完全一致 → **T33 时序 flaky，本日第 2 次** | P1 |
-| T12 | ✅ 通过 | 告警步骤在"健康表写回"之后（walkflow 步骤 7→8），失败不改数据；语法步骤已覆盖 `scripts/*.js`；`permissions` 为 `contents: write` + `issues: write` | — |
+| T12 | ✅ 通过（S-01 加固） | 告警步骤在"健康表写回"之后，失败不改数据；`permissions` 为 `contents: write` + `issues: write`；健康表写回的 `git push` 已由 warning 改为 fail-closed（push 失败 `exit 1`，run 必须红），避免巡检产物静默丢失 | — |
 | T13 | ❌ **未通过**（覆盖缺口） | 把 `ci.yml` 步骤名组数 59 改 58 → `docs-audit` 报"待处理 0 项"，**完全不检查 workflow**；对照把 DEV_GUIDE 改 58 能正确报黄 → 证明规则本身有效，只是没覆盖 ci.yml | P1 |
 
 **修复清单（按优先级）**

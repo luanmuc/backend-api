@@ -37,7 +37,7 @@
 | `test/audit/s-health-events.js` | **22** | 2.4 方案：`healthEvents` 只读环形缓冲（schema/capacity 500/dropped）、成功链 `play_start`→`source_attempt`→`source_result`、失败链 `ok:false` 且 code 非空、探测与开关事件、同 traceId 串联、返回副本不回写、隐私边界（不含歌名/URL）、超容丢弃 | mock 宿主 + `__debug` | `node test/audit/s-health-events.js` |
 | `test/audit/t-health-events-stress.js` | **12** | 2.4 方案压力：10000 条灌满后容量 500/dropped 9500/seq 单调、同 trace 链、limit 边界、副本、非法参数、字段白名单、隐私注入、读取吞吐 | mock 宿主 + `__debug` | `node test/audit/t-health-events-stress.js` |
 | `test/audit/h-toggles.js` | 8 | v8.13 口径：helloworldKw / 星海后端 / 酷我官方 / Juhe(tx) / changqingVip 开启后最小可用性；两个观察源手动开启仍不进链但探测可见；酷我封面透出 | mock 宿主 | `node test/audit/h-toggles.js` |
-| `test/audit/f-repo.js` | 52 | 三轮新增：全仓 **72** 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
+| `test/audit/f-repo.js` | 53 | 三轮新增：全仓 **72** 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
 | `test/audit/g-meta.js` | 14 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
 | `test/stress-test.js` | 12 | 压测 S 组压「量」：并发/预算/配额/熔断/缓存容量/长跑/极端参数/闸门对照/定时器 | `--expose-gc` | `node --expose-gc test/stress-test.js` |
 | `test/stress-round3.js` | 14 | 压测 T 组压「态」：跨档总预算、源级冷却与本地限速分离、片段翻转、闸门 8 组合矩阵、config 热更新、错误码注入、probe 并发、写满容量堆增长、档位串槽、熔断跨源污染 | `--expose-gc` | `node --expose-gc test/stress-round3.js` |
@@ -110,7 +110,7 @@ globalThis.__lxSourceConfig = {
 - 汇总行 `X 通过 / Y 失败`，**以退出码为准**
 - 断言自己错了（口径写错/mock 缺分支）时，改判据前先记录"原判据为什么错"，不要静默放宽
 
-## 七、f-repo 六组（U~Z，50 条）· 全仓覆盖的唯一入口
+## 七、f-repo 六组（U~Z，51 条）· 全仓覆盖的唯一入口
 
 | 组 | 维度 | 条数 | 覆盖内容 | 单条跑法 |
 |---|---|---|---|---|
@@ -119,7 +119,7 @@ globalThis.__lxSourceConfig = {
 | W | 脚本契约 | 9 | 4 脚本退出码、登记表 20 条 url 唯一且字段完整、开关解析取 `.toggles`、北京日期 `todayCN`、doc-sync 路径、hook 语法 | 同上 |
 | X | 功能联动 | 9 | 片段码↔巡检、日报字段↔`README_HEALTH`、`candidate-status` 格式、候选名单两处一致、**解析值↔源码默认值逐键比对**、docs-audit 规则数、CI/workflow 引用、兜底层 | 同上 |
 | Y | 残留死码 | 6 | 重复函数 72 个、只定义不用的常量、`debugger`、12 个错误码使用率、未用 `let`、导出面 | 同上 |
-| Z | 资源 | 5 | 加载 <50ms、重复加载堆增长、导出面 19 项、非法入库文件、无 >500KB 单文件（最大 219.17KB） | 同上 |
+| Z | 资源 | 6 | 加载 <50ms、重复加载堆增长、导出面 19 项、非法入库文件、无 >500KB 单文件（最大 219.17KB）、健康表 push 失败 fail-closed | 同上 |
 
 - 覆盖分母：`git ls-files` 的 **79 个文件 / 20309 行**（实测值以 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md) 汇总为准，该表由规则17 自动同步），未覆盖文件 **0**
 - **六组在同一脚本内顺序执行，不支持只跑某一组**（传组名参数会被忽略，实测过）：要定位失败直接看输出行首的 `[U1]`…`[Z5]` 编号

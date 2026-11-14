@@ -358,6 +358,14 @@ console.log('\n[Z] 资源与启动');
     const script = body.join('\n');
     rec('Z6', 'ci.yml 巡检告警 run 块可抽取且含去重判据', script.includes('gh issue list') && script.includes('已存在，跳过'), script.split('\n').length + ' 行');
 
+    // Z8：健康表写回的 push 失败必须让 job 红（S-01）。旧实现只写 warning，
+    // run 仍绿，健康表没写进仓库也无人发现。
+    const pushAt = lines.findIndex(l => l.includes('git push origin HEAD:'));
+    const pushBlock = pushAt < 0 ? '' : lines.slice(pushAt, pushAt + 9).join('\n');
+    rec('Z8', '健康表写回 push 失败必须 exit 1（S-01 fail-closed）',
+      pushAt >= 0 && /if ! git push/.test(pushBlock) && /exit 1/.test(pushBlock),
+      pushAt < 0 ? '未找到 git push' : 'ok');
+
     const os = require('os');
     const runCi = (listOut, createOk) => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-alert-'));
