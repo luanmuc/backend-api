@@ -193,8 +193,11 @@ function ruleHardcodedGrowing() {
 
 // ── 规则 12：跨仓 · 本仓 @version ↔ App 仓 MUSIC_SOURCE_GUIDE（反向校验）──
 function ruleCrossRepoAppDoc() {
-  const sib = path.resolve(ROOT, '..', 'lx-music-mobile', 'docs', 'MUSIC_SOURCE_GUIDE.md');
-  if (!fs.existsSync(sib)) { report.push('⚪ 规则12 跳过：本地无 ../lx-music-mobile（CI 请先 clone App 仓）'); return; }
+  // 本机可能同时有 mobile-app-latest（主工作仓）与 lx-music-mobile（CI/历史克隆）；优先读主线，回退旧名
+  const sib = ['../mobile-app-latest', '../lx-music-mobile']
+    .map((d) => path.resolve(ROOT, d, 'docs', 'MUSIC_SOURCE_GUIDE.md'))
+    .find((p) => fs.existsSync(p));
+  if (!sib) { report.push('⚪ 规则12 跳过：本地无 ../mobile-app-latest 或 ../lx-music-mobile（CI 请先 clone App 仓）'); return; }
   const m = read('src/legacy.js').match(/@version[: \t]+([\d.]+)/);
   if (!m) { report.push('⚠️ 规则12：本仓 @version 未找到'); return; }
   const doc = fs.readFileSync(sib, 'utf8');

@@ -9,7 +9,7 @@
 HEAD `1179b37`（v8.14.0）
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `e0a4590`。
-文件数：**153**　总行数：**38143**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**153**　总行数：**38138**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -59,7 +59,7 @@ HEAD `1179b37`（v8.14.0）
 | `docs/AGENTS.md` | 191 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 94 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突）→ **2026-11-12 已修：4509 行** |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
-| `docs/AUDIT_MATRIX.md` | 197 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
+| `docs/AUDIT_MATRIX.md` | 193 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/archive/AUDIT_PLAN-v9.0.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 243 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
@@ -108,7 +108,7 @@ HEAD `1179b37`（v8.14.0）
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
 | `scripts/cn-date.js` | 17 | 全文 | 北京日期单一来源 |
-| `scripts/docs-audit.js` | 395 | 全文 | **14 条规则**；不校 README 当前版本行 / CI 数字 / 矩阵数字（过时数字的根因） |
+| `scripts/docs-audit.js` | 398 | 全文 | **14 条规则**；不校 README 当前版本行 / CI 数字 / 矩阵数字（过时数字的根因） |
 | `scripts/doc-sync-map.js` | 111 | 全文 | 规则指向 `docs/SYNC_POINTS.md`（两仓均无，悬空） |
 | `scripts/ecosystem-scan.js` | 147 | 全文 | 从 SOURCE_HANDLERS 动态提取，防漂移 |
 | `scripts/endpoint-registry.js` | 80 | 全文 | **20 条端点（纠正我早前「19」的误判）**；note 行号全过期；导出 WINDOW_DAYS/CONSECUTIVE_FAIL_DAYS/EXCLUDE_DOMAINS |
@@ -168,7 +168,7 @@ HEAD `1179b37`（v8.14.0）
 | `test/stress-test.js` | 221 | 断言 | 12 条 S1~S11 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 272 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |
-| `docs/READTHROUGH.md` | 251 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/READTHROUGH.md` | 247 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
 | `docs/DOC_INDEX.md` | 97 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
 | `docs/KNOWN_ISSUES.md` | 65 | 全文 | 已知问题/技术债台账（K01~K20，活文档；判断是否重构先看这里） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | 全文 | 音质能力备档与档位短路优化方案、复现证据、P0/P1/P2 |
