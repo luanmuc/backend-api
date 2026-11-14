@@ -74,7 +74,7 @@ check('A1 exportHealthState 结构合法且无敏感字段', () => {
   const state = m.exportHealthState()
   assert(state.v === 2, `v 应为 2，实际 ${state.v}`)
   assert(state.controls && state.controls.suyinQQ, 'v2 必须带独立 controls')
-  assert(state.sourceVersion === '8.13.1', `sourceVersion 应为 8.13.1，实际 ${state.sourceVersion}`)
+  assert(state.sourceVersion === '8.14.0', `sourceVersion 应为 8.14.0，实际 ${state.sourceVersion}`)
   assert(state.savedAt > 0, 'savedAt 必须为正')
   assert(state.sources && state.sources.suyinKuwo, '缺少 suyinKuwo')
   const text = JSON.stringify(state)

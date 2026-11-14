@@ -2,10 +2,10 @@
 
 > **重构说明**：本文件由 v10.0 重构而来，文件名保留 `AUDIT_PLAN_v10.md` 以兼容既有引用。历史 round1~5 分册、v9.0、以及各轮审计报告全部归档，不再叠加进本文件；「当前要审什么、缺口在哪」只以本文件为准。
 >
-> **基线（唯一真值，2026-11-14）**：
-> - 源仓：`luanmuc/backend-api` @ `fb94fcf`（已推送），`lx-source.js` **v8.13.1**，5563 行
-> - App 仓：`luanmuc/mobile-app` @ `3cecdd02`（已推送），v1.9.2-b125 / versionCode 284
-> - 本文件对应变更：`fb94fcf`「音质优先播放策略收口」= 音质政策优化 P0/P1 + K07/K08 + 第 14 个 action `forceQualityProbe`
+> **基线（唯一真值，2026-11-15）**：
+> - 源仓：`luanmuc/backend-api` @ `master`（v8.14.0 音质优先与 CI 编排，升版提交待推送），`lx-source.js` **v8.14.0**，5707 行 / 297753 bytes
+> - App 仓：`luanmuc/mobile-app` @ `ff9647cc`（已推送），v1.9.2-b125 / versionCode 284；b126 本次发布构建
+> - 本文件对应变更：v8.14.0「音质优先与 CI 编排」= 音质优先播放 + 真实交付档 + K07/K08 + 第 14 个 action `forceQualityProbe` 声明 + CI 并行/缓存
 
 ---
 
@@ -121,7 +121,7 @@
 
 | 编号 | 联动点 | 现状 | 性质 |
 |---|---|---|---|
-| QP-L1 | **第 14 个 action `forceQualityProbe` 未进 App 契约** | 音源已实现可调用；App `SOURCE_ACTIONS` 仍 13、`check_source_contract` 硬断言 `length===13`、`SYNC_POINTS.md` 写「13 action」 | 契约漂移（P2 暂缓但必须登记） |
+| QP-L1 | **第 14 个 action `forceQualityProbe` 未进 App 契约** | 音源 `actions` 已声明 14（v8.14.0 补齐 `forceQualityProbe`）；App `SOURCE_ACTIONS` 仍 13、`check_source_contract` 硬断言 `length===13`、`SYNC_POINTS.md` 写「13 action」 | 契约漂移（源侧已齐，App 侧仍 P2） |
 | QP-L2 | **能力备档压制起跑档无 App 可见解释** | 音源 `getQualityCeiling` 把「这首歌只有 128k」记 6h/10min，请求 flac 被直接 128k 起跑；App `onQuality` 回填 128k 但 UI 无「因源能力备档跳过」提示 | 体验缺口 |
 | QP-L3 | **`definitiveFail`/`linkExpired` App 不消费** | 音源 byQuality 快照新增两字段；App `Health.tsx` 类型仍 `req/success/fail/businessFail/rate/avgTime/state` | 源有数据、App 不展示（无害） |
 | QP-L4 | **`qualityConfidence` 三值跨仓一致** | 音源返回 `exact/estimated/unknown`；App 消费时 `default='exact'` 仅作旧源兼容 | 已对齐，回归面继续守 |

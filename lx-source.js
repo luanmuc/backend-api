@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.13.1 源审计修复版（12 登记源 / 10 上链 / 2 观察；Provider Contract；生命周期治理；真取消；2026-11-14 链空错误码/保护态收口）
- * @version 8.13.1
+ * @description v8.14.0 音质优先与 CI 编排版（12 登记源 / 10 上链 / 2 观察；音质优先播放与真实交付档回填；K08/K07 探路策略；CI 并行/缓存收口）
+ * @version 8.14.0
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -3492,7 +3492,7 @@ var __lxSourceBundle = (() => {
       }
       var HEALTH_STATE_VERSION = 2;
       var HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-      var HEALTH_STATE_SOURCE_VERSION = "8.13.1";
+      var HEALTH_STATE_SOURCE_VERSION = "8.14.0";
       var HEALTH_STATE_MAX_BYTES = 256 * 1024;
       var HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1e3;
       var HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1e3;
@@ -4890,7 +4890,6 @@ var __lxSourceBundle = (() => {
         actions.push("trend");
         actions.push("healthEvents");
         actions.push("exportHealthState", "restoreHealthState");
-        // v8.13.x：第 14 个 action forceQualityProbe（强制探路旁路），分发已在 request 处理器，此处补声明保证宿主白名单与 App SOURCE_ACTIONS 14 个对齐
         actions.push("forceQualityProbe");
         sourceConfig[platform] = {
           name: PLATFORM_NAMES[platform],
@@ -5192,7 +5191,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.13.1 \u5DF2\u52A0\u8F7D\uFF0812 \u767B\u8BB0 / 10 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.14.0 \u5DF2\u52A0\u8F7D\uFF0812 \u767B\u8BB0 / 10 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {

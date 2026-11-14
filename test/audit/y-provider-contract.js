@@ -88,7 +88,7 @@ rec('Y8', 'probation 无链位次 / 默认关闭 / 有 reviewAt', () => {
 });
 rec('Y9', 'chain-golden.json 10 源 5×4 逐项一致，且不含观察源', () => {
   const golden = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'chain-golden.json'), 'utf8'));
-  assert.strictEqual(golden.version, '8.13.1');
+  assert.strictEqual(golden.version, '8.14.0');
   for (const p of ['kw', 'wy', 'tx', 'mg', 'kg']) {
     for (const q of ['128k', '320k', 'flac', 'flac24bit']) {
       const chain = mod.buildSourceChain(p, q);

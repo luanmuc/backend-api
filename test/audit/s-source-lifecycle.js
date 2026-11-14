@@ -104,10 +104,10 @@ rec('S13', '端点登记表与 12 源对齐（无退役端点）', () => {
   }
   assert.ok(fs.readFileSync(path.join(ROOT, 'scripts', 'source-inventory.js'), 'utf8').includes('12'));
 });
-rec('S14', '版本号已升 8.13.1', () => {
+rec('S14', '版本号已升 8.14.0', () => {
   const src = fs.readFileSync(SRC, 'utf8');
-  assert.match(src, /@version 8\.13\.1/);
-  assert.match(src, /v8\.13\.1/);
+  assert.match(src, /@version 8\.14\.0/);
+  assert.match(src, /v8\.14\.0/);
 });
 
 console.log(`\nSource lifecycle: ${pass} passed, ${fail} failed`);

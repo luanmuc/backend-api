@@ -4,7 +4,7 @@
 > **App 每次云编译（CI）会自动拉取本仓库根目录 `lx-source.js` 覆盖内置数据源**，因此：
 > - 本仓库是唯一权威数据源入口，改数据源只改这里；
 > - App 构建直接拉 `master` 的 `lx-source.js`，实际内置版本以构建日志的跨仓版本闸门和 APK 内 `assets/builtin_source.js` 为准；
-> - Releases 页是归档入口，不参与构建取源。截至 2026-11-14，`v8.12.1`~`v8.12.5` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.13.0` 已推送 master（b116 发布），`v8.13.1` 为当前审计修复版、尚未建 tag/Release；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
+> - Releases 页是归档入口，不参与构建取源。截至 2026-11-14，`v8.12.1`~`v8.12.5` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.13.0` 已推送 master（b116 发布），`v8.13.1` 已随 b125 发布、未单独建 tag；**`v8.14.0` 为当前音质优先与 CI 编排版，已建 tag/Release**；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
 
 > **免责声明**：本项目仅供学习交流与技术研究。仅做接口聚合，不存储任何媒体文件；第三方接口的可用性与版权责任归相应服务方。使用即代表同意仅限个人学习用途，禁止商用。
 
@@ -12,11 +12,11 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v8.13.1** 源审计修复版：在 v8.13.0 完全体（12 登记源 / 10 上链 / 2 观察；Provider Contract；生命周期治理；真取消；健康持久化 v2；跨平台 tx→wy→kw）之上，收口链空错误码、限流/熔断/暂停保护态不被跨平台绕过，并补 e-extra/L4 夹具与 MU1/MU5 变异门禁；单文件构建（`npm run build`）。`lx-source.js` 内 `@version 8.13.1`；2026-11-14 补修 m4a/ogg/wav 真实音质标签与 `fragment` 标记，并完成 K08/K07 源侧策略（唯一高质源 10min 探路 + `forceQualityProbe`；本地未推送） |
+| 当前版本 | **v8.14.0** 音质优先与 CI 编排版：在 v8.13.1 审计修复版之上，落地音质优先播放（App 自定义源只按 `global.lx.qualityList` 选请求档，不再用内置 `_qualitys` 把 flac 错降 128k）；源侧真实交付档回填、片段标记、置信度、`musicUrl` 透出 `qualityCeilingApplied`、缓存按实际档写入；K08 唯一高质源 10min 探路（`qualityShortCircuitUniqueProbeMs`）+ K07 `forceQualityProbe`；源仓 CI 拆 `test-fast` / `stress-long` / `stress-short` 并行；单文件构建（`npm run build`）。`lx-source.js` 内 `@version 8.14.0` |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
-| 发布入口 | 本仓库 **Releases 页**（归档入口）：发布 SOP 要求每次迭代出 tag + 附 `lx-source.js` 产物；`v8.12.1`~`v8.12.5` 与 `v8.11.7` 资产均已归档；`v8.13.0` 已推送 master、b116 已发布；`v8.13.1` 当前待归档，`v8.12.2` tag CI 文档门禁红见上 |
+| 发布入口 | 本仓库 **Releases 页**（归档入口）：发布 SOP 要求每次迭代出 tag + 附 `lx-source.js` 产物；`v8.12.1`~`v8.12.5` 与 `v8.11.7` 资产均已归档；`v8.13.0` 已推送 master、b116 已发布；`v8.13.1` 随 b125 发布、未单独归档；**`v8.14.0` 已归档**；`v8.12.2` tag CI 文档门禁红见上 |
 | 迭代机制 | 任何豆包账号说「**迭代**」即按 [docs/ITERATION_ROADMAP.md](./docs/ITERATION_ROADMAP.md) 自动推进下一版本；规则见 [docs/AGENTS.md](./docs/AGENTS.md) |
 
 ## 在线导入（自定义源）
@@ -57,6 +57,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
+| **v8.14.0 音质优先与 CI 编排**（2026-11-14，已发布） | App 自定义源只按 `global.lx.qualityList` 选请求档，不再用内置 `_qualitys` 把 flac 错降 128k；源侧真实交付档回填、片段标记、置信度、`musicUrl` 透出 `qualityCeilingApplied`、缓存按实际档写入；K08 `qualityShortCircuitUniqueProbeMs` 10min + `countActiveQualitySources`；K07 `forceQualityProbe`；源仓 CI 拆 `test-fast`/`stress-long`/`stress-short` 并行，App CI 四 job + node_modules/Gradle build cache；`lx-source.js` 297671 bytes | 2026-11-14 |
 | **v8.13.1 K08/K07 源侧策略**（2026-11-14，本地未推送） | 唯一高质源探路由 1h 缩短为 10min（`qualityShortCircuitUniqueProbeMs`，平台内 active 源 ≤1）；新增 `forceQualityProbe` request action，只放行一轮档位短路；QP9~QP12 12/0，`npm test` rc0，audit 40/40，`verify:bundle` 8/0（297666 bytes） | 2026-11-14 |
 | **v8.13.1 音质真实标签补修**（2026-11-14，本地未推送） | m4a/ogg 按 content-length+时长估算码率（≥256kbps→320k、其余→128k）、wav→flac、未知总字节保留请求档；`sniffAudioBytes` 只认可信总字节；全档片段兜底 `fragment: true` + `qualityConfidence: unknown`；新增 `quality-truth` 8/0 | 2026-11-14 |
 | **v8.13.1 审计修复版**（2026-11-14，已推送） | 链空错误码回收（限流升级 `RATE_LIMIT`、其余保护态保留 `NETWORK_ERROR` + `isThrottleSkip`）；跨平台兜底遇本地保护直接 settle；e-extra 纳入 19 脚本；L3/L4 夹具与 MU1/MU5 变异门禁收口；`lx-source.js` 288771 bytes | 2026-11-14 |
