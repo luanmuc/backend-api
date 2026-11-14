@@ -9,7 +9,7 @@
 HEAD `1179b37`（v8.14.0）
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `e0a4590`。
-文件数：**153**　总行数：**38051**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**153**　总行数：**38143**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -23,7 +23,7 @@ HEAD `1179b37`（v8.14.0）
 
 | 类别 | 条数 | 摘要 |
 |---|---|---|
-| **未审计** | A1 8 文件 / A4 5 类文档盲区 | 8 个文件 2298 行从未进矩阵；N 组「无回归保护清单」已于 2026-11-10 完成（39 条修复配对：16 有锚点 / 23 无锚点，其中 10 条需行为断言**已全部闭环**：D-04→Q1/Q2、D-01→Q3、D-08→Q4、D-05/06/26→R1~R3，D-10/11/12 复核出早有真保护并重取红证据，D-02 静态核实），见 `docs/audit-plans/round4.md` §3 |
+| **未审计** | A1 8 文件 / A4 5 类文档盲区 | 8 个文件 2298 行从未进矩阵；N 组「无回归保护清单」已于 2026-11-10 完成（39 条修复配对：16 有锚点 / 23 无锚点，其中 10 条需行为断言**已全部闭环**：D-04→Q1/Q2、D-01→Q3、D-08→Q4、D-05/06/26→R1~R3，D-10/11/12 复核出早有真保护并重取红证据，D-02 静态核实），见 `docs/archive/audit-plans/round4.md` §3 |
 | **数据过时** | 54 处 | 已由本轮门禁接管可计算项（见 §三）；剩余语义类逐条列在清单原文 |
 | **未测试** | 15 道门禁入口全覆盖（13 个测试脚本 + 自检 + 文档门禁），原 7 项该测未测剩 3 项 | 已补：`CONFIG_ERROR` TTL（N4）、320k 跳档（N3）、`juhe` 字符串码（N1/N2）、四段零覆盖（P1~P4）；仍缺：仅 L4 真机播放（T10 已由 Z7 实测、T33 根因已定位并修复） |
 | **未验证** | 仅剩 1 项 | F10~F13 已实证（N1~N4）；变异 22/0 已全量；T10 三分支已由 f-repo Z7 真跑；T33 根因=分档预算 1ms 与 mock 同毫秒竞争，已改 -1（确定性）；唯一剩余是 L4 真机播放 |
@@ -59,9 +59,9 @@ HEAD `1179b37`（v8.14.0）
 | `docs/AGENTS.md` | 191 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 94 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突）→ **2026-11-12 已修：4509 行** |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
-| `docs/AUDIT_MATRIX.md` | 193 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
-| `docs/AUDIT_PLAN.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
-| `docs/AUDIT_PLAN_v10.md` | 201 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
+| `docs/AUDIT_MATRIX.md` | 197 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
+| `docs/archive/AUDIT_PLAN-v9.0.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
+| `docs/AUDIT_PLAN_v10.md` | 243 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
 | `docs/CHANGELOG.md` | 78 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 518 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
@@ -76,13 +76,13 @@ HEAD `1179b37`（v8.14.0）
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 82 | 归档 | 96 维执行轨迹；F-08~F-14 待决策记录（部分已修） |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 146 | 归档 | 音源+App 五步审计 13 问题（2 中 11 低） |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 295 | 归档 | 15 项修复 + §10.2 仍未做（L4 真网络 / F-12 第二方案 / 面板 raceBudgetMs 说明） |
-| `docs/audit-plans/round1.md` | 90 | 归档 | A~I 九维 50 ID → 落地 72 条 |
-| `docs/audit-plans/round2.md` | 186 | 归档 | J~T 十组；**§O 冷启动与短路 5 项【未测】**，后续部分转正 |
-| `docs/audit-plans/round3.md` | 78 | 归档 | U~Z 六组计划；分母写 49 文件 |
-| `docs/audit-plans/round4.md` | 235 | 全文 | 归档计划；**N 组已完成**（39 条配对 16/23 + 6 条真回退）、O 组覆盖率已落地（94.8%）；M13/M14 仍未落地 |
-| `docs/audit-plans/round5.md` | 111 | 全文 | MUT 12 算子 / 16 实例口径区分；EDGE/TTL ±1ms、`songmid` 含 `|` 未做理由 |
-| `docs/audit-plans/stress-round4.md` | 99 | 归档 | V 组 21 组·66 条 → 落地 133 |
-| `docs/audit-plans/stress-round5.md` | 72 | 归档 | 第五轮压测设计 |
+| `docs/archive/audit-plans/round1.md` | 90 | 归档 | A~I 九维 50 ID → 落地 72 条 |
+| `docs/archive/audit-plans/round2.md` | 186 | 归档 | J~T 十组；**§O 冷启动与短路 5 项【未测】**，后续部分转正 |
+| `docs/archive/audit-plans/round3.md` | 78 | 归档 | U~Z 六组计划；分母写 49 文件 |
+| `docs/archive/audit-plans/round4.md` | 235 | 归档 | 归档计划；**N 组已完成**（39 条配对 16/23 + 6 条真回退）、O 组覆盖率已落地（94.8%）；M13/M14 仍未落地 |
+| `docs/archive/audit-plans/round5.md` | 111 | 归档 | MUT 12 算子 / 16 实例口径区分；EDGE/TTL ±1ms、`songmid` 含 `|` 未做理由 |
+| `docs/archive/audit-plans/stress-round4.md` | 99 | 归档 | V 组 21 组·66 条 → 落地 133 |
+| `docs/audit-plans/stress-round5.md` | 114 | 当前态 | 压测唯一入口（v2 重构版，§6 负载设计 + §7 方法论承接） |
 | `docs/candidate-status.md` | 8 | 生成 | hyw 已恢复 / huanyin 需人工；依赖 recheck 是否真跑 |
 | `docs/health-daily/2026-11-03.md` | 42 | 生成 | 首份日报（19 端点 / 9 建议摘除） |
 | `docs/health-daily/2026-11-04.md` | 41 | 生成 | 同上系列 |
@@ -168,7 +168,7 @@ HEAD `1179b37`（v8.14.0）
 | `test/stress-test.js` | 221 | 断言 | 12 条 S1~S11 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 272 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |
-| `docs/READTHROUGH.md` | 247 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/READTHROUGH.md` | 251 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
 | `docs/DOC_INDEX.md` | 97 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
 | `docs/KNOWN_ISSUES.md` | 65 | 全文 | 已知问题/技术债台账（K01~K20，活文档；判断是否重构先看这里） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | 全文 | 音质能力备档与档位短路优化方案、复现证据、P0/P1/P2 |

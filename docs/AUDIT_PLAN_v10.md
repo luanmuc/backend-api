@@ -179,6 +179,8 @@ node scripts/docs-audit.js                 # 文档镜像
 | G6 | 安全面只有静态 grep | 构造 `javascript:`/`file://`/超长参数 | 非法 URL 拒、超长截或拒 |
 | G7 | 性能无基线 | 实测加载/探针/单请求耗时 | 记录数字，超预算有解释 |
 | QP-L1~L3 | 音质政策 App 消费面（见 §4） | App 侧跟进 | 见 §4 处置 |
+| G8 | 冷启动预热与短路 5 项（原 round2 §O，O1~O5 全部【未测】） | `coldStartTimeoutMs` 内完成或放弃、`coldStartWarmTtlMs` 内复用、`qualityShortCircuit` 采样达标短路且采样不足不短路、`playDeadReviveMs` 内重复失败不放大 | 补 `coldStart-*` 断言 5 条并双向验证，或记 blocked |
+| G9 | 预览冷却/缓存 key 边界（原 round5 EDGE6/EDGE7、TTL ±1ms、`songmid` 含 `\|`） | 同歌同档 duration 差 2 分钟须区分 key、冷却到期前 1ms/后 1ms、`platform\|mid\|quality` 拼接不粘连 | 见 §7 取舍；补断言前先确认现有行为是否正确 |
 
 ---
 
@@ -190,6 +192,8 @@ node scripts/docs-audit.js                 # 文档镜像
 | `INFLIGHT_URL_MAX=200` 超限 clear | 最坏是合并失效多打外呼 | 不出错不丢交付 |
 | MEM Map 上限淘汰是产品行为变更 | 上限 2000，淘汰生效 | 已确认接受 |
 | `AUDIT_RESULTS.md` 1100+ 行不拆 | 缺陷总账已补齐 D-01~D-39 | 拆分破坏历史链接 |
+| 高质缓存 TTL ±1ms 不单独断言（原 round5 §12.9） | `cacheTtlHighQualityMs` 用 `>` 边界，-1ms 命中/+1ms 未命中无独立用例 | 毫秒级计时在 CI 上假红风险高于收益；功能性边界已由 EDGE1~EDGE5 覆盖 |
+| `songmid` 含 `\|`/空格/emoji 不单独断言（原 round5 §12.9） | key 为 `platform\|mid\|quality` 拼接，无分隔符转义用例 | 平台返回的 songmid 实际不含 `\|`；若出现即先修 key 生成而非只补断言 |
 
 ---
 
@@ -199,3 +203,41 @@ node scripts/docs-audit.js                 # 文档镜像
 2. 真实缺陷按 `D-<序号>` 编号，修完补断言并注入验证。
 3. 不改判据迁就现状；只改代码或如实降级证据级。
 4. 每轮结论写入 `docs/AUDIT_REPORT-YYYY-MM-DD.md`；本文件只更新基线、维度状态、缺口状态。
+
+---
+
+## 9. 细粒度检查矩阵与 2026-11-13 实测（原 v9.0 独有，归档前承接）
+
+> v9.0（原 `docs/AUDIT_PLAN.md`，600 行）已归档至 `docs/archive/AUDIT_PLAN-v9.0.md`。归档前甄别出**两项未进本文件**的独有信息，在此承接：带行号的 13 项细粒度矩阵、2026-11-13 实测的 5 条缺陷。其余历轮结论见 `docs/AUDIT_RESULTS.md`。
+
+### 9.1 细粒度审计矩阵（S-A01~S-A13）
+
+| ID | 检查面 | 关键位置 | 验收 |
+|---|---|---|---|
+| S-A01 | 资格判定唯一入口 | `computeEligibility` 约 2380 | open/限流/半开/短路/冷却/本地限额优先级不串 |
+| S-A02 | 128k 保底档 | `wrapExecute` 约 4340、`computeEligibility` 约 2416 | flac/320k 冷却排除；128k 仍入链、仍可执行 |
+| S-A03 | 半开恢复 | `canExecute` 约 1250、`buildSourceChain` 约 4156 | build 只 peek 不推进；冷却到期只放一枪；trial 失败收回 open |
+| S-A04 | 短路与熔断互斥 | `isQualityHopeless`、`breakerTrialReady` | 短路不能抢在冷却到期试探前剪链 |
+| S-A05 | 探针双歌/间隔 | `buildProbeConfig` 约 408、`probeSingleSource` 约 631 | 单目标补第二首；tier 间隔可配 |
+| S-A06 | 预热 TTL | `coldStartWarmTtlMs`、`warmCalls` | TTL 内不重复预热；显式探针单独结算 |
+| S-A07 | 快照只读 | `getHealthSnapshot` 约 3595、`peekThrottle` 约 4268 | 读快照不改 `reqTimestamps` |
+| S-A08 | 记账唯一 reducer | `applyAdmission` | PASS/FAIL 只走一处；跳过不污染成功率 |
+| S-A09 | 事件/容量 | `recordHealthEvent`、`HEALTH_HISTORY_MAX=1008` | eventId 唯一、环形容量、不丢最新 |
+| S-A10 | 排序防线 | `sortChainByHealth` 约 4164 | `eligible=false`/`skipReason` 不入链 |
+| S-A11 | 配置边界 | `USER_CONFIG`/`PARAM_LIMITS`（约 15–75 行） | jitter 0~0.5、pause 1s~5min、池 1~20 |
+| S-A12 | 全仓完成度 | `src`/`test`/`docs`/`scripts` | TODO/占位/死字段/文档漂移逐条定性 |
+| S-A13 | 产物同步 | `npm run build` | `lx-source.js` 字节数/内容与 `src` 一致 |
+
+> 行号是 2026-11-13 时的定位锚点，代码演进后以 `grep` 重新定位；本表是**检查面清单**，不是行号台账。§2 域总表是「审什么」，本表是同一批检查面的「更细切口」，二者互补不重复。
+
+### 9.2 2026-11-13 实测发现（S-F01~S-F05）
+
+| 编号 | 发现 | 等级 | 证据 | 处置 |
+|---|---|---|---|---|
+| S-F01 | `computeEligibility` 把 preview 冷却源整源过滤，128k 保底档也被挡 | 高 | 三档全被剪；`wrapExecute` 明确放行 128k | 已改为仅非 128k 返回 `PREVIEW_COOLDOWN`；C6 改为 flac 排除/128k 包含 |
+| S-F02 | 冷却到期的 open 被 `qualityShortCircuit` 抢先剪链，半开恢复拿不到请求 | 高 | S5b 冷却后外呼 0 | 已加 `breakerTrialReady`，短路让路；S5b 复跑外呼 3 |
+| S-F03 | `probeSingleSource` catch 注释与代码相反（注释称回退 URL，代码为 `throw e`） | 低 | 注释与代码相反 | 已改注释为「直接三值失败、不回退 URL」 |
+| S-F04 | T2/V18c/V25b/V25c/S5 夹具漂移 | 中 | 首跑 11/3、130/3、11/1 | 已修夹具（不动实现） |
+| S-F05 | 文档计数漂移：CHANGELOG 写 286797、TESTING 写 429/655 | 低 | 实际 288771；入口 44 / npm test 19 | 已同步 |
+
+> S-F01/S-F02 是**已修复并加断言**的真实缺陷，不是待办；本节保留其证据链，供后续回退验证（反向改实现必须变红）。

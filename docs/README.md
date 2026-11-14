@@ -10,7 +10,7 @@
 | 改代码前搞清结构 | [`ARCHITECTURE.md`](./ARCHITECTURE.md)（边界/调用链/状态机）→ [`DEV_GUIDE.md`](./DEV_GUIDE.md)（逐段职责） |
 | 跑测试 / 新增一条断言 | [`TESTING.md`](./TESTING.md) |
 | 找某个脚本干什么、会不会改文件 | [`SCRIPTS.md`](./SCRIPTS.md) |
-| 要审计 / 想知道历史上审出过什么 | 计划 [`AUDIT_PLAN.md`](./AUDIT_PLAN.md) → 结果 [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) → 覆盖矩阵 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md) |
+| 要审计 / 想知道历史上审出过什么 | 计划 [`AUDIT_PLAN_v10.md`](./AUDIT_PLAN_v10.md)（v11 唯一入口）→ 结果 [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) → 覆盖矩阵 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md) |
 | 查某版本改了什么 | [`CHANGELOG.md`](./CHANGELOG.md) → 规划 [`ITERATION_ROADMAP.md`](./ITERATION_ROADMAP.md) |
 | 看音源架构从 v8.8 到 v8.13.0 的完整执行链 | [`音源架构执行全过程-2026-11-12.md`](./音源架构执行全过程-2026-11-12.md) |
 | 源挂了 / 平台改接口 | [`INTERFACE_CHANGE_PLAYBOOK.md`](./INTERFACE_CHANGE_PLAYBOOK.md) |
@@ -33,10 +33,10 @@
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 手写（方案） | 音质能力备档与档位短路的优化方案、验证证据、P0/P1 + K08/K07、P2 |
 | `docs/TESTING.md` | 手写 | 46 个测试入口、mock 四件事、隔离与新增断言流程 |
 | `docs/SCRIPTS.md` | 手写 | 14 脚本 + 3 hook 的职责/触发/副作用 |
-| `docs/AUDIT_PLAN.md` | 手写 | 方法论 + 维度矩阵（只写"要审什么"） |
+| `docs/archive/AUDIT_PLAN-v9.0.md` | 归档（v9.0，96 维矩阵） | 2026-11-07 全覆盖审计的历史计划；当前入口见 `AUDIT_PLAN_v10.md` |
 | `docs/AUDIT_PLAN_v10.md` | 手写（**六轮整合活文档**） | 以它为准：维度总表、G1~G12 缺口、待修清单、销项记录、门禁 14 项口径、已知取舍 |
 | `docs/音源架构执行全过程-2026-11-12.md` | 手写 | 当前态专题纪要：阶段时间线、八段架构、关键决策、缺陷主题、测试/发布证据、边界 |
-| `docs/audit-plans/round1~5.md` | 手写（归档性） | 前五轮的分轮计划，历史用；当前计划看 v10 |
+| `docs/archive/audit-plans/round1~5.md`、`stress-round4.md` | 归档 | 前五轮分轮计划与第四轮压测（历史用）；当前看 `AUDIT_PLAN_v10.md` 与 `audit-plans/stress-round5.md` |
 | `docs/reports/*.md` | 手写（每轮一份） | 分轮审计报告：`v8.11.1-全面审计报告.md`、`-第五轮审计结算.md`、`-第六轮缺口审计.md` |
 | `docs/AUDIT_RESULTS.md` | 手写 | 三代审计总账 + **D-01~D-39** 缺陷编号 + 结论性事实 + 历轮过程 |
 | `docs/READTHROUGH.md` | 手写（**活文档·每版本必刷**） | 全仓通读台账：2026-11-10 快照 75 文件逐条结论；当前 99 文件覆盖见 `AUDIT_MATRIX.md`；规则18 校验 |

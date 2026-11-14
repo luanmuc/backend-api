@@ -21,7 +21,7 @@
 | `docs/ARCHITECTURE.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/AUDIT_MATRIX.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
-| `docs/AUDIT_PLAN.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
+| `docs/archive/AUDIT_PLAN-v9.0.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/AUDIT_PLAN_v10.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/AUDIT_RESULTS.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/CHANGELOG.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
@@ -44,13 +44,13 @@
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 归档 | 人 | 只读，不再更新 | — |
-| `docs/audit-plans/round1.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
-| `docs/audit-plans/round2.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
-| `docs/audit-plans/round3.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
-| `docs/audit-plans/round4.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
-| `docs/audit-plans/round5.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
-| `docs/audit-plans/stress-round4.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
-| `docs/audit-plans/stress-round5.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
+| `docs/archive/audit-plans/round1.md` | 归档 | 人 | 只读，不再更新 | — |
+| `docs/archive/audit-plans/round2.md` | 归档 | 人 | 只读，不再更新 | — |
+| `docs/archive/audit-plans/round3.md` | 归档 | 人 | 只读，不再更新 | — |
+| `docs/archive/audit-plans/round4.md` | 归档 | 人 | 只读，不再更新 | — |
+| `docs/archive/audit-plans/round5.md` | 归档 | 人 | 只读，不再更新 | — |
+| `docs/archive/audit-plans/stress-round4.md` | 归档 | 人 | 只读，不再更新 | — |
+| `docs/audit-plans/stress-round5.md` | 当前态 | 人 | 每次压测变更后 | — |
 | `docs/candidate-status.md` | 自动生成 | scripts/recheck-candidates.js | 每次候选复检覆盖 | 规则5 新鲜度 |
 | `docs/health-daily/2026-11-03.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/health-daily/2026-11-04.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |

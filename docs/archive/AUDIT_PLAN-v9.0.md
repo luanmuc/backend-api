@@ -89,7 +89,7 @@ rg -n "286797|286863|288771|429|655|94" docs README.md
 > **2026-11-09 更新**：前五轮已合并为 `docs/AUDIT_PLAN_v10.md`（六轮整合版）。
 > 本文保留为 v9.0 的维度矩阵与分册索引，**"审过什么 / 还没审什么"以 v10 为准**。
 
-> **口径提示**：本文件含历轮记录，其中数字是**当时实测值**（当时口径），不随版本回填；当前实测口径看 [`READTHROUGH.md`](./READTHROUGH.md) 与 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)。
+> **口径提示**：本文件含历轮记录，其中数字是**当时实测值**（当时口径），不随版本回填；当前实测口径看 [`READTHROUGH.md`](../READTHROUGH.md) 与 [`AUDIT_MATRIX.md`](../AUDIT_MATRIX.md)。
 
 
 
@@ -523,7 +523,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 ## 4. 第三轮审计计划（U~Z 六组 · 全仓全覆盖）
 
 > **设计约束**：刻意避开前两轮 A~T 已测过的角度（A~I 九维 79 项、J~T 57 项），只补「文件级合规 / 文档与脚本契约 / 跨模块联动 / 死码与资源」这几层此前**完全没碰**的部分。
-> **覆盖口径**：以 `git ls-files` 的 **79 个 tracked 文件 / 20309 行** 作分母，逐个文件标注被哪一维审过，**未覆盖文件 0**。矩阵见 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)，由脚本实测产出、不是手写清单。
+> **覆盖口径**：以 `git ls-files` 的 **79 个 tracked 文件 / 20309 行** 作分母，逐个文件标注被哪一维审过，**未覆盖文件 0**。矩阵见 [`AUDIT_MATRIX.md`](../AUDIT_MATRIX.md)，由脚本实测产出、不是手写清单。
 > 实现：`test/audit/f-repo.js`（**54 条**断言，rc=0）。
 
 | 组 | 维度 | 断言 | 判据要点 |
@@ -582,7 +582,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 
 **压测隔离**：单进程共享 `successCache` / `failCache` / `previewCooldownMap` / 熔断状态，每组用例前必须 `delete require.cache` 重载（脚本里的 `fresh()`），并注入 `rateWindowMax/maxConcurrency=1e6`、`breakerThreshold=999`，否则测的是限速和熔断而不是被测逻辑。
 
-> 历轮审计结果、修复记录与缺陷总账已拆出到 [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md)，本文件保留方法论、维度矩阵与各轮审计/压测计划。
+> 历轮审计结果、修复记录与缺陷总账已拆出到 [`AUDIT_RESULTS.md`](../AUDIT_RESULTS.md)，本文件保留方法论、维度矩阵与各轮审计/压测计划。
 
 ## 6. 各轮计划原文（并入归档）
 
@@ -594,7 +594,7 @@ B 脚本 5 项（self-check / ecosystem-scan / probe / health-daily / candidate-
 | 第二轮 | [`audit-plans/round2.md`](./audit-plans/round2.md) | J~T 十组（歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/脱敏）+ 压测 10 组 | `e-extra` + `stress-test` | **57 + 12** |
 | 第三轮 | [`audit-plans/round3.md`](./audit-plans/round3.md) | U~Z 六组（静态/引用/契约/联动/死码/资源）+ 全仓结构治理 10 项 | `f-repo` + `stress-round3` | **50 + 12** |
 | 第四轮 | [`audit-plans/round4.md`](./audit-plans/round4.md) | M~O 元审计（断言有效性 / 修复正确性 / 未覆盖代码可达性） | `g-meta` | **12**（M1~M12；M13/M14 未落地，理由见原文 §2.1） |
-| 第五轮 | [`audit-plans/round5.md`](./audit-plans/round5.md) | MUT 变异测试 12 算子 / INV 不变量 6 条 / EDGE 边界 5 条 / FAULT 故障注入 8 条 / MEM 长时运行 3 条；结算 [`reports/v8.11.1-第五轮审计结算.md`](./reports/v8.11.1-第五轮审计结算.md)（已全部落地：18 条断言经注入验证、D-20/D-21 两条真缺陷） |
+| 第五轮 | [`audit-plans/round5.md`](./audit-plans/round5.md) | MUT 变异测试 12 算子 / INV 不变量 6 条 / EDGE 边界 5 条 / FAULT 故障注入 8 条 / MEM 长时运行 3 条；结算 [`reports/v8.11.1-第五轮审计结算.md`](../reports/v8.11.1-第五轮审计结算.md)（已全部落地：18 条断言经注入验证、D-20/D-21 两条真缺陷） |
 | 第四轮压测 | [`audit-plans/stress-round4.md`](./audit-plans/stress-round4.md) | V 组 21 组·66 条（I1~I5 五不变量 + 故障谱系/判据边界/配置面/D-31 实证） | `test/stress-round4.js` | **133** |
 
 **为什么把计划原文单独存档而不是塞进本文件**：五轮计划合计 580 余行，塞进来会让本文件变成 800+ 行、方法论被淹没；单独放 `docs/audit-plans/` 既保留原文，又能在 `AUDIT_PLAN` 顶部一表看全。每轮计划的「计划 vs 实际偏差」都写在各自文件头部，这是本节最容易丢失的信息。
