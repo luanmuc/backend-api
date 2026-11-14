@@ -152,7 +152,16 @@ jobs:
           git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录+v8.0健康日报 [自动]" -q || echo "健康表无变化，跳过提交"
           # v8.13.2（S-01）：巡检产物是发布/健康判定的依据，push 失败必须让 job 红。
           # 此前只写 warning + step summary，run 仍绿，等于静默丢失健康表。
-          if ! git push origin HEAD:${GITHUB_REF_NAME}; then
+          # v8.14.1：release 事件 checkout 在 tag 上，GITHUB_REF_NAME 是 tag；直接 push 会因
+          # tag 已存在被拒。tag 引用（release 或按 tag 手动触发）统一 rebase 到 master 再写回分支。
+          TARGET_REF="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] || [ "${GITHUB_EVENT_NAME}" = "release" ]; then TARGET_REF="master"; fi
+          if ! git fetch origin "${TARGET_REF}" || ! git rebase "origin/${TARGET_REF}"; then
+            echo "::error::巡检产物 rebase 到 ${TARGET_REF} 失败；本次 run 判失败"
+            echo "## ❌ 巡检产物 rebase 失败" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if ! git push origin "HEAD:${TARGET_REF}"; then
             echo "::error::自动提交 push 失败（无权限/远端已更新）；巡检产物未写入仓库，本次 run 判失败"
             echo "## ❌ 巡检产物 push 失败" >> "$GITHUB_STEP_SUMMARY"
             exit 1
