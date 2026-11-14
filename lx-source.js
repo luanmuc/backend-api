@@ -4494,7 +4494,7 @@ var __lxSourceBundle = (() => {
               const reqFailCodes = details.filter((d) => String(d.quality || "").toLowerCase() === reqQ).map((d) => d.code);
               noteQualityCeiling(platform, songInfo, truthQ, qualityCeilingReasonForCodes(reqFailCodes));
             }
-            return { url, type: truthQ, subSource: source || "", subSourceName: ((_b2 = SOURCE_HANDLERS[source]) == null ? void 0 : _b2.name) || "", sourcePlatform: actualDeliveryPlatform(source, platform), qualityConfidence: truthConfidence };
+            return { url, type: truthQ, subSource: source || "", subSourceName: ((_b2 = SOURCE_HANDLERS[source]) == null ? void 0 : _b2.name) || "", sourcePlatform: actualDeliveryPlatform(source, platform), qualityConfidence: truthConfidence, qualityCeilingApplied: ceilingApplied };
           } catch (e) {
             noteAttempt(extractErrorCode(e), e && e.evidence || "strong");
             errors.push(`[${q}] ${e.message}`);
