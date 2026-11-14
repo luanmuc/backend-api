@@ -395,6 +395,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
    - `node test/audit/{a-static,b-logic,d-func,e-extra,f-repo,g-meta}.js` → 10 / 30 / 30 / **90** / **52** / **14** 条断言；`node test/audit/h-toggles.js` → 14 条（默认关闭源的开启可用性）；`node test/audit/v-cross-platform-stress.js` → **13** 条（V1~V13 跨平台并发/缓存/开关压测）（`a-static` 另有 2 条、`e-extra` 另有 7 条 `· note` 信息登记，不计通过/失败；`e-extra` 的 90 已含 O 组补的 5 条上游 HTTP 状态码映射与应用层补测）
    - `node --expose-gc test/stress-test.js`（S 组压量，12 条）、`node --expose-gc test/stress-round3.js`（T 组压态，**14** 条）、`node test/candidate-audit-test.js`（6 条）
    - **`g-meta` 是元审计**：查断言是否恒真、引用的导出名是否真实存在、脚本顶层 `process.exit` 是否有 `require.main` 守卫。**改过任何审计脚本后必须跑它**，否则可能把写死 true 的伪断言当成绿字
+   - **变异门禁**：`node test/mutation/run.js --full --strict` 必须 22 killed / 0 survived、rc=0；缺 esbuild 时 runner 直接 exit 2（先 `npm ci`）；strict 把 `SURVIVED/UNCERTAIN/BUILD_FAILED/SKIPPED` 全部判失败，不再只看 survived
    - 明细与判据原则见 [`TESTING.md`](./TESTING.md)
 3. **平台抽查**（用 curl 复现各子源逻辑或直接装包实测）：
    - wy：《晴天》flac（走 gdWy）+ 免费歌 128k（走 suyin163/wyOuter）+ VIP 歌 128k（应失败不误报）；

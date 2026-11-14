@@ -89,6 +89,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: 安装构建依赖（变异测试需要 esbuild）
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: 变异测试（22 变异体，killed 率必须 100%）
         run: node test/mutation/run.js --full --strict
 

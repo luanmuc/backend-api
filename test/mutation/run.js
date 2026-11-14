@@ -219,7 +219,7 @@ function runGates(repo, gates) {
     // maxBuffer 必须放大：压测脚本日志量远超默认 1MB，溢出会让 spawnSync 以 ENOBUFS/SIGTERM
     // 杀掉进程并返回 status=null —— 那会被误判成「门禁发现」，即假杀。
     const r = cp.spawnSync(process.execPath, ['--expose-gc', g], {
-      cwd: repo, timeout: 120000, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+      cwd: repo, timeout: 180000, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
     });
     const name = path.basename(g, '.js');
     if (r.status === null) {
@@ -241,6 +241,15 @@ function main() {
   // --only=MU15,MU16 只跑指定变异体：单验证新加变异体时不必等 20 分钟全跑
   const onlyArg = args.find((a) => a.startsWith('--only='));
   const only = onlyArg ? onlyArg.slice('--only='.length).split(',').filter(Boolean) : [];
+
+  // 构建需要 esbuild。缺依赖时不能继续：否则每个变异体都 BUILD_FAILED，
+  // strict 只数 SURVIVED，会以 0 killed / 0 survived 假绿退出。
+  try {
+    require.resolve('esbuild', { paths: [ROOT] });
+  } catch {
+    console.error('[mutation] 缺少 esbuild，请先执行 npm ci 后重试');
+    process.exit(2);
+  }
 
   const files = sourceFiles();
   copyRepo();
@@ -280,6 +289,9 @@ function main() {
   const killed = rows.filter((r) => r.status === 'KILLED').length;
   const survived = rows.filter((r) => r.status === 'SURVIVED');
   const skipped = rows.filter((r) => r.status === 'SKIPPED');
+  // strict 的语义是「每个变异体都必须被门禁杀死」：BUILD_FAILED / UNCERTAIN / SKIPPED
+  // 都不是有效判定，不能因为 survived.length===0 就绿。
+  const unfinished = rows.filter((r) => r.status !== 'KILLED');
 
   for (const r of rows) {
     const mark = r.status === 'KILLED' ? '✓' : (r.status === 'SURVIVED' ? '✗' : '·');
@@ -292,7 +304,8 @@ function main() {
   console.log(`\n变异测试（${gates.length} 个门禁）汇总：${killed} killed / ${survived.length} survived` +
     `${skipped.length ? ` / ${skipped.length} skipped` : ''}，killed 率 ${pct}%`);
   if (survived.length) console.log('存活变异体（需补断言）：' + survived.map((r) => r.id).join(', '));
-  if (require.main === module) process.exit(strict && survived.length ? 1 : 0);
+  if (unfinished.length) console.log('未完成判定（strict 下按失败处理）：' + unfinished.map((r) => `${r.id}:${r.status}`).join(', '));
+  if (require.main === module) process.exit(strict && unfinished.length ? 1 : 0);
 }
 
 if (require.main === module) main();

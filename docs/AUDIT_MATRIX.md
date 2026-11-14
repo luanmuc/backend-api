@@ -21,10 +21,10 @@
 | 文件 | 行 | 类型 | U | V | W | X | Y | Z | H | 证据 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `docs/音源架构执行全过程-2026-11-12.md` | 143 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `.github/workflows/ci.yml` | 207 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
+| `.github/workflows/ci.yml` | 209 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `.github/workflows/docs-audit.yml` | 48 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `README.md` | 120 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `README_HEALTH.md` | 44 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `README_HEALTH.md` | 42 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AGENTS.md` | 190 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AUDIT_PLAN.md` | 600 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -54,8 +54,10 @@
 | `docs/health-daily/2026-11-12.json` | 66 | .json | ✓ | — | — | — | — | — | — | U10 |
 | `docs/health-daily/2026-11-13.md` | 49 | .md | ✓ | — | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/health-daily/2026-11-13.json` | 66 | .json | ✓ | — | — | — | — | — | — | U10 |
+| `docs/health-daily/2026-11-14.md` | 47 | .md | ✓ | — | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/health-daily/2026-11-14.json` | 65 | .json | ✓ | — | — | — | — | — | — | U10 |
 | `docs/health-daily/2026-11-09.md` | 48 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/probe-history.jsonl` | 784 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
+| `docs/probe-history.jsonl` | 800 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
 | `lx-source.js` | 5563 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
 | `scripts/candidate-audit.js` | 342 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/cn-date.js` | 17 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
@@ -106,7 +108,7 @@
 | `docs/SCRIPTS.md` | 54 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/TESTING.md` | 163 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/CHANGELOG.md` | 74 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_MATRIX.md` | 187 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 189 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 406 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
 | `test/stress-round3.js` | 356 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
 | `test/audit/g-meta.js` | 314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14 |
@@ -116,7 +118,7 @@
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | .md | ✓ | ✓ | — | — | — | — | — | 五轮结算 |
 | `docs/audit-plans/round5.md` | 111 | .md | ✓ | ✓ | — | — | — | — | — | 五轮计划 |
 | `docs/audit-plans/round4.md` | 235 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
-| `test/mutation/run.js` | 299 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | MU1~MU12（变异测试） |
+| `test/mutation/run.js` | 312 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | MU1~MU22（变异测试） |
 | `.gitignore` | 2 | 其他 | ✓ | — | — | — | — | — | — | U13 编码扫描（本轮登记） |
 | `docs/AUDIT_PLAN_v10.md` | 303 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
 | `docs/PROGRESS_round5.md` | 58 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
@@ -135,12 +137,12 @@
 | `test/stress-round4.js` | 1319 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 272 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
-| `docs/READTHROUGH.md` | 241 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
-| `docs/DOC_INDEX.md` | 93 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
+| `docs/READTHROUGH.md` | 243 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
+| `docs/DOC_INDEX.md` | 95 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
 ## 汇总
 
-- 文件总数：**147**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**36933**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**149**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**37080**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_LIFECYCLE.md` | 76 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |

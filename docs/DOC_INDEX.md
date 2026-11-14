@@ -65,6 +65,8 @@
 | `docs/health-daily/2026-11-12.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
 | `docs/health-daily/2026-11-13.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/health-daily/2026-11-13.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
+| `docs/health-daily/2026-11-14.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
+| `docs/health-daily/2026-11-14.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
 | `docs/health-daily/2026-11-09.json` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/health-daily/2026-11-08.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
 | `docs/probe-history.jsonl` | 自动追加 | scripts/probe.js | 每次巡检追加一行 | — |

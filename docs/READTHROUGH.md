@@ -9,7 +9,7 @@
 HEAD `7e78e63`（v8.13.1）
 
 > 复核说明（2026-11-12）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前值。
-文件数：**147**　总行数：**36933**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**149**　总行数：**37080**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -39,7 +39,7 @@ HEAD `7e78e63`（v8.13.1）
 | `test/stress-test.js` | 12 / 0 |
 | `test/stress-round3.js` | 14 通过 / 0 失败 |
 | `test/stress-round4.js` | 133 通过 / 0 失败 |
-| `test/mutation/run.js` | 22 个变异体（**本轮未全量跑**） |
+| `test/mutation/run.js` | 22 个变异体（**2026-11-14 `--full --strict` 22 killed / 0 survived，rc=0**） |
 
 合计：冒烟 67 + 审计 249 + 压测 **159**（12+14+133）= **475**；变异 22。
 （更正：本轮初稿把压测写成了 163，是加法错误；12+14+133=159。）
@@ -50,16 +50,16 @@ HEAD `7e78e63`（v8.13.1）
 
 | 文件 | 行 | 读法 | 结论 |
 |---|---|---|---|
-| `.github/workflows/ci.yml` | 207 | 全文 | 13 个 job；断言数注释过期（32/21/22）；**mutation 未带 `--strict`（X3）**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
+| `.github/workflows/ci.yml` | 209 | 全文 | 13 个 job；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 2 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
 | `README.md` | 120 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
-| `README_HEALTH.md` | 44 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
+| `README_HEALTH.md` | 42 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
 | `lx-source.js` | 5563 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
 | `docs/AGENTS.md` | 190 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 94 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突）→ **2026-11-12 已修：4509 行** |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
-| `docs/AUDIT_MATRIX.md` | 187 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
+| `docs/AUDIT_MATRIX.md` | 189 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/AUDIT_PLAN.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 303 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
@@ -99,9 +99,11 @@ HEAD `7e78e63`（v8.13.1）
 | `docs/health-daily/2026-11-12.json` | 66 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-13.md` | 49 | 生成 | 11-13 日报（远端 probe 产出，squash 带入基线） |
 | `docs/health-daily/2026-11-13.json` | 66 | 生成 | 同份日报的 json |
+| `docs/health-daily/2026-11-14.md` | 47 | 生成 | 11-14 日报（远端 probe 产出） |
+| `docs/health-daily/2026-11-14.json` | 65 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-09.json` | 48 | 生成 | 同日 json（date/prevDate/registered/judged/handle/watch/changes） |
 | `docs/health-daily/2026-11-08.json` | 54 | 生成 | 字段 date/prevDate/prevDateMode/prevDates/registered/judged/handle/watch/changes |
-| `docs/probe-history.jsonl` | 784 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
+| `docs/probe-history.jsonl` | 800 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | 全文 | 五组账 + 5 次自我推翻；e-extra 82 / 3179 行 / 66 文件 过期 |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
@@ -158,14 +160,14 @@ HEAD `7e78e63`（v8.13.1）
 | `test/audit/t-health-events-stress.js` | 137 | 断言 | 12 条 T1~T9（10000 条灌满/容量 500/dropped 9500/同 trace 链/limit 边界/隐私注入）；容量注入 500→100 翻红后还原 12/0 |
 | `test/candidate-audit-test.js` | 135 | 断言 | 6 条；曾无 ID 输出，已补 |
 | `test/lx-source-smoke-test.js` | 1625 | 断言 | 67 组；T50~T57 为回退必红用例 |
-| `test/mutation/run.js` | 299 | 断言 | **22 变异体**；`--strict` 才在 survived 时 exit 1；字段名是 `name` 不是 `desc` |
+| `test/mutation/run.js` | 312 | 断言 | **22 变异体**；缺 esbuild 直接 exit 2；`--strict` 下 KILLED 之外全部 exit 1；字段名是 `name` 不是 `desc` |
 | `test/stress-round3.js` | 356 | 断言 | 14 条 T1~T14（压「态」） |
 | `test/stress-round4.js` | 1319 | 断言 | 133 条 V1a~V39b（已进 AUDIT_MATRIX） |
 | `test/stress-test.js` | 221 | 断言 | 12 条 S1~S11 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 272 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |
-| `docs/READTHROUGH.md` | 241 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
-| `docs/DOC_INDEX.md` | 93 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
+| `docs/READTHROUGH.md` | 243 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/DOC_INDEX.md` | 95 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
 
 ## 五、维护规则（这段是契约，不是说明）
 
