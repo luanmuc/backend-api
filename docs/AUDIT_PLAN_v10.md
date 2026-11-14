@@ -3,8 +3,8 @@
 > **重构说明**：本文件由 v10.0 重构而来，文件名保留 `AUDIT_PLAN_v10.md` 以兼容既有引用。历史 round1~5 分册、v9.0、以及各轮审计报告全部归档，不再叠加进本文件；「当前要审什么、缺口在哪」只以本文件为准。
 >
 > **基线（唯一真值，2026-11-15）**：
-> - 源仓：`luanmuc/backend-api` @ `master`（v8.14.0 音质优先与 CI 编排，升版提交待推送），`lx-source.js` **v8.14.0**，5707 行 / 297753 bytes
-> - App 仓：`luanmuc/mobile-app` @ `ff9647cc`（已推送），v1.9.2-b125 / versionCode 284；b126 本次发布构建
+> - 源仓：`luanmuc/backend-api` @ `master`（v8.14.0 已发布，tag `v8.14.0` @ `f3a3e75`），`lx-source.js` **v8.14.0**，5707 行 / 297753 bytes
+> - App 仓：`luanmuc/mobile-app` @ `59ab63bd`（已推送），v1.9.2-b126 / versionCode 285（Build `43619278134` success）
 > - 本文件对应变更：v8.14.0「音质优先与 CI 编排」= 音质优先播放 + 真实交付档 + K07/K08 + 第 14 个 action `forceQualityProbe` 声明 + CI 并行/缓存
 
 ---

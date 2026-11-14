@@ -57,7 +57,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
-| **v8.14.0 音质优先与 CI 编排**（2026-11-14，已发布） | App 自定义源只按 `global.lx.qualityList` 选请求档，不再用内置 `_qualitys` 把 flac 错降 128k；源侧真实交付档回填、片段标记、置信度、`musicUrl` 透出 `qualityCeilingApplied`、缓存按实际档写入；K08 `qualityShortCircuitUniqueProbeMs` 10min + `countActiveQualitySources`；K07 `forceQualityProbe`；源仓 CI 拆 `test-fast`/`stress-long`/`stress-short` 并行，App CI 四 job + node_modules/Gradle build cache；`lx-source.js` 297671 bytes | 2026-11-14 |
+| **v8.14.0 音质优先与 CI 编排**（2026-11-14，已发布） | App 自定义源只按 `global.lx.qualityList` 选请求档，不再用内置 `_qualitys` 把 flac 错降 128k；源侧真实交付档回填、片段标记、置信度、`musicUrl` 透出 `qualityCeilingApplied`、缓存按实际档写入；K08 `qualityShortCircuitUniqueProbeMs` 10min + `countActiveQualitySources`；K07 `forceQualityProbe`；源仓 CI 拆 `test-fast`/`stress-long`/`stress-short` 并行，App CI 四 job + node_modules/Gradle build cache；`lx-source.js` 297753 bytes | 2026-11-14 |
 | **v8.13.1 K08/K07 源侧策略**（2026-11-14，本地未推送） | 唯一高质源探路由 1h 缩短为 10min（`qualityShortCircuitUniqueProbeMs`，平台内 active 源 ≤1）；新增 `forceQualityProbe` request action，只放行一轮档位短路；QP9~QP12 12/0，`npm test` rc0，audit 40/40，`verify:bundle` 8/0（297666 bytes） | 2026-11-14 |
 | **v8.13.1 音质真实标签补修**（2026-11-14，本地未推送） | m4a/ogg 按 content-length+时长估算码率（≥256kbps→320k、其余→128k）、wav→flac、未知总字节保留请求档；`sniffAudioBytes` 只认可信总字节；全档片段兜底 `fragment: true` + `qualityConfidence: unknown`；新增 `quality-truth` 8/0 | 2026-11-14 |
 | **v8.13.1 审计修复版**（2026-11-14，已推送） | 链空错误码回收（限流升级 `RATE_LIMIT`、其余保护态保留 `NETWORK_ERROR` + `isThrottleSkip`）；跨平台兜底遇本地保护直接 settle；e-extra 纳入 19 脚本；L3/L4 夹具与 MU1/MU5 变异门禁收口；`lx-source.js` 288771 bytes | 2026-11-14 |
