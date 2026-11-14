@@ -1,7 +1,8 @@
 # 第五轮压测：覆盖率盲区清零计划（V 组 82 → 250+）
 
-> **2026-11-13 当前执行口径**：本轮不新增压测批次；以既有三代脚本实跑为准：
-> `node test/stress-test.js`（12）+ `node test/stress-round3.js`（14）+ `node --expose-gc test/stress-round4.js`（133/129 条 V 组）= **159 条**。
+> **2026-11-14 当前执行口径**：基线源仓 `101c2e7`（v8.13.1，本地未 push）。本轮不新增压测批次；以既有三代脚本实跑为准：
+> `node test/stress-test.js`（12）+ `node test/stress-round3.js`（14）+ `node --expose-gc test/stress-round4.js`（133/129 条 V 组）= **159 条**；音质真实标签 9 条由 `test/audit/quality-truth.js` 审计，不重复计入压测。
+> 2026-11-14 实跑：`stress-test` 12/0、`stress-round3` 14/0、`stress-round4` 133/0，合计 **159/0**；音质 `quality-truth` 9/0。
 > 第五轮累计 V 组 82→133；全量变异 `node test/mutation/run.js --full --strict` = **22 killed / 0 survived**。
 > 压测与变异不可同跑；计时类断言在高 CPU 抢占下会假红。
 
@@ -48,3 +49,11 @@
 
 进度记录在 `docs/PROGRESS_round5.md`：每批开始/结束各更新一次，
 中断后按「读进度 → 验证实际状态（git log / 跑当前门禁）→ 从中断批次继续」恢复，不重做已完成批次。
+
+## 五、2026-11-14 音质补修后的压测关注点
+
+- G1 档位矩阵仍覆盖 `128k/320k/flac/flac24bit` 全链，新增 `qualityConfidenceOf` 不改变链选择。
+- G6 全档片段兜底必须仍返回 `fragment:true` + `unknown`；不得把片段计入完整交付。
+- `sniffAudioBytes` 的 Range 探针回归由 `quality-truth` QT-6 守；压测不重复造第二套判据。
+- `getUrlWithFallback` 的 `qualityConfidence` 不得把 `estimated`/`unknown` 降成 `exact`；缓存命中按旧行为 `exact`，属于已记录边界。
+- 压测结论必须带 `101c2e7` 的 rc 与条数；真机/真上游仍 blocked。

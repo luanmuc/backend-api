@@ -6,10 +6,10 @@
 >
 > **时效说明**：以下逐文件结论是 2026-11-10 通读时的历史快照，保留作为审计证据；当前版本号、断言数、行数以 `README.md`、`docs/TESTING.md` 与 `scripts/docs-audit.js` 的实测为准。
 
-HEAD `aafeb3c`（v8.13.1）
+HEAD `e0a4590`（v8.13.1）
 
-> 复核说明（2026-11-12）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前值。
-文件数：**149**　总行数：**37130**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+> 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `e0a4590`。
+文件数：**153**　总行数：**38147**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -50,29 +50,29 @@ HEAD `aafeb3c`（v8.13.1）
 
 | 文件 | 行 | 读法 | 结论 |
 |---|---|---|---|
-| `.github/workflows/ci.yml` | 212 | 全文 | 13 个 job；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
+| `.github/workflows/ci.yml` | 229 | 全文 | 7 个 job（test-fast / stress-long / stress-short / mutation / probe / ecosystem / purge-cdn，2026-11-14 拆并行）；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 2 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
-| `README.md` | 120 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
+| `README.md` | 122 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 42 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
-| `lx-source.js` | 5563 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
-| `docs/AGENTS.md` | 190 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
+| `lx-source.js` | 5706 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
+| `docs/AGENTS.md` | 191 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 94 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突）→ **2026-11-12 已修：4509 行** |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
-| `docs/AUDIT_MATRIX.md` | 189 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
+| `docs/AUDIT_MATRIX.md` | 193 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/AUDIT_PLAN.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
-| `docs/AUDIT_PLAN_v10.md` | 303 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
+| `docs/AUDIT_PLAN_v10.md` | 331 | 全文 | 249 / 159（round4 129）/ 16 / 467 均过期；§6.2 `e-extra` 84→92；§七 4 条已知取舍 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 74 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
-| `docs/DEV_GUIDE.md` | 515 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
+| `docs/CHANGELOG.md` | 77 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/DEV_GUIDE.md` | 518 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
-| `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 61 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
-| `docs/ITERATION_ROADMAP.md` | 325 | 全文 | 三层目标；**32 断言/49 文件/897→430/白名单 14/趋势 60 条 全过期**；3 条 `[ ] 待开发`（服务器）/ 2 条触发式未闭环 |
+| `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
+| `docs/ITERATION_ROADMAP.md` | 326 | 全文 | 三层目标；**32 断言/49 文件/897→430/白名单 14/趋势 60 条 全过期**；3 条 `[ ] 待开发`（服务器）/ 2 条触发式未闭环 |
 | `docs/PROGRESS_round5.md` | 58 | 全文 | 第五轮进度记录；数字停在 82 通过（现 92） |
-| `docs/README.md` | 68 | 全文 | 文档地图；「5 个测试入口」实 14；「D-01~D-26」已到 D-39 |
+| `docs/README.md` | 71 | 全文 | 文档地图；「5 个测试入口」实 14；「D-01~D-26」已到 D-39 |
 | `docs/SCRIPTS.md` | 54 | 全文 | 14 脚本 + 3 hook；「17 条规则」实 14；行数 235/110 实 236/111；prepare-commit-msg 的 exit 1 描述属 commit-msg |
 | `docs/SOURCE_AUDIT.md` | 104 | 全文 | 11-06 基线 21/35 + 11-09 顶注 10/10；「短路探路 6h」实默认 1h |
-| `docs/TESTING.md` | 163 | 全文 | 口径正确（253 审计 / 479 合计 / 22 变异）；72 文件、58/14145、203.45KB 三处过期（历史值已冻结） |
+| `docs/TESTING.md` | 165 | 全文 | 口径正确（253 审计 / 479 合计 / 22 变异）；72 文件、58/14145、203.45KB 三处过期（历史值已冻结） |
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 82 | 归档 | 96 维执行轨迹；F-08~F-14 待决策记录（部分已修） |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 146 | 归档 | 音源+App 五步审计 13 问题（2 中 11 低） |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 295 | 归档 | 15 项修复 + §10.2 仍未做（L4 真网络 / F-12 第二方案 / 面板 raceBudgetMs 说明） |
@@ -82,7 +82,7 @@ HEAD `aafeb3c`（v8.13.1）
 | `docs/audit-plans/round4.md` | 235 | 全文 | 归档计划；**N 组已完成**（39 条配对 16/23 + 6 条真回退）、O 组覆盖率已落地（94.8%）；M13/M14 仍未落地 |
 | `docs/audit-plans/round5.md` | 111 | 全文 | MUT 12 算子 / 16 实例口径区分；EDGE/TTL ±1ms、`songmid` 含 `|` 未做理由 |
 | `docs/audit-plans/stress-round4.md` | 99 | 归档 | V 组 21 组·66 条 → 落地 133 |
-| `docs/audit-plans/stress-round5.md` | 49 | 归档 | 第五轮压测设计 |
+| `docs/audit-plans/stress-round5.md` | 59 | 归档 | 第五轮压测设计 |
 | `docs/candidate-status.md` | 8 | 生成 | hyw 已恢复 / huanyin 需人工；依赖 recheck 是否真跑 |
 | `docs/health-daily/2026-11-03.md` | 42 | 生成 | 首份日报（19 端点 / 9 建议摘除） |
 | `docs/health-daily/2026-11-04.md` | 41 | 生成 | 同上系列 |
@@ -133,6 +133,8 @@ HEAD `aafeb3c`（v8.13.1）
 | `test/audit/q-dfix.js` | 133 | 断言 | 5 条：Q1 D-04 half-open 遇 429 收口回 open（删收口段立刻红）；Q2 closed 态 429 只退避不熔断；Q3（v8.11.3）D-01 toggle 开启后失败缓存失效，先红后绿；Q4 D-08 单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 PARAM_ERROR，先红后绿；实跑 5/0 |
 | `test/audit/q2-dseries.js` | 79 | 断言 | 3 条：R1 D-06 布尔键 `??` 语义、R2 D-05 真键可写/死键忽略、R3 D-26 mg 链不含星海备；三条注入回退均变红，还原后 sha 一致 |
 | `test/audit/n-fixes.js` | 150 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |
+| `test/audit/quality-truth.js` | 121 | 断言 | 9 条（QT-1~QT-9：m4a/ogg 按总字节+时长估码率、wav→flac、未知总字节保留请求档、1KB Range 探针不得当全文件、200 全量响应采用 content-length、estimated/unknown 置信度）；实跑 9/0 |
+| `test/audit/quality-policy-v2.js` | 179 | 断言 | 8 条（QP1~QP8：能力备档不续期、reason TTL、到期探路、超时不短路、确定性短路、429 退避、旧快照兼容）；实跑 8/0 |
 | `test/audit/h-toggles.js` | 170 | 断言 | 14 条（逐源开启）；实跑 14/0 |
 | `test/audit/v-eligibility.js` | 116 | 断言 | 7 条（USER_OFF/DEFAULT_OFF/PLAYBACK_FAILED/短路）；实跑 11/0 |
 | `test/audit/health-linkage-invariants.js` | 151 | 断言 | 4 条（链项 eligibility/链与 skipReason/建链后关源拦截）；实跑 4/0 |
@@ -166,8 +168,10 @@ HEAD `aafeb3c`（v8.13.1）
 | `test/stress-test.js` | 221 | 断言 | 12 条 S1~S11 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 272 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |
-| `docs/READTHROUGH.md` | 243 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
-| `docs/DOC_INDEX.md` | 95 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
+| `docs/READTHROUGH.md` | 247 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/DOC_INDEX.md` | 97 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
+| `docs/KNOWN_ISSUES.md` | 65 | 全文 | 已知问题/技术债台账（K01~K20，活文档；判断是否重构先看这里） |
+| `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | 全文 | 音质能力备档与档位短路优化方案、复现证据、P0/P1/P2 |
 
 ## 五、维护规则（这段是契约，不是说明）
 
@@ -214,7 +218,7 @@ HEAD `aafeb3c`（v8.13.1）
 | `scripts/verify-real-platform-chains.js` | 103 | 全文 | G7 先搜平台 ID 再隔离取链；公网不可用时如实保留上游失败码 |
 | `src/00-header.js` | 6 | 全文 | 单文件 banner |
 | `src/80-entry.js` | 10 | 全文 | 导出面 + 非枚举 PROVIDER_SPECS |
-| `src/legacy.js` | 5645 | 全文 | v8.13 实现源（契约/生命周期/取消） |
+| `src/legacy.js` | 5824 | 全文 | v8.13 实现源（契约/生命周期/取消） |
 | `src/providers/55-probation.js` | 41 | 全文 | 两个观察源规格 |
 | `src/providers/changqingVip.js` | 20 | 全文 | 12 源契约规格 |
 | `src/providers/helloworldKw.js` | 22 | 全文 | 12 源契约规格 |

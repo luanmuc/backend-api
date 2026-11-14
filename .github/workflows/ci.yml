@@ -19,8 +19,8 @@ on:
     types: [published]
 
 jobs:
-  # ---------- v2.0：语法 + 冒烟测试 ----------
-  test:
+  # ---------- v2.0：语法 + 冒烟 + 审计（并行 job 1） ----------
+  test-fast:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,9 +36,6 @@ jobs:
       # v8.11：巡检时长判据自检——用构造的真实字节锁住解析器，防止被"简化"成只判状态码
       - name: L1.2 巡检交付时长判据自检（v8.11）
         run: node scripts/probe.js --selftest-duration
-      # v8.11.1：压力测试固化——档位矩阵/30并发/探针故障注入/边界输入/长跑泄漏/兜底/冷却误伤
-      - name: L1.3 压力测试（v8.11.1，G1~G8 共 12 断言）
-        run: node --expose-gc test/stress-test.js
       # v5.0：发布前自检门——版本串同步/actions声明/README与ROADMAP同步，任一失败阻断
       - name: L2 发布前自检门（版本串/action声明/文档同步）
         run: node scripts/self-check.js
@@ -66,10 +63,6 @@ jobs:
           node test/audit/v-cross-platform-stress.js
           node test/audit/w-fallback-owner.js
           node test/audit/x-media-envelope.js
-      - name: L5 第三轮压力与并发（T1~T12）
-        run: node --expose-gc test/stress-round3.js
-      - name: L5.1 第四轮压力测试（V 组 133 条：故障谱系/不变量/MISMATCH/阈值边界/配置面/兜底档实证）
-        run: node --expose-gc test/stress-round4.js
       # v8.11.2（G2）：QuickJS 真引擎。此前该入口在本地因缺依赖 SKIP、且从未进 CI，
       # QR 组 3 条断言长期空转（rec 里 id 未定义的 bug 也因此藏了很久）。
       - name: L5.2 QuickJS 真引擎（宿主无 Buffer，模拟 App 运行环境）
@@ -80,7 +73,31 @@ jobs:
         run: |
           for f in scripts/*.js; do node --check "$f" || exit 1; done
 
-  # ---------- v8.11.2（G1）：变异测试（只跑夜间与手动触发，全量 3~6 分钟） ----------
+  # ---------- v8.11.1：长跑压力测试（并行 job 2，约 11 分钟，真实超时等待） ----------
+  stress-long:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: L1.3 压力测试（v8.11.1，G1~G8 共 12 断言）
+        run: node --expose-gc test/stress-test.js
+
+  # ---------- v8.11：短压力与并发（并行 job 3） ----------
+  stress-short:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: L5 第三轮压力与并发（T1~T12）
+        run: node --expose-gc test/stress-round3.js
+      - name: L5.1 第四轮压力测试（V 组 133 条：故障谱系/不变量/MISMATCH/阈值边界/配置面/兜底档实证）
+        run: node --expose-gc test/stress-round4.js
+
+  # ---------- v8.11.2（G1）：变异测试（只跑夜间与手动触发，不参与 push 闸门） ----------
   mutation:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
@@ -196,7 +213,7 @@ jobs:
   purge-cdn:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' || github.event_name == 'release' }}
-    needs: test   # 测试通过才 purge，避免坏版本污染 CDN
+    needs: [test-fast, stress-long, stress-short]   # 测试通过才 purge，避免坏版本污染 CDN
     steps:
       - uses: actions/checkout@v4
         with:

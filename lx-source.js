@@ -151,6 +151,8 @@ var __lxSourceBundle = (() => {
         // v8.8：档位短路样本门槛
         qualityShortCircuitProbeMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitProbeMs || 36e5,
         // v8.10：短路放行探路间隔(1h，原 6h 太长)
+        qualityShortCircuitUniqueProbeMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitUniqueProbeMs || 6e5,
+        // v8.16：唯一高质源探路间隔(10min)
         playDeadReviveMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.playDeadReviveMs || 3e5,
         // v7.0：播放摘除后半开试探冷却期(5min)
         // 五轮 MEM：记忆表条目上限（与 ALLOWED_KEYS/PARAM_LIMITS 同步登记；漏了这行注入会静默失效）
@@ -998,6 +1000,47 @@ var __lxSourceBundle = (() => {
       function qualityRank(q) {
         return QUALITY_RANK[String(q || "128k").toLowerCase()] || 1;
       }
+      var QUALITY_CEILING_TTL_BY_REASON = {
+        definitive: 6 * 3600 * 1e3,
+        transient: 10 * 60 * 1e3,
+        unknown: 30 * 60 * 1e3,
+        rate_limit: 0
+      };
+      var QUALITY_BUSINESS_CODES = /* @__PURE__ */ new Set([
+        ERROR_CODES.NOT_FOUND,
+        ERROR_CODES.MISMATCH,
+        ERROR_CODES.PREVIEW_FRAGMENT
+      ]);
+      var QUALITY_DELIVERY_CODES = /* @__PURE__ */ new Set([
+        ERROR_CODES.NOT_AUDIO,
+        ERROR_CODES.STREAM_PLAYLIST,
+        ERROR_CODES.BAD_ENVELOPE,
+        ERROR_CODES.TRUNCATED_MEDIA
+      ]);
+      var QUALITY_TRANSIENT_CODES = /* @__PURE__ */ new Set([
+        ERROR_CODES.LINK_EXPIRED,
+        ERROR_CODES.NETWORK_TIMEOUT,
+        ERROR_CODES.NETWORK_ERROR,
+        ERROR_CODES.SERVER_ERROR,
+        ERROR_CODES.PARAM_ERROR,
+        ERROR_CODES.CONFIG_ERROR
+      ]);
+      function classifyQualityFailureCode(code) {
+        const c = String(code || "").toUpperCase();
+        if (!c) return "unknown";
+        if (c === ERROR_CODES.RATE_LIMIT) return "rate_limit";
+        if (QUALITY_BUSINESS_CODES.has(c)) return "business";
+        if (QUALITY_DELIVERY_CODES.has(c)) return "delivery";
+        if (QUALITY_TRANSIENT_CODES.has(c)) return "transient";
+        return "unknown";
+      }
+      function qualityCeilingReasonForCodes(codes) {
+        const list = (codes || []).map(classifyQualityFailureCode);
+        if (list.includes("business")) return "definitive";
+        if (list.includes("delivery") || list.includes("transient")) return "transient";
+        if (list.includes("rate_limit")) return "rate_limit";
+        return "unknown";
+      }
       var QUALITY_FIRST = true;
       var { EVENT_NAMES, request, on, send, utils, env, version } = globalThis.lx;
       var safeConsole = {
@@ -1078,6 +1121,7 @@ var __lxSourceBundle = (() => {
       var failCache = createLRUCache(FAIL_CACHE_MAX_SIZE, Number.MAX_SAFE_INTEGER);
       var breakerMap = /* @__PURE__ */ new Map();
       var deliveryQualityMap = /* @__PURE__ */ new Map();
+      var deliveryConfidenceMap = /* @__PURE__ */ new Map();
       var fragmentSourceMap = /* @__PURE__ */ new Map();
       var qualityCeilingMap = /* @__PURE__ */ new Map();
       var FRAGMENT_SOURCE_TTL_MS = 3e5;
@@ -1173,7 +1217,7 @@ var __lxSourceBundle = (() => {
       function qualityLedger(b, quality) {
         const key = String(quality || "default");
         let q = b.byQuality[key];
-        if (!q) q = b.byQuality[key] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 };
+        if (!q) q = b.byQuality[key] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0, definitiveFail: 0 };
         if (!q.breaker) q.breaker = { state: "closed", failureCount: 0, lastFailureTime: 0, trialInFlight: false };
         if (typeof q.rateLimitCount !== "number") q.rateLimitCount = 0;
         if (typeof q.rateLimitUntil !== "number") q.rateLimitUntil = 0;
@@ -1336,6 +1380,8 @@ var __lxSourceBundle = (() => {
         const q = qualityLedger(b, quality);
         q.req++;
         q.fail++;
+        const failureClass = classifyQualityFailureCode(opts.code);
+        if (!opts.code || failureClass !== "transient" && failureClass !== "rate_limit") q.definitiveFail = (q.definitiveFail || 0) + 1;
         q.breaker.failureCount++;
         q.breaker.lastFailureTime = Date.now();
         if (opts.resolveDead === true) bumpResolveDead(sourceId);
@@ -1352,7 +1398,7 @@ var __lxSourceBundle = (() => {
         syncSourceBreaker(b);
         if (wasSourceHalfOpen) b.state = "open";
       }
-      function recordBusinessFail(sourceId, quality) {
+      function recordBusinessFail(sourceId, quality, opts = {}) {
         const b = getBreaker(sourceId);
         const wasSourceHalfOpen = b.state === "half-open";
         b.totalRequests++;
@@ -1360,6 +1406,7 @@ var __lxSourceBundle = (() => {
         const q = qualityLedger(b, quality);
         q.req++;
         q.businessFail++;
+        if (opts.code && classifyQualityFailureCode(opts.code) === "delivery") q.definitiveFail = (q.definitiveFail || 0) + 1;
         if (q.breaker.state === "half-open" || b.state === "half-open") {
           q.breaker.state = "open";
           q.breaker.trialInFlight = false;
@@ -1634,9 +1681,13 @@ var __lxSourceBundle = (() => {
         }
         return { bitrateKbps: h.bitrateKbps, sampleRate: h.sampleRate, durationSec };
       }
-      function sniffAudioBytes(body, headers, totalBytes) {
+      function sniffAudioBytes(body, headers, totalBytes, fullBody = false) {
         const ct = String(headers && headers["content-type"] || "").toLowerCase();
-        const out = { kind: "unknown", format: null, durationSec: null, bitrateKbps: null };
+        const out = { kind: "unknown", format: null, durationSec: null, bitrateKbps: null, totalBytes: 0 };
+        const bodyLength = body && body.length || 0;
+        const declaredBytes = Number(totalBytes) || 0;
+        const headerBytes = Number(headers && headers["content-length"]) || 0;
+        out.totalBytes = fullBody && declaredBytes > 0 || declaredBytes > bodyLength ? declaredBytes : headerBytes > bodyLength ? headerBytes : 0;
         if (!body || body.length < 16) {
           out.kind = "empty";
           return out;
@@ -1702,15 +1753,31 @@ var __lxSourceBundle = (() => {
         }
         return out;
       }
-      function qualityFromDelivery(info, requestedQuality) {
+      function qualityFromDelivery(info, requestedQuality, durationSec) {
         const fmt = info == null ? void 0 : info.format;
-        const br = (info == null ? void 0 : info.bitrateKbps) || 0;
+        const bytes = Number(info == null ? void 0 : info.totalBytes) || 0;
+        const dur = Number(durationSec) || 0;
+        const br = (info == null ? void 0 : info.bitrateKbps) || (bytes && dur ? Math.round(bytes * 8 / dur / 1e3) : 0);
         if (fmt === "flac") return br >= 2500 ? "flac24bit" : "flac";
+        if (fmt === "wav") return "flac";
+        if (fmt === "m4a" || fmt === "ogg") {
+          if (br >= 256) return "320k";
+          if (br > 0) return "128k";
+          return requestedQuality || "128k";
+        }
         if (fmt === "mp3" || fmt === "audio") {
           if (br >= 256) return "320k";
           return "128k";
         }
         return requestedQuality || "128k";
+      }
+      function qualityConfidenceOf(info, durationSec) {
+        const fmt = info && info.format;
+        if (fmt !== "m4a" && fmt !== "ogg") return "exact";
+        if (Number(info && info.bitrateKbps) > 0) return "exact";
+        const bytes = Number(info && info.totalBytes) || 0;
+        const dur = Number(durationSec) || 0;
+        return bytes && dur ? "estimated" : "unknown";
       }
       function originalDurationSec(songInfo) {
         var _a2, _b2, _c2;
@@ -1953,8 +2020,9 @@ var __lxSourceBundle = (() => {
           const bytes = toBytes(body);
           const mediaErr = bytes ? null : mediaEnvelopeErrorCode(body);
           const totalBytesKnown = totalBytes;
+          const fullBody = status === 200 && !String(res.headers && res.headers["content-range"] || "");
           if (bytes) {
-            const info = sniffAudioBytes(bytes, res.headers, totalBytesKnown);
+            const info = sniffAudioBytes(bytes, res.headers, totalBytesKnown, fullBody);
             if (info && info.kind === "audio") {
               return {
                 ok: true,
@@ -2033,7 +2101,7 @@ var __lxSourceBundle = (() => {
           const ratio = realDur / origDur;
           const gap = origDur - realDur;
           if (ratio < cfg("verifyDurRatio", VERIFY_DUR_RATIO) && gap > cfg("verifyDurGapSec", VERIFY_DUR_GAP_SEC)) {
-            return { ok: false, code: ERROR_CODES.PREVIEW_FRAGMENT, reason: `\u4EC5 ${realDur}s\uFF0C\u539F\u66F2 ${origDur}s`, quality: qualityFromDelivery(probe.info, ctx.quality), evidence: probe.evidence || "strong" };
+            return { ok: false, code: ERROR_CODES.PREVIEW_FRAGMENT, reason: `\u4EC5 ${realDur}s\uFF0C\u539F\u66F2 ${origDur}s`, quality: qualityFromDelivery(probe.info, ctx.quality, originalDurationSec(ctx.songInfo)), qualityConfidence: qualityConfidenceOf(probe.info, originalDurationSec(ctx.songInfo)), evidence: probe.evidence || "strong" };
           }
         }
         if (!realDur && origDur && origDur >= cfg("verifyMinOriginalSec", VERIFY_MIN_ORIGINAL_SEC) && probe.totalBytes) {
@@ -2043,14 +2111,16 @@ var __lxSourceBundle = (() => {
               ok: false,
               code: ERROR_CODES.PREVIEW_FRAGMENT,
               reason: `\u4F53\u79EF\u4EC5 ${probe.totalBytes} \u5B57\u8282\uFF08< ${Math.round(minFull)}\uFF09\uFF0C\u660E\u663E\u77ED\u4E8E ${origDur}s \u6574\u66F2`,
-              quality: qualityFromDelivery(probe.info, ctx.quality),
+              quality: qualityFromDelivery(probe.info, ctx.quality, originalDurationSec(ctx.songInfo)),
+              qualityConfidence: qualityConfidenceOf(probe.info, originalDurationSec(ctx.songInfo)),
               evidence: "medium"
             };
           }
         }
         return {
           ok: true,
-          quality: qualityFromDelivery(probe.info, ctx.quality),
+          quality: qualityFromDelivery(probe.info, ctx.quality, originalDurationSec(ctx.songInfo)),
+          qualityConfidence: qualityConfidenceOf(probe.info, originalDurationSec(ctx.songInfo)),
           realDurationSec: realDur,
           format: ((_b2 = probe.info) == null ? void 0 : _b2.format) || null,
           totalBytes: probe.totalBytes || 0,
@@ -2155,6 +2225,7 @@ var __lxSourceBundle = (() => {
         let evidence = "none";
         let reason = "";
         let quality = "";
+        let qualityConfidence = "";
         let deliverable = false;
         if (ctx.trialMark === true) {
           verdict = "FRAGMENT";
@@ -2168,6 +2239,7 @@ var __lxSourceBundle = (() => {
           evidence = ctx.probe.evidence || "strong";
           deliverable = true;
           quality = ctx.probe.quality || "";
+          qualityConfidence = ctx.probe.qualityConfidence || "";
           reason = "\u63A2\u9488\u5DF2\u5224\u53EF\u4EA4\u4ED8";
         } else if (stage === "fallback" && Array.isArray(ctx.attempts) && ctx.attempts.length) {
           let best = null, bestRank = -1;
@@ -2203,7 +2275,8 @@ var __lxSourceBundle = (() => {
             const shape = kindOf(bytes || delivery.body);
             const totalBytes = totalBytesOf(delivery);
             if (bytes) {
-              const info = sniffAudioBytes(bytes, delivery.headers || {}, totalBytes);
+              const fullBody = status === 200 && !String((delivery.headers || {})["content-range"] || "");
+              const info = sniffAudioBytes(bytes, delivery.headers || {}, totalBytes, fullBody);
               const kind = info && info.kind || "unknown";
               if (kind === "audio") {
                 evidence = "strong";
@@ -2216,7 +2289,8 @@ var __lxSourceBundle = (() => {
                   code = null;
                   deliverable = true;
                 }
-                quality = qualityFromDelivery(info, ctx.quality);
+                quality = qualityFromDelivery(info, ctx.quality, originalDurationSec(ctx.songInfo));
+                qualityConfidence = qualityConfidenceOf(info, originalDurationSec(ctx.songInfo));
                 reason = `\u5B57\u8282\u53EF\u5B9A(${info.format || "audio"}${info.durationSec ? "/" + info.durationSec + "s" : ""})`;
               } else if (kind === "playlist") {
                 verdict = "NOT_AUDIO";
@@ -2257,7 +2331,8 @@ var __lxSourceBundle = (() => {
                   code = null;
                   evidence = "medium";
                   deliverable = true;
-                  quality = qualityFromDelivery(hv.info, ctx.quality);
+                  quality = qualityFromDelivery(hv.info, ctx.quality, originalDurationSec(ctx.songInfo));
+                  qualityConfidence = qualityConfidenceOf(hv.info, originalDurationSec(ctx.songInfo));
                   reason = hv.reason;
                 } else if (hv.ok === false) {
                   verdict = "NOT_AUDIO";
@@ -2281,7 +2356,7 @@ var __lxSourceBundle = (() => {
           reason = ctx.error.reason || "";
         }
         const ledger = admissionLedger(verdict, code, evidence);
-        return { verdict, code: code || null, evidence, deliverable, quality, reason, ledger };
+        return { verdict, code: code || null, evidence, deliverable, quality, qualityConfidence, reason, ledger };
       }
       function computeEligibility(source, platform, quality, opts) {
         const id = source;
@@ -2318,7 +2393,7 @@ var __lxSourceBundle = (() => {
         const brNow = getBreaker(id);
         const qbNow = brNow.byQuality[q] && brNow.byQuality[q].breaker;
         const breakerTrialReady = !!(o.runtime && qbNow && (qbNow.state === "half-open" || qbNow.state === "open" && Date.now() - (qbNow.lastFailureTime || 0) >= cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS)));
-        if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg("qualityShortCircuit", true) && isQualityHopeless(id, q)) {
+        if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg("qualityShortCircuit", true) && isQualityHopeless(id, q, platform)) {
           return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: qualitySkipProbeAt.get(qualityShortCircuitKey(id, q)) || null };
         }
         if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
@@ -2392,6 +2467,7 @@ var __lxSourceBundle = (() => {
             s.fail = 0;
             s.success = 0;
             s.linkExpired = 0;
+            s.definitiveFail = 0;
             s.businessFail = 0;
             s.req = 0;
             s.time = 0;
@@ -2409,8 +2485,8 @@ var __lxSourceBundle = (() => {
           return adm;
         }
         if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q);
-        else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true });
-        else recordBusinessFail(id, q);
+        else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true, code: adm.code });
+        else recordBusinessFail(id, q, { code: adm.code });
         const err = ctx.error || {};
         if (adm.code === ERROR_CODES.PREVIEW_FRAGMENT) {
           rememberFragmentSource(ctx.platform, ctx.songInfo, id, q);
@@ -2470,15 +2546,39 @@ var __lxSourceBundle = (() => {
         const key = `${handlerId}|${platform}|${getHashOrMid(songInfo)}|${String(quality || "").toLowerCase()}`;
         return deliveryQualityMap.get(key) || "";
       }
-      function noteQualityCeiling(platform, songInfo, achievedQuality) {
+      function getDeliveryConfidence(handlerId, platform, songInfo, quality) {
+        const key = `${handlerId}|${platform}|${getHashOrMid(songInfo)}|${String(quality || "").toLowerCase()}`;
+        return deliveryConfidenceMap.get(key) || "";
+      }
+      function noteQualityCeiling(platform, songInfo, achievedQuality, reason) {
         const key = `${platform}|${getHashOrMid(songInfo)}`;
-        boundedMapSet(qualityCeilingMap, key, { quality: achievedQuality, ts: Date.now() });
+        const now = Date.now();
+        const normalizedReason = QUALITY_CEILING_TTL_BY_REASON[reason] !== void 0 ? reason : "unknown";
+        const ttlMs = QUALITY_CEILING_TTL_BY_REASON[normalizedReason];
+        if (!ttlMs) {
+          qualityCeilingMap.delete(key);
+          return;
+        }
+        const existing = qualityCeilingMap.get(key);
+        if (existing && qualityRank(existing.quality) >= qualityRank(achievedQuality)) {
+          const deadline = Number(existing.nextProbeAt || Number(existing.ts || 0) + Number(existing.ttlMs || QUALITY_CEILING_TTL_MS));
+          if (now < deadline) return;
+        }
+        boundedMapSet(qualityCeilingMap, key, {
+          quality: achievedQuality,
+          ts: now,
+          recordedAt: now,
+          nextProbeAt: now + ttlMs,
+          reason: normalizedReason,
+          ttlMs
+        });
       }
       function getQualityCeiling(platform, songInfo) {
         const key = `${platform}|${getHashOrMid(songInfo)}`;
         const entry = qualityCeilingMap.get(key);
         if (!entry) return "";
-        if (Date.now() - entry.ts > QUALITY_CEILING_TTL_MS) {
+        const deadline = Number(entry.nextProbeAt || Number(entry.ts || 0) + Number(entry.ttlMs || QUALITY_CEILING_TTL_MS));
+        if (Date.now() >= deadline) {
           qualityCeilingMap.delete(key);
           return "";
         }
@@ -3308,7 +3408,7 @@ var __lxSourceBundle = (() => {
             // v4.0：按音质分档统计（面板后续版本可消费）
             byQuality: Object.fromEntries(Object.entries(stats.byQuality || {}).map(([q, v]) => [q, Object.assign({}, v, { lastProbeAt: Number(qualityLastProbeAt.get(`${id}|${q}`) || 0) })])),
             // v8.14（F43）：质量档短路必须可见，不再只存在于链构建内部判断
-            qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map((q) => [q, isQualityHopeless(id, q)])),
+            qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map((q) => [q, isQualityHopeless(id, q, (SOURCE_HANDLERS[id].platforms || [])[0], { setProbe: false })])),
             // v7.0：播放实时摘除状态（连续播放失败被摘除；App 可显示"已摘除"）
             playDead: isPlayDead(id),
             resolveDead: isResolveDead(id),
@@ -3410,7 +3510,7 @@ var __lxSourceBundle = (() => {
         "rateLimitUntil"
       ];
       var HEALTH_BREAKER_BOOL_FIELDS = ["rateLimited"];
-      var HEALTH_QUALITY_NUMBER_FIELDS = ["req", "success", "time", "fail", "businessFail", "linkExpired"];
+      var HEALTH_QUALITY_NUMBER_FIELDS = ["req", "success", "time", "fail", "businessFail", "definitiveFail", "linkExpired"];
       var HEALTH_STATES = ["closed", "open", "half-open"];
       var HEALTH_QUALITIES = ["128k", "320k", "flac", "flac24bit"];
       var HEALTH_FORBIDDEN_KEYS = /^(url|successurl|failcache|successcache|cache|songinfo|musicinfo|name|singer|account|cookie|token|headers|body)$/i;
@@ -3551,8 +3651,9 @@ var __lxSourceBundle = (() => {
               if (!isHealthPlainObject(q)) return { ok: false, reason: `${id}.byQuality.${quality} \u975E\u6CD5` };
               byQuality[quality] = {};
               for (const field of HEALTH_QUALITY_NUMBER_FIELDS) {
-                if (!healthNumber(q[field], true)) return { ok: false, reason: `${id}.${quality}.${field} \u975E\u6CD5` };
-                byQuality[quality][field] = q[field];
+                const raw = q[field] === void 0 ? field === "definitiveFail" ? q.fail || 0 : 0 : q[field];
+                if (!healthNumber(raw, true)) return { ok: false, reason: `${id}.${quality}.${field} \u975E\u6CD5` };
+                byQuality[quality][field] = raw;
               }
             }
             const pd = item.playDead || {};
@@ -4040,14 +4141,18 @@ var __lxSourceBundle = (() => {
             }
             throw vErr;
           }
-          const realQuality = admit({ probe: verdict, songInfo, quality }).quality || verdict && verdict.quality || "";
+          const adm = admit({ probe: verdict, songInfo, quality });
+          const realQuality = adm.quality || verdict && verdict.quality || "";
+          const realConfidence = adm.qualityConfidence || verdict && verdict.qualityConfidence || "exact";
           if (realQuality) {
             const reqQ = String(quality || "").toLowerCase();
             if (realQuality !== reqQ) {
               boundedMapSet(deliveryQualityMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realQuality);
-              logInfo(`[${handler.name}] \u5B9E\u4EA4\u4ED8\u97F3\u8D28\u4E0E\u8BF7\u6C42\u6863\u4E0D\u7B26: \u8BF7\u6C42[${quality || "128k"}] \u2192 \u5B9E\u5F97[${realQuality}]`);
+              boundedMapSet(deliveryConfidenceMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realConfidence);
+              logInfo(`[${handler.name}] \u5B9E\u4EA4\u4ED8\u97F3\u8D28\u4E0E\u8BF7\u6C42\u6863\u4E0D\u7B26: \u8BF7\u6C42[${quality || "128k"}] \u2192 \u5B9E\u5F97[${realQuality}]\uFF08\u7F6E\u4FE1${realConfidence}\uFF09`);
             } else {
               boundedMapSet(deliveryQualityMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realQuality);
+              boundedMapSet(deliveryConfidenceMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realConfidence);
             }
           }
           recordSuccess(handler.id, Date.now() - startTime, quality);
@@ -4183,23 +4288,37 @@ var __lxSourceBundle = (() => {
       }
       var qualitySkipProbeAt = /* @__PURE__ */ new Map();
       var qualityShortCircuitKey = (id, quality) => `${id}:${String(quality || "").toLowerCase()}`;
-      function isQualityHopeless(sourceId, quality) {
+      function countActiveQualitySources(platform, quality) {
+        if (!platform) return 0;
+        const q = String(quality || "128k").toLowerCase();
+        return Object.values(SOURCE_HANDLERS).filter((h) => h && h.lifecycle === "active" && h.platforms && h.platforms.includes(platform) && h.chain && h.chain[platform] != null && qualityRank(h.maxQuality) >= qualityRank(q)).length;
+      }
+      function isQualityHopeless(sourceId, quality, platform, opts) {
+        const o = opts || {};
         const b = breakerMap.get(sourceId);
         if (!b || !b.byQuality) return false;
         const q = b.byQuality[String(quality)];
         if (!q) return false;
         if ((q.success || 0) > 0) return false;
-        if ((q.fail || 0) + (q.linkExpired || 0) < cfg("qualityShortCircuitSamples", 3)) return false;
+        const definitive = q.definitiveFail === void 0 ? q.fail || 0 : q.definitiveFail;
+        if (definitive + (q.linkExpired || 0) < cfg("qualityShortCircuitSamples", 3)) return false;
         const key = qualityShortCircuitKey(sourceId, quality);
-        const probeMs = cfg("qualityShortCircuitProbeMs", 216e5);
+        const uniqueQualitySource = !!platform && countActiveQualitySources(platform, quality) <= 1;
+        const probeMs = uniqueQualitySource ? cfg("qualityShortCircuitUniqueProbeMs", 6e5) : cfg("qualityShortCircuitProbeMs", 216e5);
         if (!qualitySkipProbeAt.has(key)) {
-          qualitySkipProbeAt.set(key, Date.now() + probeMs);
+          if (o.setProbe !== false) qualitySkipProbeAt.set(key, Date.now() + probeMs);
           return true;
         }
         if (Date.now() >= qualitySkipProbeAt.get(key)) {
           qualitySkipProbeAt.set(key, Date.now() + probeMs);
           return false;
         }
+        return true;
+      }
+      function forceQualityProbe(sourceId, quality) {
+        if (!SOURCE_HANDLERS[sourceId]) return false;
+        const q = String(quality || "flac").toLowerCase();
+        qualitySkipProbeAt.set(qualityShortCircuitKey(sourceId, q), Date.now());
         return true;
       }
       var coldStartWarmAt = /* @__PURE__ */ new Map();
@@ -4304,6 +4423,7 @@ var __lxSourceBundle = (() => {
           }
         }
         const qualityChain = buildQualityChain(effectiveQuality);
+        const attemptedQualities = /* @__PURE__ */ new Set();
         const totalDeadline = Date.now() + cfg("raceBudgetMs", 12e3);
         const perQBudget = cfg("raceBudgetPerQuality", { flac: 6e3, "320k": 5e3, "128k": 5e3, flac24bit: 6e3 });
         for (let qi = 0; qi < qualityChain.length; qi++) {
@@ -4355,6 +4475,7 @@ var __lxSourceBundle = (() => {
           const floorMs = cfg("raceBudgetFloorMs", 3e3);
           const qBudget = Math.min(perQ, remaining);
           const budget = isLast ? Math.min(Math.max(qBudget, floorMs), cfg("raceBudgetMs", 12e3) + floorMs) : qBudget;
+          if (chain.length) attemptedQualities.add(q);
           const raceDeadline = Date.now() + budget;
           logDebug(`[${platform}][${q}] \u97F3\u6E90\u94FE: ${chain.map((h) => h.id).join(">")} (\u6309\u5065\u5EB7\u6392\u5E8F)\uFF0C\u9884\u7B97 ${Math.round(raceDeadline - Date.now())}ms${isLast ? "\uFF08\u672B\u6863\u4FDD\u5E95\uFF0C\u53EF\u6EA2\u51FA\u603B\u9884\u7B97\u81F3" + Math.round((cfg("raceBudgetMs", 12e3) + floorMs) / 1e3) + "s\uFF09" : ""}`);
           try {
@@ -4362,15 +4483,18 @@ var __lxSourceBundle = (() => {
             const reqQ = String(quality || (QUALITY_FIRST ? "flac" : "128k")).toLowerCase();
             const deliverQ = String(selectedQuality || "128k").toLowerCase();
             const truthQ = cfg("truthfulQuality", true) && getDeliveryQuality(source, platform, songInfo, selectedQuality) || deliverQ;
+            const truthConfidence = cfg("truthfulQuality", true) && getDeliveryConfidence(source, platform, songInfo, selectedQuality) || "exact";
             const writeKey = truthQ === reqQ ? cacheKey : buildCacheKey(platform, songInfo, truthQ);
             setCachedUrl(writeKey, url, truthQ, source, actualDeliveryPlatform(source, platform));
             if (truthQ !== reqQ) {
               logInfo(`[${platform}] ${(songInfo == null ? void 0 : songInfo.name) || ""} \u97F3\u8D28\u534F\u5546\u964D\u6863: ${reqQ}\u2192${truthQ}\uFF08\u6309\u5B9E\u4EA4\u4ED8\u6863\u5165\u7F13\u5B58\u69FD\uFF09`);
             }
-            if (cfg("truthfulQuality", true) && qualityRank(truthQ) < qualityRank(reqQ)) {
-              noteQualityCeiling(platform, songInfo, truthQ);
+            const ceilingApplied = qualityRank(effectiveQuality) < qualityRank(reqQ);
+            if (cfg("truthfulQuality", true) && !ceilingApplied && attemptedQualities.has(reqQ) && qualityRank(truthQ) < qualityRank(reqQ)) {
+              const reqFailCodes = details.filter((d) => String(d.quality || "").toLowerCase() === reqQ).map((d) => d.code);
+              noteQualityCeiling(platform, songInfo, truthQ, qualityCeilingReasonForCodes(reqFailCodes));
             }
-            return { url, type: truthQ, subSource: source || "", subSourceName: ((_b2 = SOURCE_HANDLERS[source]) == null ? void 0 : _b2.name) || "", sourcePlatform: actualDeliveryPlatform(source, platform) };
+            return { url, type: truthQ, subSource: source || "", subSourceName: ((_b2 = SOURCE_HANDLERS[source]) == null ? void 0 : _b2.name) || "", sourcePlatform: actualDeliveryPlatform(source, platform), qualityConfidence: truthConfidence };
           } catch (e) {
             noteAttempt(extractErrorCode(e), e && e.evidence || "strong");
             errors.push(`[${q}] ${e.message}`);
@@ -4405,7 +4529,9 @@ var __lxSourceBundle = (() => {
               type: best.quality,
               subSource: best.source,
               subSourceName: `${best.name} \xB7 \u8BD5\u542C\u7248`,
-              sourcePlatform: actualDeliveryPlatform(best.source, platform)
+              sourcePlatform: actualDeliveryPlatform(best.source, platform),
+              fragment: true,
+              qualityConfidence: "unknown"
             };
           }
         }
@@ -4796,6 +4922,12 @@ var __lxSourceBundle = (() => {
             };
           });
         }
+        if (action === "forceQualityProbe") {
+          const id = info && (info.sourceId || info.id);
+          if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
+          const q = String(info && info.quality || "flac").toLowerCase();
+          return Promise.resolve({ ok: forceQualityProbe(id, q), id, quality: q });
+        }
         if (action === "reportPlayback") {
           const id = info && (info.sourceId || info.source);
           if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
@@ -4805,7 +4937,7 @@ var __lxSourceBundle = (() => {
             recordSuccess(id, Number(info && info.latencyMs) || 0, quality2, { playback: true });
             return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id), resolveDead: isResolveDead(id) });
           }
-          recordFailure(id, quality2, { playDead: true });
+          recordFailure(id, quality2, { playDead: true, code: info && info.code || ERROR_CODES.NETWORK_ERROR });
           return Promise.resolve({ ok: false, id, state: getBreaker(id).state, playDead: isPlayDead(id), code: info && info.code || ERROR_CODES.NETWORK_ERROR });
         }
         if (action === "health") {
@@ -4872,6 +5004,7 @@ var __lxSourceBundle = (() => {
             "coldStartWarmTtlMs",
             "qualityShortCircuitSamples",
             "qualityShortCircuitProbeMs",
+            "qualityShortCircuitUniqueProbeMs",
             "verifyTimeoutMs",
             "verifyMinOriginalSec",
             "verifyDurRatio",
@@ -4945,6 +5078,8 @@ var __lxSourceBundle = (() => {
             // 档位短路样本门槛
             qualityShortCircuitProbeMs: { max: 24 * 3600 * 1e3 },
             // 短路放行探路间隔上限 1 天
+            qualityShortCircuitUniqueProbeMs: { min: 60 * 1e3, max: 24 * 3600 * 1e3 },
+            // 唯一高质源探路 1min~1天
             verifyTimeoutMs: { min: 500, max: 10 * 1e3 },
             // 验真 Range 超时
             verifyMinOriginalSec: { max: 3600 },
@@ -5101,6 +5236,12 @@ var __lxSourceBundle = (() => {
             isQualityHopeless,
             canExecute,
             qualitySkipProbeAt,
+            // v8.15（P0/P1）：策略单测钩子（只读 + 直接驱动纯策略，不参与生产调用）
+            noteQualityCeiling,
+            getQualityCeiling,
+            qualityCeilingMap,
+            classifyQualityFailureCode,
+            forceQualityProbe,
             createCancelToken,
             canceledError,
             raceWithCancel,
@@ -5110,6 +5251,8 @@ var __lxSourceBundle = (() => {
             throwIfCanceled,
             probeSingleSource,
             sniffAudioBytes,
+            qualityFromDelivery,
+            qualityConfidenceOf,
             // L4：L0 形态归一 + 单一判定（纯函数，供 r-admission 断言）
             toBytes,
             kindOf,

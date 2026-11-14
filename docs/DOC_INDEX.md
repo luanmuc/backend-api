@@ -26,6 +26,8 @@
 | `docs/AUDIT_RESULTS.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/CHANGELOG.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/DEV_GUIDE.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
+| `docs/KNOWN_ISSUES.md` | 当前态 | 人 | 每次版本变更/每轮审计/发现新问题时 | 规则19 |
+| `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 当前态 | 人 | 音质策略方案变更时 | 规则19 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/ITERATION_ROADMAP.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |

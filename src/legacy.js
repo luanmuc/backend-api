@@ -82,6 +82,7 @@ const USER_CONFIG = {
   coldStartWarmEnabled: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.coldStartWarmEnabled : undefined, // v8.8：冷启动预热开关(缺省 true)
   qualityShortCircuitSamples: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitSamples) || 3, // v8.8：档位短路样本门槛
   qualityShortCircuitProbeMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitProbeMs) || 3600000, // v8.10：短路放行探路间隔(1h，原 6h 太长)
+  qualityShortCircuitUniqueProbeMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitUniqueProbeMs) || 600000, // v8.16：唯一高质源探路间隔(10min)
   playDeadReviveMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.playDeadReviveMs) || 300000,        // v7.0：播放摘除后半开试探冷却期(5min)
   // 五轮 MEM：记忆表条目上限（与 ALLOWED_KEYS/PARAM_LIMITS 同步登记；漏了这行注入会静默失效）
   memoryMapMax: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.memoryMapMax) || 2000,
@@ -993,6 +994,50 @@ const QUALITY_PRIORITY = ["flac24bit", "flac", "320k", "128k"];
 // v1.0 P0-1：音质等级数值，用于源能力过滤与缓存音质校验
 const QUALITY_RANK = { "128k": 1, "192k": 2, "320k": 3, flac: 4, flac24bit: 5, hires: 4, master: 5, atmos: 5, "24bit": 5 };
 function qualityRank(q) { return QUALITY_RANK[String(q || "128k").toLowerCase()] || 1; }
+// v8.15（P0/P1）：音质策略失败分类——能力备档与档位短路共用同一套语义。
+// 注意：这里的 definitive 指“对音质能力有结论”的失败；NOT_FOUND/MISMATCH 只说明这首歌没有，
+// 不直接说明该源该档坏了，故不进入档位短路；但可用于能力备档（该歌确实只到低档）。
+const QUALITY_CEILING_TTL_BY_REASON = {
+  definitive: 6 * 3600 * 1000,
+  transient: 10 * 60 * 1000,
+  unknown: 30 * 60 * 1000,
+  rate_limit: 0
+};
+const QUALITY_BUSINESS_CODES = new Set([
+  ERROR_CODES.NOT_FOUND,
+  ERROR_CODES.MISMATCH,
+  ERROR_CODES.PREVIEW_FRAGMENT
+]);
+const QUALITY_DELIVERY_CODES = new Set([
+  ERROR_CODES.NOT_AUDIO,
+  ERROR_CODES.STREAM_PLAYLIST,
+  ERROR_CODES.BAD_ENVELOPE,
+  ERROR_CODES.TRUNCATED_MEDIA
+]);
+const QUALITY_TRANSIENT_CODES = new Set([
+  ERROR_CODES.LINK_EXPIRED,
+  ERROR_CODES.NETWORK_TIMEOUT,
+  ERROR_CODES.NETWORK_ERROR,
+  ERROR_CODES.SERVER_ERROR,
+  ERROR_CODES.PARAM_ERROR,
+  ERROR_CODES.CONFIG_ERROR
+]);
+function classifyQualityFailureCode(code) {
+  const c = String(code || "").toUpperCase();
+  if (!c) return "unknown";
+  if (c === ERROR_CODES.RATE_LIMIT) return "rate_limit";
+  if (QUALITY_BUSINESS_CODES.has(c)) return "business";
+  if (QUALITY_DELIVERY_CODES.has(c)) return "delivery";
+  if (QUALITY_TRANSIENT_CODES.has(c)) return "transient";
+  return "unknown";
+}
+function qualityCeilingReasonForCodes(codes) {
+  const list = (codes || []).map(classifyQualityFailureCode);
+  if (list.includes("business")) return "definitive";
+  if (list.includes("delivery") || list.includes("transient")) return "transient";
+  if (list.includes("rate_limit")) return "rate_limit";
+  return "unknown";
+}
 const QUALITY_FIRST = true; // 音质优先模式：解析从请求音质(默认flac)开始逐级降级
 
 const { EVENT_NAMES, request, on, send, utils, env, version } = globalThis.lx;
@@ -1075,6 +1120,7 @@ const failCache = createLRUCache(FAIL_CACHE_MAX_SIZE, Number.MAX_SAFE_INTEGER);
 const breakerMap = new Map();
 // v8.11 闸门旁路状态
 const deliveryQualityMap = new Map();   // `${handlerId}|${platform}|${mid}|${请求档}` → 实交付音质（供 getUrlWithFallback 回填标签）
+const deliveryConfidenceMap = new Map(); // 同上 key → exact/estimated/unknown（不把估算档宣称为精确档）
 const fragmentSourceMap = new Map();    // `${platform}|${mid}` → { sources:Set<handlerId>, ts }（片段源记忆，降档时跳过，128k 例外）
 // v8.11.1（审计补）：不持久化的取舍——上限记忆只服务「同一进程内 6h 内重复点同一首」的降档试错，
 // 进程重启后重新探一次成本极低（一次 flac 请求即被验真判降级后回落），引入文件/宿主存储的复杂度与风险更大。
@@ -1173,7 +1219,7 @@ function getBreaker(sourceId) {
 function qualityLedger(b, quality) {
   const key = String(quality || 'default')
   let q = b.byQuality[key]
-  if (!q) q = b.byQuality[key] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0 }
+  if (!q) q = b.byQuality[key] = { req: 0, success: 0, time: 0, fail: 0, businessFail: 0, definitiveFail: 0 }
   if (!q.breaker) q.breaker = { state: 'closed', failureCount: 0, lastFailureTime: 0, trialInFlight: false }
   if (typeof q.rateLimitCount !== 'number') q.rateLimitCount = 0
   if (typeof q.rateLimitUntil !== 'number') q.rateLimitUntil = 0
@@ -1349,6 +1395,10 @@ function recordFailure(sourceId, quality, opts = {}) {
   b.lastFailureTime = Date.now();
   const q = qualityLedger(b, quality);
   q.req++; q.fail++;
+  // v8.15（P1）：档位短路只看“确定性失败”。网络超时/5xx 仍计入 breaker，但不再进短路样本。
+  // 兼容旧调用：未传 code 时按旧语义计入 definitiveFail；生产路径必须传 code。
+  const failureClass = classifyQualityFailureCode(opts.code);
+  if (!opts.code || (failureClass !== "transient" && failureClass !== "rate_limit")) q.definitiveFail = (q.definitiveFail || 0) + 1;
   q.breaker.failureCount++;
   q.breaker.lastFailureTime = Date.now();
   // F42：取链/准入失败只累计 resolveDead；playDead 只由 reportPlayback 的真实播放失败累计。
@@ -1368,13 +1418,16 @@ function recordFailure(sourceId, quality, opts = {}) {
 }
 // v4.0：版权/业务失败单独计数（无版权404、歌不存在、错歌等——源已正常响应，只是这首歌没有/需VIP）
 // 不惩罚健康分、不计入成功率分母、不触发熔断
-function recordBusinessFail(sourceId, quality) {
+function recordBusinessFail(sourceId, quality, opts = {}) {
   const b = getBreaker(sourceId);
   const wasSourceHalfOpen = b.state === 'half-open';
   b.totalRequests++;
   b.copyrightFail = (b.copyrightFail || 0) + 1;
   const q = qualityLedger(b, quality);
   q.req++; q.businessFail++;
+  // v8.15（P1）：只有“交付内容确定性坏掉”的码进入档位短路；NOT_FOUND/MISMATCH 是歌曲级结论，
+  // 不能因为某源没有某首歌的版权就把该源该档对全部歌曲短路。
+  if (opts.code && classifyQualityFailureCode(opts.code) === "delivery") q.definitiveFail = (q.definitiveFail || 0) + 1;
   // v8.10.2：半开试探失败收口——业务失败（404/错歌/410/空URL）同样说明这次试探没成功，
   // 不能让 state 停在 half-open（canExecute 在 half-open 恒返回 false，源会永久不被调用）。
   // 必须同时刷新 lastFailureTime，否则冷却判定用旧时间戳，会立刻再次放行。
@@ -1684,9 +1737,19 @@ function parseMp3Info(buf) {
 }
 
 // 字节嗅探：返回 { kind: audio|playlist|html|json|unknown, format, durationSec, bitrateKbps }
-function sniffAudioBytes(body, headers, totalBytes) {
+function sniffAudioBytes(body, headers, totalBytes, fullBody = false) {
   const ct = String((headers && headers["content-type"]) || "").toLowerCase();
-  const out = { kind: "unknown", format: null, durationSec: null, bitrateKbps: null };
+  const out = { kind: "unknown", format: null, durationSec: null, bitrateKbps: null, totalBytes: 0 };
+  // 只有 header 的 content-length（或明确大于探测块）才是完整文件大小；
+  // 探测块自身的 bytes.length 不能当总字节，否则会把 1KB 探针算成 128k。
+  const bodyLength = (body && body.length) || 0;
+  const declaredBytes = Number(totalBytes) || 0;
+  const headerBytes = Number(headers && headers["content-length"]) || 0;
+  // Range 探针的 content-length 是「这一段」的长度，不是整文件；只有 content-range
+  // 的总长度、或明确大于当前响应体的声明，才可当作完整文件大小。
+  // 200 全量响应（无 content-range）时，content-length 就是整文件大小；
+  // Range 探针仍只在声明/头明确大于响应体时才采用。
+  out.totalBytes = (fullBody && declaredBytes > 0) || declaredBytes > bodyLength ? declaredBytes : (headerBytes > bodyLength ? headerBytes : 0);
   // D-29：能拿到响应体、里面却没有任何字节（或短到装不下任何音频头），是**确定不可播**，
   // 不是"拿不准"。旧逻辑在这里把 content-type 为 audio 的空体直接判成 audio ——
   // 206 + 0 字节会被当成"验真通过"交付出去：用户点到的是 0 字节 URL，播放器必报错，
@@ -1747,17 +1810,38 @@ function sniffAudioBytes(body, headers, totalBytes) {
   return out;
 }
 
-// 把真实格式/平均码率映射回音源体系里的音质档
-function qualityFromDelivery(info, requestedQuality) {
+// 把真实格式/平均码率映射回音源体系里的音质档。
+// m4a/ogg/wav 之前一律保留请求档，导致「请求 flac、实给 128k m4a」仍标 FLAC；
+// 这里在能拿到完整 content-length + 歌曲时长时按平均码率回填，拿不到才保留请求档。
+function qualityFromDelivery(info, requestedQuality, durationSec) {
   const fmt = info?.format;
-  const br = info?.bitrateKbps || 0;
+  const bytes = Number(info?.totalBytes) || 0;
+  const dur = Number(durationSec) || 0;
+  const br = info?.bitrateKbps || (bytes && dur ? Math.round((bytes * 8) / dur / 1000) : 0);
   if (fmt === "flac") return br >= 2500 ? "flac24bit" : "flac";
+  if (fmt === "wav") return "flac";
+  if (fmt === "m4a" || fmt === "ogg") {
+    if (br >= 256) return "320k";
+    if (br > 0) return "128k";
+    // 拿不到总字节/时长：保留请求档（兼容旧行为，不制造新的误标）
+    return requestedQuality || "128k";
+  }
   if (fmt === "mp3" || fmt === "audio") {
     if (br >= 256) return "320k";
     return "128k";
   }
-  // m4a/ogg/wav 等：保留请求档（不擅自降级标签）
+  // 其他未知格式：保留请求档
   return requestedQuality || "128k";
+}
+
+// 档位置信度：不把估算档宣称为精确真实档
+function qualityConfidenceOf(info, durationSec) {
+  const fmt = info && info.format;
+  if (fmt !== "m4a" && fmt !== "ogg") return "exact";
+  if (Number(info && info.bitrateKbps) > 0) return "exact";
+  const bytes = Number(info && info.totalBytes) || 0;
+  const dur = Number(durationSec) || 0;
+  return bytes && dur ? "estimated" : "unknown";
 }
 
 // 原曲时长（秒）：兼容 ms / 秒 / "mm:ss"
@@ -2023,8 +2107,9 @@ async function probeAudioDelivery(audioUrl, timeoutMs = 3000, cancelToken = null
     const bytes = toBytes(body);
     const mediaErr = bytes ? null : mediaEnvelopeErrorCode(body);
     const totalBytesKnown = totalBytes;
+    const fullBody = status === 200 && !String((res.headers && res.headers["content-range"]) || "");
     if (bytes) {
-      const info = sniffAudioBytes(bytes, res.headers, totalBytesKnown);
+      const info = sniffAudioBytes(bytes, res.headers, totalBytesKnown, fullBody);
       if (info && info.kind === "audio") {
         return {
           ok: true, info, evidence: "strong", statusCode: status,
@@ -2119,7 +2204,7 @@ async function verifyDelivery(audioUrl, ctx = {}, cancelToken = null) {
     const gap = origDur - realDur;
     if (ratio < cfg("verifyDurRatio", VERIFY_DUR_RATIO) && gap > cfg("verifyDurGapSec", VERIFY_DUR_GAP_SEC)) {
       // 即便是片段也带出真实格式——全档兜底时标签要写真话（实测 flac 档给的是 128kbps mp3）
-      return { ok: false, code: ERROR_CODES.PREVIEW_FRAGMENT, reason: `仅 ${realDur}s，原曲 ${origDur}s`, quality: qualityFromDelivery(probe.info, ctx.quality), evidence: probe.evidence || "strong" };
+      return { ok: false, code: ERROR_CODES.PREVIEW_FRAGMENT, reason: `仅 ${realDur}s，原曲 ${origDur}s`, quality: qualityFromDelivery(probe.info, ctx.quality, originalDurationSec(ctx.songInfo)), qualityConfidence: qualityConfidenceOf(probe.info, originalDurationSec(ctx.songInfo)), evidence: probe.evidence || "strong" };
     }
   }
   // medium 证据（无字节、只有体积）：按 3KB/s 下界估「明显短于目标曲目」的试听片段。
@@ -2130,14 +2215,16 @@ async function verifyDelivery(audioUrl, ctx = {}, cancelToken = null) {
       return {
         ok: false, code: ERROR_CODES.PREVIEW_FRAGMENT,
         reason: `体积仅 ${probe.totalBytes} 字节（< ${Math.round(minFull)}），明显短于 ${origDur}s 整曲`,
-        quality: qualityFromDelivery(probe.info, ctx.quality),
+        quality: qualityFromDelivery(probe.info, ctx.quality, originalDurationSec(ctx.songInfo)),
+        qualityConfidence: qualityConfidenceOf(probe.info, originalDurationSec(ctx.songInfo)),
         evidence: "medium",
       };
     }
   }
   return {
     ok: true,
-    quality: qualityFromDelivery(probe.info, ctx.quality),
+    quality: qualityFromDelivery(probe.info, ctx.quality, originalDurationSec(ctx.songInfo)),
+    qualityConfidence: qualityConfidenceOf(probe.info, originalDurationSec(ctx.songInfo)),
     realDurationSec: realDur,
     format: probe.info?.format || null,
     totalBytes: probe.totalBytes || 0,
@@ -2266,6 +2353,7 @@ function admit(input) {
   let evidence = "none";
   let reason = "";
   let quality = "";
+  let qualityConfidence = "";
   let deliverable = false;
 
   if (ctx.trialMark === true) {
@@ -2282,6 +2370,7 @@ function admit(input) {
     evidence = ctx.probe.evidence || "strong";
     deliverable = true;
     quality = ctx.probe.quality || "";
+    qualityConfidence = ctx.probe.qualityConfidence || "";
     reason = "探针已判可交付";
   } else if (stage === "fallback" && Array.isArray(ctx.attempts) && ctx.attempts.length) {
     let best = null, bestRank = -1;
@@ -2311,7 +2400,8 @@ function admit(input) {
       const shape = kindOf(bytes || delivery.body);
       const totalBytes = totalBytesOf(delivery);
       if (bytes) {
-        const info = sniffAudioBytes(bytes, delivery.headers || {}, totalBytes);
+        const fullBody = status === 200 && !String(((delivery.headers || {})["content-range"]) || "");
+        const info = sniffAudioBytes(bytes, delivery.headers || {}, totalBytes, fullBody);
         const kind = (info && info.kind) || "unknown";
         if (kind === "audio") {
           evidence = "strong";
@@ -2320,7 +2410,8 @@ function admit(input) {
           } else {
             verdict = "PASS"; code = null; deliverable = true;
           }
-          quality = qualityFromDelivery(info, ctx.quality);
+          quality = qualityFromDelivery(info, ctx.quality, originalDurationSec(ctx.songInfo));
+          qualityConfidence = qualityConfidenceOf(info, originalDurationSec(ctx.songInfo));
           reason = `字节可定(${info.format || "audio"}${info.durationSec ? "/" + info.durationSec + "s" : ""})`;
         } else if (kind === "playlist") {
           verdict = "NOT_AUDIO"; code = ERROR_CODES.STREAM_PLAYLIST; evidence = "strong"; reason = "交付内容是流播放列表";
@@ -2345,7 +2436,9 @@ function admit(input) {
           const hv = headerEvidence(delivery.headers || {}, totalBytes);
           if (hv.ok === true) {
             verdict = "PASS"; code = null; evidence = "medium"; deliverable = true;
-            quality = qualityFromDelivery(hv.info, ctx.quality); reason = hv.reason;
+            quality = qualityFromDelivery(hv.info, ctx.quality, originalDurationSec(ctx.songInfo));
+            qualityConfidence = qualityConfidenceOf(hv.info, originalDurationSec(ctx.songInfo));
+            reason = hv.reason;
           } else if (hv.ok === false) {
             verdict = "NOT_AUDIO"; code = hv.code; evidence = "strong"; reason = hv.reason;
           } else {
@@ -2363,7 +2456,7 @@ function admit(input) {
   }
 
   const ledger = admissionLedger(verdict, code, evidence);
-  return { verdict, code: code || null, evidence, deliverable, quality, reason, ledger };
+  return { verdict, code: code || null, evidence, deliverable, quality, qualityConfidence, reason, ledger };
 }
 
 // 读侧唯一查询：能不能用这个源（null=可用）
@@ -2418,7 +2511,7 @@ function computeEligibility(source, platform, quality, opts) {
     qbNow.state === 'half-open' ||
     (qbNow.state === 'open' && Date.now() - (qbNow.lastFailureTime || 0) >= cfg('breakerCooldownMs', BREAKER_COOLDOWN_MS))
   ));
-  if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg('qualityShortCircuit', true) && isQualityHopeless(id, q)) {
+  if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg('qualityShortCircuit', true) && isQualityHopeless(id, q, platform)) {
     return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: qualitySkipProbeAt.get(qualityShortCircuitKey(id, q)) || null };
   }
   if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
@@ -2495,7 +2588,7 @@ function clearSourceLedger(source, opts = {}) {
       s.breaker.state = "closed"; s.breaker.failureCount = 0; s.breaker.lastFailureTime = 0; s.breaker.trialInFlight = false;
     }
     s.rateLimitCount = 0; s.rateLimitUntil = 0; s.rateLimited = false;
-    if (scope !== 'authority') { s.fail = 0; s.success = 0; s.linkExpired = 0; s.businessFail = 0; s.req = 0; s.time = 0; }
+    if (scope !== 'authority') { s.fail = 0; s.success = 0; s.linkExpired = 0; s.definitiveFail = 0; s.businessFail = 0; s.req = 0; s.time = 0; }
   }
   return true;
 }
@@ -2512,8 +2605,8 @@ function applyAdmission(adm, ctx) {
     return adm;
   }
   if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q);
-  else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true });
-  else recordBusinessFail(id, q);
+  else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true, code: adm.code });
+  else recordBusinessFail(id, q, { code: adm.code });
   const err = ctx.error || {};
   if (adm.code === ERROR_CODES.PREVIEW_FRAGMENT) {
     rememberFragmentSource(ctx.platform, ctx.songInfo, id, q);
@@ -2585,17 +2678,40 @@ function getDeliveryQuality(handlerId, platform, songInfo, quality) {
   const key = `${handlerId}|${platform}|${getHashOrMid(songInfo)}|${String(quality || "").toLowerCase()}`;
   return deliveryQualityMap.get(key) || "";
 }
+function getDeliveryConfidence(handlerId, platform, songInfo, quality) {
+  const key = `${handlerId}|${platform}|${getHashOrMid(songInfo)}|${String(quality || "").toLowerCase()}`;
+  return deliveryConfidenceMap.get(key) || "";
+}
 
-// 能力备档：记录该歌实际最高可得档，下次直接从该档起
-function noteQualityCeiling(platform, songInfo, achievedQuality) {
+// 能力备档：记录该歌实际最高可得档，下次直接从该档起。
+// v8.15（P0）：同档/更低档重复交付不得刷新 recordedAt/nextProbeAt；否则用户持续播放
+// 会让一次临时降级永久续期。只有实际档位升高、或旧条目已过期时才重写。
+function noteQualityCeiling(platform, songInfo, achievedQuality, reason) {
   const key = `${platform}|${getHashOrMid(songInfo)}`;
-  boundedMapSet(qualityCeilingMap, key, { quality: achievedQuality, ts: Date.now() });
+  const now = Date.now();
+  const normalizedReason = QUALITY_CEILING_TTL_BY_REASON[reason] !== undefined ? reason : "unknown";
+  const ttlMs = QUALITY_CEILING_TTL_BY_REASON[normalizedReason];
+  if (!ttlMs) { qualityCeilingMap.delete(key); return; }
+  const existing = qualityCeilingMap.get(key);
+  if (existing && qualityRank(existing.quality) >= qualityRank(achievedQuality)) {
+    const deadline = Number(existing.nextProbeAt || (Number(existing.ts || 0) + Number(existing.ttlMs || QUALITY_CEILING_TTL_MS)));
+    if (now < deadline) return;
+  }
+  boundedMapSet(qualityCeilingMap, key, {
+    quality: achievedQuality,
+    ts: now,
+    recordedAt: now,
+    nextProbeAt: now + ttlMs,
+    reason: normalizedReason,
+    ttlMs
+  });
 }
 function getQualityCeiling(platform, songInfo) {
   const key = `${platform}|${getHashOrMid(songInfo)}`;
   const entry = qualityCeilingMap.get(key);
   if (!entry) return "";
-  if (Date.now() - entry.ts > QUALITY_CEILING_TTL_MS) {
+  const deadline = Number(entry.nextProbeAt || (Number(entry.ts || 0) + Number(entry.ttlMs || QUALITY_CEILING_TTL_MS)));
+  if (Date.now() >= deadline) {
     qualityCeilingMap.delete(key);
     return "";
   }
@@ -3654,7 +3770,7 @@ function getHealthSnapshot() {
       // v4.0：按音质分档统计（面板后续版本可消费）
       byQuality: Object.fromEntries(Object.entries(stats.byQuality || {}).map(([q, v]) => [q, Object.assign({}, v, { lastProbeAt: Number(qualityLastProbeAt.get(`${id}|${q}`) || 0) })])),
       // v8.14（F43）：质量档短路必须可见，不再只存在于链构建内部判断
-      qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map(q => [q, isQualityHopeless(id, q)])),
+      qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map(q => [q, isQualityHopeless(id, q, (SOURCE_HANDLERS[id].platforms || [])[0], { setProbe: false })])),
       // v7.0：播放实时摘除状态（连续播放失败被摘除；App 可显示"已摘除"）
       playDead: isPlayDead(id),
       resolveDead: isResolveDead(id),
@@ -3762,7 +3878,7 @@ const HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1000;
 const HEALTH_BREAKER_NUMBER_FIELDS = ["failureCount", "lastFailureTime", "totalRequests", "totalSuccess", "totalTime",
   "probeRequests", "probeSuccess", "probeTime", "copyrightFail", "rateLimitCount", "rateLimitUntil"];
 const HEALTH_BREAKER_BOOL_FIELDS = ["rateLimited"];
-const HEALTH_QUALITY_NUMBER_FIELDS = ["req", "success", "time", "fail", "businessFail", "linkExpired"];
+const HEALTH_QUALITY_NUMBER_FIELDS = ["req", "success", "time", "fail", "businessFail", "definitiveFail", "linkExpired"];
 const HEALTH_STATES = ["closed", "open", "half-open"];
 const HEALTH_QUALITIES = ["128k", "320k", "flac", "flac24bit"];
 const HEALTH_FORBIDDEN_KEYS = /^(url|successurl|failcache|successcache|cache|songinfo|musicinfo|name|singer|account|cookie|token|headers|body)$/i;
@@ -3910,8 +4026,10 @@ function restoreHealthState(state) {
         if (!isHealthPlainObject(q)) return { ok: false, reason: `${id}.byQuality.${quality} 非法` };
         byQuality[quality] = {};
         for (const field of HEALTH_QUALITY_NUMBER_FIELDS) {
-          if (!healthNumber(q[field], true)) return { ok: false, reason: `${id}.${quality}.${field} 非法` };
-          byQuality[quality][field] = q[field];
+          // 旧 v2 快照没有 definitiveFail：沿用旧 fail 口径，避免恢复后突然不再短路。
+          const raw = q[field] === undefined ? (field === "definitiveFail" ? (q.fail || 0) : 0) : q[field];
+          if (!healthNumber(raw, true)) return { ok: false, reason: `${id}.${quality}.${field} 非法` };
+          byQuality[quality][field] = raw;
         }
       }
       const pd = item.playDead || {};
@@ -4410,15 +4528,19 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
       }
       throw vErr;
     }
-    const realQuality = (admit({ probe: verdict, songInfo, quality }).quality) || (verdict && verdict.quality) || "";
+    const adm = admit({ probe: verdict, songInfo, quality });
+    const realQuality = adm.quality || (verdict && verdict.quality) || "";
+    const realConfidence = adm.qualityConfidence || (verdict && verdict.qualityConfidence) || "exact";
     if (realQuality) {
       const reqQ = String(quality || "").toLowerCase();
       if (realQuality !== reqQ) {
         // 旁路记录实交付音质，供 getUrlWithFallback 把标签改成真话（请求 flac 实得 128k 时界面不能写 FLAC）
         boundedMapSet(deliveryQualityMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realQuality);
-        logInfo(`[${handler.name}] 实交付音质与请求档不符: 请求[${quality || "128k"}] → 实得[${realQuality}]`);
+        boundedMapSet(deliveryConfidenceMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realConfidence);
+        logInfo(`[${handler.name}] 实交付音质与请求档不符: 请求[${quality || "128k"}] → 实得[${realQuality}]（置信${realConfidence}）`);
       } else {
         boundedMapSet(deliveryQualityMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realQuality);
+        boundedMapSet(deliveryConfidenceMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realConfidence);
       }
     }
     recordSuccess(handler.id, Date.now() - startTime, quality);
@@ -4591,17 +4713,48 @@ const qualityShortCircuitKey = (id, quality) => `${id}:${String(quality || "").t
 // v8.9：短路判据拆分为两类失败之和——fail（超时/5xx/连接错）+ linkExpired（410 死链）；
 // 排除 businessFail（404 无版权/歌不存在/错歌）：无版权是歌的问题不是源的问题，连续 3 首无版权歌不该把源该档短路 6h。
 // 同时保留 410：oiapi flac/320k 是 VIP 死链，恒 410 属"这一档拿不到"，必须能短路，否则 v8.8 第③条收益会被修没。
-function isQualityHopeless(sourceId, quality) {
+function countActiveQualitySources(platform, quality) {
+  if (!platform) return 0;
+  const q = String(quality || "128k").toLowerCase();
+  return Object.values(SOURCE_HANDLERS).filter(h => h && h.lifecycle === "active"
+    && h.platforms && h.platforms.includes(platform)
+    && h.chain && h.chain[platform] != null
+    && qualityRank(h.maxQuality) >= qualityRank(q)).length;
+}
+
+function isQualityHopeless(sourceId, quality, platform, opts) {
+  const o = opts || {};
   const b = breakerMap.get(sourceId);
   if (!b || !b.byQuality) return false;
   const q = b.byQuality[String(quality)];
   if (!q) return false;
   if ((q.success || 0) > 0) return false;
-  if (((q.fail || 0) + (q.linkExpired || 0)) < cfg('qualityShortCircuitSamples', 3)) return false;
+  // v8.15（P1）：只统计确定性失败 + linkExpired；超时/5xx 交给 breaker 的短冷却/半开，
+  // 避免唯一 flac 源连续临时失败被压 1 小时。
+  // 兼容旧持久化/旧注入对象：没有 definitiveFail 字段时，旧 fail 就是当时的“全部失败”，沿用其口径。
+  const definitive = q.definitiveFail === undefined ? (q.fail || 0) : q.definitiveFail;
+  if ((definitive + (q.linkExpired || 0)) < cfg('qualityShortCircuitSamples', 3)) return false;
   const key = qualityShortCircuitKey(sourceId, quality);
-  const probeMs = cfg('qualityShortCircuitProbeMs', 21600000);
-  if (!qualitySkipProbeAt.has(key)) { qualitySkipProbeAt.set(key, Date.now() + probeMs); return true; } // 首次达标即短路
+  // v8.16（K08）：平台内只有这一个源能交付该高质档时，1h 窗口会把“唯一希望”压死；
+  // 唯一源用更短的 10min 探路，仍然保持短路（不每次点歌都白试）。
+  const uniqueQualitySource = !!platform && countActiveQualitySources(platform, quality) <= 1;
+  const probeMs = uniqueQualitySource
+    ? cfg('qualityShortCircuitUniqueProbeMs', 600000)
+    : cfg('qualityShortCircuitProbeMs', 21600000);
+  if (!qualitySkipProbeAt.has(key)) {
+    if (o.setProbe !== false) qualitySkipProbeAt.set(key, Date.now() + probeMs); // 首次达标即短路
+    return true;
+  }
   if (Date.now() >= qualitySkipProbeAt.get(key)) { qualitySkipProbeAt.set(key, Date.now() + probeMs); return false; } // 到期放行探路
+  return true;
+}
+
+// v8.16（K07）：源侧强制探路——把下一次短路检查标记为“已到期”，只放行一轮链构建；
+// 若用户不主动调用，短路行为完全不变。App 侧入口留 P2。
+function forceQualityProbe(sourceId, quality) {
+  if (!SOURCE_HANDLERS[sourceId]) return false;
+  const q = String(quality || "flac").toLowerCase();
+  qualitySkipProbeAt.set(qualityShortCircuitKey(sourceId, q), Date.now());
   return true;
 }
 
@@ -4744,6 +4897,8 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     }
   }
   const qualityChain = buildQualityChain(effectiveQuality);
+  // v8.15（P0）：记录本轮真正进入过请求链的档；高质档被短路/熔断跳过时不得记成能力上限。
+  const attemptedQualities = new Set();
   // v8.8：单次请求总预算（跨音质档共享）；v8.10：分档预算 + 最后一档保底（防高音质吃满总预算饿死低档）
   const totalDeadline = Date.now() + cfg('raceBudgetMs', 12000);
   const perQBudget = cfg('raceBudgetPerQuality', { flac: 6000, "320k": 5000, "128k": 5000, flac24bit: 6000 });
@@ -4818,6 +4973,7 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     const budget = isLast
       ? Math.min(Math.max(qBudget, floorMs), cfg('raceBudgetMs', 12000) + floorMs)
       : qBudget;
+    if (chain.length) attemptedQualities.add(q);
     const raceDeadline = Date.now() + budget;
     logDebug(`[${platform}][${q}] 音源链: ${chain.map(h => h.id).join(">")} (按健康排序)，预算 ${Math.round(raceDeadline - Date.now())}ms${isLast ? '（末档保底，可溢出总预算至' + Math.round((cfg('raceBudgetMs', 12000) + floorMs) / 1000) + 's）' : ''}`);
     try {
@@ -4830,17 +4986,22 @@ async function getUrlWithFallback(platform, songInfo, quality) {
       // v8.11：标签回填真实音质——窗口里显示的必须是真话
       //（实测：请求 flac，溯音实给 3.19MB/199.4s = 128kbps mp3，旧实现仍标 FLAC）
       const truthQ = (cfg("truthfulQuality", true) && getDeliveryQuality(source, platform, songInfo, selectedQuality)) || deliverQ;
+      const truthConfidence = (cfg("truthfulQuality", true) && getDeliveryConfidence(source, platform, songInfo, selectedQuality)) || "exact";
       const writeKey = truthQ === reqQ ? cacheKey : buildCacheKey(platform, songInfo, truthQ);
       setCachedUrl(writeKey, url, truthQ, source, actualDeliveryPlatform(source, platform)); // v1.0：记录实际音质；v6.0：同存实际子源；v8.12：同存实际平台
       // v6.0：音质协商链降档日志（请求flac实际320k/128k时明示，配合 App 真实音质显示）
       if (truthQ !== reqQ) {
         logInfo(`[${platform}] ${songInfo?.name || ""} 音质协商降档: ${reqQ}→${truthQ}（按实交付档入缓存槽）`);
       }
-      // v8.11：能力备档——实交付档低于请求档时，记下这首的真实上限，下轮直接从该档起跑
-      if (cfg("truthfulQuality", true) && qualityRank(truthQ) < qualityRank(reqQ)) {
-        noteQualityCeiling(platform, songInfo, truthQ);
+      // v8.15（P0）：能力备档只记“请求档真正进入过请求链”的降级。
+      // 若本轮从 ceiling 低档起跑（ceilingApplied），低质交付不得刷新上限；
+      // 若高质档被短路/熔断跳过（attemptedQualities 无 reqQ），也不得把这首判成“没有高质”。
+      const ceilingApplied = qualityRank(effectiveQuality) < qualityRank(reqQ);
+      if (cfg("truthfulQuality", true) && !ceilingApplied && attemptedQualities.has(reqQ) && qualityRank(truthQ) < qualityRank(reqQ)) {
+        const reqFailCodes = details.filter(d => String(d.quality || "").toLowerCase() === reqQ).map(d => d.code);
+        noteQualityCeiling(platform, songInfo, truthQ, qualityCeilingReasonForCodes(reqFailCodes));
       }
-      return { url, type: truthQ, subSource: source || "", subSourceName: SOURCE_HANDLERS[source]?.name || "", sourcePlatform: actualDeliveryPlatform(source, platform) };
+      return { url, type: truthQ, subSource: source || "", subSourceName: SOURCE_HANDLERS[source]?.name || "", sourcePlatform: actualDeliveryPlatform(source, platform), qualityConfidence: truthConfidence };
     } catch (e) {
       noteAttempt(extractErrorCode(e), (e && e.evidence) || "strong"); // L4：收集 attempt，末尾统一裁决
       errors.push(`[${q}] ${e.message}`);
@@ -4885,6 +5046,8 @@ async function getUrlWithFallback(platform, songInfo, quality) {
         subSource: best.source,
         subSourceName: `${best.name} · 试听版`,
         sourcePlatform: actualDeliveryPlatform(best.source, platform),
+        fragment: true,
+        qualityConfidence: "unknown",
       };
     }
   }
@@ -5307,6 +5470,13 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       };
     });
   }
+  if (action === "forceQualityProbe") {
+    // v8.16（K07）：源侧强制探路，只解除一次档位短路；不改 breaker/健康账本。
+    const id = info && (info.sourceId || info.id);
+    if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
+    const q = String((info && info.quality) || "flac").toLowerCase();
+    return Promise.resolve({ ok: forceQualityProbe(id, q), id, quality: q });
+  }
   if (action === "reportPlayback") {
     // v8.14：真实播放回传。这是 playDead 的唯一“真实播放失败”入口；
     // App 播放器启动/失败/成功时调用，源侧不再把取链 HTTP 失败当播放失败。
@@ -5318,7 +5488,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       recordSuccess(id, Number(info && info.latencyMs) || 0, quality, { playback: true });
       return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id), resolveDead: isResolveDead(id) });
     }
-    recordFailure(id, quality, { playDead: true });
+    recordFailure(id, quality, { playDead: true, code: (info && info.code) || ERROR_CODES.NETWORK_ERROR });
     return Promise.resolve({ ok: false, id, state: getBreaker(id).state, playDead: isPlayDead(id), code: (info && info.code) || ERROR_CODES.NETWORK_ERROR });
   }
   // v4.0：健康快照 action（聚合查询，与请求的 source 无关）
@@ -5375,7 +5545,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       "maxConcurrency", "rateWindowMs", "rateWindowMax",
       "healthCheckIntervalMs", "healthCheckJitterRatio", "healthCheckPauseRetryMs", "probeConcurrency", "probeTierCoreInterval", "probeTierSecondaryInterval", "raceMatchWaitMs", "raceBudgetMs", "raceBudgetFloorMs",
       "raceBatchSize", "raceBatchStaggerMs", "coldStartTimeoutMs", "coldStartProbeTimeoutMs",
-      "coldStartWarmTtlMs", "qualityShortCircuitSamples", "qualityShortCircuitProbeMs",
+      "coldStartWarmTtlMs", "qualityShortCircuitSamples", "qualityShortCircuitProbeMs", "qualityShortCircuitUniqueProbeMs",
       "verifyTimeoutMs", "verifyMinOriginalSec", "verifyDurRatio", "verifyDurGapSec",
       "allFailShortTtlMs", "playDeadReviveMs", "memoryMapMax"];
     const ALLOWED_BOOL_KEYS = ["verifyDelivery", "truthfulQuality", "qualityFloor", "verifyOnCacheHit",
@@ -5411,6 +5581,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       coldStartWarmTtlMs: { max: 60 * 60 * 1000 },      // 预热间隔上限 1 小时
       qualityShortCircuitSamples: { max: 20 },          // 档位短路样本门槛
       qualityShortCircuitProbeMs: { max: 24 * 3600 * 1000 }, // 短路放行探路间隔上限 1 天
+      qualityShortCircuitUniqueProbeMs: { min: 60 * 1000, max: 24 * 3600 * 1000 }, // 唯一高质源探路 1min~1天
       verifyTimeoutMs: { min: 500, max: 10 * 1000 },    // 验真 Range 超时
       verifyMinOriginalSec: { max: 3600 },              // 原曲短于此不按比例判
       verifyDurRatio: { max: 1 },                       // 真实时长/原曲 比例上限
@@ -5574,6 +5745,12 @@ if (typeof module !== "undefined" && module.exports) {
       isQualityHopeless,
       canExecute,
       qualitySkipProbeAt,
+      // v8.15（P0/P1）：策略单测钩子（只读 + 直接驱动纯策略，不参与生产调用）
+      noteQualityCeiling,
+      getQualityCeiling,
+      qualityCeilingMap,
+      classifyQualityFailureCode,
+      forceQualityProbe,
       createCancelToken,
       canceledError,
       raceWithCancel,
@@ -5583,6 +5760,8 @@ if (typeof module !== "undefined" && module.exports) {
       throwIfCanceled,
       probeSingleSource,
       sniffAudioBytes,
+      qualityFromDelivery,
+      qualityConfidenceOf,
       // L4：L0 形态归一 + 单一判定（纯函数，供 r-admission 断言）
       toBytes,
       kindOf,

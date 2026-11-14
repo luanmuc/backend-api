@@ -12,7 +12,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v8.13.1** 源审计修复版：在 v8.13.0 完全体（12 登记源 / 10 上链 / 2 观察；Provider Contract；生命周期治理；真取消；健康持久化 v2；跨平台 tx→wy→kw）之上，收口链空错误码、限流/熔断/暂停保护态不被跨平台绕过，并补 e-extra/L4 夹具与 MU1/MU5 变异门禁；单文件构建（`npm run build`）。`lx-source.js` 内 `@version 8.13.1` |
+| 当前版本 | **v8.13.1** 源审计修复版：在 v8.13.0 完全体（12 登记源 / 10 上链 / 2 观察；Provider Contract；生命周期治理；真取消；健康持久化 v2；跨平台 tx→wy→kw）之上，收口链空错误码、限流/熔断/暂停保护态不被跨平台绕过，并补 e-extra/L4 夹具与 MU1/MU5 变异门禁；单文件构建（`npm run build`）。`lx-source.js` 内 `@version 8.13.1`；2026-11-14 补修 m4a/ogg/wav 真实音质标签与 `fragment` 标记，并完成 K08/K07 源侧策略（唯一高质源 10min 探路 + `forceQualityProbe`；本地未推送） |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
@@ -57,6 +57,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
+| **v8.13.1 K08/K07 源侧策略**（2026-11-14，本地未推送） | 唯一高质源探路由 1h 缩短为 10min（`qualityShortCircuitUniqueProbeMs`，平台内 active 源 ≤1）；新增 `forceQualityProbe` request action，只放行一轮档位短路；QP9~QP12 12/0，`npm test` rc0，audit 40/40，`verify:bundle` 8/0（297666 bytes） | 2026-11-14 |
+| **v8.13.1 音质真实标签补修**（2026-11-14，本地未推送） | m4a/ogg 按 content-length+时长估算码率（≥256kbps→320k、其余→128k）、wav→flac、未知总字节保留请求档；`sniffAudioBytes` 只认可信总字节；全档片段兜底 `fragment: true` + `qualityConfidence: unknown`；新增 `quality-truth` 8/0 | 2026-11-14 |
 | **v8.13.1 审计修复版**（2026-11-14，已推送） | 链空错误码回收（限流升级 `RATE_LIMIT`、其余保护态保留 `NETWORK_ERROR` + `isThrottleSkip`）；跨平台兜底遇本地保护直接 settle；e-extra 纳入 19 脚本；L3/L4 夹具与 MU1/MU5 变异门禁收口；`lx-source.js` 288771 bytes | 2026-11-14 |
 | **v8.13.0 健康整功能重构**（2026-11-13，已推送，b116） | 开关权威拆分（userEnabled/autoOff/offReason）+ 三值探测（PASS/FAIL/UNKNOWN）+ `playDead` 只认真实播放回传 + 半开只放一个试探 + `controls` 持久化（manualOff 独立；F36/F57 v2 拆独立 control key、仅 v2、无回滚开关） + 统一 `computeEligibility`（含 sleeping 跳过、观察源默认关闭不误报） + `suyinKuwo/helloworldKw/kuwoOfficial/suyinQQ/Juhe 五源/星海后端/ikun/huibq/wyOuter/changqingVip/suyin163/suyinMigu` 探针只走真实 handler（不再回退旧 URL 探针）；`suyinQQ` 观察探针补 320k；`QUALITY_SHORT_CIRCUIT` 并入统一资格入口 + `probeSource` 只读单源探测 + `reportPlayback` + `probeConcurrency` + `getHealthSnapshot` 只读 `eligible/eligibilityCode` | 2026-11-13 |
 | **v8.12.4**（P2 负向归因：缺片返回 `TRUNCATED_MEDIA`、`byteLength`/base64 不符返回 `BAD_ENVELOPE`，probe/admit 均保留错误码；X5/X9/X11/X12 先红后绿） | 2026-11-12 |

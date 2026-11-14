@@ -2,8 +2,8 @@
 
 > 这份文件是**前五轮的唯一合并入口**。前五轮的分册（`audit-plans/round1~5.md`）保留为原文存档，
 > 但"到底审过什么、用什么断言守、哪些还没审"只以本文件为准。
-> 生成日期：2026-11-09；**最近更新：2026-11-13（v8.13.0 健康整功能重构补审）**。
-> 当前基线：`lx-music-source` 已推送 `origin/master`（push 前 parent `2f4d7e4`）；CI run `43355462221` SUCCESS；Release b116 已发布，`lx-source.js @version 8.13.0`，SHA-256 `a693c412…`；审计 **410 条** / 压测 **159 条** / 冒烟 **67 组** = **636 条**；变异 **22 killed / 0 survived**；`TESTING.md` 为唯一真值。
+> 生成日期：2026-11-09；**最近更新：2026-11-14（音质真实标签补修后复审）**。
+> 当前基线：源仓 **v8.13.1 / `101c2e7`**（本地未 push）；App **`20d953f0`**（本地未 push，v1.9.2）。当前审计脚本入口 39 个（`npm test` 必跑 20 个，其余按需；含 `quality-truth` 9 条）、压测 **159 条**、冒烟 **67 组**、变异 **22 killed / 0 survived**；`TESTING.md` 与 `AUDIT_MATRIX.md` 为计数真值。
 >
 > **2026-11-13 健康整功能重构补审（本地未推送）**：开关权威拆分 `userEnabled/autoOff/offReason`；探测三值 `PASS/FAIL/UNKNOWN`；`playDead` 只认 App `reportPlayback` 真实播放失败，取链失败/准入失败不再误摘；半开从“到期整链放行”改为 source 级一个 trial；`controls` 持久化；`probeSource` 默认只读；`reportPlayback`/`probeConcurrency` 新增。实跑：冒烟 67 组、`s-health-events` 22/0、生命周期 14/0、`stress-round4` 133/0。**未闭环**：探针仍是第二套 URL 实现（`buildProbeConfig` 与真实 handler 各写一份）、探测事件未进 App 本地时间线、播放成功回传未做同曲去重、`suyinQQ/suyinMigu` 观察源无 320k 探针；这些列为 v8.14 后续审计缺口，不得写成“已全修”。
 
@@ -301,3 +301,31 @@ v10 把这三点收口：一张维度总表、一个三级证据分级、一张�
 | 4 | `docs/AUDIT_RESULTS.md` 已 1100+ 行 | 不拆 | 缺陷总账已补齐 D-01~D-39，章节结构够用；拆分会让历史链接失效，收益小于成本 |
 
 > 改这四条中的任何一条之前，先看本节理由，别把"已确认的取舍"当成"漏审的问题"。
+
+
+---
+
+## 6.4 2026-11-14 音质真实标签专项审计（审计基线 `101c2e7`）
+
+> 触发：`qualityFromDelivery` 对 m4a/ogg/wav 回填真实档、`sniffAudioBytes` 总字节判定、片段 `fragment:true`、`qualityConfidence` 透传、`quality-truth` 新增 QT-1~QT-9。
+> 纪律：只认 `101c2e7` 构建产物与源码实跑；不得用 8.13.0 的历史 410 条替代本轮。
+
+| ID | 检查面 | 关键位置 | 验收 |
+|---|---|---|---|
+| Q-S1 | 真实档回填 | `src/legacy.js` `qualityFromDelivery` | m4a/ogg ≥256→320k、>0→128k、未知保留请求档；wav→flac；flac bitrate≥2500→flac24bit |
+| Q-S2 | 总字节判定 | `sniffAudioBytes` 的 `totalBytes` | Range 1KB 探针不得当完整文件；header/声明大于 body 才采用；QT-6 9/0 |
+| Q-S3 | 置信度 | `qualityConfidenceOf`、`deliveryConfidenceMap`、`verifyDelivery`/`admit`/`getUrlWithFallback` | 估算档 `estimated`、无法判定 `unknown`、非估算档 `exact`；QT-7/QT-8 9/0 |
+| Q-S4 | 片段语义 | 全档兜底返回、缓存、App 回传 | `fragment:true` + `qualityConfidence:"unknown"`；子源名“试听版”；不得把片段当完整播放成功 |
+| Q-S5 | 产物与契约 | `lx-source.js`、`__debug`、`verify:bundle` | 291987 bytes；`qualityFromDelivery`/`qualityConfidenceOf` 导出；8/0 |
+| Q-S6 | 回归面 | `npm test`、`d-func`、`n-fixes`、`health-breaker-quality`、冒烟、docs-audit | 全 0 失败；文档计数与产物一致 |
+
+**执行命令**：`npm test`、`npm run verify:bundle`、`node test/stress-test.js`、`node test/stress-round3.js`、`node --expose-gc test/stress-round4.js`、`node scripts/docs-audit.js`。
+
+**本轮实跑结果（2026-11-14，审计基线 `101c2e7`，补丁已并入本地提交）**：
+
+- `npm test` rc0；`quality-truth` 9/0；`verify:bundle` 8/0（`lx-source.js` 291987 bytes）。
+- 39 个 `test/audit/*.js` 全量逐条跑：首跑 38 个 rc0；`g-meta` 红（`quality-truth` 缺 `require.main` 守卫、断言无 `[ID]`），补守卫与 `[${id}]` 输出后 **14/0**，最终 39/39 rc0。
+- 压测：`stress-test` 12/0、`stress-round3` 14/0、`stress-round4` 133/0；合计 159/0。
+- `docs-audit` 0 修复 / 34 报告；`source-inventory --check` rc0；`source-audit` 16/16 可用；`npm run verify:bundle` 8/0。
+- 未做：真机/真上游长稳。`probeAudioDelivery`「上游忽略 Range 返回 200 全量」边界已补 QT-9 集成测试并修复：200 且无 `content-range` 时采用 `content-length` 作为整文件字节，m4a 3.2MB/200s 回填 128k。
+

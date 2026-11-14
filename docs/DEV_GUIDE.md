@@ -27,7 +27,7 @@
 | ⑦ 注册表 + 调度 + 健康分 | 3041~4106 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，6s grace，10min 缓存，`cross_platform` 事件） |
 | ⑧ 上报 + 事件监听 | 4208~4509（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.13.1 基线（`lx-source.js` 共 5563 行，`@version 8.13.1`，288771 bytes）** 实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 校验末段边界 = EOF。
+> 行段为 **v8.13.1 基线（`lx-source.js` 共 5706 行，`@version 8.13.1`，291987 bytes）** 实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 校验末段边界 = EOF。
 > **v8.13.1 构建口径**：`scripts/build-source.js` 使用 esbuild `bundle:true / format:iife / globalName:__lxSourceBundle / platform:neutral / target:es2017`，产物末尾补 CommonJS 桥 `module.exports = __lxSourceBundle`。这样既是单文件 IIFE，又保留洛雪宿主读取的导出面；`verify-bundle` B1 校验 IIFE 包装与导出桥，B2 校验运行 API。10 个 active provider 已拆到 `src/providers/`，核心运行时仍在 `src/legacy.js`（未做 10/20/30/40/60/70 的全量模块拆分）。
 
 ## 三、核心机制详解
@@ -56,9 +56,11 @@ on(request musicUrl)
 - **v8.8 分批错峰并发**：链路按 `(h.batch||1)` 分组，首批（batch=1）最多 `raceBatchSize`(3) 个同时启动，批间错峰 `raceBatchStaggerMs`(300ms)；`batch>1` 的配额源（gdWy）排到后续批，前批全败才打；
 - **verified 精确等待**：未校验源先成功时，仅当仍有 `verified` 源在飞才等 `raceMatchWaitMs`(600ms)，否则立即交付（不再无脑白等）；
 - **跨音质档总预算 + v8.10 分档预算**：`getUrlWithFallback` 生成 `totalDeadline = now + raceBudgetMs`(12s)，逐档算 `qBudget = min(该档预算, 剩余总预算)`；最后一档保底 `raceBudgetFloorMs`(3s) 防整次取链失败（防高音质吃满总预算饿死低档致点歌无声）；
-- **档位短路**：某源某档 `byQuality[q].success=0` 且 `(fail + linkExpired) ≥ qualityShortCircuitSamples`(3) → 该档跳过该源（整链短路则直接降档）；每 `qualityShortCircuitProbeMs`(**v8.10: 1h**，原 6h) 放行一次真实探路，防源恢复后永久被跳。
-  - 判据刻意排除 `businessFail`（404 无版权/歌不存在/错歌）：这是歌的问题不是源的问题，连续 3 首无版权歌不该把源该档短路 6h；
-  - 但包含 `linkExpired`（410 死链）：oiapi flac/320k 是 VIP 死链恒 410，属"这一档拿不到"，必须能短路（v8.9 拆分，冒烟 T45 固化两种场景）；
+- **档位短路（v8.16 口径）**：某源某档 `byQuality[q].success=0` 且 `(definitiveFail + linkExpired) ≥ qualityShortCircuitSamples`(3) → 该档跳过该源（整链短路则直接降档）；非唯一源每 `qualityShortCircuitProbeMs`（实际默认 **1h**，`cfg` 默认 3600000）放行一次真实探路；若平台内只有这一个 active 源能交付该档，改用 `qualityShortCircuitUniqueProbeMs`（默认 **10min**，600000），避免唯一希望被 1h 压死。`forceQualityProbe(sourceId, quality)`（request action `forceQualityProbe`）可把下一次检查标记为到期，只放行一轮，不改 breaker/健康账本。
+  - `definitiveFail` 只记“该档交付确实坏掉”的失败：`NOT_AUDIO` / `STREAM_PLAYLIST` / `BAD_ENVELOPE` / `TRUNCATED_MEDIA`；超时、5xx、`LINK_EXPIRED` 中的网络类不进来，交给 breaker 的 180s 冷却/半开。
+  - 判据刻意排除 `businessFail` 的歌曲级结论（404 无版权/歌不存在/错歌）：这是歌的问题不是源的问题，连续 3 首无版权歌不该把源该档短路 1h；
+  - 但包含 `linkExpired`（410 死链）：oiapi flac/320k 是 VIP 死链恒 410，属“这一档拿不到”，必须能短路（v8.9 拆分，冒烟 T45 固化两种场景）；
+  - 旧持久化/旧注入对象没有 `definitiveFail` 字段时，按旧 `fail` 口径兼容（`health-persistence-v2` 已覆盖）。
 - 全部失败 → 抛聚合错误（`code` + 非空 `detail`）；
 - `sortChainByHealth` 用断路器统计（成功率相差 >5% 按成功率排，否则按均时）把健康源放前，减少竞速打到死源的概率。
 
@@ -392,7 +394,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 1. **语法**：`node --check lx-source.js`；
 2. **冒烟（L1 模拟）**：`node test/lx-source-smoke-test.js` 全用例绿（67 组：加载防御/上报/请求链路/缓存/熔断分类/失败结构化/健康权重/竞速匹配/源族/音质降档/日志增强/摘死源/helloworld 双通道等）；CI 已在 push 时自动执行；
 2b. **审计与压测（放行前必跑，以退出码为准）**：
-   - `node test/audit/{a-static,b-logic,d-func,e-extra,f-repo,g-meta}.js` → 10 / 30 / 30 / **90** / **54** / **14** 条断言；`node test/audit/h-toggles.js` → 14 条（默认关闭源的开启可用性）；`node test/audit/v-cross-platform-stress.js` → **13** 条（V1~V13 跨平台并发/缓存/开关压测）（`a-static` 另有 2 条、`e-extra` 另有 7 条 `· note` 信息登记，不计通过/失败；`e-extra` 的 90 已含 O 组补的 5 条上游 HTTP 状态码映射与应用层补测）
+   - `node test/audit/{a-static,b-logic,d-func,e-extra,f-repo,g-meta}.js`、`node test/audit/quality-truth.js` → 10 / 30 / 30 / **90** / **54** / **14** 条断言；`node test/audit/h-toggles.js` → 14 条（默认关闭源的开启可用性）；`node test/audit/v-cross-platform-stress.js` → **13** 条（V1~V13 跨平台并发/缓存/开关压测）（`a-static` 另有 2 条、`e-extra` 另有 7 条 `· note` 信息登记，不计通过/失败；`e-extra` 的 90 已含 O 组补的 5 条上游 HTTP 状态码映射与应用层补测）
    - `node --expose-gc test/stress-test.js`（S 组压量，12 条）、`node --expose-gc test/stress-round3.js`（T 组压态，**14** 条）、`node test/candidate-audit-test.js`（6 条）
    - **`g-meta` 是元审计**：查断言是否恒真、引用的导出名是否真实存在、脚本顶层 `process.exit` 是否有 `require.main` 守卫。**改过任何审计脚本后必须跑它**，否则可能把写死 true 的伪断言当成绿字
    - **变异门禁**：`node test/mutation/run.js --full --strict` 必须 22 killed / 0 survived、rc=0；缺 esbuild 时 runner 直接 exit 2（先 `npm ci`）；strict 把 `SURVIVED/UNCERTAIN/BUILD_FAILED/SKIPPED` 全部判失败，不再只看 survived
@@ -477,7 +479,8 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | `coldStartProbeTimeoutMs` | 30000 | max 60s | 冷启动源探针超时（onrender 冷态 30s） |
 | `coldStartWarmTtlMs` | 300000 | max 1h | 冷启动预热间隔 |
 | `qualityShortCircuitSamples` | 3 | max 20 | 短路样本门槛 |
-| `qualityShortCircuitProbeMs` | 3600000（1h） | max 24h | 短路放行探路间隔 |
+| `qualityShortCircuitProbeMs` | 3600000（1h） | max 24h | 非唯一源短路放行探路间隔 |
+| `qualityShortCircuitUniqueProbeMs` | 600000（10min） | min 1min / max 24h | 平台内唯一高质源短路放行探路间隔 |
 | `verifyTimeoutMs` | 3000 | min 500 / max 10s | 交付验真 Range 超时 |
 | `verifyMinOriginalSec` | 90 | max 3600 | 原曲短于此不按比例判 |
 | `verifyDurRatio` | 0.6 | max 1 | 真实时长/原曲比例上限（0=关闭该门槛） |

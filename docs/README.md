@@ -15,6 +15,7 @@
 | 看音源架构从 v8.8 到 v8.13.0 的完整执行链 | [`音源架构执行全过程-2026-11-12.md`](./音源架构执行全过程-2026-11-12.md) |
 | 源挂了 / 平台改接口 | [`INTERFACE_CHANGE_PLAYBOOK.md`](./INTERFACE_CHANGE_PLAYBOOK.md) |
 | 查当前源可用性基线 | [`SOURCE_AUDIT.md`](./SOURCE_AUDIT.md) |
+| 查已知问题 / 技术债 / 是否该重构 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) → [`QUALITY_POLICY_OPTIMIZATION_PLAN.md`](./QUALITY_POLICY_OPTIMIZATION_PLAN.md) |
 | 文档改了怕不同步 | [`DOC_SEMANTIC_CHECKLIST.md`](./DOC_SEMANTIC_CHECKLIST.md)（机器管不了的靠人） |
 | 多账号协作 / 提交规范 | [`AGENTS.md`](./AGENTS.md) |
 | 查「哪些文件审过/没审、哪些数字已核查过时」 | [`READTHROUGH.md`](./READTHROUGH.md)（全仓通读台账 + 四类清单） |
@@ -28,7 +29,9 @@
 | `README_HEALTH.md` | **自动生成**（`scripts/probe.js`） | 端点健康表，别手改 |
 | `docs/ARCHITECTURE.md` | 手写 | 边界、8 段结构、调用链、4 个状态机、账本口径、跨仓契约 |
 | `docs/DEV_GUIDE.md` | 手写 | 逐段职责、机制细节、子源实测总表、已知缺陷 |
-| `docs/TESTING.md` | 手写 | 44 个测试入口、mock 四件事、隔离与新增断言流程 |
+| `docs/KNOWN_ISSUES.md` | 手写（**活文档**） | 已知问题/技术债/外部阻塞/设计取舍，K01~K20；判断是否重构先看这里 |
+| `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 手写（方案） | 音质能力备档与档位短路的优化方案、验证证据、P0/P1 + K08/K07、P2 |
+| `docs/TESTING.md` | 手写 | 46 个测试入口、mock 四件事、隔离与新增断言流程 |
 | `docs/SCRIPTS.md` | 手写 | 14 脚本 + 3 hook 的职责/触发/副作用 |
 | `docs/AUDIT_PLAN.md` | 手写 | 方法论 + 维度矩阵（只写"要审什么"） |
 | `docs/AUDIT_PLAN_v10.md` | 手写（**六轮整合活文档**） | 以它为准：维度总表、G1~G12 缺口、待修清单、销项记录、门禁 14 项口径、已知取舍 |

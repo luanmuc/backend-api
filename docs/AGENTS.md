@@ -42,6 +42,7 @@ node test/lx-source-smoke-test.js
 
 # 分轮审计（a 静态 12 / b 逻辑 30 / d 功能 30 / e 二轮 57 / f 全仓 U~Z 50，共 179 项）
 node test/audit/a-static.js && node test/audit/b-logic.js && node test/audit/d-func.js
+node test/audit/quality-truth.js
 node test/audit/e-extra.js && node test/audit/f-repo.js
 
 # 压测（S 组压「量」，T 组压「态」，都必须 --expose-gc）

@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **44 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **19 个脚本**（冒烟 1 + 审计 18，含 `e-extra`），其余 25 个按需执行。
+> **46 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **21 个脚本**（冒烟 1 + 审计 20，含 `e-extra`、`quality-policy-v2`），其余 25 个按需执行。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
 > 断言实测（2026-11-13 当前工作树）：冒烟 **67 组** + 压测 **159 条**（12/14/**133**）+ 审计断言按各脚本输出汇总（本轮新增 health-snapshot **11/0**、health-probe-batch2 **9/0**、health-eligibility-batch3 **9/0**）；历史 429/655 是旧口径，不再作为当前总数。逐入口明细见下方「入口总表」。变异体 **22 个**（`--full --strict` 全量 **22 killed / 0 survived**，2026-11-13 实测）。
@@ -29,6 +29,8 @@
 | `test/audit/a-static.js` | 10(+2 note) | 静态：常量一致性、导出面、无死键、注释与代码对齐 | 读文件 | `node test/audit/a-static.js` |
 | `test/audit/b-logic.js` | 30 | 逻辑：闸门判据、降档链、缓存键、记账口径、冷却状态机 | mock 宿主 | `node test/audit/b-logic.js` |
 | `test/audit/d-func.js` | 30 | 功能：五平台取链、音质矩阵、订阅源、错误码、配置读写 | mock 宿主 | `node test/audit/d-func.js` |
+| `test/audit/quality-truth.js` | 9 | 音质真实标签：m4a/ogg 按总字节+时长估码率、wav 无损、未知总字节保留请求档、200 全量响应采用 content-length | 纯函数 | `node test/audit/quality-truth.js` |
+| `test/audit/quality-policy-v2.js` | 12 | 音质策略 P0/P1 + K08/K07：能力备档同档不续期 · definitive/transient/rate_limit TTL · 到期探路 · 超时不短路 · 确定性失败短路 · 429 只退避 · 旧快照兼容 · 唯一源 10min 探路 · 非唯一源 1h · 强制探路一次后恢复短路 · 健康快照只读不写 1h | mock 宿主 + `__debug` | `node test/audit/quality-policy-v2.js` |
 | `test/audit/e-extra.js` | **90** | 二轮新增：歌词/管理 action/断路器/限速/缓存容量/冷启动/健康分/QuickJS/定时器/参数/日志脱敏；四轮 U 组：上游 HTTP 500/410/404/429/403 码映射；六轮新增 G4b/G4c（同歌 5 并发只 1 次外呼、结果一致）+ G12a~G12d（星海备按 `PLATFORM_TO_XINGHAI_BACKUP` 过滤平台，mg/kg 不再白 push 必败源）+ **Q7**（真删 `globalThis.Buffer` 跑交付验真，JSON 假交付必须判 `NOT_AUDIO`，不得 fail-open 放行）+ **K4c~K4e**（v8.11.7 健康面板配置可管：布尔开关可写读回/非布尔拒写/数字参数白名单补齐）+ **L3/L4/FAULT8**（熔断半开恢复、半开失败回开路、连续 429 独立退避；2026-11-14 已纳入 `npm test`） | mock 宿主 | `node test/audit/e-extra.js` |
 | `test/audit/p-gaps.js` | 4 | 六轮新增：通读发现的零覆盖点补测（P1 previewUrlPreFilter 开/关差值 · P2 FLAC 多 metadata 块遍历 · P3 MP3 无 Xing 按码率回填时长 · P4 探测连续 2 次通过才自动启用）；逐条反向改坏实现 → 全红后还原 | mock 宿主 + `__debug` | `node test/audit/p-gaps.js` |
 | `test/audit/q-dfix.js` | 5 | D 系列行为断言：Q1 half-open 遇 429 必须收口回 open（删收口段立刻红）；Q2 closed 态遇 429 只退避不熔断；Q3（v8.11.3）toggle 开启某源后该平台失败缓存必须失效——先红（仍 NOT_FOUND）后绿（none）；Q4（D-08）单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 `PARAM_ERROR`，不得兜底 1 号歌——先红（code=undefined）后绿 | 宿主桩 + `__debug` | `node test/audit/q-dfix.js` |
