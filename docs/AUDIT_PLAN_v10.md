@@ -4,7 +4,7 @@
 >
 > **基线（唯一真值，2026-11-15）**：
 > - 源仓：`luanmuc/backend-api` @ `master`（v8.15.1 已推送 master 并建 tag `v8.15.1`；v8.15.0 亦有 tag），`lx-source.js` **v8.15.1**，5733 行 / 299939 bytes
-> - App 仓：`luanmuc/mobile-app` @ `e5e648e3`（已推送），v1.9.2-b134 / versionCode 293（Build `43696182537` success）
+> - App 仓：`luanmuc/mobile-app` @ `078ba7c1`（已推送，CI 回写版本信息），v1.9.2-b135 / versionCode 294（Build `43775350921` success，5 APK）；发布前置：源仓 `lx-source CI` 转绿于 `cd43810`
 > - 本文件对应变更：v8.15.1「契约与死配置收口」= 健康态源版本 8.15.1（兼容恢复 8.14.1）+ 删 2 个未登记键 / 4 个死模板 / 未消费 timeoutMs + 429 退避统一到 `rateLimitBackoffMs`；同批修 `docs-audit` 规则 14 自伤、`ecosystem-scan` 自 v8.13 起失效、9 个脚本 require 安全
 
 ---
