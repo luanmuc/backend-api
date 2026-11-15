@@ -31,13 +31,13 @@ const ids = Object.keys(H);
 const activeIds = ids.filter(id => H[id].lifecycle === 'active');
 const probationIds = ids.filter(id => H[id].lifecycle === 'probation');
 
-rec('Y1', '登记/上链/观察预算 = 12/10/2', () => {
-  assert.strictEqual(ids.length, 12);
-  assert.strictEqual(activeIds.length, 10);
+rec('Y1', '登记/上链/观察预算 = 13/11/2', () => {
+  assert.strictEqual(ids.length, 13);
+  assert.strictEqual(activeIds.length, 11);
   assert.strictEqual(probationIds.length, 2);
 });
-rec('Y2', '10 个上链源名单固定', () => {
-  assert.deepStrictEqual(activeIds.sort(), ['suyinKuwo', 'wyOuter', 'kuwoOfficial', 'helloworldKw', 'ikun', 'xinghaiBackend', 'huibq', 'suyin163', 'juheTx', 'changqingVip'].sort());
+rec('Y2', '11 个上链源名单固定', () => {
+  assert.deepStrictEqual(activeIds.sort(), ['suyinKuwo', 'wyOuter', 'kuwoOfficial', 'helloworldKw', 'ikun', 'xinghaiBackend', 'huibq', 'suyin163', 'juheTx', 'changqingVip', 'qingliangTx'].sort());
 });
 rec('Y3', '2 个观察源 = suyinQQ/suyinMigu 且默认关闭', () => {
   assert.deepStrictEqual(probationIds.sort(), ['suyinQQ', 'suyinMigu'].sort());
@@ -86,7 +86,7 @@ rec('Y8', 'probation 无链位次 / 默认关闭 / 有 reviewAt', () => {
   assert.strictEqual(H.suyinQQ.reviewAt, '2026-11-19');
   assert.strictEqual(H.suyinMigu.reviewAt, '2026-11-26');
 });
-rec('Y9', 'chain-golden.json 10 源 5×4 逐项一致，且不含观察源', () => {
+rec('Y9', 'chain-golden.json 11 源 5×4 逐项一致，且不含观察源', () => {
   const golden = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'chain-golden.json'), 'utf8'));
   assert.strictEqual(golden.version, require(path.join(__dirname, '..', '..', 'package.json')).version);
   for (const p of ['kw', 'wy', 'tx', 'mg', 'kg']) {
@@ -110,8 +110,8 @@ rec('Y10', '覆盖缺口显式登记（mg/kg 单源、tx 双源）', () => {
 });
 rec('Y11', 'validateProviderContracts 正常返回预算', () => {
   const c = mod.validateProviderContracts();
-  assert.strictEqual(c.registered, 12);
-  assert.strictEqual(c.active, 10);
+  assert.strictEqual(c.registered, 13);
+  assert.strictEqual(c.active, 11);
   assert.strictEqual(c.probation, 2);
 });
 rec('Y12', '契约非法：观察源带链位次必须拒绝', () => {
@@ -140,4 +140,6 @@ rec('Y15', '契约非法：qualitys 与 maxQuality 不一致必须拒绝', () =>
 });
 
 console.log(`\nProvider Contract: ${pass} passed, ${fail} failed`);
+// R34：原来只有 `if (require.main) process.exit(...)`——被 require 时失败既不退出也不置退出码。
+if (fail) process.exitCode = 1;
 if (require.main === module) process.exit(fail ? 1 : 0);

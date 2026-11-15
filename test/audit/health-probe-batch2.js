@@ -54,7 +54,8 @@ await check('B1 suyinKuwo 三档探针齐全，目标全部走 handler', async (
 await check('B2 每个 target 一条 probe_result，字段无 URL/歌名', async () => {
   routes = { 'https://api.test/a': ok('{"ok":true}'), 'https://api.test/b': ok('{"ok":false}') }
   const m = fresh()
-  const r = await probe(m, [
+  // R33：探测结果本身在 B2 里没被断言（断言对象是事件），声明了却不用的 r 删除。
+  await probe(m, [
     { quality: 'flac', url: 'https://api.test/a', check: b => JSON.stringify(b).includes('true') },
     { quality: '128k', url: 'https://api.test/b', check: b => JSON.stringify(b).includes('true') },
   ])
@@ -146,7 +147,8 @@ await check('B9 探测事件环保留 transition 优先（Batch 2 边界）', as
 })
 
 console.log(`\n${passed} passed, ${failures.length} failed`)
-if (failures.length) { console.log(failures.join('\n')); process.exit(1) }
-if (require.main === module) process.exit(0)
+// R30：失败分支原先是裸 process.exit(1)——被 require 时会直接杀掉调用方，只置退出码。
+if (failures.length) { console.log(failures.join('\n')); process.exitCode = 1 }
+if (require.main === module) process.exit(process.exitCode || 0)
 }
 main()

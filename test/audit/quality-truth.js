@@ -116,6 +116,8 @@ const main = async() => {
     }
   }
   console.log(`\n===== 源侧真实标签：${checks} 通过 / ${failures} 失败 =====`)
+  // R36：只有 `if (require.main) process.exit(...)`——被 require 时失败既不退出也不置退出码。
+  if (failures) process.exitCode = 1
   if (require.main === module) process.exit(failures ? 1 : 0)
 }
 main()

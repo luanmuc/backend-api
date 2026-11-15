@@ -18,7 +18,7 @@ const res = [];
 const rec = (id, name, ok, detail) => res.push({ id, name, ok, detail });
 
 let handler = null, scene = null;
-const reset = () => {};
+// R32：删掉 `const reset = () => {};`——空壳占位函数，两处调用都在它上面。
 const setLx = () => {
   globalThis.lx = {
     EVENT_NAMES: { inited: 'inited', request: 'request', updateAlert: 'updateAlert' },
@@ -61,11 +61,12 @@ const okAudio = () => ({ statusCode: 206, headers: { 'content-type': 'audio/flac
 
 const fresh = (toggles) => {
   setLx();
-  globalThis.__lxSourceConfig = Object.assign({}, globalThis.__lxSourceConfig || {}, {
+  // R32：原写法把上一次的配置整包合并进来（用例之间会互相污染，同 R31 的 p-gaps）；改为固定基线。
+  globalThis.__lxSourceConfig = {
     rateWindowMax: 1e6, maxConcurrency: 1e6, rateWindowMs: 3600000,
     healthCheckIntervalMs: 3600000, breakerThreshold: 999,
     qualityShortCircuit: false, fragmentFallback: false, verifyDelivery: true, raceBudgetMs: 12000
-  });
+  };
   delete require.cache[require.resolve(SRC)];
   const m = require(SRC);
   for (const k of Object.keys(m.runtimeToggles)) m.runtimeToggles[k] = toggles.includes(k);
@@ -122,11 +123,10 @@ const call = (platform, type, info, action) => handler({ action: action || 'musi
       name: '长青kw 开启后能出 128k 直链',
       scene: withAudio([{ k: 'musicapi.haitangw.net', v: () => ({ statusCode: 302, headers: { location: BASE, 'content-type': 'audio/mpeg' }, body: '' }) }]),
     },
-  ];;
+  ];
 
   orig('\n[H] 未测源开启后最小可用性');
   for (const c of CHECKS) {
-    reset();
     const m = fresh([c.toggle]);
     scene = c.scene;
     if (c.probation) {
@@ -148,13 +148,13 @@ const call = (platform, type, info, action) => handler({ action: action || 'musi
 
   // H13：酷我封面（pic action）——独立于取链，验证默认关闭源之外的"从没测过的透出能力"
   {
-    reset();
     fresh(['kuwoOfficial']);
     scene = withAudio([{ k: 'search.kuwo.cn', v: () => text(`{'abslist':[{'MP3RID':'MP3_1','NAME':'晴天','hts_MVPIC':'${PIC}'}]}`) }]);
     let p = null, e0 = null;
     try { p = await call('kw', '128k', { name: '晴天', singer: '周杰伦' }, 'pic'); } catch (e) { e0 = e; }
     const ok = typeof p === 'string' && /^https:/.test(p);
-    rec('H13', '酷我封面（pic action）能取到 hts_MVPIC', ok, ok ? String(p) : (e0 ? `code=${JSON.stringify(e0.code)}` : `返回 ${JSON.stringify(p)}`));
+    // R32：这个用例原编号也是 H13（与上面的 changqingVip 重号），明细里分不清是哪条，改 H14。
+    rec('H14', '酷我封面（pic action）能取到 hts_MVPIC', ok, ok ? String(p) : (e0 ? `code=${JSON.stringify(e0.code)}` : `返回 ${JSON.stringify(p)}`));
   }
 
 

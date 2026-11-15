@@ -1001,14 +1001,14 @@ async function test(name, fn) {
     assert.ok(!urls41.some(u => /br=1(?!\d)/.test(u)), `flac(br=1) 死链档不应被实际请求（短路生效），实际请求 ${urls41.filter(u => u.includes('oiapi')).join(' | ')}`);
   }
 
-  console.log('[T42] v8.13 Provider Contract：12 登记 / 10 上链 / 2 观察 + 冷启动标签');
+  console.log('[T42] v8.13 Provider Contract：13 登记 / 11 上链 / 2 观察 + 冷启动标签');
   {
     const mod42 = require(SRC);
     const ids = Object.keys(mod42.SOURCE_HANDLERS);
-    assert.strictEqual(ids.length, 12, `登记源必须 12，实际 ${ids.length}`);
+    assert.strictEqual(ids.length, 13, `登记源必须 13，实际 ${ids.length}`);
     const active = ids.filter(id => mod42.SOURCE_HANDLERS[id].lifecycle === 'active');
     const probation = ids.filter(id => mod42.SOURCE_HANDLERS[id].lifecycle === 'probation');
-    assert.strictEqual(active.length, 10, `上链源必须 10，实际 ${active.length}`);
+    assert.strictEqual(active.length, 11, `上链源必须 11，实际 ${active.length}`);
     assert.strictEqual(probation.length, 2, `观察源必须 2，实际 ${probation.length}`);
     assert.deepStrictEqual(probation.sort(), ['suyinMigu', 'suyinQQ'].sort(), '观察源应为 suyinQQ/suyinMigu');
     assert.strictEqual(mod42.SOURCE_HANDLERS.huibq.coldStart, true, 'huibq 应带 coldStart:true');
@@ -1397,7 +1397,7 @@ async function test(name, fn) {
     const re = /([A-Za-z_$][\w$]*)\s*:\s*(true|false)/g;
     let m;
     while ((m = re.exec(clean))) keys.add(m[1]);
-    assert.strictEqual(keys.size, 12, 'SOURCE_TOGGLES 必须为 12 个登记源，实际 ' + keys.size);
+    assert.strictEqual(keys.size, 13, 'SOURCE_TOGGLES 必须为 13 个登记源，实际 ' + keys.size);
     for (const ep of ENDPOINTS) {
       if (ep.toggleable === false) continue;
       for (const sid of ep.sources) {
@@ -1621,5 +1621,12 @@ async function test(name, fn) {
 
   console.log('\n冒烟测试完成：67 组用例');
   if (process.exitCode) console.error('存在失败用例');
-  process.exit(process.exitCode || 0);
+  __exit(process.exitCode || 0);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

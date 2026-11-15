@@ -1,6 +1,6 @@
 # 架构与调用链（ARCHITECTURE）
 
-> 单文件聚合音源：`lx-source.js`（5733 行 / 299939 bytes，v8.15.1）在 App 的 QuickJS 沙箱里运行，不是 Node。
+> 单文件聚合音源：`lx-source.js`（5806 行 / 303102 bytes，v8.16.0）在 App 的 QuickJS 沙箱里运行，不是 Node。
 > 本文只讲**边界、调用顺序、状态机**；逐段职责见 [`DEV_GUIDE.md`](./DEV_GUIDE.md)，历史取舍见 [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md)。
 
 ## 一、运行环境边界（决定了很多"不能做"）
@@ -58,7 +58,7 @@ App → lx.on(EVENT_NAMES.request)
       ├ forceQualityProbe → 手动解除档位短路，只放行一次
       ├ reportPlayback → App 真实播放回传；playDead 的唯一真实播放入口
       ├ config → 读（卡密脱敏）/ 写（34 个数字 ALLOWED_KEYS + 9 个布尔 ALLOWED_BOOL_KEYS + probeSongPool，范围钳制）
-      ├ exportHealthState / restoreHealthState → schema v2；完整态 7 天 TTL、controls-only 不受 TTL；源版本 8.15.1，兼容 8.14.1
+      ├ exportHealthState / restoreHealthState → schema v2；完整态 7 天 TTL、controls-only 不受 TTL；源版本 8.16.0，兼容 8.14.1/8.15.1
       └ trend → {history, maxPoints}
 ```
 
@@ -90,4 +90,4 @@ App → lx.on(EVENT_NAMES.request)
 3. `musicUrl` 返回 `{url, quality?}`：`quality` 必须是**实交付**音质，不能是请求档位。
 4. 错误对象必须有 `err.code`（17 个 `ERROR_CODES` 键名），App 按码分类；只有 message 会显示"未知错误"。
 5. `config` 写只接受 34 个数字键 + 9 个布尔键 + `probeSongPool`；与 App 39 键对表，4 个 source-only 数字键为 `probeConcurrency`、`probeTierCoreInterval`、`probeTierSecondaryInterval`、`qualityShortCircuitUniqueProbeMs`。
-6. 健康态持久化 schema v2：完整态 7 天 TTL、controls-only 永久；导出源版本 8.15.1，恢复兼容 8.14.1；禁止 URL/歌名/账号/设备。
+6. 健康态持久化 schema v2：完整态 7 天 TTL、controls-only 永久；导出源版本 8.16.0，恢复兼容 8.14.1/8.15.1；禁止 URL/歌名/账号/设备。

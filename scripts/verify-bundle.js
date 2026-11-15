@@ -40,16 +40,16 @@ rec('B2', '导出面包含运行必需 API', () => {
     assert.ok(k in mod, `缺少导出 ${k}`);
   }
 });
-rec('B3', '契约 12/10/2', () => {
+rec('B3', '契约 13/11/2', () => {
   const ids = Object.keys(mod.SOURCE_HANDLERS);
-  assert.strictEqual(ids.length, 12);
-  assert.strictEqual(ids.filter(id => mod.SOURCE_HANDLERS[id].lifecycle === 'active').length, 10);
+  assert.strictEqual(ids.length, 13);
+  assert.strictEqual(ids.filter(id => mod.SOURCE_HANDLERS[id].lifecycle === 'active').length, 11);
   assert.strictEqual(ids.filter(id => mod.SOURCE_HANDLERS[id].lifecycle === 'probation').length, 2);
-  assert.strictEqual(mod.PROVIDER_CONTRACT.registered, 12);
+  assert.strictEqual(mod.PROVIDER_CONTRACT.registered, 13);
 });
 rec('B4', 'PROVIDER_SPECS 与运行时契约逐源一致', () => {
   const all = mod.PROVIDER_SPECS.all;
-  assert.strictEqual(all.length, 12);
+  assert.strictEqual(all.length, 13);
   for (const s of all) {
     const h = mod.SOURCE_HANDLERS[s.id];
     assert.ok(h, `规格源未登记: ${s.id}`);

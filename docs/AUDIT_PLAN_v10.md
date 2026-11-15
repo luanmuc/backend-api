@@ -53,11 +53,11 @@
 | 测试有效性 | 断言 ID 形式、脚本守卫、退出码、入口登记 | `g-meta.js` | 14 | A |
 | 文档镜像 | 版本串三文档一致、数字可解析、死链 | `f-repo.js` + `docs-audit.js` | 8 | A |
 | 安全与密钥 | 明文 token、密钥、无 `/tmp` 硬编码 | `f-repo.js` | 2 | A |
-| 裁决层 admission | 证据分级、codeRank、admit 单入口、弱证据 TTL、关源清账 | `r-admission.js` | 23 | A |
+| 裁决层 admission | 证据分级、codeRank、admit 单入口、弱证据 TTL、关源清账 | `r-admission.js` | 24 | A |
 | 跨平台兜底 | 主平台失败识别、身份匹配、ID 隔离、grace、缓存失效 | `u-cross-platform.js` | 12 | A |
 | Provider Contract | 12/10/2、链位不重复、观察源无链位 | `y-provider-contract.js` | 15 | A |
 | 取消语义 | 真取消、竞态、在途清理 | `z-cancel.js` | 11 | A |
-| 健康事件 | 事件白名单、去重、脱敏 | `s-health-events.js` | 22 | A |
+| 健康事件 | 事件白名单、去重、脱敏 | `s-health-events.js` | 27 | A |
 | 桥媒体信封 | `__lxMedia:2`、分片、解码 | `x-media-envelope.js` | 12 | A |
 | 降级所有权 | `fallbackOwner` host/source | `w-fallback-owner.js` | 2 | A |
 | QuickJS 真引擎 | 宿主无 Buffer 环境 | `q-quickjs-real.js` | 3 | A |
@@ -78,8 +78,8 @@
 | 请求处理全流程（getUrlWithFallback） | `lx-source.js` | `b-logic` | ✅ |
 | 音质降级链（128k/320k/flac/flac24bit） | `lx-source.js` | `stress-test` S 组 12/0 | ✅ |
 | 竞速回退（fallbackRace） | `lx-source.js` | `b-logic` | ✅ |
-| L4 裁决层（admit 判定+记账唯一入口/证据分级/codeRank） | `lx-source.js` | `r-admission` 23 | ✅ |
-| 健康自愈（健康探测/10 分制/断路器/休眠/playDead） | `lx-source.js` + `health-*.js` | `s-health-events` 22 + 18 个 `health-*` 分项 | ✅ |
+| L4 裁决层（admit 判定+记账唯一入口/证据分级/codeRank） | `lx-source.js` | `r-admission` 24 | ✅ |
+| 健康自愈（健康探测/10 分制/断路器/休眠/playDead） | `lx-source.js` + `health-*.js` | `s-health-events` 27 + 18 个 `health-*` 分项 | ✅ |
 | 音质政策优化（能力备档不续期/definitiveFail 分类/短路判据/唯一源探路/forceQualityProbe） | `lx-source.js` | `quality-policy-v2` 12 | ✅ |
 | 音质真实标签（qualityFromDelivery/sniffAudioBytes/qualityConfidence/片段语义） | `lx-source.js` | `quality-truth` 9 | ✅ |
 | 缓存与防死链（分级 TTL/单写点/1min 失败缓存） | `lx-source.js` | `e-extra` | ✅ |
@@ -89,7 +89,7 @@
 | 取消语义（真取消/在途清理） | `lx-source.js` | `z-cancel` 11 | ✅ |
 | Provider Contract（12/10/2/链位不重复） | `lx-source.js` | `y-provider-contract` 15 | ✅ |
 | 候选源接入（fish/helloworld/hyw/jiexiang/lx/qdy） | `lx-source.js` | `candidate-audit-test` 6 | ✅ |
-| 健康事件（白名单/去重/脱敏） | `lx-source.js` | `s-health-events` 22、`t-health-events-stress` 12 | ✅ |
+| 健康事件（白名单/去重/脱敏） | `lx-source.js` | `s-health-events` 27、`t-health-events-stress` 12 | ✅ |
 | QuickJS 真引擎（宿主无 Buffer） | `lx-source.js` | `q-quickjs-real` 3 | ✅ |
 | 配置键体系（config action 面板可写/只读/已删键） | `lx-source.js` | `e-extra` 配置面 | ✅ |
 | 接口生命周期管理 | `lx-source.js` | `s-source-lifecycle` 14 | ✅ |
@@ -145,8 +145,8 @@ node test/audit/n-fixes.js                 # 4
 node test/audit/p-gaps.js                  # 4
 node test/audit/q-dfix.js                  # 5
 node test/audit/q2-dseries.js              # 3
-node test/audit/r-admission.js             # 23
-node test/audit/s-health-events.js         # 22
+node test/audit/r-admission.js             # 24
+node test/audit/s-health-events.js         # 27
 node test/audit/t-health-events-stress.js  # 12
 node test/audit/u-cross-platform.js        # 12
 node test/audit/v-cross-platform-stress.js # 13

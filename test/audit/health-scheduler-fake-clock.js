@@ -38,6 +38,13 @@ check('N1', '健康探测间隔带 ±10% jitter，且不会低于 1s（F21）', 
     const v = d.nextHealthCheckDelay(IV)
     assert(v >= 540000 && v <= 660000, `jitter 越界: ${v}`)
   }
+  // R37：标题写了「且不会低于 1s」，但上面三组只喂 600000，从来没验到下限保护——
+  // 源码 `Math.max(1000, ...)` 两层钳位（interval 与最终结果）实测生效，补判据锁住。
+  for (const tiny of [0, 1, 100, 500, -5]) {
+    const v = d.nextHealthCheckDelay(tiny, () => 0)
+    assert(v >= 1000, `间隔 ${tiny} 应被钳到 ≥1000，实际 ${v}`)
+  }
+  assert(d.nextHealthCheckDelay(0, () => 0) === 540000, '非数字 0 应回落到默认间隔 600000(±10%)')
 })
 
 check('N2', '有播放/取链流量在途时判定为忙，探测应暂停（F21）', () => {
@@ -54,5 +61,5 @@ check('N2', '有播放/取链流量在途时判定为忙，探测应暂停（F21
 })
 
 console.log(`\n===== N 组汇总：${passed} 通过 / ${failures.length} 失败 =====`)
-if (failures.length) { for (const f of failures) console.error(f); process.exit(1) }
-if (require.main === module) process.exit(0)
+if (failures.length) { for (const f of failures) console.error(f); process.exitCode = 1 }
+if (require.main === module) process.exit(process.exitCode || 0)

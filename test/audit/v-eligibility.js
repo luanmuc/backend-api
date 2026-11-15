@@ -111,6 +111,6 @@ check('V7', '质量档短路走统一资格入口，链构建不再二次过滤'
 console.log(`\n${passed} passed, ${failures.length} failed`)
 if (failures.length) {
   for (const f of failures) console.log(`- ${f}`)
-  process.exit(1)
+  process.exitCode = 1 // R30：失败分支只置退出码，被 require 时不得杀调用方
 }
-if (require.main === module) process.exit(0)
+if (require.main === module) process.exit(process.exitCode || 0)

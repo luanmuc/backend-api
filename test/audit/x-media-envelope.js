@@ -141,8 +141,10 @@ run('X12 1MiB 信封 JSON.parse ≤10ms', () => {
     JSON.parse(text)
     samples.push(Number(process.hrtime.bigint() - t0) / 1e6)
   }
-  const best = Math.min(...samples)
-  assert.ok(best <= 10, `1MiB JSON.parse 最慢样本 ${best.toFixed(2)}ms > 10ms`)
+  // R32：原来取的是 Math.min（**最快**样本），报错文案却写"最慢样本"——抖动到 30ms 也照样绿。
+  // 口径改成最慢样本（max），并用真实极值报错。
+  const worst = Math.max(...samples)
+  assert.ok(worst <= 10, `1MiB JSON.parse 最慢样本 ${worst.toFixed(2)}ms > 10ms（样本 ${samples.map(v => v.toFixed(2)).join('/')}）`)
 })
 
 run('X6 旧桥产物 {type:"Buffer",data} 仍兼容', () => {
@@ -154,4 +156,6 @@ run('X6 旧桥产物 {type:"Buffer",data} 仍兼容', () => {
 })
 
 console.log(`\n===== 桥媒体信封源侧审计：${checks} 通过 / ${failures} 失败 =====`)
-if (require.main === module) process.exit(failures ? 1 : 0)
+// R32：原来只有 `if (require.main) process.exit(...)`——被 require 时失败既不退出也不置退出码。
+if (failures) process.exitCode = 1
+if (require.main === module) process.exit(process.exitCode ? 1 : 0)

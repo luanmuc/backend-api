@@ -19,10 +19,11 @@ const SRC = path.join(__dirname, '../../lx-source.js');
 // 依赖查找顺序——`/tmp` 会被系统清理（已踩过两次），仓库内 node_modules 会被 git clean 抹掉，
 // 所以主路径放在**工作区持久目录** vendor/quickjs/node_modules，最后再尝试自动安装兜底。
 const WS = path.resolve(__dirname, '../../../..');   // repos/lx-music-source/test/audit → 工作区根
+// R35：注释写「显式指定优先于以上」但环境变量排在**最后**（实际是兜底），二者矛盾——按注释语义前置。
 const CAND = [
-  path.join(__dirname, '../../node_modules'),          // 仓库内（git clean 会删）
+  process.env.QUICKJS_EMSCRIPTEN || '',                // 显式指定 ← 真正优先
   path.join(WS, 'vendor/quickjs/node_modules'),        // 工作区持久 ← 主路径
-  process.env.QUICKJS_EMSCRIPTEN || '',                // 显式指定优先于以上？
+  path.join(__dirname, '../../node_modules'),          // 仓库内（git clean 会删）
 ].filter(Boolean);
 let getQuickJS = null;
 for (const dir of CAND) {
@@ -46,7 +47,7 @@ if (!getQuickJS) {
   console.log('⚠ [QR] 未验证：拿不到 quickjs-emscripten（网络不可用或安装失败）。');
   console.log('   手动修复：cd vendor/quickjs && npm i quickjs-emscripten');
   console.log('   跳过不等于通过 —— 退出码 3，请勿把本次结果计入断言通过数。');
-  process.exit(3);
+  __exit(3);
 }
 
 const src = fs.readFileSync(SRC, 'utf8');
@@ -91,12 +92,12 @@ const rec = (id, ok, detail) => {
     var module = { exports: {} }, exports = module.exports;
   `;
   const e0 = vm.evalCode(prelude);
-  if (e0.error) { console.log('✗ [QR0] prelude 失败：', vm.dump(e0.error)); process.exit(1); }
+  if (e0.error) { console.log('✗ [QR0] prelude 失败：', vm.dump(e0.error)); __exit(1); }
   e0.value.dispose();
 
   // QR1：真 QuickJS 里能加载（不带 module）
   const e1 = vm.evalCode(src + '\nglobalThis.__mod = module.exports;');
-  if (e1.error) { rec('QR1', false, '加载失败：' + vm.dump(e1.error).message); process.exit(1); }
+  if (e1.error) { rec('QR1', false, '加载失败：' + vm.dump(e1.error).message); __exit(1); }
   e1.value.dispose();
   rec('QR1', true, 'lx-source.js 在真 QuickJS 中加载成功');
 
@@ -114,14 +115,27 @@ const rec = (id, ok, detail) => {
   let out = 'pending';
   for (let i = 0; i < 3000; i++) {
     runtime.executePendingJobs();
-    vm.evalCode('__tick()');
+    // R35：evalCode 每次返回的 handle 必须 dispose——原实现 `vm.evalCode('__tick()')` 的句柄从未释放，
+    // 循环 3000 次会在 QuickJS 堆里堆 3000 个未释放值（真机上等价于内存泄漏）。
+    const tick = vm.evalCode('__tick()');
+    if (tick.error) { const m = vm.dump(tick.error); tick.error.dispose(); rec('QR3', false, '__tick 抛错：' + (m && m.message)); __exit(1); }
+    tick.value.dispose();
     runtime.executePendingJobs();
-    out = vm.evalCode('__out').value.consume(v => vm.dump(v));
+    const o = vm.evalCode('__out');
+    if (o.error) { const m = vm.dump(o.error); o.error.dispose(); rec('QR3', false, '读 __out 抛错：' + (m && m.message)); __exit(1); }
+    out = o.value.consume(v => vm.dump(v));
     if (out !== 'pending' && out !== 'undefined') break;
   }
   const blocked = out.indexOf('NOT_AUDIO') >= 0 && out.indexOf('DELIVERED') < 0;
   rec('QR3', blocked, out.indexOf('DELIVERED') >= 0 ? '放行了假链接：' + out : out.slice(0, 120));
 
   console.log(`\nQuickJS 真引擎汇总：${pass} 通过 / ${fail} 失败`);
-  process.exit(fail === 0 ? 0 : 1);
+  __exit(fail === 0 ? 0 : 1);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

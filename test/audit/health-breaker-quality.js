@@ -12,10 +12,8 @@
 
 const path = require('path')
 const SRC = path.join(__dirname, '../../lx-source.js')
-let handler = null
-
+// R34：本文件所有断言都直接驱动 __debug，从不经 handler 入口；原来的 handler 句柄声明与赋值是死代码。
 const setLx = () => {
-  handler = null
   globalThis.lx = {
     EVENT_NAMES: { inited: 'inited', request: 'request', updateAlert: 'updateAlert' },
     version: '2.0.0',
@@ -25,7 +23,7 @@ const setLx = () => {
       setTimeout(() => cb(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' }), null), 2)
       return () => {}
     },
-    on(n, h) { if (n === 'request') handler = h },
+    on() {},
     send() {},
   }
 }
@@ -132,6 +130,6 @@ check('Q5', '429 只退避命中档位，不污染其他档（F41）', () => {
 console.log(`\n===== Q 组汇总：${passed} 通过 / ${failures.length} 失败 =====`)
 if (failures.length) {
   for (const f of failures) console.error(f)
-  process.exit(1)
+  process.exitCode = 1 // R30：失败分支只置退出码，被 require 时不得杀调用方
 }
-if (require.main === module) process.exit(0)
+if (require.main === module) process.exit(process.exitCode || 0)

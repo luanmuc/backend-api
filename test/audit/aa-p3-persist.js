@@ -68,13 +68,13 @@ const snapshotOf = (m, id) => {
 check('A1 exportHealthState 结构合法且无敏感字段', () => {
   const m = fresh()
   m.recordSuccess('suyinKuwo', 300, '128k')
-  const res = call('exportHealthState')
-  assert(res && typeof res.then === 'function', 'export 必须返回 Promise')
-  // 同步读取：handler 返回 Promise，测试用 then 不方便；改为直接驱动模块导出函数
+  // R28：原先先 `call('exportHealthState')` 再断言返回 Promise，但那个 Promise 从未 await/使用，
+  // 只是残留的探索代码（还会留一个悬空 Promise）。直接驱动模块导出函数即可。
   const state = m.exportHealthState()
   assert(state.v === 2, `v 应为 2，实际 ${state.v}`)
   assert(state.controls && state.controls.suyinQQ, 'v2 必须带独立 controls')
-  assert(state.sourceVersion === '8.15.1', `sourceVersion 应为 8.15.1，实际 ${state.sourceVersion}`)
+  const PKG_VER = require(path.join(__dirname, '..', '..', 'package.json')).version
+  assert(state.sourceVersion === PKG_VER, `sourceVersion 应与 package.json 一致(${PKG_VER})，实际 ${state.sourceVersion}`)
   assert(state.savedAt > 0, 'savedAt 必须为正')
   assert(state.sources && state.sources.suyinKuwo, '缺少 suyinKuwo')
   const text = JSON.stringify(state)
@@ -95,7 +95,11 @@ check('A2 restore 有效状态后快照一致', () => {
   const res = m.restoreHealthState(state)
   assert(res.ok === true, `restore 应成功，实际 ${JSON.stringify(res)}`)
   const after = snapshotOf(m, 'suyinKuwo')
+  // R28：原来只比 before[key] 与 after[key]——快照字段被改名/删掉时两边都是 undefined，
+  // JSON.stringify 相等 → 这条断言恒过。先要求字段真实存在，再比一致性。
   for (const key of ['reqCount', 'probeCount', 'successRate', 'avgTime', 'state', 'healthScore', 'lastQuality']) {
+    assert(before[key] !== undefined, `快照缺少字段 ${key}（判据会退化成 undefined===undefined）`)
+    assert(after[key] !== undefined, `恢复后快照缺少字段 ${key}`)
     assert(JSON.stringify(before[key]) === JSON.stringify(after[key]), `${key} 不一致: ${before[key]} vs ${after[key]}`)
   }
 })
@@ -117,26 +121,38 @@ check('A4 版本不符/过期/超容量全部拒绝', () => {
   const good = m.exportHealthState()
   const badVer = JSON.parse(JSON.stringify(good))
   badVer.sourceVersion = '8.12.0'
-  assert(m.restoreHealthState(badVer).ok === false, '版本不符应拒绝')
+  const r1 = m.restoreHealthState(badVer)
+  assert(r1.ok === false, '版本不符应拒绝')
+  assert(/sourceVersion/i.test(r1.reason || ''), `拒绝原因应是 sourceVersion 不符，实际 ${r1.reason}`)
   const old = JSON.parse(JSON.stringify(good))
   old.savedAt = Date.now() - 8 * 24 * 3600 * 1000
-  assert(m.restoreHealthState(old).ok === false, '8 天前应拒绝')
+  const r2 = m.restoreHealthState(old)
+  assert(r2.ok === false, '8 天前应拒绝')
+  assert(/TTL/i.test(r2.reason || ''), `拒绝原因应是超出 TTL，实际 ${r2.reason}`)
   const huge = JSON.parse(JSON.stringify(good))
   huge.sources.suyinKuwo.breaker.note = 'x'.repeat(300000)
-  assert(m.restoreHealthState(huge).ok === false, '超 256KB 应拒绝')
+  const r3 = m.restoreHealthState(huge)
+  assert(r3.ok === false, '超 256KB 应拒绝')
+  assert(/256KB/i.test(r3.reason || ''), `拒绝原因应是超 256KB，实际 ${r3.reason}`)
 })
 
 // A5 恢复不污染 success/fail cache
 check('A5 restore 不写入 successCache/failCache', () => {
+  // R28：原来恢复前缓存本来就是空的，只能抓"凭空写入"；改为先种一条真缓存再恢复，
+  // 要求既不被清空也不被覆盖——这才是"持久化不碰缓存"的完整语义。
   const m = fresh()
+  const d = m.__debug
+  assert(d && d.successCache && d.failCache, '缺少缓存测试钩子')
+  d.successCache.set('seed:ok', { url: 'https://seed.test/a.mp3', quality: '128k', source: 'suyinKuwo', platform: 'kw', ts: Date.now() })
+  d.failCache.set('seed:fail', { ts: Date.now(), code: 'SERVER_ERROR' })
   const state = m.exportHealthState()
   state.sources.suyinKuwo.breaker.totalRequests = 2
   const res = m.restoreHealthState(state)
   assert(res.ok === true, 'restore 应成功')
-  const d = m.__debug
-  assert(d && d.successCache && d.failCache, '缺少缓存测试钩子')
-  assert(d.successCache.size() === 0, `successCache 应空，实际 ${d.successCache.size()}`)
-  assert(d.failCache.size() === 0, `failCache 应空，实际 ${d.failCache.size()}`)
+  assert(d.successCache.size() === 1, `successCache 应保持 1 条（不被清空/覆盖），实际 ${d.successCache.size()}`)
+  assert(d.failCache.size() === 1, `failCache 应保持 1 条，实际 ${d.failCache.size()}`)
+  const kept = d.successCache.get('seed:ok')
+  assert(kept && kept.url === 'https://seed.test/a.mp3', `种下的缓存被恢复流程改写：${JSON.stringify(kept)}`)
 })
 
 // A6 档位短路恢复
@@ -202,6 +218,11 @@ check('A10 无回滚开关，始终导出 v2', () => {
   const state = m.exportHealthState()
   assert(state.v === 2, `应始终为 v2，实际 ${state.v}`)
   assert(state.controls && state.controls.suyinQQ, 'v2 应带 controls')
+  // R28：`healthV2Enabled` 这个键在产物里根本不存在，传进配置等于没传——所以要直接对源码取证：
+  // "无回滚开关" 的判据是源码里没有这个开关读取点，而不是在空配置上断言 v===2。
+  const srcText = require('fs').readFileSync(SRC, 'utf8')
+  const hits = srcText.split('\n').filter(l => l.includes('healthV2Enabled') && !l.trim().startsWith('//')).length
+  assert(hits === 0, `源码里仍存在 healthV2Enabled 开关读取点（${hits} 处）`)
 })
 
 console.log(`\n${passed} passed, ${failures.length} failed`)
@@ -209,4 +230,4 @@ if (failures.length) {
   for (const f of failures) console.log(`- ${f}`)
   if (require.main === module) process.exit(1)
 }
-if (require.main === module) process.exit(0)
+if (require.main === module) process.exit(process.exitCode || 0)

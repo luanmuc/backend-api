@@ -59,6 +59,19 @@
 | `suyinMigu` | 上游 502 解除 | 观察期转正评审 |
 | Juhe 族（kw/wy/kg/mg） | 429 基础设施恢复且 `juheTx` 稳定 | 一次只回一个平台，先 probation |
 
+## 5.5 候选接入裁决（v8.16.0，2026-11-15）
+
+生态扫描落盘 4 个候选，逐个判「接 / 不接」：
+
+| 候选 | 裁决 | 证据 | 结论 |
+|---|---|---|---|
+| `qingliang`（晴亮） | 🟢 **只接 tx 一条** | `POST music.lzmhhh.com/api/music/url`（`type=qq` + Referer）→ 5 首矩阵全 `206 + audio/mpeg`，折 ≈320k，`ID3\x03` 头合法；裸请求同样 206 | 已接入为 `qingliangTx`（tx chain 2、320k、`reviewAt 2026-11-18`） |
+| `xinglan`（星岚） | 🟡 不整包接入 | 主线路 `api.vkeys.cn/v2/music/tencent/geturl` 返回 `quality:"音乐试听"`、`RS0` 前缀，960,887 bytes vs 全曲 10,792,943（差 11.2 倍）；v3 降级 `code:110000/500011` 不可用；整包 74KB + `_u()` 混淆 + 写死卡密 `6C1F-53W0-GRKI-EVFG` | 只借鉴 `freeTrialInfo` / `RS0` 片段检测思路，不接源 |
+| `feichangdao`（非常道） | ❌ 同源重复 | 端点全落在我方已有 `oiapi.net` / `api.xcvts.cn` / `music-api.gdstudio.xyz`（已在 `EXCLUDE_DOMAINS`）/ haitangw·changqing 模板 / 汽水（`api-vehicle.volcengine.com` + `api.qishui.com`） | 不接入，留档本表 |
+| `suyin`（溯音） | ❌ 同源重复 | 只有 `oiapi.net` + `api.xcvts.cn` 两个上游，且 key 与溯音系同一个（`oiapi-ef6133b7-…`） | 不接入，留档本表 |
+
+判据：**接进来必须能给出「我方尚未覆盖的上游」**；同一上游多接一份，只是同一失败率多一份分母，还会抢走竞速窗口。
+
 ## 6. 禁止事项
 
 - 不得因为“旧代码里有”就保留死源。

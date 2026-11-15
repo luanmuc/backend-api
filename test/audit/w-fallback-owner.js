@@ -5,7 +5,8 @@
  * 验收目标：
  *   W1 inited 上报 5 个平台
  *   W2 每个平台都显式声明 fallbackOwner="source"
- *   W3 未声明时 App 会回退 host，因此源侧不能让字段缺失
+ *   （原头部还列了 W3「未声明时 App 回退 host」——那是 App 侧契约，由 App 仓
+ *    check_source_config_contract.js 守；本仓没有对应判据，R38 起只列真实存在的 W1/W2。）
  *
  * 运行：/usr/local/bin/node20 test/audit/w-fallback-owner.js
  */
@@ -48,4 +49,6 @@ run('W2 5 个平台均声明 fallbackOwner=source', () => {
 })
 
 console.log(`\n===== P1 fallback owner 审计：${checks} 通过 / ${failures} 失败 =====`)
+// R38：只有 `if (require.main) process.exit(...)`——被 require 时失败既不退出也不置退出码。
+if (failures) process.exitCode = 1
 if (require.main === module) process.exit(failures ? 1 : 0)

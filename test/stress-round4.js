@@ -369,7 +369,7 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
   console.log('\n[V9] soak 4000 次：堆增长有界、定时器不累积');
   if (typeof global.gc !== 'function') {
     console.error('V9a 需要 --expose-gc 才能形成稳定堆结论；请用 node --expose-gc test/stress-round4.js')
-    process.exit(3)
+    __exit(3)
   }
   {
     const m = fresh({}, ['suyinKuwo']);
@@ -1322,5 +1322,12 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
 
   console.log(`\n===== V 组汇总：${pass} 通过 / ${fail} 失败 =====`);
   if (fail) console.log('失败编号：', failures.join(', '));
-  process.exit(fail === 0 ? 0 : 1);
+  __exit(fail === 0 ? 0 : 1);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

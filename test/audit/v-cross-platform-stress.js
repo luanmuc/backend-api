@@ -111,10 +111,18 @@ const queryOf = (u, keys) => {
   }
   return '';
 };
-const midFor = (name) => '004' + Buffer.from(String(name)).toString('hex').slice(0, 9).toUpperCase();
+// R25：原写法只取 hex 前 9 位 ≈ 歌名前 3.6 个字符，于是「Miss Song 0…200」201 首的 songmid
+// 全部撞成同一个 `0044D6973732` —— 缓存键/candidate 归一全被污染，V4 的「201 首」实际是同歌重复，
+// 「不串歌」也永远测不出来。改为头 6 位 + 尾 6 位，保证带序号的歌名各不相同。
+const midFor = (name) => {
+  const hex = Buffer.from(String(name)).toString('hex').toUpperCase();
+  return '004' + (hex.length <= 12 ? hex : hex.slice(0, 6) + hex.slice(-6));
+};
 const musicInfo = (name, singer = 'Michita (ミチタ)', duration = 302) => ({ name, singer, duration });
 
-function sceneFor({ kw = 'auto', qq = 'match', wy = 'empty', searchStatus = 200, slowKw = false } = {}) {
+// R25：原签名里的 `wy` 是死参数——'empty' 与其它取值返回的是同一个 `{songs:[]}`，
+// 等于「wy 分支从未被走到」。删掉参数与那段同值分支，需要 wy 候选时另写场景。
+function sceneFor({ kw = 'auto', qq = 'match', searchStatus = 200, slowKw = false } = {}) {
   return (u, opts) => {
     if (u.includes('search.kuwo.cn')) {
       const q = queryOf(u, ['all']);
@@ -197,7 +205,6 @@ function sceneFor({ kw = 'auto', qq = 'match', wy = 'empty', searchStatus = 200,
       });
     }
     if (u.includes('music.163.com/api/search/get/web')) {
-      if (wy === 'empty') return json({ result: { songs: [] } });
       return json({ result: { songs: [] } });
     }
     if (u.includes('api.music.lerd.dpdns.org/tx')) {
@@ -240,7 +247,10 @@ const isKw = (r) => r && r.sourcePlatform === 'kw';
     }, 'kw').then(r => ({ ok: true, r })).catch(e => ({ ok: false, e }))));
     const ok = rs.filter(x => x.ok);
     rec('V1', '20/20 交付且全部 tx', ok.length === 20 && ok.every(x => isTx(x.r)), `ok=${ok.length} platforms=${ok.map(x => x.r && x.r.sourcePlatform).join(',')}`);
-    rec('V2', 'QQ 搜索次数不放大（≤20）', qqSearchCount() <= 20, `qqSearch=${qqSearchCount()}`);
+    // R25：旧判据 `<= 20` 在 20 个请求下必然成立（0 次也算过）。要求至少搜过 1 次才证明走了跨平台，
+    // 且 20 并发去重后不得放大成 20 次。
+    const n2 = qqSearchCount();
+    rec('V2', '20 并发只搜 1~20 次（既真走了跨平台，又没放大）', n2 >= 1 && n2 <= 20, `qqSearch=${n2}`);
   }
 
   // V3 —— 50 次顺序同歌，缓存只搜一次
@@ -265,13 +275,19 @@ const isKw = (r) => r && r.sourcePlatform === 'kw';
   scene = sceneFor();
   {
     let ok = 0;
+    const qq0 = qqSearchCount();
     for (let i = 0; i < 201; i++) {
       try {
         const r = await call('musicUrl', { type: '128k', traceId: 'v4_' + i, musicInfo: musicInfo('Miss Song ' + i) }, 'kw');
         if (isTx(r)) ok++;
       } catch (e) { /* ignore */ }
     }
-    rec('V4', '201/201 仍可交付 tx', ok === 201, `ok=${ok}`);
+    const qq4 = qqSearchCount() - qq0;
+    // R25：标题写「不串歌」，旧判据只数交付成功数（缓存串歌也照样 201 全绿）。
+    // 真判据：201 首互不相同的歌必须各自真的搜一次目标平台——若缓存键被串成同一首，
+    // 后面 200 首会命中第一首的缓存，搜索数会塌成个位数。
+    rec('V4', '201/201 交付 tx 且每首各自搜目标平台（缓存不串歌）', ok === 201 && qq4 >= 201,
+      `ok=${ok} qqSearch=+${qq4}（201 首应各搜 1 次，塌成小数即缓存串歌）`);
   }
 
   // V5 —— 总开关关闭，零跨平台搜索
@@ -307,7 +323,8 @@ const isKw = (r) => r && r.sourcePlatform === 'kw';
       third = await call('musicUrl', { type: '128k', traceId: 'v6_c', musicInfo: musicInfo('Miss Reopen') }, 'kw');
     } catch (e) { third = e; }
     rec('V6', '关后不交付 tx、重开新歌恢复 tx',
-      isTx(first) && !(second && second.subSource === 'juheTx') && isTx(third),
+      isTx(first) && toggledOff && toggledOff.enabled === false && !(second && second.subSource === 'juheTx')
+        && toggledOn && toggledOn.enabled === true && isTx(third),
       JSON.stringify({ toggledOff, second: second && second.sourcePlatform, secondErr: secondErr && secondErr.code, toggledOn, third: third && (third.sourcePlatform || third.code) }));
   }
 
@@ -417,7 +434,14 @@ const isKw = (r) => r && r.sourcePlatform === 'kw';
   console.log(`\n结果：${res.length - fail.length}/${res.length} 通过`);
   if (fail.length) {
     console.log('失败项：' + fail.map(x => `${x.id}:${x.name} (${x.detail})`).join(' | '));
-    process.exit(1);
+    __exit(1);
   }
-  process.exit(0);
+  __exit(0);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

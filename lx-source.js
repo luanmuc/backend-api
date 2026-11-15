@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
  * @description v8.15.1 契约与死配置收口版（12 登记源 / 10 上链 / 2 观察；健康态导出源版本升 8.15.1 且兼容 8.14.1；删除 2 个未登记配置键、长青 4 个死模板与 provider 未消费 timeoutMs；限流退避统一由 rateLimitBackoffMs 决定）
- * @version 8.15.1
+ * @version 8.16.0
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -361,7 +361,7 @@ var __lxSourceBundle = (() => {
       var HELLOWORLD_KW_CONVERT_API = "http://nmobi.kuwo.cn/mobi.s";
       var HELLOWORLD_HTW_API = "https://musicserver.haitangw.cc/v1/music/resolve-url";
       var SOURCE_TOGGLES = {
-        // v8.13：12 个登记源 / 10 个上链源 / 2 个观察源。
+        // v8.16：13 个登记源 / 11 个上链源 / 2 个观察源。
         // 观察源（probation）默认关闭，只探测、不进播放链：suyinQQ(tx)、suyinMigu(mg)。
         suyinKuwo: true,
         // 溯音酷我：五平台兜底（kw/wy/tx/mg/kg）
@@ -380,7 +380,9 @@ var __lxSourceBundle = (() => {
         huibq: true,
         // Huibq：kw/wy 链尾兜底（冷启动源）
         juheTx: true,
-        // Juhe 聚合(tx)：tx 第二源，7 天复核
+        // Juhe 聚合(tx)：tx 第三源，7 天复核
+        qingliangTx: true,
+        // 晴亮(tx)：tx 主用第二源（2026-11-15 实测 5/5 全曲 320k），3 天复核
         ikun: true,
         // ikun：kw/wy 链尾兜底（公益版免卡密）
         suyinQQ: false,
@@ -448,7 +450,7 @@ var __lxSourceBundle = (() => {
         const probeSong = probePool[(globalThis.__probeRound || 0) % probePool.length];
         const probe163Id = PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length];
         const cfg2 = {
-          // ---- 上链源：10 个 ----
+          // ---- 上链源：11 个 ----
           suyinKuwo: {
             tier: "core",
             probes: [
@@ -512,6 +514,13 @@ var __lxSourceBundle = (() => {
             handlerSong: { rid: "228908", songmid: "228908", id: "228908", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }
           },
           juheTx: juheProbeCfg("tx", { songmid: "228908", id: "228908", quality: "128k" }),
+          qingliangTx: {
+            tier: "secondary",
+            quality: "128k",
+            useHandler: true,
+            handlerPlatform: "tx",
+            handlerSong: { songmid: "0039MnYb0qxYhV", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 269e3 }
+          },
           ikun: {
             tier: "secondary",
             quality: "128k",
@@ -834,6 +843,22 @@ var __lxSourceBundle = (() => {
       var HEALTH_HISTORY_MAX = 1008;
       var HEALTH_EVENT_MAX = 500;
       var HEALTH_EVENT_FIELDS = ["traceId", "eventId", "event", "sourceId", "platform", "quality", "ok", "code", "latencyMs", "reason", "from", "to"];
+      var HEALTH_EVENT_PRIVACY_RE = /^(name|songName|songNameRaw|singer|artist|album|url|uri|hash|songmid|mid|rid|lyric|account|phone|imei|device|token|cookie|openid|secret)$/i;
+      var healthEventFieldAudit = { unknown: /* @__PURE__ */ new Map(), privacyDropped: 0, unknownTotal: 0, warned: /* @__PURE__ */ new Set() };
+      function assertEventFieldPolicy() {
+        const bad = HEALTH_EVENT_FIELDS.filter((f) => HEALTH_EVENT_PRIVACY_RE.test(String(f)));
+        const dup = HEALTH_EVENT_FIELDS.filter((f, i) => HEALTH_EVENT_FIELDS.indexOf(f) !== i);
+        const errors = [];
+        if (bad.length) errors.push(`\u9690\u79C1\u5B57\u6BB5 ${bad.join(",")}`);
+        if (dup.length) errors.push(`\u91CD\u590D\u5B57\u6BB5 ${[...new Set(dup)].join(",")}`);
+        if (errors.length) {
+          const err = new Error(`${ERROR_CODES.CONTRACT_ERROR}: \u4E8B\u4EF6\u5B57\u6BB5\u767D\u540D\u5355\u975E\u6CD5 -> ${errors.join(" | ")}`);
+          err.code = ERROR_CODES.CONTRACT_ERROR;
+          throw err;
+        }
+        return HEALTH_EVENT_FIELDS.length;
+      }
+      assertEventFieldPolicy();
       var healthEventRing = [];
       var healthEventSeq = 0;
       var healthEventDropped = 0;
@@ -848,6 +873,20 @@ var __lxSourceBundle = (() => {
           traceId: clipText(entry.traceId, 64),
           event: clipText(entry.event || "unknown", 32)
         };
+        for (const k of Object.keys(entry)) {
+          if (k === "seq" || k === "eventId" || k === "ts") continue;
+          if (HEALTH_EVENT_FIELDS.indexOf(k) >= 0) continue;
+          if (HEALTH_EVENT_PRIVACY_RE.test(k)) healthEventFieldAudit.privacyDropped++;
+          else {
+            healthEventFieldAudit.unknownTotal++;
+            const c = (healthEventFieldAudit.unknown.get(k) || 0) + 1;
+            healthEventFieldAudit.unknown.set(k, c);
+            if (c === 1 && healthEventFieldAudit.warned.size < 20) {
+              healthEventFieldAudit.warned.add(k);
+              logWarn(`\u5065\u5EB7\u4E8B\u4EF6\u51FA\u73B0\u672A\u767B\u8BB0\u5B57\u6BB5 "${k}"\uFF08\u5DF2\u4E22\u5F03\uFF09\u2014\u2014\u5982\u9700\u8BB0\u5F55\u8BF7\u5148\u52A0\u8FDB HEALTH_EVENT_FIELDS`);
+            }
+          }
+        }
         for (const k of HEALTH_EVENT_FIELDS) {
           if (k === "traceId" || k === "event" || entry[k] === void 0) continue;
           if (k === "ok") {
@@ -865,6 +904,16 @@ var __lxSourceBundle = (() => {
           healthEventRing.splice(dropAt >= 0 ? dropAt : 0, 1);
           healthEventDropped++;
         }
+      }
+      function getHealthEventFieldAudit() {
+        const unknownCounts = {};
+        for (const [k, v] of healthEventFieldAudit.unknown) unknownCounts[k] = v;
+        return {
+          unknown: [...healthEventFieldAudit.unknown.keys()].sort(),
+          unknownCounts,
+          unknownTotal: healthEventFieldAudit.unknownTotal,
+          privacyDropped: healthEventFieldAudit.privacyDropped
+        };
       }
       function getHealthEvents(params) {
         const cap = Math.min(Math.max(Number(params && params.limit) || HEALTH_EVENT_MAX, 1), HEALTH_EVENT_MAX);
@@ -2741,7 +2790,7 @@ var __lxSourceBundle = (() => {
         return keywords;
       }
       var FRAGMENT_RE = /(15\s*秒|0\.?\s*8x|片段|试听|demo|preview|teaser)/i;
-      var PREVIEW_URL_RE = /(preview|test|sample|试听|片段|demo|teaser|clip)/i;
+      var PREVIEW_URL_RE = /(preview|test|sample|试听|片段|demo|teaser|clip|\/RS\d)/i;
       function isPreviewFragmentUrl(url) {
         if (!url || typeof url !== "string") return false;
         return PREVIEW_URL_RE.test(url);
@@ -3343,6 +3392,44 @@ var __lxSourceBundle = (() => {
         }
         throw new Error(`${ERROR_CODES.NOT_FOUND}: Juhe\u54CD\u5E94\u5F02\u5E38(${(d == null ? void 0 : d.msg) || "\u672A\u77E5"})`);
       }
+      var QINGLIANG_TX_URL = "https://music.lzmhhh.com/api/music/url";
+      var QINGLIANG_TX_TIMEOUT_MS = 8e3;
+      async function qingliangTxGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
+        if (platform !== "tx") throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u6674\u4EAE\u53EA\u6CE8\u518C\u4E86 tx`);
+        const qqId = getQQSongId(songInfo);
+        const mid = (qqId && qqId.type === "mid" ? qqId.value : null) || (songInfo == null ? void 0 : songInfo.songmid) || (songInfo == null ? void 0 : songInfo.id) || songId || "";
+        if (!mid || typeof mid !== "string" || !mid.trim()) {
+          throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u6674\u4EAEtx\u7F3A songmid`);
+        }
+        const res = await httpRequestWithRetry(QINGLIANG_TX_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": "https://music.lzmhhh.com/",
+            "User-Agent": getMobileUserAgent()
+          },
+          body: `id=${encodeURIComponent(mid.trim())}&type=qq`,
+          timeout: QINGLIANG_TX_TIMEOUT_MS,
+          cancelToken
+        }, 1);
+        const d = res && res.body;
+        const code = d && d.code !== void 0 && d.code !== null ? String(d.code) : "";
+        const data = d && d.data;
+        const url = typeof data === "string" ? data : data && typeof data.url === "string" ? data.url : "";
+        if (code === "1" && typeof url === "string" && /^https?:/.test(url)) {
+          const u = upgradeToHttps(url);
+          if (trialMarkOf(d) || isPreviewFragmentUrl(u)) {
+            const err = new Error(`${ERROR_CODES.PREVIEW_FRAGMENT}: \u6674\u4EAEtx\u53EA\u7ED9\u8BD5\u542C\u7247\u6BB5`);
+            err.code = ERROR_CODES.PREVIEW_FRAGMENT;
+            err.evidence = "medium";
+            err.fragmentUrl = u;
+            err.fragmentQuality = "128k";
+            throw err;
+          }
+          return u;
+        }
+        throw new Error(`${ERROR_CODES.NOT_FOUND}: \u6674\u4EAEtx\u54CD\u5E94\u5F02\u5E38(${d && d.msg || code || "\u672A\u77E5"})`);
+      }
       var changqingGetUrl = createTemplateVipSource(CHANGQING_KW_URL_TEMPLATE, /kw\.php/, "\u957F\u9752");
       function getPlatformSongId(platform, songInfo) {
         if (platform === "kg") return (songInfo == null ? void 0 : songInfo.hash) || (songInfo == null ? void 0 : songInfo.songmid) || (songInfo == null ? void 0 : songInfo.id) || (songInfo == null ? void 0 : songInfo.rid) || (songInfo == null ? void 0 : songInfo.mid) || null;
@@ -3510,8 +3597,8 @@ var __lxSourceBundle = (() => {
       }
       var HEALTH_STATE_VERSION = 2;
       var HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-      var HEALTH_STATE_SOURCE_VERSION = "8.15.1";
-      var HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1"];
+      var HEALTH_STATE_SOURCE_VERSION = "8.16.0";
+      var HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0"];
       var HEALTH_STATE_MAX_BYTES = 256 * 1024;
       var HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1e3;
       var HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1e3;
@@ -3779,7 +3866,7 @@ var __lxSourceBundle = (() => {
         };
       }
       var SOURCE_HANDLERS = {
-        // ---- 上链源：10 个 ----
+        // ---- 上链源：11 个 ----
         suyinKuwo: provider("suyinKuwo", "\u6EAF\u97F3\u9177\u6211", (platform, songId, quality, songInfo, cancelToken) => suyinKuwoGetUrl(songInfo, quality, cancelToken), "flac", {
           platforms: ["kw", "wy", "tx", "mg", "kg"],
           anchors: ["rid", "songmid", "id"],
@@ -3837,10 +3924,18 @@ var __lxSourceBundle = (() => {
         juheTx: provider("juheTx", "Juhe\u805A\u5408(tx)", juheGetUrl, "flac", {
           platforms: ["tx"],
           anchors: ["songmid", "musicId", "id"],
-          chain: { tx: 2 },
+          chain: { tx: 3 },
           upstreamGroup: "juhe",
           reviewAt: "2026-11-19",
-          note: "2026-11-11 \u6062\u590D\uFF1B7 \u5929\u590D\u6838\uFF0C\u4ECD\u4E3A tx \u7B2C\u4E8C\u6E90"
+          note: "2026-11-11 \u6062\u590D\uFF1B7 \u5929\u590D\u6838\uFF0C\u964D\u4E3A tx \u7B2C\u4E09\u6E90\uFF08\u672C\u8F6E 0% \u6210\u529F\u7387\uFF09"
+        }),
+        qingliangTx: provider("qingliangTx", "\u6674\u4EAE(tx)", qingliangTxGetUrl, "320k", {
+          platforms: ["tx"],
+          anchors: ["songmid", "musicId", "id"],
+          chain: { tx: 2 },
+          upstreamGroup: "qingliang-tx",
+          reviewAt: "2026-11-18",
+          note: "2026-11-15 \u5B9E\u6D4B 5/5 \u5168\u66F2 320k\uFF1B\u7B2C\u4E09\u65B9\u5355\u70B9\uFF0C3 \u5929\u590D\u6838"
         }),
         ikun: provider("ikun", "ikun", ikunGetUrl, "flac", {
           platforms: ["kw", "wy"],
@@ -3881,8 +3976,8 @@ var __lxSourceBundle = (() => {
         const registered = ids.length;
         const active = ids.filter((id) => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.ACTIVE);
         const probation = ids.filter((id) => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.PROBATION);
-        if (registered !== 12) errors.push(`\u767B\u8BB0\u6E90\u5FC5\u987B\u4E3A 12\uFF0C\u5B9E\u9645 ${registered}`);
-        if (active.length !== 10) errors.push(`\u4E0A\u94FE\u6E90\u5FC5\u987B\u4E3A 10\uFF0C\u5B9E\u9645 ${active.length}`);
+        if (registered !== 13) errors.push(`\u767B\u8BB0\u6E90\u5FC5\u987B\u4E3A 13\uFF0C\u5B9E\u9645 ${registered}`);
+        if (active.length !== 11) errors.push(`\u4E0A\u94FE\u6E90\u5FC5\u987B\u4E3A 11\uFF0C\u5B9E\u9645 ${active.length}`);
         if (probation.length !== 2) errors.push(`\u89C2\u5BDF\u6E90\u5FC5\u987B\u4E3A 2\uFF0C\u5B9E\u9645 ${probation.length}`);
         if (toggleIds.length !== registered) errors.push(`SOURCE_TOGGLES \u5FC5\u987B\u4E0E SOURCE_HANDLERS \u7B49\u91CF\uFF0Ctoggles=${toggleIds.length}, handlers=${registered}`);
         for (const id of toggleIds) if (!SOURCE_HANDLERS[id]) errors.push(`SOURCE_TOGGLES \u5B58\u5728\u672A\u767B\u8BB0\u6E90 ${id}`);
@@ -5215,7 +5310,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.15.1 \u5DF2\u52A0\u8F7D\uFF0812 \u767B\u8BB0 / 10 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.16.0 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {
@@ -5305,6 +5400,14 @@ var __lxSourceBundle = (() => {
             getHealthSnapshot,
             // F42：取链/播放摘除分层断言
             trialMarkOf,
+            HEALTH_EVENT_FIELDS,
+            // S5b：策略校验需要能注入漂移的白名单
+            assertEventFieldPolicy,
+            // S5b：白名单漂移必须加载即炸
+            getHealthEventFieldAudit,
+            // S5b：未知/隐私字段计数（只读快照）
+            qingliangTxGetUrl,
+            // A3d：试听标记必须有真实生产者，防「没人会置的开关」
             ADMISSION_POLICY,
             admissionLedger,
             suyinKuwoSearch,
@@ -5602,7 +5705,7 @@ var __lxSourceBundle = (() => {
           "tx"
         ],
         "chain": {
-          "tx": 2
+          "tx": 3
         },
         "upstreamGroup": "juhe",
         "auth": "none",
@@ -5614,6 +5717,32 @@ var __lxSourceBundle = (() => {
         ],
         "coldStart": false,
         "reviewAt": "2026-11-19"
+      };
+    }
+  });
+
+  // src/providers/qingliangTx.js
+  var require_qingliangTx = __commonJS({
+    "src/providers/qingliangTx.js"(exports, module) {
+      module.exports = {
+        "id": "qingliangTx",
+        "name": "\u6674\u4EAE(tx)",
+        "lifecycle": "active",
+        "platforms": [
+          "tx"
+        ],
+        "chain": {
+          "tx": 2
+        },
+        "upstreamGroup": "qingliang-tx",
+        "auth": "none",
+        "maxQuality": "320k",
+        "qualitys": [
+          "128k",
+          "320k"
+        ],
+        "coldStart": false,
+        "reviewAt": "2026-11-18"
       };
     }
   });
@@ -5706,6 +5835,7 @@ var __lxSourceBundle = (() => {
         require_changqingVip(),
         require_huibq(),
         require_juheTx(),
+        require_qingliangTx(),
         require_ikun()
       ];
       var probation = require_probation();

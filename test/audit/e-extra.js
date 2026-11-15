@@ -66,8 +66,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   origLog('\n[J] 歌词链路（此前完全未测）');
   {
     const m = fresh(['suyinKuwo']);
-    // 声明面：只有 wy 声明了 lyric
-    const decl = m.SOURCE_TOGGLES ? null : null;
+    // 声明面：只有 wy 声明了 lyric（旧行 `const decl = ... ? null : null` 两侧同值，已删）
     // J1 wy 正常
     scene = () => json({ lrc: { lyric: '[00:00.00]晴天\n[00:05.00]故事的小黄花' }, tlyric: { lyric: '' } });
     let r1 = null, e1 = null;
@@ -90,7 +89,6 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     fresh(['suyinKuwo']); scene = () => json({ lrc: { lyric: '[00:00.00]🎵晴天☀️ 繁體 日本語' }, tlyric: { lyric: '翻译' } });
     let r4 = null;
     try { r4 = await call({ action: 'lyric', source: 'wy', info: { musicInfo: { name: 'x', songmid: '186016' } } }); } catch (e) { }
-    const txt = r4 && (r4.lyric || r4.lrc || '');
     rec('J4', '歌词 emoji/繁体/日文不损坏', String(JSON.stringify(r4 || '')).includes('🎵'), String(JSON.stringify(r4 || '')).slice(0, 70));
 
     // J5 超时
@@ -130,7 +128,6 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
 
     reset();
     let c4 = null; try { c4 = await call({ action: 'config', source: 'kw', info: {} }); } catch (e) { }
-    const masked = c4 && c4.ikunApiKey === '' || String(c4 && c4.ikunApiKey).includes('已设置');
     rec('K4', 'config 读模式脱敏（卡密不明文）', !!c4 && !JSON.stringify(c4).includes('sk-'), c4 ? `ikunApiKey=${JSON.stringify(c4.ikunApiKey)}` : '');
 
     reset();
@@ -280,12 +277,18 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     reset(); try { await req('flac', { ...GOOD, songmid: 'n1' + 0, name: 'N1歌0' }); } catch (e) { }
     rec('N1', 'successCache 容量 500，超限淘汰最旧后重查需重新外呼', n1ok >= 500 && total() > 0, `写入成功=${n1ok}/505，重查第 0 首外呼=${total()}（>0 说明已被淘汰）`);
 
-    fresh(['suyinKuwo']);
+    const M2 = fresh(['suyinKuwo']);
     scene = () => ({ error: 'ENOTFOUND' }); probeFn = () => ({ error: 'ENOTFOUND' });
     for (let i = 0; i < 305; i++) { try { await req('flac', { ...GOOD, songmid: 'n2' + i, name: 'N2歌' + i }); } catch (e) { } }
     const failCalls = total();
+    // 真判据（R24）：旧写法只断言「有外呼」，容量是否真的封顶没验。这里直接读 failCache 条目数。
+    // 该 LRU 的容量是方法 `.size()` 而不是属性（首次写错实测报出 size() 函数体）
+    const fc = M2.__debug && M2.__debug.failCache;
+    const failSize = !fc ? -1 : (typeof fc.size === 'function' ? fc.size() : Number(fc.size));
     reset(); try { await req('flac', { ...GOOD, songmid: 'n2' + 0, name: 'N2歌0' }); } catch (e) { }
-    rec('N2', 'failCache 容量 300 有界（不无限增长）', failCalls > 0, `305 首失败写入后总外呼=${failCalls}；重查最旧首外呼=${total()}`);
+    rec('N2', 'failCache 容量 300 有界（条目数封顶且超限后不无限增长）',
+      failCalls > 0 && failSize > 0 && failSize <= 300,
+      `305 首失败写入后总外呼=${failCalls}；failCache.size=${failSize}（上限 300）；重查最旧首外呼=${total()}`);
 
     note('N3', '淘汰后不误命中（结论由 N1/N2 承担）', 'N1/N2 已观测到淘汰后重新外呼');
 
@@ -329,15 +332,12 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   {
     fresh(['suyinKuwo']);
     const m = load();
-    const hs = m.computeHealthScore ? null : null;
     let snap = null; try { snap = await call({ action: 'health', source: 'kw', info: {} }); } catch (e) { }
     const s = snap && (snap.sources || snap);
     const one = Array.isArray(s) ? s[0] : (s && Object.values(s)[0]);
     const score = one && (one.score !== undefined ? one.score : one.healthScore);
     rec('P1', '健康分在 0 样本时不出现 NaN/Infinity', typeof score !== 'number' || Number.isFinite(score), `score=${score}`);
 
-    const arr = [];
-    for (let i = 0; i < 3; i++) arr.push({ id: 's' + i, score: 50, name: 's' + i });
     note('P2', '同分排序稳定（静态登记，非行为断言）', 'sortChainByHealth 以 score 降序 + 同分按原序，无 Math.random 参与');
 
     rec('P3', '健康快照字段与 App 消费对齐', !!one && (one.status !== undefined || one.state !== undefined || one.score !== undefined), one ? `字段=${Object.keys(one).slice(0, 6).join(',')}` : '无源快照');
@@ -346,11 +346,15 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     fresh(['suyinKuwo'], { fragmentFallback: false });
     scene = (u) => (u.includes('audio.test') ? okAudio() : json({ data: { url: 'https://audio.test/a.mp3' } }));
     probeFn = () => audio(mp3(5.3), 'audio/mpeg', 84972);
+    const srcOf = (snap) => { const x = snap && (snap.sources || snap); return Array.isArray(x) ? x.find(y => y.id === 'suyinKuwo') : (x && x.suyinKuwo); };
+    // 真判据（R24）：旧写法只要求快照存在（恒真）。现在取「交付前 → 只放一次片段 → 交付后」，
+    // 断言 totalSuccess 一个都不许涨（片段属业务失败，不能污染健康分口径）。
+    let b4 = null; try { b4 = srcOf(await call({ action: 'health', source: 'kw', info: {} })) || {}; } catch (e) { }
     try { await req('flac', { ...GOOD, songmid: 'p4' }); } catch (e) { }
-    let snap2 = null; try { snap2 = await call({ action: 'health', source: 'kw', info: {} }); } catch (e) { }
-    const s2 = snap2 && (snap2.sources || snap2);
-    const one2 = Array.isArray(s2) ? s2.find(x => x.id === 'suyinKuwo') : (s2 && s2.suyinKuwo);
-    rec('P4', '片段不计为成功（健康分口径不被污染）', !!one2, one2 ? `suyinKuwo success=${one2.totalSuccess} businessFail=${one2.copyrightFail || one2.businessFail}` : '无该源快照');
+    let one2 = null; try { one2 = srcOf(await call({ action: 'health', source: 'kw', info: {} })) || {}; } catch (e) { }
+    const succB = Number(b4 && b4.totalSuccess) || 0, succA = Number(one2 && one2.totalSuccess) || 0;
+    rec('P4', '片段不计为成功（健康分口径不被污染）', !!b4 && !!one2 && succA === succB,
+      one2 ? `success ${succB}→${succA}（必须持平）businessFail=${one2.copyrightFail || one2.businessFail}` : '无该源快照');
   }
 
   // ================= Q QuickJS 兼容 =================
@@ -358,7 +362,8 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   {
     const fs = require('fs');
     const src = fs.readFileSync(SRC, 'utf8');
-    const q1 = !/\bObject\.hasOwn\b/.test(src); // Object.hasOwn 是 ES2022，QuickJS 老版本没有
+    // Object.hasOwn / Array.prototype.at 都是 ES2022，老 QuickJS 没有（R24：注释早写了 .at 却漏判）
+    const q1 = !/\bObject\.hasOwn\b/.test(src) && !/\.at\(/i.test(src);
     rec('Q1', '无 ES2022+ 独有语法（Object.hasOwn 等）', q1, q1 ? '未使用 Object.hasOwn / Array.at' : '存在 ES2022+ API');
     const q2 = /Promise\.race/.test(src) && !/\bPromise\.any\b/.test(src);
     rec('Q2', 'Promise.race 可用、未用 Promise.any', q2, q2 ? 'race/finally 均 ES2018+，QuickJS 支持' : '使用了 Promise.any');
@@ -444,12 +449,21 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   // ================= S 参数与导出 =================
   origLog('\n[S] 参数边界与导出契约');
   {
-    fresh(['suyinKuwo']);
+    const MS = fresh(['suyinKuwo']);
+    const KNOWN = new Set(Object.values(MS.ERROR_CODES || {}));
     scene = () => json({ data: { url: 'https://audio.test/a.mp3' } }); probeFn = okAudio;
     const badTypes = ['', 'abc', '192k', 'flac24bit'];
     const out = [];
-    for (const t of badTypes) { reset(); let rr = null; try { rr = await req(t, { ...GOOD, songmid: 's1' + t }); out.push(rr ? rr.type : 'fail'); } catch (e) { out.push(e.code); } }
-    rec('S1', '非法 type 不崩且有兜底或明确码', out.every(x => x), out.join('/'));
+    // 真判据（R24）：旧写法 `out.every(x => x)` 只挡空串（'fail' 也算真）。
+    // 现在要求每个非法档位要么真的交付（拿到 type），要么抛的是 ERROR_CODES 里的已知码。
+    const okOne = (o) => (o && o.delivered) || (o && KNOWN.has(String(o.code)));
+    for (const t of badTypes) {
+      reset(); let rr = null;
+      try { rr = await req(t, { ...GOOD, songmid: 's1' + t }); out.push(rr && rr.type ? { delivered: true, type: rr.type } : { delivered: false, code: 'EMPTY' }); }
+      catch (e) { out.push({ delivered: false, code: e.code || 'NOCODE' }); }
+    }
+    rec('S1', '非法 type 不崩且要么降档交付、要么给已知错误码', out.every(okOne),
+      out.map(o => (o.delivered ? 'OK:' + o.type : 'CODE:' + o.code)).join('/'));
 
     let s2 = 0, s2d = '';
     try { await call({ action: 'musicUrl', source: 'kw', info: { type: 'flac' } }); s2d = '未拒绝'; } catch (e) { s2 = e.code === 'PARAM_ERROR' ? 1 : 0; s2d = e.code; } // 2026-11-10 收紧：旧判据用 code+message 正则，message 自带前缀 → 删掉 err.code 也能绿
@@ -461,7 +475,8 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     const durs = [0, -1, 1e9, 271000];
     const durOut = [];
     for (const d of durs) { reset(); let rr = null; try { rr = await req('flac', { ...GOOD, duration: d, songmid: 's3' + d }); durOut.push(rr ? 'deliver' : 'fail'); } catch (e) { durOut.push(e.code); } }
-    rec('S3', 'duration 0/负/1e9 不误判为片段', durOut.filter(x => x === 'deliver').length >= 1, durOut.join('/'));
+    // R24：旧判据只要求 4 种里 ≥1 种交付（其余可以是 PREVIEW_FRAGMENT）。异常时长属"不可判定"，必须全部放行。
+    rec('S3', 'duration 0/负/1e9/正常 四种都不误判为片段', durOut.every(x => x === 'deliver'), durOut.join('/'));
 
     fresh(['suyinKuwo']);
     let s4 = ''; try { await req('flac', { ...GOOD, songmid: 's4' }, 'qq'); } catch (e) { s4 = e.code; }
@@ -923,5 +938,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   origLog(`\n第二轮审计（J~U）汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) origLog(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);
-  process.exit(fail ? 1 : 0);
+  // require.main 守卫（R24）：被其他脚本 require 时只设退出码，不得杀掉调用方
+  if (require.main === module) process.exit(fail ? 1 : 0);
+  else process.exitCode = fail ? 1 : 0;
 })();

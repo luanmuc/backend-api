@@ -107,7 +107,7 @@ const restoreTime = () => { Date.now = REAL; };
   for (const [name, fn, want] of [
     ['Xing 269.8s（与 271s 差 0.4%）', () => audio(mp3(269.8), 'audio/mpeg', 10792943), 'PASS'],
     // D-29：ID3 头 10 字节 + 帧头 4 字节才够 16 字节门槛，4 字节同样不可播
-    ['无 Xing 头（无法定时长）', () => audio(Buffer.from([0x49, 0x44, 0x33, 0x03]), 'audio/mpeg', 10792943), 'RASS'],
+    ['无 Xing 头（无法定时长）', () => audio(Buffer.from([0x49, 0x44, 0x33, 0x03]), 'audio/mpeg', 10792943), 'REJECT'],
     ['Xing 5.3s（片段）', () => audio(mp3(5.3), 'audio/mpeg', 84972), 'REJECT'],
   ]) {
     fresh(['suyinKuwo']); scene = oneSource(); probeFn = fn; reset();
@@ -155,8 +155,8 @@ const restoreTime = () => { Date.now = REAL; };
     scene = (u) => {
       if (u.includes('audio.test')) return audio(mp3(269.7), 'audio/mpeg', 4317292);
       if (u.includes('oiapi.net/api/Kuwo')) {
-        const br = /br=9/.test(u) ? '128' : (u.includes('br=') ? '128' : '128');
-        return json({ data: { url: 'https://audio.test/a.mp3' }, bitrate: br, format: 'mp3' });
+        // C7 场景只提供 128k（三路分支同值，等价写死；R23 去掉恒等三元）
+        return json({ data: { url: 'https://audio.test/a.mp3' }, bitrate: '128', format: 'mp3' });
       }
       return { error: 'ECONNREFUSED' };
     };
@@ -228,5 +228,12 @@ const restoreTime = () => { Date.now = REAL; };
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   console.log(`\n批2 汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) console.log(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);
-  process.exit(fail ? 1 : 0);
+  __exit(fail ? 1 : 0);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

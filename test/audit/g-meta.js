@@ -32,8 +32,8 @@ const walkJs = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d)
   if (d.isDirectory()) return walkJs(p);
   return d.name.endsWith('.js') ? [p] : [];
 });
-const testFiles = walkJs(TESTS);
-const allTestJs = [...auditFiles, ...testFiles];
+const testFiles = walkJs(TESTS);   // 递归后已含 test/audit/，不要再和 auditFiles 拼（会重复扫描）
+const allTestJs = testFiles;
 const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f) => path.join(SCRIPTS, f));
 
 // ---------- M1 恒真断言扫描 ----------
@@ -60,6 +60,12 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
     while ((m = re3.exec(t))) {
       const ln = t.slice(0, m.index).split('\n').length;
       hits.push(`${path.basename(f)}:${ln}(rec 恒真·布尔直写)`);
+    }
+    // v8.15.1（R23）：第三种形状——第二参是变量、第三参直接写 true（形如 rec(ID, 变量, true, …)）。
+    const re4 = /rec\(\s*['"][A-Z][0-9]+[a-z]?['"]\s*,\s*[A-Za-z_$][\w$.]*\s*,\s*true\b/g;
+    while ((m = re4.exec(t))) {
+      const ln = t.slice(0, m.index).split('\n').length;
+      hits.push(`${path.basename(f)}:${ln}(rec 恒真·第三参 true)`);
     }
   }
   rec('M1', '无恒真断言（恒真空壳 / rec 写死 true）', hits.length === 0,
@@ -90,7 +96,9 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
 {
   const banned = [['TO', 'DO'].join(''), ['FI', 'XE'].join(''), ['XX', 'X'].join('')];
   const hits = [];
-  for (const f of auditFiles) {
+  // R26：原先只扫 test/audit 顶层，根级压测（stress-round*）与 test/mutation/run.js 在守备之外，
+  // 与 M1/M2/M8/M9 的口径不一致。改为与它们同源的全部测试脚本。
+  for (const f of allTestJs) {
     const base = path.basename(f);
     if (base === 'g-meta.js') continue; // 本文件用拼接构造，且必须提到这些名字
     const t = read(f);
@@ -120,11 +128,18 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
       });
     });
   }
+  // R26：`__debug` 这类测试钩子是用 Object.defineProperty 挂上去的，不在 module.exports 字面量块里，
+  // 于是任何「绑定变量名后直接取 __debug 成员」的合法测试都会被误判红
+  // （已用临时探针复现）。把 defineProperty 挂载的名字一并计入导出面。
+  for (const mm of src.matchAll(/Object\.defineProperty\(\s*module\.exports\s*,\s*['"]([\w$]+)['"]/g)) exported.add(mm[1]);
   // 自检：导出面解析为 0 项说明判据本身失效（假绿），必须直接判失败
   const hits = [];
   if (exported.size === 0) hits.push('判据失效：未能解析出任何导出项');
+  // R26：扫描前先剥注释——否则注释里写出「const x = require('…/lx-source.js')」这种示例
+  // 就会把自己变成命中项（本判据第一版就踩了这个自指坑，被自己抓红）。
+  const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*(?:\/\/|\*)[^\n]*$/gm, '');
   for (const f of allTestJs) {
-    const t = read(f);
+    const t = stripComments(read(f));
     const bindRe = /const\s+(\w+)\s*=\s*require\(\s*['"][^'"]*lx-source\.js['"]\s*\)/g;
     let m;
     while ((m = bindRe.exec(t))) {
@@ -214,25 +229,59 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
 // ---------- M8 每个审计脚本都有显式退出码 ----------
 {
   const noExit = [];
-  for (const f of auditFiles.concat(testFiles)) {
+  for (const f of allTestJs) {
     const t = read(f);
     if (!/process\.exit\s*\(/.test(t)) noExit.push(path.basename(f));
   }
   rec('M8', '审计/测试脚本均有显式退出码（失败可被 CI 捕获）', noExit.length === 0,
-    noExit.length ? '缺退出码: ' + noExit.join(', ') : `${auditFiles.length + testFiles.length} 个脚本均有`);
+    noExit.length ? '缺退出码: ' + noExit.join(', ') : `${allTestJs.length} 个脚本均有`);
 }
 
 // ---------- M9 顶层 process.exit 必须有 require.main 守卫 ----------
 {
   const bad = [];
-  for (const f of scriptJs.concat(auditFiles)) {
+  // R25：旧判据只认「行首无缩进」的 process.exit，且只扫 scripts/ + test/audit/ ——
+  // 于是 IIFE 里缩进写的 exit（e-extra/u-cross-platform 等 16 个脚本）全部漏检，
+  // 被 require 时会直接杀掉调用方（M9b 只跑 scripts/，覆盖不到 test/）。
+  // 现在改为：全部测试脚本 + 全部脚本，只要出现 process.exit( 就要求文件内有 require.main 守卫。
+  // R30：原来只判「文件里出现过 require.main」——同一个文件里既有带守卫的 exit(0)、又有裸的 exit(1)
+  // （health-probe-fidelity 就是这种），照样全绿。改为**逐调用点**判：每个 process.exit( 都要有守卫，
+  // 允许两种形态：① 同一行带 require.main；② 上面 3 行内的 if 块带 require.main；
+  // ③ 落在 __exit 助手函数体内（助手自身已经做 require.main 判断）。
+  // 分两类口径（R30 第二版）：
+  //  · scripts/：沿用文件级判据（有 require.main 就认），因为工具脚本的 exit 都在「只在守卫下调用的
+  //    函数」里（probe/health-daily/source-* /candidate-audit），逐点文本判会大量假阳性；这类由 M9b 行为级兜底。
+  //  · test/：逐调用点判——测试脚本才是被别的脚本 require 的对象，同一个文件里混着
+  //    「带守卫的 exit(0)」和「裸的 exit(1)」（health-probe-fidelity 就是这种）必须抓出来。
+  // g-meta 自身跳过：它把 process.exit(0) 写在 spawnSync 的 -e 字符串里，是本文件自己的扫描样本。
+  for (const f of scriptJs) {
     const t = read(f);
-    // 顶层（行首无缩进）出现 process.exit 且没有 require.main 条件
-    const topExit = /\nprocess\.exit\s*\(/.test(t);
-    if (topExit && !/require\.main\s*===?\s*module/.test(t)) bad.push(path.basename(f));
+    if (/process\.exit\s*\(/.test(t) && !/require\.main\s*(===|!==)\s*module/.test(t)) bad.push(path.basename(f));
+  }
+  // R30 第三版踩坑：逐点判据不剥注释时，我写在失败分支上方的说明句「原先裸 process.exit(1)…」
+  // 本身就命中了 process.exit( ——判据把注释当代码抓了自己（与 R26 的 M4 同一类病）。扫描前先剥注释。
+  // 剥注释时必须保留行数，否则报出来的行号是「去掉注释后的行号」，与真实文件对不上（实测偏 8 行）。
+  const stripC = (t) => t
+    .replace(/\/\*[\s\S]*?\*\//g, (mm) => mm.replace(/[^\n]/g, ''))
+    .replace(/^\s*(?:\/\/|\*)[^\n]*$/gm, '');
+  for (const f of allTestJs) {
+    const t = stripC(read(f));
+    if (!/process\.exit\s*\(/.test(t)) continue;
+    if (path.basename(f) === 'g-meta.js') continue;
+    const lines = t.split('\n');
+    const helperStart = lines.findIndex((l) => /function\s+__exit\s*\(/.test(l));
+    let helperEnd = -1;
+    if (helperStart >= 0) helperEnd = lines.findIndex((l, i) => i > helperStart && /^\}/.test(l));
+    for (let i = 0; i < lines.length; i++) {
+      if (!/process\.exit\s*\(/.test(lines[i])) continue;
+      if (helperStart >= 0 && i > helperStart && i <= helperEnd) continue;
+      if (/require\.main\s*(===|!==)\s*module/.test(lines[i])) continue;
+      if (/require\.main\s*(===|!==)\s*module/.test(lines.slice(Math.max(0, i - 3), i + 1).join('\n'))) continue;
+      bad.push(`${path.basename(f)}:${i + 1}`);
+    }
   }
   rec('M9', '顶层 process.exit 均有 require.main 守卫（防静默杀调用方）', bad.length === 0,
-    bad.length ? bad.join(', ') : `${scriptJs.length + auditFiles.length} 个脚本全部安全`);
+    bad.length ? bad.join(', ') : `${scriptJs.length + allTestJs.length} 个脚本（19 个 tools + 47 个测试入口）全部安全`);
 }
 
 // ---------- M9b require 安全（行为级，补 M9 只看"行首无缩进 exit"的漏检）----------

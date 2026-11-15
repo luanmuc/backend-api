@@ -1,4 +1,4 @@
-# 源登记表（v8.15.1）
+# 源登记表（v8.16.0）
 
 > 单一真相：运行时 `PROVIDER_CONTRACT` / `SOURCE_HANDLERS`。本表由 `scripts/source-inventory.js` 校验；任何增删源先改契约，再同步本表。
 
@@ -6,15 +6,15 @@
 
 | 项 | 预算 | 当前 |
 |---|---:|---:|
-| 登记源 | 12 | 12 |
-| 上链源（active） | 10 | 10 |
+| 登记源 | 13 | 13 |
+| 上链源（active） | 11 | 11 |
 | 观察源（probation） | 2 | 2 |
 
 - 上链源 = 参与 `buildSourceChain()` 竞速、计入健康分/熔断/探测托管。
 - 观察源 = 默认关闭、不进链、持续探测；只在复核日期前保留名额，到期必须裁决。
 - 同族只保留一条；同族第二条只能作为观察源，且不得与在册源同 `upstreamGroup`。
 
-## 12 个登记源
+## 13 个登记源
 
 | # | id | 名称 | 生命周期 | 平台 | 链位次 | 上游族 | 鉴权 | maxQuality | 备注 |
 |---:|---|---|---|---|---|---|---|---|---|
@@ -26,10 +26,11 @@
 | 6 | `helloworldKw` | helloworld(kw) | active | kw | kw4 | kuwo-convert | none | flac | 可能只给片段，靠验真闸门 |
 | 7 | `changqingVip` | 长青kw | active | kw | kw6 | changqing-kw | none | 128k | 与已砍 `nianxinVip` 同质 |
 | 8 | `huibq` | Huibq | active | kw/wy | kw8, wy8 | huibq | none | 320k | 唯一 `coldStart`；取链超时由 `resolveColdStartTimeout(coldStartTimeoutMs, raceBudgetMs)` 决定，无独立 provider timeout |
-| 9 | `juheTx` | Juhe聚合(tx) | active | tx | tx2 | juhe | none | flac | 7 天复核 `2026-11-19` |
-| 10 | `ikun` | ikun | active | kw/wy | kw7, wy5 | ikun | optional | flac | 公益版免卡密，卡密可选 |
-| 11 | `suyinQQ` | 溯音QQ | probation | tx | 无 | oiapi-qq | none | flac | 2026-11-11 实测 403；复核 `2026-11-19` |
-| 12 | `suyinMigu` | 溯音咪咕 | probation | mg | 无 | xcvts-migu | none | flac | 2026-11-11 实测上游 502；复核 `2026-11-26` |
+| 9 | `juheTx` | Juhe聚合(tx) | active | tx | tx3 | juhe | none | flac | 7 天复核 `2026-11-19`；本轮 0% 成功率，降为 tx 第三源 |
+| 10 | `qingliangTx` | 晴亮(tx) | active | tx | tx2 | qingliang-tx | none | 320k | 2026-11-15 实测 5/5 全曲 320k（206 + audio/mpeg）；第三方单点，3 天复核 `2026-11-18` |
+| 11 | `ikun` | ikun | active | kw/wy | kw7, wy5 | ikun | optional | flac | 公益版免卡密，卡密可选 |
+| 12 | `suyinQQ` | 溯音QQ | probation | tx | 无 | oiapi-qq | none | flac | 2026-11-11 实测 403；复核 `2026-11-19` |
+| 13 | `suyinMigu` | 溯音咪咕 | probation | mg | 无 | xcvts-migu | none | flac | 2026-11-11 实测上游 502；复核 `2026-11-26` |
 
 ## 平台链
 
@@ -37,7 +38,7 @@
 |---|---|---:|
 | kw | suyinKuwo → xinghaiBackend → helloworldKw → kuwoOfficial → changqingVip → ikun → huibq | 7 |
 | wy | suyin163 → wyOuter → ikun → suyinKuwo → huibq | 5 |
-| tx | suyinKuwo → juheTx | 2 |
+| tx | suyinKuwo → qingliangTx → juheTx | 3 |
 | mg | suyinKuwo | 1 |
 | kg | suyinKuwo | 1 |
 
@@ -47,13 +48,13 @@
 |---|---|---|---|
 | mg | high | 仅 `suyinKuwo` 单源；`suyinMigu` 观察中不进链 | 2026-11-26 |
 | kg | high | 仅 `suyinKuwo` 单源，无第二源 | 2026-11-19 |
-| tx | medium | `suyinKuwo` + `juheTx` 双源；`juheTx` 受基础设施限流 | 2026-11-19 |
+| tx | medium | `suyinKuwo` + `qingliangTx` + `juheTx` 三源；`qingliangTx` 第三方单点、`juheTx` 受基础设施限流 | 2026-11-18 |
 
 ## 默认开关
 
 | 状态 | 源 |
 |---|---|
-| 默认开启（10） | `suyinKuwo` `wyOuter` `kuwoOfficial` `suyin163` `xinghaiBackend` `helloworldKw` `changqingVip` `huibq` `juheTx` `ikun` |
+| 默认开启（11） | `suyinKuwo` `wyOuter` `kuwoOfficial` `suyin163` `xinghaiBackend` `helloworldKw` `changqingVip` `huibq` `juheTx` `qingliangTx` `ikun` |
 | 默认关闭（2，观察） | `suyinQQ` `suyinMigu` |
 
 ## 退役源（不在册、不探测）

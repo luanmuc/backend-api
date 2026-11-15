@@ -67,6 +67,11 @@ check('R2', '取链成功只解除 resolveDead，不清 playDead（F42）', () =
   reset()
   for (let i = 0; i < 3; i++) m.recordFailure(ID, Q, { playDead: true })
   assert(snap().playDead === true, '前置 playDead 应为 true')
+  // R37：原实现只种了 playDead，从没把 resolveDead 拉成 true（reset() 之后它本来就是 false），
+  // 于是「链成功应解除 resolveDead」这条断言在**恒假前置**上恒真——实测把 recordSuccess 置成空函数
+  // 后它照样绿。必须先造出 resolveDead=true 才能验"解除"。
+  for (let i = 0; i < 3; i++) resolveAdmission()
+  assert(snap().resolveDead === true, '前置 resolveDead 应为 true（否则"解除"无从验证）')
   m.recordSuccess(ID, 100, Q) // 链成功，不是真实播放成功
   assert(snap().playDead === true, '链成功不得解除 playDead')
   assert(snap().resolveDead === false, '链成功应解除 resolveDead')
@@ -96,6 +101,6 @@ check('R4', '非 strong 证据不产生 resolveDead 建议（F42/F47）', () => 
 console.log(`\n===== R 组汇总：${passed} 通过 / ${failures.length} 失败 =====`)
 if (failures.length) {
   for (const f of failures) console.error(f)
-  process.exit(1)
+  process.exitCode = 1 // R30：失败分支只置退出码，被 require 时不得杀调用方
 }
-if (require.main === module) process.exit(0)
+if (require.main === module) process.exit(process.exitCode || 0)

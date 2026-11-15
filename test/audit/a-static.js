@@ -128,9 +128,7 @@ const loadWith = (hostPatch) => {
 
 {
   // B3：事件注册
-  let gotInited = false, gotRequest = false;
-  const mod = loadWith({});
-  const origOn = globalThis.lx.on;
+  loadWith({});
   // 重新注册钩子后触发
   let handler = null;
   globalThis.lx.on = (n, h) => { if (n === 'request') handler = h; };
@@ -182,15 +180,23 @@ function await0(p) { p.catch(() => {}); }
 // ---------- B4 App 跨仓字段比对 ----------
 {
   const appUtils = '/home/user/Doubao/chats/38450522296699906/repos/lx-music-mobile/src/core/music/utils.ts';
-  let appFields = '';
+  let appFields = '', appChecked = false;
   if (fs.existsSync(appUtils)) {
     const t = fs.readFileSync(appUtils, 'utf8');
-    const m = t.match(/\{?\s*url\s*,\s*type[^}]*\}\s*\)/);
+    // App 侧真实解构：`const { url, type, subSource = '', ... }`（utils.ts L430/L498）
+    const m = t.match(/const \{[^}]*\burl\b[^}]*\btype\b[^}]*\}/);
     appFields = m ? m[0].replace(/\s+/g, ' ').slice(0, 120) : '未定位解构行';
+    appChecked = true;
   }
-  // 源侧必须提供 url / type，subSourceName 为附加
-  const hasUrl = /return\s*\{[^}]*url/.test(code) || /url\s*,/.test(code);
-  rec('B4', '返回值字段与 App 解构对齐', hasUrl, `App 侧解构：${appFields || '（文件未找到）'}`);
+  // 真判据（R23）：交付对象必须同时带 url / type / subSourceName 三个字段。
+  // 旧写法 `|| /url\s*,/.test(code)` 在全文件里几乎必然命中，等于恒真。
+  const deliverShape = /return \{ url, type: [^}]*subSourceName:/.test(code);
+  const appNeeds = !!appFields && /\burl\b/.test(appFields) && /\btype\b/.test(appFields);
+  // CI 只 checkout 源仓，App 仓常不在场：此时只看源侧判据（源侧必须成立），并把「App 未取到」如实写进 detail，
+  // 不因环境缺 App 而把门禁弄红。
+  const ok = deliverShape && (appChecked ? appNeeds : true);
+  rec('B4', '返回值字段与 App 解构对齐', ok,
+    `交付对象 url+type+subSourceName=${deliverShape}，App 侧解构：${appChecked ? appFields : '（App 仓不在本环境，仅校源侧）'}`);
 }
 
 // ---------- B5 platform 声明 ----------
@@ -202,5 +208,6 @@ function await0(p) { p.catch(() => {}); }
 const pass = out.filter(o => o.ok).length;
 const fail = out.filter(o => !o.ok).length;
 console.log(`\n批0/1 汇总：${pass} 通过 / ${fail} 失败`);
-  process.exit(fail ? 1 : 0);
-if (fail) for (const o of out.filter(x => !x.ok)) console.log(`  ✗ [${o.id}] ${o.name} — ${o.detail}`);
+// 顶层 exit 必须带 require.main 守卫（g-meta M9）；被 require 时只设 exitCode，不杀调用方
+if (require.main === module) process.exit(fail ? 1 : 0);
+else process.exitCode = fail ? 1 : 0;

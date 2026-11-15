@@ -348,7 +348,14 @@ function baseScene({ kwCover = true, kwExact = false, qqList = QQ_LIST, wyList =
   console.log(`\n结果：${res.length - fail.length}/${res.length} 通过`);
   if (fail.length) {
     console.log('失败项：' + fail.map(x => `${x.id}:${x.name} (${x.detail})`).join(' | '));
-    process.exit(1);
+    __exit(1);
   }
-  process.exit(0);
+  __exit(0);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

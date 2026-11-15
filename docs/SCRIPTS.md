@@ -39,7 +39,7 @@
 
 | 脚本 | 职责 | 关键出口 |
 |---|---|---|
-| `endpoint-registry.js` (74) | 16 条端点登记表（源端点 13 + 工具端点 3，探测与巡检的唯一来源） | `ENDPOINTS`/`urls`/`sourcesOf`/`EXCLUDE_DOMAINS` |
+| `endpoint-registry.js` (75) | 16 条端点登记表（源端点 13 + 工具端点 3，探测与巡检的唯一来源） | `ENDPOINTS`/`urls`/`sourcesOf`/`EXCLUDE_DOMAINS` |
 | `source-toggles.js` (125) | 单遍字符扫描解析 `SOURCE_TOGGLES` 真值（health-daily 与 probe 共用） | `parseToggles`/`stripLineComment`/`matchBrace` |
 | `cn-date.js` (17) | 北京日期（CI cron 是 UTC，直接 `new Date()` 会差一天） | `todayCN` |
 

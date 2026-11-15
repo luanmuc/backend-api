@@ -45,9 +45,11 @@ check('QP1 能力备档同档重复交付不刷新 recordedAt/nextProbeAt', () =
   const song = { songmid: 'qp1' }
   d.noteQualityCeiling('kw', song, '128k', 'definitive')
   const e1 = d.qualityCeilingMap.get('kw|qp1')
+  assert(e1 && typeof e1.ts === 'number' && typeof e1.nextProbeAt === 'number', `首次调用应写入能力备档，实际 ${JSON.stringify(e1)}`)
   const ts1 = e1.ts, probe1 = e1.nextProbeAt
   d.noteQualityCeiling('kw', song, '128k', 'definitive')
   const e2 = d.qualityCeilingMap.get('kw|qp1')
+  assert(e2, '第二次调用后条目不得消失')
   assert(e2.ts === ts1, `ts 不得刷新: ${ts1}→${e2.ts}`)
   assert(e2.nextProbeAt === probe1, `nextProbeAt 不得后移: ${probe1}→${e2.nextProbeAt}`)
   assert(e2.reason === 'definitive' && e2.ttlMs === 6 * H, `definitive TTL 应为 6h`)
@@ -144,7 +146,8 @@ check('QP10 非唯一高质源仍走 1 小时探路', () => {
   const e = d.computeEligibility('suyinKuwo', 'tx', 'flac', { runtime: false, qualityShortCircuit: true })
   assert(e.eligible === false && e.code === 'QUALITY_SHORT_CIRCUIT', `应短路，实际 ${e.code}`)
   const left = e.untilMs - Date.now()
-  assert(left >= 59 * 60 * 1000, `非唯一源应约 1h，实际 ${Math.round(left / 1000)}s`)
+  // R29：原来只有下界 —— 窗口真被写成 10 小时也照样绿；补上界。
+  assert(left >= 59 * 60 * 1000 && left <= 61 * 60 * 1000, `非唯一源应约 1h（59~61min），实际 ${Math.round(left / 1000)}s`)
 })
 
 check('QP11 强制探路只放行一次，随后恢复短路', () => {
@@ -175,5 +178,14 @@ check('QP12 健康快照只读判断不写入 1h 探路', () => {
 })
 
 console.log(`\n${passed} passed, ${failures.length} failed`)
-if (failures.length) { console.error(failures.join('\n')); if (require.main === module) process.exit(1) }
-if (require.main === module) process.exit(0)
+if (failures.length) console.error(failures.join('\n'))
+// R29：原来两处 process.exit 都被 require.main 拦住 → 被 require 时失败既不退出也不置 exitCode，
+// 上层永远看不到红。统一走 __exit（独立运行真退出，被 require 时只置 exitCode），与 R24 那 16 个脚本口径一致。
+__exit(failures.length ? 1 : 0)
+
+// __exit(R29)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

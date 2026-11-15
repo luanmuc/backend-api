@@ -53,7 +53,8 @@ const okAudio = () => {
 
 const load = (toggles) => {
   setLx();
-  globalThis.__lxSourceConfig = Object.assign({}, globalThis.__lxSourceConfig || {}, {
+  // R33：原写法把上一次的配置整包合并进来（同 R31/R32 的 p-gaps、h-toggles）→ 改固定基线。
+  globalThis.__lxSourceConfig = Object.assign({}, {
     rateWindowMax: 1e6, maxConcurrency: 1e6, rateWindowMs: 3600000,
     healthCheckIntervalMs: 3600000, breakerThreshold: 999,
     qualityShortCircuit: false, fragmentFallback: false, verifyDelivery: true, raceBudgetMs: 12000
@@ -146,5 +147,12 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
     it.ok ? pass++ : fail++;
   }
   orig(`\nN 组（推断缺陷红绿回归）汇总：${pass} 通过 / ${fail} 失败`);
-  process.exit(fail ? 1 : 0);
+  __exit(fail ? 1 : 0);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

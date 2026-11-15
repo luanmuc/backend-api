@@ -138,14 +138,22 @@ const main = async () => {
   })
 
   console.log(`\n${passed} passed, ${failures.length} failed`)
-  if (failures.length) {
-    for (const f of failures) console.log(`- ${f}`)
-    process.exit(1)
-  }
-  process.exit(0)
+  for (const f of failures) console.log(`- ${f}`)
+  // R33：原来失败分支 `__exit(1)` 之后还跟着一句无条件 `__exit(0)`——__exit 在被 require 时
+  // 只写 process.exitCode、不会终止进程，于是后一句把 1 直接覆盖成 0：调用方看到的是全绿。
+  // 独立运行看不出问题（__exit(1) 里 process.exit 先终止了）；require 模式实测 1 失败 → exitCode=0。
+  // 改为只调一次，用失败数决定退出码。
+  __exit(failures.length ? 1 : 0)
 }
 
 main().catch(e => {
   console.error(e)
-  process.exit(1)
+  __exit(1)
 })
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

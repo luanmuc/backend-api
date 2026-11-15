@@ -352,5 +352,12 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
 
   const pass = R.filter(x => x.ok).length, fail = R.filter(x => !x.ok).length;
   console.log(`\n第三轮压力测试（T1~T12）完成：${pass} 通过 / ${fail} 失败`);
-  process.exit(fail ? 1 : 0);
+  __exit(fail ? 1 : 0);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

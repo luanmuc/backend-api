@@ -43,7 +43,8 @@ const rec = (id, name, ok, detail) => {
   res.push({ id, ok: !!ok, name, detail: String(detail || '') });
   console.log(`${ok ? '✓' : '✗'} [${id}] ${name}${detail ? ' — ' + String(detail).slice(0, 200) : ''}`);
 };
-const allowedKeys = ['seq', 'eventId', 'ts', 'traceId', 'event', 'sourceId', 'platform', 'quality', 'ok', 'code', 'latencyMs', 'reason'];
+// R34：允许键必须覆盖 HEALTH_EVENT_FIELDS 全量（漏了 from/to，transition 事件会被误判成多出字段）。
+const allowedKeys = ['seq', 'eventId', 'ts', 'traceId', 'event', 'sourceId', 'platform', 'quality', 'ok', 'code', 'latencyMs', 'reason', 'from', 'to'];
 
 (async () => {
   globalThis.__lxSourceConfig = { rateWindowMax: 100000, maxConcurrency: 100000, rateWindowMs: 3600000 };
@@ -51,7 +52,7 @@ const allowedKeys = ['seq', 'eventId', 'ts', 'traceId', 'event', 'sourceId', 'pl
   const dbg = current.__debug;
   if (!dbg || typeof dbg.recordHealthEvent !== 'function' || typeof dbg.getHealthEvents !== 'function') {
     console.log('✗ [T0] __debug 未暴露 recordHealthEvent/getHealthEvents');
-    process.exit(1);
+    __exit(1);
   }
 
   const t0 = Date.now();
@@ -73,10 +74,10 @@ const allowedKeys = ['seq', 'eventId', 'ts', 'traceId', 'event', 'sourceId', 'pl
   const writeMs = Date.now() - t0;
 
   const all = dbg.getHealthEvents({});
-  rec('T1', '容量为 500', all.capacity === 500 && all.events.length === 500, `cap=${all.capacity} len=${all.events.length}`);
-  rec('T1', 'dropped=9500', all.dropped === 9500, `dropped=${all.dropped}`);
-  rec('T1', 'seq 单调且最大=10000', all.events[all.events.length - 1].seq === 10000 && all.events.every((e, i, a) => i === 0 || e.seq > a[i - 1].seq), `first=${all.events[0].seq} last=${all.events[all.events.length - 1].seq}`);
-  rec('T1', '10000 次写入 ≤ 3000ms', writeMs <= 3000, `${writeMs}ms`);
+  rec('T1a', '容量为 500', all.capacity === 500 && all.events.length === 500, `cap=${all.capacity} len=${all.events.length}`);
+  rec('T1b', 'dropped=9500', all.dropped === 9500, `dropped=${all.dropped}`);
+  rec('T1c', 'seq 单调且最大=10000', all.events[all.events.length - 1].seq === 10000 && all.events.every((e, i, a) => i === 0 || e.seq > a[i - 1].seq), `first=${all.events[0].seq} last=${all.events[all.events.length - 1].seq}`);
+  rec('T1d', '10000 次写入 ≤ 3000ms', writeMs <= 3000, `${writeMs}ms`);
 
   for (const ev of ['play_start', 'source_attempt', 'source_result']) {
     dbg.recordHealthEvent({ traceId: 'chain-x', event: ev, sourceId: 's-0', platform: 'kw', quality: '128k', ok: ev === 'source_result', code: ev === 'source_result' ? '' : undefined, latencyMs: 12 });
@@ -110,7 +111,7 @@ const allowedKeys = ['seq', 'eventId', 'ts', 'traceId', 'event', 'sourceId', 'pl
 
   const keySet = new Set(Object.keys(all.events[0]));
   const extra = [...keySet].filter(k => !allowedKeys.includes(k));
-  rec('T6', '事件字段仅白名单 11 键', extra.length === 0, `keys=${[...keySet].join(',')}`);
+  rec('T6', '事件字段仅白名单内键', extra.length === 0, `keys=${[...keySet].join(',')}`);
 
   const leaked = all.events.some(e => JSON.stringify(e).includes('SECRET_SONG') || JSON.stringify(e).includes('secret.example') || JSON.stringify(e).includes('SECRET_USER'));
   rec('T7', '歌名/URL/账号被丢弃', !leaked, `leaked=${leaked}`);
@@ -128,10 +129,18 @@ const allowedKeys = ['seq', 'eventId', 'ts', 'traceId', 'event', 'sourceId', 'pl
   if (failed.length) {
     console.log('失败项：');
     for (const f of failed) console.log(`  - [${f.id}] ${f.name} — ${f.detail}`);
-    process.exit(1);
   }
-  process.exit(0);
+  // R34：原写法 `__exit(1)` 之后再跟一句无条件 `__exit(0)`——__exit 被 require 时只写 exitCode，
+  // 后一句把 1 覆盖成 0（与 R33 的 health-linkage-invariants 同一形状）。
+  __exit(failed.length ? 1 : 0);
 })().catch(e => {
   console.error('压力脚本自身异常：', e);
-  process.exit(1);
+  __exit(1);
 });
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

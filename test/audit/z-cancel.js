@@ -99,9 +99,9 @@ const baseSong = { name: '晴天', singer: '周杰伦', duration: 269, songmid: 
     await sleep(20);
     assert.strictEqual(canceled, 2, `应取消 2 个，实际 ${canceled}`);
   });
-  await rec('Z8', '10 个上链 handler 预取消均不调用 fn', async () => {
+  await rec('Z8', '11 个上链 handler 预取消均不调用 fn', async () => {
     const active = mod.PROVIDER_CONTRACT && Object.keys(mod.SOURCE_HANDLERS).filter(id => mod.SOURCE_HANDLERS[id].lifecycle === 'active');
-    assert.strictEqual(active.length, 10);
+    assert.strictEqual(active.length, 11);
     let invoked = 0;
     for (const id of active) {
       const real = mod.SOURCE_HANDLERS[id];
@@ -127,7 +127,12 @@ const baseSong = { name: '晴天', singer: '周杰伦', duration: 269, songmid: 
     await sleep(90);
     assert.strictEqual(fnResolved, true, '底层 handler 未自然结束');
     const b = mod.getBreaker(id);
-    assert.strictEqual(b.realSuccess || 0, 0, '取消后被记成功');
+    // R32：`realSuccess` / `realReq` 不是 breaker 字段——它们是 computeHealthScore 里的局部变量。
+    // 原来写 `b.realSuccess || 0 === 0` 等于 undefined||0 === 0，恒真（同 Z10 的 realReq）。
+    // breaker 上真正的记账字段是 totalSuccess / totalRequests。
+    assert.strictEqual(typeof b.totalSuccess, 'number', 'breaker 缺少 totalSuccess 字段（判据会退化成 undefined||0）');
+    assert.strictEqual(typeof b.totalRequests, 'number', 'breaker 缺少 totalRequests 字段');
+    assert.strictEqual(b.totalSuccess, 0, '取消后被记成功');
     assert.strictEqual(b.failureCount || 0, 0, '取消后被记失败');
   });
   await rec('Z11', '真实上链 handler 请求中取消会调用宿主取消句柄', async () => {
@@ -142,15 +147,24 @@ const baseSong = { name: '晴天', singer: '周杰伦', duration: 269, songmid: 
   await rec('Z10', '取消不污染真实上链源熔断/失败计数', async () => {
     const id = 'suyinKuwo';
     const b0 = mod.getBreaker(id);
-    const before = { failureCount: b0.failureCount || 0, realReq: b0.realReq || 0 };
+    // R32：同上——`realReq` 不是 breaker 字段，原判据 `b1.realReq || 0 === before.realReq` 恒真。
+    assert.strictEqual(typeof b0.totalRequests, 'number', 'breaker 缺少 totalRequests 字段');
+    const before = { failureCount: b0.failureCount || 0, totalRequests: b0.totalRequests };
     const t = dbg.createCancelToken();
     t.cancel('pre');
     await assert.rejects(dbg.wrapExecute(mod.SOURCE_HANDLERS[id], 'kw', baseSong, '128k', t), e => isCanceled(e));
     const b1 = mod.getBreaker(id);
     assert.strictEqual(b1.failureCount || 0, before.failureCount, '取消污染 failureCount');
-    assert.strictEqual(b1.realReq || 0, before.realReq, '取消污染 realReq');
+    assert.strictEqual(b1.totalRequests, before.totalRequests, '取消污染 totalRequests');
   });
 
   console.log(`\nCancel: ${pass} passed, ${fail} failed`);
-  process.exit(fail ? 1 : 0);
+  __exit(fail ? 1 : 0);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

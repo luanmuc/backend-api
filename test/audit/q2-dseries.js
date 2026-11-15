@@ -47,12 +47,15 @@ const dbg = src.__debug;
   // ── R2：D-05 白名单 ──
   try {
     const before = dbg.cfg('raceBudgetMs', 12000);
-    await Promise.resolve(handler({ action: 'config', source: 'kw', info: { raceBudgetMs: 15000 } }));
+    // R37：原实现只写了真键，**从没尝试写死键**，再读 `cfg('raceOverallTimeoutMs', 12000)`——
+    // 这个调用对任何未知键都会原样返回传入的默认值 12000，所以 `dead === 12000` 是恒真，
+    // 「死键被忽略」这条从来没被验证。改成真的写一次，再用**哨兵默认值**读（被写入就是 15000）。
+    await Promise.resolve(handler({ action: 'config', source: 'kw', info: { raceBudgetMs: 15000, raceOverallTimeoutMs: 15000 } }));
     const after = dbg.cfg('raceBudgetMs', 12000);
-    const dead = dbg.cfg('raceOverallTimeoutMs', 12000);   // 死键：不该被写入
+    const dead = dbg.cfg('raceOverallTimeoutMs', -1);   // 哨兵：未被写入时必定得到 -1
     rec('R2', 'D-05：真键 raceBudgetMs 可写且生效、死键 raceOverallTimeoutMs 必须被忽略',
-      before === 12000 && after === 15000 && dead === 12000,
-      `写前=${before} 写后=${after} 死键读=${dead}`);
+      before === 12000 && after === 15000 && dead === -1,
+      `写前=${before} 写后=${after} 死键读(哨兵-1)=${dead}`);
     await Promise.resolve(handler({ action: 'config', source: 'kw', info: { raceBudgetMs: 12000 } })); // 还原
   } catch (e) {
     rec('R2', 'D-05：配置白名单', false, e.message);
@@ -74,6 +77,8 @@ const dbg = src.__debug;
   for (const r of res) { const id = r.id; console.log(`${r.ok ? '✓' : '✗'} [${id}] ${r.name} — ${r.detail}`); }
   const fail = res.filter(r => !r.ok).length;
   console.log(`\nR 组（D 系列行为断言补测）汇总：${res.length - fail} 通过 / ${fail} 失败`);
+  // R37：只有 `if (require.main) process.exit(...)`——被 require 时失败既不退出也不置退出码。
+  if (fail) process.exitCode = 1;
   if (require.main === module) process.exit(fail ? 1 : 0);
 })();
 module.exports = { results: () => res };

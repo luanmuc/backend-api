@@ -1,6 +1,6 @@
 # 聚合音源开发文档（DEV_GUIDE）
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.15.1 契约与死配置收口版：12 登记 / 10 上链 / 2 观察；Provider Contract；生命周期治理；真取消；预算边界与归因；健康态源版本兼容；单文件构建**；历史版本见 [`CHANGELOG.md`](./CHANGELOG.md)）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v8.16.0 接入晴亮 tx 版：13 登记 / 11 上链 / 2 观察；Provider Contract；生命周期治理；真取消；预算边界与归因；健康态源版本兼容；单文件构建**；历史版本见 [`CHANGELOG.md`](./CHANGELOG.md)）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---
@@ -23,15 +23,15 @@
 | ③ 日志 + LRU 双层缓存 + 断路器 | 1063~1467 | `logInfo`、`successCache`/`failCache`、熔断 + 半开试探 + 成功率/均时统计 |
 | ④ HTTP 封装 + 交付真实性判据层 + **L0 归一层 + L4 裁决层** | 1468~2632 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`（Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行 `ok:null`）；**v8.11.5 新增 L0**：`decodeBase64Ascii`/`toBytes`/`kindOf`/`headerEvidence`/`totalBytesOf`（认 `view`/数组/`{type:"Buffer",data}`/base64 串）；**v8.11.5 新增 L4**：`ADMISSION_POLICY`/`CODE_RANK`/`verdictOfCode`/`strongestEvidence`/`isFragmentInfo`/`admissionLedger`/`admit`/`skipReason`/`clearSourceLedger`/`trialMarkOf`/`applyAdmission`/`rememberFragmentSource`；**v8.11.6**：`structuralSkipReason`（建链纯结构判据）/`toggleSource`（开/关统一清账）/`probeByHeaders`（HEAD 补证）；**v8.11.7**：`config` 写模式布尔白名单（8 键）+ 数字白名单补齐 13 键，`verifyDurRatio`/`verifyDurGapSec` 允许 0 |
 | ⑤ 歌曲信息与匹配工具 | 2633~3780 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey`、`getHashOrMid` |
-| ⑥ 音源实现 | 3781~4365 | 12 个子源（10 上链 + 2 观察），每个源自带 `maxQuality`、`platforms`、`lifecycle` 与 `chain` 声明 |
+| ⑥ 音源实现 | 3781~4365 | 13 个子源（10 上链 + 2 观察），每个源自带 `maxQuality`、`platforms`、`lifecycle` 与 `chain` 声明 |
 | ⑦ 注册表 + 调度 + 健康分 | 4366~4896 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，3s grace，10min 缓存，`cross_platform` 事件） |
-| ⑧ 上报 + 事件监听 | 4897~5733（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ⑧ 上报 + 事件监听 | 4992~5863（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> **v8.15.1 本地待发布**：`lx-source.js` 共 **5733 行 / 299939 bytes**，`@version 8.15.1`；构建脚本的版本头校验改为读 `package.json`，不再硬编码。
-> 行段为 **v8.15.1 产物**实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 从 `var PROVIDER_CONTRACT` 校验末段边界 = EOF。
+> **v8.16.0 本地待发布**：`lx-source.js` 共 **5806 行 / 303102 bytes**，`@version 8.16.0`；构建脚本的版本头校验改为读 `package.json`，不再硬编码。
+> 行段为 **v8.16.0 产物**实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 从 `var PROVIDER_CONTRACT` 校验末段边界 = EOF。
 > **v8.15.1 压测适配**：`stress-round4` 的 V18 预热计数按 `coldStartTimeoutMs` 双键隔离；冷启动超时被钳到总预算后，测试需同步抬高 `raceBudgetMs`，否则实际请求超时变成总预算、按 4321ms 计数会假红。
 
-> **v8.15.1 构建口径（延续 v8.14.1）**：`scripts/build-source.js` 使用 esbuild `bundle:true / format:iife / globalName:__lxSourceBundle / platform:neutral / target:es2017`，产物末尾补 CommonJS 桥 `module.exports = __lxSourceBundle`。这样既是单文件 IIFE，又保留洛雪宿主读取的导出面；`verify-bundle` B1 校验 IIFE 包装与导出桥，B2 校验运行 API。10 个 active provider 已拆到 `src/providers/`，核心运行时仍在 `src/legacy.js`（未做 10/20/30/40/60/70 的全量模块拆分）。
+> **v8.16.0 构建口径（延续 v8.14.1）**：`scripts/build-source.js` 使用 esbuild `bundle:true / format:iife / globalName:__lxSourceBundle / platform:neutral / target:es2017`，产物末尾补 CommonJS 桥 `module.exports = __lxSourceBundle`。这样既是单文件 IIFE，又保留洛雪宿主读取的导出面；`verify-bundle` B1 校验 IIFE 包装与导出桥，B2 校验运行 API。11 个 active provider 已拆到 `src/providers/`，核心运行时仍在 `src/legacy.js`（未做 10/20/30/40/60/70 的全量模块拆分）。
 
 ## 三、核心机制详解
 
@@ -391,6 +391,19 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | xm（汽水音乐） | 新平台扩展 | ❌ **已判否**（2026-10-29 三层实证：无接口/App 空壳/无歌源渠道） | 见"已判否的候选" |
 | fish（鱼源） | kw/wy 备胎（v7.0 候选） | ❌ **已判否**（2026-10-29 三层实证：后端给可用直链脚本不用/官方接口 -462 风控/kw 音质校验失败，端到端不可用） | 见"已判否的候选" |
 
+## 七点五、事件字段白名单的运行时守备（v8.16.0）
+
+健康事件环只写 `HEALTH_EVENT_FIELDS` 里的键，白名单外的一律丢弃。此前只有**测试侧**判据（`s-health-events` S5 解析产物文本，
+要求不含 `name/url/songmid`），白名单被改坏时行为层抽样未必覆盖得到。v8.16.0 起加源码侧对偶：
+
+| 守备 | 行为 | 触发点 |
+|---|---|---|
+| `assertEventFieldPolicy()` | 白名单含隐私字段（`name/url/songmid/account/token/cookie…`）或重复项 → 抛 `CONTRACT_ERROR` | **加载即执行**（顶层调用），与 Provider Contract 同一策略 |
+| `recordHealthEvent` 未知键计数 | 隐私类键进 `privacyDropped`；其余未知键进 `unknownTotal` + 按键计数，首次出现 `logWarn` 一次（上限 20 键，防日志刷爆） | 每次写入 |
+| `getHealthEventFieldAudit()` | 只读快照 `{unknown, unknownCounts, unknownTotal, privacyDropped}` | 测试 / 诊断包 |
+
+要点：守备本身不新增任何对外字段（`getHealthEvents` 返回结构不变），App 侧无需改动；10,000 次写入实测 35ms，无性能代价。
+
 ## 八、测试清单（发布前必做）
 
 > **前置**：所有改动先走 `AGENTS.md`「实证开发流程（强制）」验证链（L0 静态 → L1 模拟 → L2 接口实测 → L3 真机 → L4 回归）。本清单 = L4 回归的具体内容。
@@ -454,7 +467,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 > 执行结果（2026-10-29~11-01）：v26.0 ✅ → v26.1 ✅ → v26.2 ❌ 判否 → v26.3 ✅。**v26 系列收尾**。v27.1 fish ❌ 判否 → **v27.2 helloworld ✅ 接入** → v27.3 全面审计修复 ✅ → v27.4 健康分 10 分制 ✅ → v27.5 hyw ❌(后端502) → v27.6 jiexiang ⚠️(零增量留档) → v27.7 lx ❌(防搬运403) → v27.8 qdy ❌(410死链)。**v27 系列 6 候选实证全部收官（2026-10-30），仅 helloworld 接入**。
 > 推进序列（当前）：**v9 播放链路已放弃、v8.1 候选实证半自动化已完成（2026-11-05）**，无主线迭代项；运维观察项（gdWy 主端点 40% 可用率/haitangw 备用通道 404/oiapi QQ 403）由健康表监控、恶化升级为迭代任务；触发式待办（tx 恢复/hyw 后端恢复/qdy 通道恢复等外部条件驱动）+ 生态扫描持续产出新候选（按实证规则逐个推进，v8.1 已自动化草案生成）。
 
-## 十一、配置键总表（v8.15.1 基线）
+## 十一、配置键总表（v8.16.0 基线）
 
 > 单一真相仍是 `lx-source.js` 的 `USER_CONFIG`（默认值）、`ALLOWED_KEYS`（34 个数字可写）、`ALLOWED_BOOL_KEYS`（9 个布尔可写）与 `PARAM_LIMITS`（上限）。本表是镜像，配置面有改动时必须同步。v8.10.3 曾出现「死键在面板能写、运行时根本不读」，根因就是没有可对照的键表。
 

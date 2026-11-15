@@ -110,7 +110,7 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     probeFn = () => audio(mp3(5.3), 'audio/mpeg', 84972); reset();
     let failed = false;
     try { await req('flac', { ...GOOD, songmid: 'if1' }); } catch (e) { failed = /PREVIEW_FRAGMENT/.test(String(e.code) + e.message); }
-    rec('I4', 'fragmentFallback 关 → 全片段直接失败（可选拒绝试听版）', failed, failed ? '抛 PREVIEW_FRAGMENT' : '仍交付');
+    rec('I4b', 'fragmentFallback 关 → 全片段直接失败（可选拒绝试听版）', failed, failed ? '抛 PREVIEW_FRAGMENT' : '仍交付');
     globalThis.__lxSourceConfig.fragmentFallback = true;
   }
 
@@ -145,10 +145,11 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     ['headers 为空对象', () => ({ statusCode: 200, headers: {}, body: '{}' })],
     ['statusCode=0', () => ({ statusCode: 0, headers: {}, body: '' })],
   ];
+  let widx = 0;
   for (const [name, fn] of weird) {
     fresh(['suyinKuwo']); scene = fn; probeFn = () => ({ statusCode: 206, headers: { 'content-type': 'audio/mpeg' }, body: '' }); reset();
     let outcome = '';
-    try { const r = await req('flac', { ...GOOD, songmid: 'f3' + name.length + Math.random() }); outcome = '交付/静默失败'; }
+    try { const r = await req('flac', { ...GOOD, songmid: 'f3' + name.length + (widx++) }); outcome = '交付/静默失败'; }
     catch (e) { outcome = `${e.code || 'NO_CODE'}`; }
     rec('F3', name, /\w/.test(outcome), `结果：${outcome}（未出现崩溃/未捕获异常）`);
   }
@@ -163,8 +164,10 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   ]) {
     fresh(['suyinKuwo']); scene = () => json({ data: { url: 'https://audio.test/a.mp3' } });
     probeFn = () => audio(flac(269.7, 44100), 'audio/flac', 55397039); reset();
-    let ok = true, d = '';
+    let d = '';
     try { const r = await req('flac', info); d = `交付 ${r.type}`; } catch (e) { d = e.code; }
+    // 真判据（R23）：注入字符要么拿到交付、要么拿到明确错误码，不能是 undefined/未捕获
+    const ok = /^交付 /.test(d) || /^[A-Z][A-Z_]+$/.test(d);
     rec('F4', name, ok, d);
   }
 
@@ -209,7 +212,8 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     probeFn = () => audio(flac(269.7, 44100), 'audio/flac', 55397039); reset();
     let d = '';
     try { const r = await req('flac', info); d = `交付 ${r.type}`; } catch (e) { d = e.code; }
-    rec('I2', name, true, d);
+    // 真判据（R23）：编码场景必须出结果（交付或带码失败），不能静默 undefined
+    rec('I2', name, /^交付 /.test(d) || /^[A-Z][A-Z_]+$/.test(d), d);
   }
 
   // ---------- I3 全部网络失败 ----------
@@ -226,5 +230,12 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   const pass = res.filter(r => r.ok).length, fail = res.filter(r => !r.ok).length;
   console.log(`\n批3/4/5/8 汇总：${pass} 通过 / ${fail} 失败`);
   for (const r of res.filter(x => !x.ok)) console.log(`  ✗ [${r.id}] ${r.name} — ${r.detail}`);
-  process.exit(fail ? 1 : 0);
+  __exit(fail ? 1 : 0);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

@@ -11,17 +11,15 @@
 
 const path = require('path')
 const SRC = path.join(__dirname, '../../lx-source.js')
-let handler = null
-
+// R36：所有断言都走 applyProbeResult / __debug，从不经 handler 入口；handler 声明与赋值是死代码，删除。
 const setLx = () => {
-  handler = null
   globalThis.lx = {
     EVENT_NAMES: { inited: 'inited', request: 'request', updateAlert: 'updateAlert' },
     version: '2.0.0',
     env: 'mobile',
     utils: { buffer: { from: (d, e) => Buffer.from(d, e), bufToString: (b, e) => b.toString(e) } },
     request(url, opts, cb) { setTimeout(() => cb(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' }), null), 2); return () => {} },
-    on(n, h) { if (n === 'request') handler = h },
+    on() {},
     send() {},
   }
 }
@@ -56,7 +54,9 @@ check('U2 transition 状态只使用已知枚举', () => {
   m.applyProbeResult('suyinKuwo', false, { outcome: 'FAIL' })
   m.applyProbeResult('suyinKuwo', false, { outcome: 'FAIL' })
   m.applyProbeResult('suyinKuwo', false, { outcome: 'FAIL' })
-  const known = new Set(['ELIGIBLE', 'AUTO_OFF', 'SLEEPING', 'PLAY_DEAD'])
+  // R36：枚举漏了 PROBING——休眠唤醒路径会写 from: SLEEPING, to: PROBING（probe_wake）。
+  // 一旦用例走到唤醒迁移，这条判据会把合法状态判成未知状态。
+  const known = new Set(['ELIGIBLE', 'AUTO_OFF', 'SLEEPING', 'PLAY_DEAD', 'PROBING'])
   for (const ev of eventsOf(m).filter(e => e.event === 'health_transition')) {
     assert(known.has(ev.from) && known.has(ev.to), `未知状态 ${ev.from}->${ev.to}`)
   }
@@ -107,6 +107,6 @@ check('U7 事件环容量恒为 500，不因优先级突破上限', () => {
 console.log(`\n${passed} passed, ${failures.length} failed`)
 if (failures.length) {
   for (const f of failures) console.log(`- ${f}`)
-  process.exit(1)
+  process.exitCode = 1 // R30：失败分支只置退出码，被 require 时不得杀调用方
 }
-if (require.main === module) process.exit(0)
+if (require.main === module) process.exit(process.exitCode || 0)

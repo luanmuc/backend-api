@@ -23,13 +23,13 @@
 | `docs/音源架构执行全过程-2026-11-12.md` | 143 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `.github/workflows/ci.yml` | 238 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `.github/workflows/docs-audit.yml` | 48 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
-| `README.md` | 126 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `README.md` | 127 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `README_HEALTH.md` | 42 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AGENTS.md` | 191 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/archive/AUDIT_PLAN-v9.0.md` | 600 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AUDIT_RESULTS.md` | 1999 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/DEV_GUIDE.md` | 528 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/DEV_GUIDE.md` | 541 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ITERATION_ROADMAP.md` | 326 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -60,13 +60,13 @@
 | `docs/health-daily/2026-11-15.json` | 64 | .json | ✓ | — | — | — | — | — | — | U10 |
 | `docs/health-daily/2026-11-09.md` | 48 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/probe-history.jsonl` | 832 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
-| `lx-source.js` | 5733 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
+| `lx-source.js` | 5863 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
 | `scripts/candidate-audit.js` | 342 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/cn-date.js` | 17 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/doc-sync-map.js` | 111 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/docs-audit.js` | 473 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/ecosystem-scan.js` | 165 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
-| `scripts/endpoint-registry.js` | 74 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
+| `scripts/endpoint-registry.js` | 75 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/health-alert.js` | 73 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/health-daily.js` | 354 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/hooks/commit-msg` | 7 | .sh | ✓ | — | — | — | — | — | — | U5 |
@@ -78,83 +78,84 @@
 | `scripts/self-check.js` | 116 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/source-audit.js` | 176 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/source-toggles.js` | 125 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
-| `test/audit/a-static.js` | 206 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
-| `test/audit/b-logic.js` | 232 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
-| `test/audit/d-func.js` | 230 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
-| `test/audit/p-gaps.js` | 170 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | P1~P4/X (新增) |
-| `test/audit/q-dfix.js` | 133 | .js | — | — | ✓ | — | ✓ | — | ✓ | Q1~Q5/D-01/D-04/F-01 |
-| `test/audit/q2-dseries.js` | 79 | .js | — | — | ✓ | — | ✓ | — | ✓ | R1~R3/D-05/D-06/D-26 |
-| `test/audit/n-fixes.js` | 150 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | N1~N4/X (新增) |
-| `test/audit/quality-truth.js` | 121 | .js | — | — | ✓ | — | ✓ | — | ✓ | QT-1~QT-9 音质真实标签（m4a/ogg/wav/Range/200 全量/置信度） |
-| `test/audit/quality-policy-v2.js` | 179 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | QP1~QP8 音质策略 P0/P1（ceiling TTL / definitiveFail / 短路口径 / 旧快照兼容） |
-| `test/audit/budget-admission.js` | 38 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | A2-1~A2-7 预算边界与归因（BUDGET 不摘源 / 16s 硬顶 / 冷启动钳制 / 单链 0 宽限） |
+| `test/audit/a-static.js` | 213 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/audit/b-logic.js` | 239 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/audit/d-func.js` | 241 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/audit/p-gaps.js` | 182 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | P1~P4/X (新增) |
+| `test/audit/q-dfix.js` | 142 | .js | — | — | ✓ | — | ✓ | — | ✓ | Q1~Q5/D-01/D-04/F-01 |
+| `test/audit/q2-dseries.js` | 84 | .js | — | — | ✓ | — | ✓ | — | ✓ | R1~R3/D-05/D-06/D-26 |
+| `test/audit/n-fixes.js` | 158 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | N1~N4/X (新增) |
+| `test/audit/quality-truth.js` | 123 | .js | — | — | ✓ | — | ✓ | — | ✓ | QT-1~QT-9 音质真实标签（m4a/ogg/wav/Range/200 全量/置信度） |
+| `test/audit/quality-policy-v2.js` | 191 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | QP1~QP8 音质策略 P0/P1（ceiling TTL / definitiveFail / 短路口径 / 旧快照兼容） |
+| `test/audit/budget-admission.js` | 42 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | A2-1~A2-7 预算边界与归因（BUDGET 不摘源 / 16s 硬顶 / 冷启动钳制 / 单链 0 宽限） |
 | `test/audit/h-toggles.js` | 170 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | H1~H14/X (新增) |
 | `test/audit/v-eligibility.js` | 116 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | V1~V7 统一资格 |
-| `test/audit/health-linkage-invariants.js` | 151 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | L1~L4/F61/F64 联动 |
-| `test/audit/health-state-machine-v2.js` | 145 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | 方案 6.2 M1~M10 状态机/快照同源 |
-| `test/audit/health-authority-split.js` | 125 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 1 A1~A9 开关权威拆分 |
-| `test/audit/health-probe-batch2.js` | 152 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 2 B1~B9 探测/质量档 |
-| `test/audit/health-eligibility-batch3.js` | 131 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 3 C1~C9 统一 Eligibility 接入 |
-| `test/audit/health-breaker-quality.js` | 137 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Q1~Q5/F39/F40/F41 按档熔断 |
-| `test/audit/health-resolve-dead.js` | 101 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | R1~R4/F42 取链摘除分层 |
+| `test/audit/health-linkage-invariants.js` | 159 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | L1~L4/F61/F64 联动 |
+| `test/audit/health-state-machine-v2.js` | 147 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | 方案 6.2 M1~M10 状态机/快照同源 |
+| `test/audit/health-authority-split.js` | 126 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 1 A1~A9 开关权威拆分 |
+| `test/audit/health-probe-batch2.js` | 154 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 2 B1~B9 探测/质量档 |
+| `test/audit/health-eligibility-batch3.js` | 132 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Batch 3 C1~C9 统一 Eligibility 接入 |
+| `test/audit/health-breaker-quality.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | Q1~Q5/F39/F40/F41 按档熔断 |
+| `test/audit/health-resolve-dead.js` | 106 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | R1~R4/F42 取链摘除分层 |
 | `test/audit/health-scoped-reset.js` | 74 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | S1~S2/F38 scoped 清账 |
-| `test/audit/health-scheduler-fake-clock.js` | 58 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | N1~N2/F21 探测 jitter/暂停 |
-| `test/audit/health-persistence-v2.js` | 170 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F36/F57 P1~P10 持久化 v2 |
-| `test/audit/health-probe-outcome.js` | 136 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F20/F22 O1~O9 探测三值 |
+| `test/audit/health-scheduler-fake-clock.js` | 65 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | N1~N2/F21 探测 jitter/暂停 |
+| `test/audit/health-persistence-v2.js` | 176 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F36/F57 P1~P10 持久化 v2 |
+| `test/audit/health-probe-outcome.js` | 143 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F20/F22 O1~O9 探测三值 |
 | `test/audit/health-probe-fidelity.js` | 171 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F20/F22 F1~F10 探测保真 |
 | `test/audit/health-transition-events.js` | 112 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F33 U1~U7 迁移事件优先级 |
-| `test/audit/health-snapshot-eta.js` | 141 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F35/F45/F46/F06/F32/F17 ETA/限速/冷启/事件/计数 S1~S11 |
-| `test/audit/e-extra.js` | 927 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/audit/health-snapshot-eta.js` | 167 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F35/F45/F46/F06/F32/F17 ETA/限速/冷启/事件/计数 S1~S11 |
+| `test/audit/e-extra.js` | 944 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/candidate-audit-test.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
-| `test/lx-source-smoke-test.js` | 1625 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
-| `test/stress-test.js` | 221 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/lx-source-smoke-test.js` | 1632 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/stress-test.js` | 228 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `docs/ARCHITECTURE.md` | 93 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/README.md` | 71 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 74 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/TESTING.md` | 166 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/CHANGELOG.md` | 92 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_MATRIX.md` | 196 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `test/audit/f-repo.js` | 451 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
-| `test/stress-round3.js` | 356 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
-| `test/audit/g-meta.js` | 355 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14 |
+| `docs/CHANGELOG.md` | 126 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 198 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `test/audit/f-repo.js` | 452 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
+| `test/stress-round3.js` | 363 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
+| `test/audit/g-meta.js` | 404 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14 |
 | `docs/archive/audit-plans/round1.md` | 90 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/archive/audit-plans/round2.md` | 186 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/archive/audit-plans/round3.md` | 78 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | .md | ✓ | ✓ | — | — | — | — | — | 五轮结算 |
 | `docs/archive/audit-plans/round5.md` | 111 | .md | ✓ | ✓ | — | — | — | — | — | 五轮计划 |
 | `docs/archive/audit-plans/round4.md` | 235 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
-| `test/mutation/run.js` | 312 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | MU1~MU22（变异测试） |
+| `test/mutation/run.js` | 314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | MU1~MU22（变异测试） |
 | `.gitignore` | 2 | 其他 | ✓ | — | — | — | — | — | — | U13 编码扫描（本轮登记） |
 | `docs/AUDIT_PLAN_v10.md` | 243 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
 | `docs/PROGRESS_round5.md` | 58 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
 | `docs/archive/audit-plans/stress-round4.md` | 99 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
 | `docs/audit-plans/stress-round5.md` | 114 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
-| `test/audit/q-quickjs-real.js` | 127 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/QR1~QR3 |
-| `test/audit/aa-p3-persist.js` | 212 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P3 A1~A6 宿主持久化协议（导出/恢复/拒绝 URL/版本 TTL） |
-| `test/audit/r-admission.js` | 510 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | R 组 A1~A20（L4 裁决层 + v8.11.6 收尾） |
-| `test/audit/u-cross-platform.js` | 354 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U 组 U1~U15（v8.12.1 跨平台缓存失效；U13 三目标；U14 mg/kg 不再作为目标；U15 实际平台标签） |
-| `test/audit/v-cross-platform-stress.js` | 423 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | V 组 V1~V13（20 并发同歌 / 缓存上限 / 总开关 / 关源重开 / remix-only / 慢主平台 / 事件隐私 / 同名同歌手时长差 199s 拒绝） |
-| `test/audit/w-fallback-owner.js` | 51 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P1 W1~W2（inited 已上报 / 5 平台 fallbackOwner=source） |
-| `test/audit/x-media-envelope.js` | 157 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P2 X1~X12（64B/1B/1KB/1MiB/8MiB 信封还原 / kindOf audio / byteLength=BAD_ENVELOPE / 缺片=TRUNCATED_MEDIA / 旧 Buffer 兼容 / mediaEnvelope 能力声明 / 0 字节零长 / admit 错误码 / 1MiB JSON.parse≤10ms） |
-| `test/audit/s-health-events.js` | 230 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | S 组 S1~S6（2.4 方案 healthEvents 22 条） |
-| `test/audit/t-health-events-stress.js` | 137 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | T 组 T1~T9（2.4 方案压力 12 条） |
-| `test/stress-round4.js` | 1326 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
+| `docs/reports/候选接入评审-2026-11-15.md` | 97 | .md | ✓ | ✓ | — | — | — | — | — | R40 生态候选（qingliang tx 5/5 全曲） |
+| `test/audit/q-quickjs-real.js` | 141 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/QR1~QR3 |
+| `test/audit/aa-p3-persist.js` | 233 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P3 A1~A6 宿主持久化协议（导出/恢复/拒绝 URL/版本 TTL） |
+| `test/audit/r-admission.js` | 534 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | R 组 A1~A20 + A3d（L4 裁决层；A3d 给 trialMark 接真生产者，防「没人会置的开关」） |
+| `test/audit/u-cross-platform.js` | 361 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U 组 U1~U15（v8.12.1 跨平台缓存失效；U13 三目标；U14 mg/kg 不再作为目标；U15 实际平台标签） |
+| `test/audit/v-cross-platform-stress.js` | 447 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | V 组 V1~V13（20 并发同歌 / 缓存上限 / 总开关 / 关源重开 / remix-only / 慢主平台 / 事件隐私 / 同名同歌手时长差 199s 拒绝） |
+| `test/audit/w-fallback-owner.js` | 54 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P1 W1~W2（inited 已上报 / 5 平台 fallbackOwner=source） |
+| `test/audit/x-media-envelope.js` | 161 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P2 X1~X12（64B/1B/1KB/1MiB/8MiB 信封还原 / kindOf audio / byteLength=BAD_ENVELOPE / 缺片=TRUNCATED_MEDIA / 旧 Buffer 兼容 / mediaEnvelope 能力声明 / 0 字节零长 / admit 错误码 / 1MiB JSON.parse≤10ms） |
+| `test/audit/s-health-events.js` | 290 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | S 组 S1~S6 + S5b（事件白名单 27 条；S5b 白名单漂移加载即炸） |
+| `test/audit/t-health-events-stress.js` | 146 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | T 组 T1~T9（2.4 方案压力 12 条） |
+| `test/stress-round4.js` | 1333 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 272 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
-| `docs/READTHROUGH.md` | 250 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
-| `docs/DOC_INDEX.md` | 99 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
+| `docs/READTHROUGH.md` | 252 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
+| `docs/DOC_INDEX.md` | 100 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
 | `docs/KNOWN_ISSUES.md` | 65 | .md | ✓ | ✓ | — | — | — | — | — | 已知问题/技术债台账（K01~K20） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | .md | ✓ | ✓ | — | — | — | — | — | 音质策略优化方案（含复现证据） |
 ## 汇总
 
-- 文件总数：**156**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**38658**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**158**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**39515**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_LIFECYCLE.md` | 76 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `docs/SOURCE_REGISTRY.md` | 63 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `docs/SOURCE_RETIREMENT.md` | 67 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `docs/SOURCE_REGISTRY.md` | 64 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `docs/SOURCE_RETIREMENT.md` | 80 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `package-lock.json` | 499 | .json | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `package.json` | 17 | .json | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `scripts/build-source.js` | 52 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
@@ -164,24 +165,25 @@
 | `scripts/verify-real-platform-chains.js` | 103 | .js | ✓ | — | — | — | ✓ | ✓ | — | G7 平台 ID 链真实证据 |
 | `src/00-header.js` | 6 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/80-entry.js` | 10 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/legacy.js` | 5863 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/legacy.js` | 5974 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/55-probation.js` | 41 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/changqingVip.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/helloworldKw.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/qingliangTx.js` | 21 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | V2/Y1~Y6/Z3 |
 | `src/providers/huibq.js` | 23 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/ikun.js` | 24 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/index.js` | 15 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/index.js` | 16 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/juheTx.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/kuwoOfficial.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/suyin163.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/suyinKuwo.js` | 30 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/wyOuter.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/xinghaiBackend.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `test/audit/s-source-lifecycle.js` | 114 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `test/audit/y-provider-contract.js` | 143 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `test/audit/z-cancel.js` | 156 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `test/audit/s-source-lifecycle.js` | 122 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `test/audit/y-provider-contract.js` | 145 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `test/audit/z-cancel.js` | 170 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `scripts/dump-chain.js` | 75 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6 |
-| `test/fixtures/chain-golden.json` | 89 | .json | ✓ | ✓ | — | — | — | ✓ | ✓ | U2~U6/V2/Y9 |
+| `test/fixtures/chain-golden.json` | 91 | .json | ✓ | ✓ | — | — | — | ✓ | ✓ | U2~U6/V2/Y9 |
 - H：行为断言脚本 **13** 个（含 `test/mutation/run.js`）（冒烟 + a-static/b-logic/d-func/e-extra + **h-toggles** + f-repo + g-meta + 两代压测）
 - **未进矩阵的文件：0**（规则17 每次实跑都对 `git ls-files` 做集合差；此前漏 9 个：`.gitignore` / `AUDIT_PLAN_v10` / `PROGRESS_round5` / 两份 stress 计划 / 第六轮报告 / `q-quickjs-real.js` / `stress-round4.js`，已补登记）
 - **未被 U（静态）覆盖的文件：0**——U 组按 tracked 文件动态遍历，不依赖本表；本表漏登记会造成「看起来没审」的假象

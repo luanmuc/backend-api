@@ -38,12 +38,17 @@ const rec = (id, name, ok, detail) => {
 
 if (!dbg || !dbg.breakerMap || typeof dbg.recordRateLimit !== 'function') {
   console.log('✗ [Q0] __debug 钩子缺失（breakerMap / recordRateLimit）');
-  process.exit(1);
+  // R30：裸 exit(1) 会把 require 本文件的调用方一起杀掉；独立运行仍直接红，被 require 改成抛出。
+  if (require.main === module) process.exit(1);
+  throw new Error('__debug 钩子缺失（breakerMap / recordRateLimit）');
 }
 
 // ── Q1：D-04 半开态 + 429 → 必须收口回 open，不能停在 half-open ──
 {
-  const id = 'gdKw'; // 任一已注册源即可，这里取默认开启的 gd Kw
+  // R35：原注释写「任一已注册源即可，这里取默认开启的 gd Kw」——但 gdKw/gdKg 是 v8.13 之前的旧源 id，
+  // 当前 12 源登记里没有它们；用一个不存在的 id 会让 breakerMap 里多出一条幽灵条目。
+  // 换成真实的在册源（两个不同源，避免 Q1/Q2 互相干扰）。
+  const id = 'suyinKuwo'
   dbg.recordRateLimit(id, '128k'); // breakerMap 是懒建：先调一次把条目建出来
   const b = dbg.breakerMap.get(id);
   const before = { state: b.state, lastFailureTime: b.lastFailureTime };
@@ -65,7 +70,7 @@ if (!dbg || !dbg.breakerMap || typeof dbg.recordRateLimit !== 'function') {
 
 // ── Q2：closed / open 态遇 429 不应被误改成 open（避免"限流当熔断"扩大打击）──
 {
-  const id = 'gdKg';
+  const id = 'suyin163'
   dbg.recordRateLimit(id, '128k');
   const b = dbg.breakerMap.get(id);
   const saved = { state: b.state, lastFailureTime: b.lastFailureTime };
@@ -126,8 +131,12 @@ if (!dbg || !dbg.breakerMap || typeof dbg.recordRateLimit !== 'function') {
       }
     }
     console.log(`\nD 系列行为断言（Q1~Q5）汇总：${5 - fail} 通过 / ${fail} 失败`);
+    // R35：原来只有 `if (require.main) process.exit(...)`——被 require 时失败既不退出也不置退出码。
+    if (fail) process.exitCode = 1;
     if (require.main === module) process.exit(fail ? 1 : 0);
   })();
 }
 
-module.exports = { results: { fail } };
+// R35：原来导出的是 `{ results: { fail } }`——对象里存的是**模块求值时刻**的 0 快照，
+// 后面 Q1~Q5 全部跑完 fail 变成 1 也不会更新，读这个字段的人永远看到 0。改成取值函数。
+module.exports = { results: () => ({ fail }) };

@@ -145,6 +145,30 @@ need('A3b', 'trialMark 命中 → FRAGMENT 且不外呼探针', () => {
     tmPos && tmNeg, `freeTrialInfo→${tmPos} 正常响应→${tmNeg}`);
 });
 
+// ── A3d：接口层试听标记必须有真实生产者（否则 A3b 打的是「没人会置的开关」）──
+need('A3d', '真实生产者：晴亮返回 RS0 试听链 / freeTrialInfo → 直接 PREVIEW_FRAGMENT 且带 fragmentUrl', async () => {
+  const ql = dbg.qingliangTxGetUrl;
+  if (!ql) { rec('A3d', '真实生产者', false, 'qingliangTxGetUrl 未导出'); return; }
+  const song = { name: '晴天', songmid: '0039MnYb0qxYhV', source: 'tx' };
+  const runStub = async (body) => {
+    globalThis.__probeStub = () => ({ statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), url: 'https://music.lzmhhh.com/api/music/url' });
+    try { await ql('tx', '0039MnYb0qxYhV', '320k', song); return { ok: true }; }
+    catch (e) { return { ok: false, code: e.code, fragmentUrl: e.fragmentUrl }; }
+    finally { globalThis.__probeStub = null; }
+  };
+  // xinglan 实测形态：试听链前缀 WS.stream.qqmusic.qq.com/RS0…，960,887 bytes vs 全曲 10,792,943
+  const rs0 = await runStub({ code: 1, data: 'https://ws.stream.qqmusic.qq.com/RS02004abcdef.mp3' });
+  // 接口层结构化标记：freeTrialInfo 非空
+  const trial = await runStub({ code: 1, data: { url: 'https://aqqmusic.tc.qq.com/full.mp3' }, freeTrialInfo: [{ start: 0, end: 60 }] });
+  // 正常全曲：不得被误判
+  const full = await runStub({ code: 1, data: 'https://aqqmusic.tc.qq.com/M800004Z8Ihr0JIu5s.mp3' });
+  rec('A3d', '真实生产者：晴亮返回 RS0 试听链 / freeTrialInfo → 直接 PREVIEW_FRAGMENT 且带 fragmentUrl',
+    rs0.ok === false && rs0.code === EC.PREVIEW_FRAGMENT && !!rs0.fragmentUrl
+    && trial.ok === false && trial.code === EC.PREVIEW_FRAGMENT && !!trial.fragmentUrl
+    && full.ok === true,
+    `RS0→${rs0.code || 'PASS'} 标记→${trial.code || 'PASS'} 全曲→${full.ok ? 'PASS' : full.code}`);
+});
+
 // ── A4：代表码优先级——交付类码不被 NOT_FOUND 覆盖 ─────────────────────
 need('A4', 'strong NOT_AUDIO 与 NOT_FOUND 同档 → 代表码取 NOT_AUDIO 且 TTL≤60s', () => {
   const out = dbg.admit ? dbg.admit({

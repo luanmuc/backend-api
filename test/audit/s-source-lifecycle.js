@@ -27,9 +27,9 @@ function rec(id, name, fn) {
 const H = mod.SOURCE_HANDLERS;
 const ids = Object.keys(H);
 
-rec('S1', '预算：12 登记 / 10 上链 / 2 观察', () => {
-  assert.strictEqual(ids.length, 12);
-  assert.strictEqual(ids.filter(id => H[id].lifecycle === 'active').length, 10);
+rec('S1', '预算：13 登记 / 11 上链 / 2 观察', () => {
+  assert.strictEqual(ids.length, 13);
+  assert.strictEqual(ids.filter(id => H[id].lifecycle === 'active').length, 11);
   assert.strictEqual(ids.filter(id => H[id].lifecycle === 'probation').length, 2);
 });
 rec('S2', '退役 8 源完全不在册、不探测', () => {
@@ -77,9 +77,9 @@ rec('S8', '五平台均有上链源，mg/kg 单源风险已登记', () => {
 });
 rec('S9', 'source-inventory --check 可执行且通过', () => {
   const out = execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'source-inventory.js'), '--check'], { encoding: 'utf8' });
-  assert.match(out, /12 登记 \/ 10 上链 \/ 2 观察/);
+  assert.match(out, /13 登记 \/ 11 上链 \/ 2 观察/);
 });
-rec('S10', 'SOURCE_REGISTRY.md 存在且登记 12 源', () => {
+rec('S10', 'SOURCE_REGISTRY.md 存在且登记 13 源', () => {
   const f = path.join(ROOT, 'docs', 'SOURCE_REGISTRY.md');
   assert.ok(fs.existsSync(f), '缺少 docs/SOURCE_REGISTRY.md');
   const t = fs.readFileSync(f, 'utf8');
@@ -87,7 +87,9 @@ rec('S10', 'SOURCE_REGISTRY.md 存在且登记 12 源', () => {
 });
 rec('S11', 'SOURCE_LIFECYCLE.md 含七步准入与预算', () => {
   const t = fs.readFileSync(path.join(ROOT, 'docs', 'SOURCE_LIFECYCLE.md'), 'utf8');
-  assert.match(t, /12/);
+  // R36：原来是裸 `/12/`——文档里"12"出现 4 次（含无关数字），写错预算（如 13 登记）也照样绿。
+  // 收紧到真实预算句式。
+  assert.match(t, /13 登记 = 11 上链 \+ 2 观察/);
   assert.match(t, /七步|7 步/);
   assert.match(t, /probation/);
 });
@@ -96,19 +98,25 @@ rec('S12', 'SOURCE_RETIREMENT.md 含五条退出线', () => {
   assert.match(t, /五条|5 条|退出线/);
   assert.match(t, /一进一出/);
 });
-rec('S13', '端点登记表与 12 源对齐（无退役端点）', () => {
+rec('S13', '端点登记表与 13 源对齐（无退役端点）', () => {
   const reg = require(path.join(ROOT, 'scripts', 'endpoint-registry.js'));
   const text = JSON.stringify(reg.ENDPOINTS || reg);
   for (const id of ['xinghaiBackup', 'lingchuan', 'gdWy', 'juheKw', 'juheWy', 'juheKg', 'juheMg', 'nianxinVip']) {
     assert.ok(!text.includes(id), `端点表仍含退役源 ${id}`);
   }
-  assert.ok(fs.readFileSync(path.join(ROOT, 'scripts', 'source-inventory.js'), 'utf8').includes('12'));
+  // R36：原来是 `readFileSync(...).includes('12')`——近乎恒真：文件里任何一处出现 "12"
+  //（阈值 12000、注释里的版本号、行号）都能让它绿，等于没验预算口径。
+  const inv = fs.readFileSync(path.join(ROOT, 'scripts', 'source-inventory.js'), 'utf8');
+  assert.match(inv, /13 登记源 = 11 上链（active）\+ 2 观察（probation）/);
 });
-rec('S14', '版本号已升 8.15.1', () => {
+rec('S14', '产物版本头与 package.json 一致', () => {
+  const ver = require(path.join(ROOT, 'package.json')).version.replace(/[.]/g, '\\.');
   const src = fs.readFileSync(SRC, 'utf8');
-  assert.match(src, /@version 8\.15\.1/);
-  assert.match(src, /v8\.15\.1/);
+  assert.match(src, new RegExp('@version ' + ver));
+  assert.match(src, new RegExp('v' + ver));
 });
 
 console.log(`\nSource lifecycle: ${pass} passed, ${fail} failed`);
+// R36：只有 `if (require.main) process.exit(...)`——被 require 时失败既不退出也不置退出码。
+if (fail) process.exitCode = 1;
 if (require.main === module) process.exit(fail ? 1 : 0);

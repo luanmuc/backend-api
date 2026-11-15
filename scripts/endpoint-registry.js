@@ -18,13 +18,14 @@
  * sources：对应 lx-source.js 的 SOURCE_HANDLERS 键；多源共用端点时给数组（任一启用即参与判定）。
  */
 const ENDPOINTS = [
-  // ---- 源端点：13 条（对应 12 个登记源；helloworldKw 占通道①/②两条 + 3 条工具端点 = 全表 16 条）----
+  // ---- 源端点：14 条（对应 13 个登记源；helloworldKw 占通道①/②两条 + 3 条工具端点 = 全表 17 条）----
   { url: 'https://oiapi.net/api/QQ_Music', sources: ['suyinQQ'], kind: 'payload', note: '观察源：2026-11-11 HTTP 403，默认关闭、只探测' },
   { url: 'https://oiapi.net/api/Music_163', sources: ['suyin163'], kind: 'payload', note: '' },
   { url: 'https://oiapi.net/api/Kuwo', sources: ['suyinKuwo'], kind: 'payload', note: 'v8.5 实锤：端点 100% 可用但源曾返回 CDN 410 死链' },
   { url: 'https://api.xcvts.cn/api/music/migu', sources: ['suyinMigu'], kind: 'payload', note: '观察源：上游 502，默认关闭、只探测，复核 2026-11-26' },
   { url: 'https://lxmusicapi.onrender.com', sources: ['huibq'], kind: 'payload', note: 'onrender 免费实例，冷启动慢' },
   { url: 'https://api.music.lerd.dpdns.org', sources: ['juheTx'], kind: 'payload', note: 'Juhe 源族仅保留 tx，7 天复核' },
+  { url: 'https://music.lzmhhh.com/api/music/url', sources: ['qingliangTx'], kind: 'param', note: '晴亮 tx；POST id+type=qq 且必带 Referer，裸 GET 恒 405/404' },
   { url: 'https://yy.zddyr.top/lx/api/', sources: ['xinghaiBackend'], kind: 'payload', note: '端点 200 曾因无效 token 403' },
   { url: 'http://antiserver.kuwo.cn/anti.s', sources: ['kuwoOfficial'], kind: 'payload', note: '需带参 convert_url 取链才可判活' },
   { url: 'https://c.wwwweb.top', sources: ['ikun'], kind: 'payload', note: 'v8.1 迁移后的真实主端点；裸 GET 返回首页 200，需 payloadFetch 校验' },

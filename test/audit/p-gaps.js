@@ -10,7 +10,6 @@
  */
 const path = require('path');
 const SRC = path.join(__dirname, '..', '..', 'lx-source.js');
-const BASE = 'https://audio.test/x.mp3';
 
 const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '228908', hash: 'abcdef', id: 228908 };
 const res = [];
@@ -76,7 +75,10 @@ function mp3NoXing() {
 
 const load = (toggles, extra) => {
   setLx();
-  globalThis.__lxSourceConfig = Object.assign({}, globalThis.__lxSourceConfig || {}, {
+  // R31：原写法把**上一次**的配置整包合并进来（Object.assign({}, 旧配置, …)），
+  // 于是 P1 设下的 previewUrlPreFilter 会漏进 P2/P3 的用例，用例之间不独立。
+  // 改为从固定的基线重建，每次都是干净配置。
+  globalThis.__lxSourceConfig = Object.assign({
     rateWindowMax: 1e6, maxConcurrency: 1e6, rateWindowMs: 3600000,
     healthCheckIntervalMs: 3600000, breakerThreshold: 999,
     qualityShortCircuit: false, fragmentFallback: false, verifyDelivery: true, raceBudgetMs: 12000
@@ -108,7 +110,8 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
 
   const off = await helloworldRun(false);
   const on = await helloworldRun(true);
-  rec('P1', 'T-4 previewUrlPreFilter 开启才拦「试听直链」', !!off.r && off.r.url && !on.ok && /试听片段/.test(on.msg),
+  rec('P1', 'T-4 previewUrlPreFilter 开启才拦「试听直链」',
+    !!off.r && /preview-1530828245\.mp3/.test(String(off.r.url || '')) && !on.ok && /试听片段/.test(on.msg),
     `关=${off.ok ? '交付 ' + off.r.url : '失败 ' + off.msg} ｜ 开=${on.ok ? '交付 ' + on.r.url : '拦截 ' + on.msg}`);
 
   // ---------- T-6：FLAC 多 metadata 块遍历 ----------
@@ -116,7 +119,9 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
   const sniff = m6.__debug.sniffAudioBytes;
   const one = sniff(flacSingle(269.7), {}, 24 * 1024 * 1024);
   const many = sniff(flacMultiBlock(269.7), {}, 24 * 1024 * 1024);
+  // R31：原来只断言多块时长，单块时长只进了 detail 打印——解析器若在单块路径上算错也不会红。
   rec('P2', 'T-6 FLAC 跳过前置块仍能算出时长', one.format === 'flac' && many.format === 'flac'
+    && Math.abs((one.durationSec || 0) - 269.7) < 0.2
     && Math.abs((many.durationSec || 0) - 269.7) < 0.2,
     `单块=${one.format}/${one.durationSec} 多块=${many.format}/${many.durationSec}`);
 
@@ -136,8 +141,8 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
     // 先让探测连续失败 2 次，走真实的 AUTO_OFF_PROBE 路径，再验证连续 2 次 PASS 自动解除。
     m.applyProbeResult('xinghaiBackend', false, { outcome: 'FAIL' });
     m.applyProbeResult('xinghaiBackend', false, { outcome: 'FAIL' });
-    globalThis.__lxSourceConfig = globalThis.__lxSourceConfig;
-    scene = (u) => (/audio\.test/.test(u) ? okAudio() : { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 200, url: 'https://audio.test/x.mp3', data: { url: 'https://audio.test/x.mp3' } }) });
+    // R31：删掉 `globalThis.__lxSourceConfig = globalThis.__lxSourceConfig;` 这条自赋值空语句，
+    // 以及从未被任何请求读取的 scene 设置（本轮全部靠 applyProbeResult 直接驱动 reducer，不打网络）。
     console.log = () => {};
     try {
       // 逐轮推进：__probeRound 决定探测素材轮换与降频判断
@@ -166,5 +171,12 @@ const call = (platform, type, info) => handler({ action: 'musicUrl', source: pla
     it.ok ? pass++ : fail++;
   }
   orig(`\nP 组（零覆盖补测）汇总：${pass} 通过 / ${fail} 失败`);
-  process.exit(fail ? 1 : 0);
+  __exit(fail ? 1 : 0);
 })();
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

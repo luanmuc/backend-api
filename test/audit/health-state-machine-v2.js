@@ -96,24 +96,26 @@ check('M6 4 档 qualityShortCircuit 快照布尔齐全', () => {
   for (const q of ['128k', '320k', 'flac', 'flac24bit']) assert(typeof qs[q] === 'boolean', `缺 ${q} 短路布尔`)
 })
 
-check('M7 休眠优先级高于待采样/正常，且 code=SOURCE_SLEEPING', () => {
+// R33：标题写的是 code=SOURCE_SLEEPING，判据却写成 `['SOURCE_SLEEPING','AUTO_OFF_PROBE'].includes(...)`
+// （二者之一即可，等于放水）；实测连续 3 轮 FAIL 走的是「先 autoOff（连续 2 轮）再休眠」，
+// 快照同时 sleeping=true/autoOff=true，而 gate 给出 AUTO_OFF_PROBE（autoOff 优先级高于 sleeping）。
+// 标题与判据一起改成与真实状态机一致，并逐字段锁定。
+check('M7 连续 FAIL 后 autoOff 优先于休眠，gate=AUTO_OFF_PROBE', () => {
   const m = fresh()
   for (let i = 0; i < 3; i++) {
     m.applyProbeResult('suyinKuwo', false, { outcome: 'FAIL' })
   }
   const s = snap(m).suyinKuwo
-  assert(s.sleeping === true || s.autoOff === true, '连续失败应进入休眠或自动关闭')
+  assert(s.autoOff === true && s.sleeping === true, `连续 3 轮 FAIL 应 autoOff+sleeping，实际 ${JSON.stringify({ autoOff: s.autoOff, sleeping: s.sleeping })}`)
+  assert(s.offReason === 'AUTO_OFF_PROBE', `offReason 应为 AUTO_OFF_PROBE，实际 ${s.offReason}`)
   const e = gate(m, 'suyinKuwo')
-  assert(e.eligible === false, '休眠/自动关闭不应 eligible')
-  assert(['SOURCE_SLEEPING', 'AUTO_OFF_PROBE'].includes(e.code), `code 不符：${e.code}`)
+  assert(e.eligible === false, '自动关闭不应 eligible')
+  assert(e.code === 'AUTO_OFF_PROBE', `code 不符：${e.code}`)
 })
 
 check('M8 快照 reason 与 gate code 同源，不出现孤儿状态', () => {
   const m = fresh()
-  const cases = [
-    { setup: () => {}, code: 'ELIGIBLE' },
-    { setup: () => m.__debug.toggleSource('suyinKuwo', false), code: 'USER_OFF' },
-  ]
+  // R33：删掉从未被读取的 `cases` 死数组（真正的断言写在下面两段）。
   m.__debug.toggleSource('suyinKuwo', true)
   const s0 = snap(m).suyinKuwo
   assert(s0.eligible === true && s0.eligibilityCode === 'ELIGIBLE', `正常源快照应 ELIGIBLE，实际 ${s0.eligibilityCode}`)
@@ -140,6 +142,6 @@ check('M10 未知源不给假 eligible，统一 SOURCE_UNREACHABLE', () => {
 console.log(`\n${passed} passed, ${failures.length} failed`)
 if (failures.length) {
   for (const f of failures) console.log(`- ${f}`)
-  process.exit(1)
+  process.exitCode = 1 // R30：失败分支只置退出码，被 require 时不得杀调用方
 }
-if (require.main === module) process.exit(0)
+if (require.main === module) process.exit(process.exitCode || 0)

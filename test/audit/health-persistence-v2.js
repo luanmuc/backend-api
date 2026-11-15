@@ -54,7 +54,8 @@ check('P1 v2 导出：controls 与健康元数据同包但字段独立', () => {
   assert(st.sources && st.sources.suyinKuwo, '缺少 health sources')
   assert(typeof st.controls.suyinQQ.enabled === 'boolean', 'control.enabled 非法')
   assert(st.controls.suyinQQ.successUrl === undefined, 'controls 不得带 URL')
-  assert(st.sourceVersion === '8.15.1', `sourceVersion 应为 8.15.1，实际 ${st.sourceVersion}`)
+  const PKG_VER = require(path.join(__dirname, '..', '..', 'package.json')).version
+  assert(st.sourceVersion === PKG_VER, `sourceVersion 应与 package.json 一致(${PKG_VER})，实际 ${st.sourceVersion}`)
 })
 
 check('P2 v1 完整态必须拒绝', () => {
@@ -104,6 +105,11 @@ check('P6 无 v1 回滚开关，始终导出 v2', () => {
   const st = m.exportHealthState()
   assert(st.v === 2, `应始终导出 v2，实际 ${st.v}`)
   assert(st.controls && st.controls.suyinQQ, 'v2 应带 controls')
+  // R32：`healthV2Enabled` 这个键在产物里根本不存在，传配置等于没传——同 R28 的 A10。
+  // 「无回滚开关」要直接对源码取证：非注释出现次数必须为 0。
+  const srcText = require('fs').readFileSync(SRC, 'utf8')
+  const hits = srcText.split('\n').filter(l => l.includes('healthV2Enabled') && !l.trim().startsWith('//')).length
+  assert(hits === 0, `源码里仍存在 healthV2Enabled 开关读取点（${hits} 处）`)
 })
 
 check('P7 版本/未知源跳过/超容量/禁止字段', () => {
@@ -165,6 +171,6 @@ check('P8 导出不含 URL/歌名/缓存键', () => {
 console.log(`\n${passed} passed, ${failures.length} failed`)
 if (failures.length) {
   for (const f of failures) console.log(`- ${f}`)
-  process.exit(1)
+  process.exitCode = 1 // R30：失败分支只置退出码，被 require 时不得杀调用方
 }
-if (require.main === module) process.exit(0)
+if (require.main === module) process.exit(process.exitCode || 0)

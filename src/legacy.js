@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.15.1 契约与死配置收口版（2026-11-15：健康态导出源版本升 8.15.1 且兼容 8.14.1 旧包；删除 failCacheDefaultMs/resolveDeadReviveMs 两个未登记键、长青 4 个死模板与 provider 未消费 timeoutMs；限流退避统一由 rateLimitBackoffMs 决定）。历史版本见 docs/CHANGELOG.md。
- * @version 8.15.1 契约与死配置收口（健康态源版本兼容 / 死配置清零）
+ * @description v8.16.0 新增 tx 源版（2026-11-15：接入 qingliangTx（晴亮 tx 线路，第三方单点）作为 tx 第二源，登记源 12→13、上链源 10→11；juheTx 连续 7 天 0% 降为 tx 第三源；晴亮取链必带 Referer，超时/竞速/取消全交本仓框架，不自带内层 3s 超时）。历史版本见 docs/CHANGELOG.md。
+ * @version 8.16.0 接入晴亮 tx 源（第三方单点 / tx 三源）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -318,7 +318,7 @@ const HELLOWORLD_HTW_API = "https://musicserver.haitangw.cc/v1/music/resolve-url
 // 第二部分：音源开关（按实测结果配置，可自行调整）
 // ============================================================
 const SOURCE_TOGGLES = {
-  // v8.13：12 个登记源 / 10 个上链源 / 2 个观察源。
+  // v8.16：13 个登记源 / 11 个上链源 / 2 个观察源。
   // 观察源（probation）默认关闭，只探测、不进播放链：suyinQQ(tx)、suyinMigu(mg)。
   suyinKuwo: true,      // 溯音酷我：五平台兜底（kw/wy/tx/mg/kg）
   wyOuter: true,        // 网易云官方 outer 直连：固定 128k 免费歌直链
@@ -328,7 +328,8 @@ const SOURCE_TOGGLES = {
   helloworldKw: true,   // helloworld(kw)：convert_url_with_sign 直链，kw 128k/320k/flac
   changqingVip: true,   // 长青：kw 128k 兜底
   huibq: true,          // Huibq：kw/wy 链尾兜底（冷启动源）
-  juheTx: true,         // Juhe 聚合(tx)：tx 第二源，7 天复核
+  juheTx: true,         // Juhe 聚合(tx)：tx 第三源，7 天复核
+  qingliangTx: true,    // 晴亮(tx)：tx 主用第二源（2026-11-15 实测 5/5 全曲 320k），3 天复核
   ikun: true,           // ikun：kw/wy 链尾兜底（公益版免卡密）
   suyinQQ: false,       // 观察源：2026-11-11 实测 HTTP 403，只探测，不进链，复核 2026-11-19
   suyinMigu: false      // 观察源：2026-11-11 实测上游 502，只探测，不进链，复核 2026-11-26
@@ -400,7 +401,7 @@ function buildProbeConfig() {
   const probeSong = probePool[(globalThis.__probeRound || 0) % probePool.length];
   const probe163Id = PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length];
   const cfg = {
-    // ---- 上链源：10 个 ----
+    // ---- 上链源：11 个 ----
     suyinKuwo: {
       tier: "core",
       probes: [
@@ -464,6 +465,13 @@ function buildProbeConfig() {
       handlerSong: { rid: "228908", songmid: "228908", id: "228908", name: "晴天", singer: "周杰伦", duration: 271000 },
     },
     juheTx: juheProbeCfg("tx", { songmid: "228908", id: "228908", quality: "128k" }),
+    qingliangTx: {
+      tier: "secondary",
+      quality: "128k",
+      useHandler: true,
+      handlerPlatform: "tx",
+      handlerSong: { songmid: "0039MnYb0qxYhV", name: "晴天", singer: "周杰伦", duration: 269000 },
+    },
     ikun: {
       tier: "secondary",
       quality: "128k",
@@ -819,6 +827,25 @@ const HEALTH_HISTORY_MAX = 1008; // F07：历史快照上限 1008（10min/条 �
 // 不记歌名、URL、搜索词、账号、设备 ID、位置。App 通过 healthEvents action 只读拉取。
 const HEALTH_EVENT_MAX = 500;
 const HEALTH_EVENT_FIELDS = ["traceId", "eventId", "event", "sourceId", "platform", "quality", "ok", "code", "latencyMs", "reason", "from", "to"];
+// v8.16：事件白名单的**源码侧对偶**——测试侧（s-health-events S5）只验「文本里没有隐私字段名」，
+// 一旦有人把 name/url/songmid 加进白名单，行为层抽样未必覆盖得到。这里让口径自己守自己：
+// 加载即校验，含隐私字段或重复项直接抛 CONTRACT_ERROR（与 Provider Contract 同一条「宁可起不来」策略）。
+const HEALTH_EVENT_PRIVACY_RE = /^(name|songName|songNameRaw|singer|artist|album|url|uri|hash|songmid|mid|rid|lyric|account|phone|imei|device|token|cookie|openid|secret)$/i;
+const healthEventFieldAudit = { unknown: new Map(), privacyDropped: 0, unknownTotal: 0, warned: new Set() };
+function assertEventFieldPolicy() {
+  const bad = HEALTH_EVENT_FIELDS.filter((f) => HEALTH_EVENT_PRIVACY_RE.test(String(f)));
+  const dup = HEALTH_EVENT_FIELDS.filter((f, i) => HEALTH_EVENT_FIELDS.indexOf(f) !== i);
+  const errors = [];
+  if (bad.length) errors.push(`隐私字段 ${bad.join(",")}`);
+  if (dup.length) errors.push(`重复字段 ${[...new Set(dup)].join(",")}`);
+  if (errors.length) {
+    const err = new Error(`${ERROR_CODES.CONTRACT_ERROR}: 事件字段白名单非法 -> ${errors.join(" | ")}`);
+    err.code = ERROR_CODES.CONTRACT_ERROR;
+    throw err;
+  }
+  return HEALTH_EVENT_FIELDS.length;
+}
+assertEventFieldPolicy();   // 加载即守：白名单漂移不必等测试跑
 const healthEventRing = [];
 let healthEventSeq = 0;
 let healthEventDropped = 0;
@@ -834,6 +861,22 @@ function recordHealthEvent(entry) {
     traceId: clipText(entry.traceId, 64),
     event: clipText(entry.event || "unknown", 32),
   };
+  // v8.16：白名单外的键不再静默丢弃——隐私类键单独计数（这是 S5 行为层抽样的运行时兜底），
+  // 其余未知键也计数并按首次出现告警一次（有上限，避免脏调用把日志刷爆）。
+  for (const k of Object.keys(entry)) {
+    if (k === "seq" || k === "eventId" || k === "ts") continue;
+    if (HEALTH_EVENT_FIELDS.indexOf(k) >= 0) continue;
+    if (HEALTH_EVENT_PRIVACY_RE.test(k)) healthEventFieldAudit.privacyDropped++;
+    else {
+      healthEventFieldAudit.unknownTotal++;
+      const c = (healthEventFieldAudit.unknown.get(k) || 0) + 1;
+      healthEventFieldAudit.unknown.set(k, c);
+      if (c === 1 && healthEventFieldAudit.warned.size < 20) {
+        healthEventFieldAudit.warned.add(k);
+        logWarn(`健康事件出现未登记字段 "${k}"（已丢弃）——如需记录请先加进 HEALTH_EVENT_FIELDS`);
+      }
+    }
+  }
   for (const k of HEALTH_EVENT_FIELDS) {
     if (k === "traceId" || k === "event" || entry[k] === undefined) continue;
     if (k === "ok") {
@@ -853,6 +896,16 @@ function recordHealthEvent(entry) {
     healthEventRing.splice(dropAt >= 0 ? dropAt : 0, 1);
     healthEventDropped++;
   }
+}
+function getHealthEventFieldAudit() {
+  const unknownCounts = {};
+  for (const [k, v] of healthEventFieldAudit.unknown) unknownCounts[k] = v;
+  return {
+    unknown: [...healthEventFieldAudit.unknown.keys()].sort(),
+    unknownCounts,
+    unknownTotal: healthEventFieldAudit.unknownTotal,
+    privacyDropped: healthEventFieldAudit.privacyDropped,
+  };
 }
 function getHealthEvents(params) {
   const cap = Math.min(Math.max(Number(params && params.limit) || HEALTH_EVENT_MAX, 1), HEALTH_EVENT_MAX);
@@ -2917,7 +2970,9 @@ const FRAGMENT_RE = /(15\s*秒|0\.?\s*8x|片段|试听|demo|preview|teaser)/i;
 // v8.0：试听片段URL检测——酷我VIP试听片段(5秒)URL特征
 // 实测发现 helloworld 源部分歌曲返回的是酷我VIP试听片段链接（能播但只有5秒）
 // 检测URL关键词，命中即判定为试听片段
-const PREVIEW_URL_RE = /(preview|test|sample|试听|片段|demo|teaser|clip)/i;
+const PREVIEW_URL_RE = /(preview|test|sample|试听|片段|demo|teaser|clip|\/RS\d)/i;
+// v8.16：QQ 官方 CDN 的试听链是 `/RS0…` 前缀（xinglan 候选实测：该前缀 960,887 bytes vs 全曲 10,792,943，
+// 差 11.2 倍）。全曲是 `M800…`/`M500…`，前缀不同，所以这是结构特征不是猜词。命中仍需 Range 复核。
 function isPreviewFragmentUrl(url) {
   if (!url || typeof url !== "string") return false;
   return PREVIEW_URL_RE.test(url);
@@ -3701,6 +3756,54 @@ async function juheGetUrl(platform, songId, quality, songInfo, cancelToken = nul
   throw new Error(`${ERROR_CODES.NOT_FOUND}: Juhe响应异常(${d?.msg || "未知"})`);
 }
 
+// v8.16：晴亮（qingliang）tx 线路。生态扫描候选里唯一实测能出全曲的一条，只取 tx。
+// 取链必须带 Referer（不带会被拒）；它返回的 aqqmusic.tc.qq.com 直链实测"裸请求"也能 Range 206 / audio/mpeg，
+// 不依赖 UA、不依赖 Referer——播放器拿到就能播。
+// 超时/重试/竞速/预算/取消一律由上层（raceWithBudget / getUrlWithFallback + cancelToken）掌握，
+// 这里只留一个防悬挂上限，不复刻候选脚本自带的 3s 超时：两套超时会互相打断，
+// 表现为"外层预算还剩 5s，内层 3s 就 abort 了"，白丢一次竞速机会。
+const QINGLIANG_TX_URL = "https://music.lzmhhh.com/api/music/url";
+const QINGLIANG_TX_TIMEOUT_MS = 8000;
+async function qingliangTxGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
+  if (platform !== "tx") throw new Error(`${ERROR_CODES.PARAM_ERROR}: 晴亮只注册了 tx`);
+  const qqId = getQQSongId(songInfo);
+  const mid = (qqId && qqId.type === "mid" ? qqId.value : null) || songInfo?.songmid || songInfo?.id || songId || "";
+  // 该线路只按 mid 出链，歌名不参与校验——缺 mid 必须报错，绝不兜底成"1 号歌"（v8.11.4 F-01 同型坑）
+  if (!mid || typeof mid !== "string" || !mid.trim()) {
+    throw new Error(`${ERROR_CODES.PARAM_ERROR}: 晴亮tx缺 songmid`);
+  }
+  const res = await httpRequestWithRetry(QINGLIANG_TX_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Referer": "https://music.lzmhhh.com/",
+      "User-Agent": getMobileUserAgent()
+    },
+    body: `id=${encodeURIComponent(mid.trim())}&type=qq`,
+    timeout: QINGLIANG_TX_TIMEOUT_MS,
+    cancelToken
+  }, 1);
+  const d = res && res.body;
+  const code = d && d.code !== undefined && d.code !== null ? String(d.code) : "";
+  const data = d && d.data;
+  const url = typeof data === "string" ? data : (data && typeof data.url === "string" ? data.url : "");
+  if (code === "1" && typeof url === "string" && /^https?:/.test(url)) {
+    const u = upgradeToHttps(url);
+    // v8.16（借 xinglan 的 freeTrialInfo/RS0 思路）：接口层已给结构化试听标记，或链是 QQ 试听前缀，
+    // 就直接判片段——省一次 Range，也不让 60s 片段被当全曲交付；fragmentUrl 带出去供 B 方案兜底。
+    if (trialMarkOf(d) || isPreviewFragmentUrl(u)) {
+      const err = new Error(`${ERROR_CODES.PREVIEW_FRAGMENT}: 晴亮tx只给试听片段`);
+      err.code = ERROR_CODES.PREVIEW_FRAGMENT;
+      err.evidence = "medium";
+      err.fragmentUrl = u;
+      err.fragmentQuality = "128k";
+      throw err;
+    }
+    return u;
+  }
+  throw new Error(`${ERROR_CODES.NOT_FOUND}: 晴亮tx响应异常(${(d && d.msg) || code || "未知"})`);
+}
+
 const changqingGetUrl = createTemplateVipSource(CHANGQING_KW_URL_TEMPLATE, /kw\.php/, "长青");
 
 function getPlatformSongId(platform, songInfo) {
@@ -3893,8 +3996,8 @@ function getHealthSnapshot() {
 const HEALTH_STATE_VERSION = 2; // 单一路径：只导出/恢复 v2
 const HEALTH_STATE_ACCEPTED_VERSIONS = [2];
 // 导出时写当前源版本；恢复时同时接受上一版，避免一次版本升级把用户已存健康态整包丢掉。
-const HEALTH_STATE_SOURCE_VERSION = "8.15.1";
-const HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1"];
+const HEALTH_STATE_SOURCE_VERSION = "8.16.0";
+const HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0"];
 const HEALTH_STATE_MAX_BYTES = 256 * 1024;
 const HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1000;
 const HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1000;
@@ -4180,7 +4283,7 @@ function provider(id, name, fn, maxQuality, opts = {}) {
 }
 
 const SOURCE_HANDLERS = {
-  // ---- 上链源：10 个 ----
+  // ---- 上链源：11 个 ----
   suyinKuwo: provider("suyinKuwo", "溯音酷我", (platform, songId, quality, songInfo, cancelToken) => suyinKuwoGetUrl(songInfo, quality, cancelToken), "flac", {
     platforms: ["kw", "wy", "tx", "mg", "kg"],
     anchors: ["rid", "songmid", "id"],
@@ -4214,8 +4317,12 @@ const SOURCE_HANDLERS = {
     coldStart: true, note: "onrender 冷启动；仅 kw/wy 实测可用",
   }),
   juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "flac", {
-    platforms: ["tx"], anchors: ["songmid", "musicId", "id"], chain: { tx: 2 }, upstreamGroup: "juhe",
-    reviewAt: "2026-11-19", note: "2026-11-11 恢复；7 天复核，仍为 tx 第二源",
+    platforms: ["tx"], anchors: ["songmid", "musicId", "id"], chain: { tx: 3 }, upstreamGroup: "juhe",
+    reviewAt: "2026-11-19", note: "2026-11-11 恢复；7 天复核，降为 tx 第三源（本轮 0% 成功率）",
+  }),
+  qingliangTx: provider("qingliangTx", "晴亮(tx)", qingliangTxGetUrl, "320k", {
+    platforms: ["tx"], anchors: ["songmid", "musicId", "id"], chain: { tx: 2 }, upstreamGroup: "qingliang-tx",
+    reviewAt: "2026-11-18", note: "2026-11-15 实测 5/5 全曲 320k；第三方单点，3 天复核",
   }),
   ikun: provider("ikun", "ikun", ikunGetUrl, "flac", {
     platforms: ["kw", "wy"], anchors: ["rid", "songmid", "id"], chain: { kw: 7, wy: 5 }, upstreamGroup: "ikun",
@@ -4248,8 +4355,8 @@ function validateProviderContracts() {
   const active = ids.filter(id => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.ACTIVE);
   const probation = ids.filter(id => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.PROBATION);
 
-  if (registered !== 12) errors.push(`登记源必须为 12，实际 ${registered}`);
-  if (active.length !== 10) errors.push(`上链源必须为 10，实际 ${active.length}`);
+  if (registered !== 13) errors.push(`登记源必须为 13，实际 ${registered}`);
+  if (active.length !== 11) errors.push(`上链源必须为 11，实际 ${active.length}`);
   if (probation.length !== 2) errors.push(`观察源必须为 2，实际 ${probation.length}`);
   if (toggleIds.length !== registered) errors.push(`SOURCE_TOGGLES 必须与 SOURCE_HANDLERS 等量，toggles=${toggleIds.length}, handlers=${registered}`);
   for (const id of toggleIds) if (!SOURCE_HANDLERS[id]) errors.push(`SOURCE_TOGGLES 存在未登记源 ${id}`);
@@ -5734,7 +5841,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.15.1 已加载（12 登记 / 10 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v8.16.0 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
@@ -5821,6 +5928,10 @@ if (typeof module !== "undefined" && module.exports) {
       applyAdmission,      // K14：reducer 的 PASS/记账分支
       getHealthSnapshot,   // F42：取链/播放摘除分层断言
       trialMarkOf,
+      HEALTH_EVENT_FIELDS,        // S5b：策略校验需要能注入漂移的白名单
+      assertEventFieldPolicy,     // S5b：白名单漂移必须加载即炸
+      getHealthEventFieldAudit,   // S5b：未知/隐私字段计数（只读快照）
+      qingliangTxGetUrl,   // A3d：试听标记必须有真实生产者，防「没人会置的开关」
       ADMISSION_POLICY,
       admissionLedger,
       suyinKuwoSearch,   // 供测试验证 D-31

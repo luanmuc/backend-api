@@ -1,6 +1,6 @@
 {
-  "version": "8.15.1",
-  "sourceHead": "eb2ce1c",
+  "version": "8.16.0",
+  "sourceHead": "cb172d1",
   "platforms": {
     "kw": {
       "128k": [
@@ -49,10 +49,12 @@
     "tx": {
       "128k": [
         "suyinKuwo",
+        "qingliangTx",
         "juheTx"
       ],
       "320k": [
         "suyinKuwo",
+        "qingliangTx",
         "juheTx"
       ],
       "flac": [

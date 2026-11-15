@@ -248,7 +248,9 @@ function main() {
     require.resolve('esbuild', { paths: [ROOT] });
   } catch {
     console.error('[mutation] 缺少 esbuild，请先执行 npm ci 后重试');
-    process.exit(2);
+    // R30：裸 exit(2) 会把 require 本模块的调用方一起杀掉；独立运行仍退出 2，被 require 改成抛出。
+    if (require.main === module) process.exit(2);
+    throw new Error('[mutation] 缺少 esbuild，请先执行 npm ci 后重试');
   }
 
   const files = sourceFiles();

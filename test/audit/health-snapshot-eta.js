@@ -118,14 +118,40 @@ check('S10 生产探测配置只保留 handler 目标，不携带旧 URL 字段'
   }
 })
 
-check('S11 生产探测配置每轮至少两首不同歌', () => {
+// R34：原判据有两处问题。①标题说「每轮至少两首不同歌」，但实测 buildProbeConfig 是**每轮每目标 1 首**
+// （按 __probeRound 轮换：round0 全晴天 / round1 全海阔天空 / round2 全稻香），「两首」是 probeSingleSource
+// 执行期把单目标展开成两首，不是生产配置形状。②判据写成 `if (songs.length >= 2) assert(...)`，
+// 13 个源里只有 suyinKuwo 有 3 个目标，其余 12 个源整段被跳过——条件断言等于没断言。
+// 改成对真实设计取证：所有源带 twoSong 标记（执行期据此展开）+ 跨轮次必须换歌 + 多目标源目标间必须是不同歌。
+check('S11 twoSong 标记全覆盖、跨轮轮换歌曲、多目标源单轮不同歌', () => {
   const m = fresh()
-  const cfg = m.buildProbeConfig()
-  for (const [id, pc] of Object.entries(cfg)) {
-    assert(pc.twoSong === true, `${id} 缺 twoSong 标记`)
-    const songs = (pc.probes || [pc]).map(t => (t.handlerSong && t.handlerSong.name) || t.songName).filter(Boolean)
-    if (songs.length >= 2) assert(new Set(songs).size >= 2, `${id} 单轮歌曲未分两首：${songs.join('/')}`)
+  const cfg0 = m.buildProbeConfig()
+  const ids = Object.keys(cfg0)
+  assert(ids.length === 13, `探测配置源数 ${ids.length}`)
+  for (const [id, pc] of Object.entries(cfg0)) {
+    assert(pc.twoSong === true, `${id} 缺 twoSong 标记（probeSingleSource 不会展开第二首）`)
   }
+  const multi = []
+  for (const [id, pc] of Object.entries(cfg0)) {
+    const songs = (pc.probes || [pc]).map(t => (t.handlerSong && t.handlerSong.name) || t.songName).filter(Boolean)
+    if (songs.length >= 2) {
+      multi.push(id)
+      assert(new Set(songs).size === songs.length, `${id} 单轮内目标歌曲重复：${songs.join('/')}`)
+    }
+  }
+  assert(multi.length >= 1, '应至少有一个多目标源（suyinKuwo 三档）')
+  globalThis.__probeRound = 0
+  const r0 = m.buildProbeConfig()
+  globalThis.__probeRound = 1
+  const r1 = m.buildProbeConfig()
+  const nameOf = (cfg, id) => {
+    const t = (cfg[id].probes || [cfg[id]])[0]
+    return (t.handlerSong && t.handlerSong.name) || t.songName
+  }
+  let rotated = 0
+  for (const id of ids) if (nameOf(r0, id) !== nameOf(r1, id)) rotated++
+  assert(rotated === ids.length, `跨轮换歌只覆盖 ${rotated}/${ids.length} 个源`)
+  globalThis.__probeRound = 0
 })
 
 check('S9 探测歌曲池可配且校验非法值', () => {
@@ -137,5 +163,5 @@ check('S9 探测歌曲池可配且校验非法值', () => {
 })
 
 console.log(`\n${passed} passed, ${failures.length} failed`)
-if (failures.length) { console.error(failures.join('\n')); process.exit(1) }
-if (require.main === module) process.exit(0)
+if (failures.length) { console.error(failures.join('\n')); process.exitCode = 1 }
+if (require.main === module) process.exit(process.exitCode || 0)

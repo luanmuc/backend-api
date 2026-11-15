@@ -6,10 +6,10 @@
 >
 > **时效说明**：以下逐文件结论是 2026-11-10 通读时的历史快照，保留作为审计证据；当前版本号、断言数、行数以 `README.md`、`docs/TESTING.md` 与 `scripts/docs-audit.js` 的实测为准。
 
-历史快照 HEAD `eb2ce1c`（v8.15.1）；当前工作区 **v8.15.1** 契约与死配置收口版
+历史快照 HEAD `91e373a`（v8.16.0）；当前工作区 **v8.15.1** 契约与死配置收口版
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `eb2ce1c`。
-文件数：**156**　总行数：**38658**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**158**　总行数：**39515**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -53,18 +53,18 @@
 | `.github/workflows/ci.yml` | 238 | 全文 | 7 个 job（test-fast / stress-long / stress-short / mutation / probe / ecosystem / purge-cdn，2026-11-14 拆并行）；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 2 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
-| `README.md` | 126 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
+| `README.md` | 127 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 42 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
-| `lx-source.js` | 5733 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
+| `lx-source.js` | 5863 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
 | `docs/AGENTS.md` | 191 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 93 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突）→ **2026-11-12 已修：4509 行** |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
-| `docs/AUDIT_MATRIX.md` | 196 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
+| `docs/AUDIT_MATRIX.md` | 198 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/archive/AUDIT_PLAN-v9.0.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 243 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 92 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
-| `docs/DEV_GUIDE.md` | 528 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
+| `docs/CHANGELOG.md` | 126 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/DEV_GUIDE.md` | 541 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
 | `docs/ITERATION_ROADMAP.md` | 326 | 全文 | 三层目标；**32 断言/49 文件/897→430/白名单 14/趋势 60 条 全过期**；3 条 `[ ] 待开发`（服务器）/ 2 条触发式未闭环 |
@@ -108,12 +108,13 @@
 | `docs/probe-history.jsonl` | 832 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | 全文 | 五组账 + 5 次自我推翻；e-extra 82 / 3179 行 / 66 文件 过期 |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
+| `docs/reports/候选接入评审-2026-11-15.md` | 97 | 全文 | ecosystem 扫出 4 候选逐个评审：qingliang tx 线路实测 206 + 全曲 10,792,943 bytes；xinglan 主线路只给试听（RS0 / 960,887 bytes，差 11.2 倍）；feichangdao/suyin 与我方 oiapi/xcvts 同源重复 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
 | `scripts/cn-date.js` | 17 | 全文 | 北京日期单一来源 |
 | `scripts/docs-audit.js` | 473 | 全文 | **14 条规则**；不校 README 当前版本行 / CI 数字 / 矩阵数字（过时数字的根因） |
 | `scripts/doc-sync-map.js` | 111 | 全文 | 规则指向 `docs/SYNC_POINTS.md`（两仓均无，悬空） |
 | `scripts/ecosystem-scan.js` | 165 | 全文 | 从 SOURCE_HANDLERS 动态提取，防漂移 |
-| `scripts/endpoint-registry.js` | 74 | 全文 | **16 条端点（源端点 13：12 登记源中 helloworldKw 占 2 条；工具端点 3）**；v8.15.1 删重复「明确不登记」注释块并修正段头；导出 WINDOW_DAYS/CONSECUTIVE_FAIL_DAYS/EXCLUDE_DOMAINS |
+| `scripts/endpoint-registry.js` | 75 | 全文 | **16 条端点（源端点 13：12 登记源中 helloworldKw 占 2 条；工具端点 3）**；v8.15.1 删重复「明确不登记」注释块并修正段头；导出 WINDOW_DAYS/CONSECUTIVE_FAIL_DAYS/EXCLUDE_DOMAINS |
 | `scripts/health-alert.js` | 73 | 全文 | 缺参/非数组 exit 1；`clean()` 转义；「已有 open Issue 跳过」分支未实测 |
 | `scripts/health-daily.js` | 354 | 全文 | 小样本不进 handle / dataThrough+gapDays / md+json 清理；「payload 已做 Range 校验」依赖 probe |
 | `scripts/hooks/commit-msg` | 7 | 全文 | 调 `doc-sync-map.js --check`，真 exit 1 在这里 |
@@ -125,54 +126,54 @@
 | `scripts/self-check.js` | 116 | 全文 | README 只查 `includes('v8.11.1')` → 当前版本行过期不被拦 |
 | `scripts/source-audit.js` | 176 | 全文 | 35 组逐源取链；`rangeCheck` 不解析时长 → 片段判可播 |
 | `scripts/source-toggles.js` | 125 | 全文 | 剥注释+配平+行内多键；20 键 |
-| `test/audit/a-static.js` | 206 | 断言 | 10 条（A2~A7/B1~B6）；实跑 11/0 |
-| `test/audit/b-logic.js` | 232 | 断言 | 30 条（C4~C10 等，含循环生成）；实跑 30/0 |
-| `test/audit/d-func.js` | 230 | 断言 | 30 条（D1/I3~I5/E1~E4）；实跑 30/0 |
-| `test/audit/e-extra.js` | 927 | 断言 | 94 条（含 U500/U410/U404/U429/U403 状态码族、EDGE/FAULT 五轮补测）；实跑 94/0 |
-| `test/audit/f-repo.js` | 451 | 断言 | U~Z 54 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支；Z9 用假 git 对健康表写回做 push 失败注入）；实跑 54/0 |
-| `test/audit/g-meta.js` | 355 | 断言 | 15 条（M1~M14 + M9b 行为级 require 守卫；审断言本身）；实跑 15/0 |
-| `test/audit/p-gaps.js` | 170 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
-| `test/audit/q-dfix.js` | 133 | 断言 | 5 条：Q1 D-04 half-open 遇 429 收口回 open（删收口段立刻红）；Q2 closed 态 429 只退避不熔断；Q3（v8.11.3）D-01 toggle 开启后失败缓存失效，先红后绿；Q4 D-08 单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 PARAM_ERROR，先红后绿；实跑 5/0 |
-| `test/audit/q2-dseries.js` | 79 | 断言 | 3 条：R1 D-06 布尔键 `??` 语义、R2 D-05 真键可写/死键忽略、R3 D-26 mg 链不含星海备；三条注入回退均变红，还原后 sha 一致 |
-| `test/audit/n-fixes.js` | 150 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |
-| `test/audit/quality-truth.js` | 121 | 断言 | 9 条（QT-1~QT-9：m4a/ogg 按总字节+时长估码率、wav→flac、未知总字节保留请求档、1KB Range 探针不得当全文件、200 全量响应采用 content-length、estimated/unknown 置信度）；实跑 9/0 |
-| `test/audit/quality-policy-v2.js` | 179 | 断言 | 8 条（QP1~QP8：能力备档不续期、reason TTL、到期探路、超时不短路、确定性短路、429 退避、旧快照兼容）；实跑 8/0 |
-| `test/audit/budget-admission.js` | 38 | 断言 | 7 条（A2-1~A2-7：BUDGET_EXHAUSTED 策略、预算源码不冒充 NETWORK_TIMEOUT、总预算+floor 16s、冷启动钳制、单链 0 宽限）；实跑 7/0 |
+| `test/audit/a-static.js` | 213 | 断言 | 10 条（A2~A7/B1~B6）；实跑 11/0 |
+| `test/audit/b-logic.js` | 239 | 断言 | 30 条（C4~C10 等，含循环生成）；实跑 30/0 |
+| `test/audit/d-func.js` | 241 | 断言 | 30 条（D1/I3~I5/E1~E4）；实跑 30/0 |
+| `test/audit/e-extra.js` | 944 | 断言 | 94 条（含 U500/U410/U404/U429/U403 状态码族、EDGE/FAULT 五轮补测）；实跑 94/0 |
+| `test/audit/f-repo.js` | 452 | 断言 | U~Z 54 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支；Z9 用假 git 对健康表写回做 push 失败注入）；实跑 54/0 |
+| `test/audit/g-meta.js` | 404 | 断言 | 15 条（M1~M14 + M9b 行为级 require 守卫；审断言本身）；实跑 15/0 |
+| `test/audit/p-gaps.js` | 182 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
+| `test/audit/q-dfix.js` | 142 | 断言 | 5 条：Q1 D-04 half-open 遇 429 收口回 open（删收口段立刻红）；Q2 closed 态 429 只退避不熔断；Q3（v8.11.3）D-01 toggle 开启后失败缓存失效，先红后绿；Q4 D-08 单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 PARAM_ERROR，先红后绿；实跑 5/0 |
+| `test/audit/q2-dseries.js` | 84 | 断言 | 3 条：R1 D-06 布尔键 `??` 语义、R2 D-05 真键可写/死键忽略、R3 D-26 mg 链不含星海备；三条注入回退均变红，还原后 sha 一致 |
+| `test/audit/n-fixes.js` | 158 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |
+| `test/audit/quality-truth.js` | 123 | 断言 | 9 条（QT-1~QT-9：m4a/ogg 按总字节+时长估码率、wav→flac、未知总字节保留请求档、1KB Range 探针不得当全文件、200 全量响应采用 content-length、estimated/unknown 置信度）；实跑 9/0 |
+| `test/audit/quality-policy-v2.js` | 191 | 断言 | 8 条（QP1~QP8：能力备档不续期、reason TTL、到期探路、超时不短路、确定性短路、429 退避、旧快照兼容）；实跑 8/0 |
+| `test/audit/budget-admission.js` | 42 | 断言 | 7 条（A2-1~A2-7：BUDGET_EXHAUSTED 策略、预算源码不冒充 NETWORK_TIMEOUT、总预算+floor 16s、冷启动钳制、单链 0 宽限）；实跑 7/0 |
 | `test/audit/h-toggles.js` | 170 | 断言 | 14 条（逐源开启）；实跑 14/0 |
 | `test/audit/v-eligibility.js` | 116 | 断言 | 7 条（USER_OFF/DEFAULT_OFF/PLAYBACK_FAILED/短路）；实跑 11/0 |
-| `test/audit/health-linkage-invariants.js` | 151 | 断言 | 4 条（链项 eligibility/链与 skipReason/建链后关源拦截）；实跑 4/0 |
-| `test/audit/health-state-machine-v2.js` | 145 | 断言 | 方案 6.2 M1~M10：链项 eligibility、USER_OFF 最高、AUTO_OFF 只认 FAIL、探测不清摘除、单档隔离、短路可见、休眠优先、快照 reason 同源、快照只读、未知源；实跑 11/0 |
-| `test/audit/health-authority-split.js` | 125 | 断言 |
-| `test/audit/health-probe-batch2.js` | 152 | 断言 |
-| `test/audit/health-eligibility-batch3.js` | 131 | 断言 | Batch 3 C1~C9：open/限流/半开在飞不入链，建链只读不推进 trial，skipReason 同 reducer，preview/短路可见，正常源带 eligibility，建链不写事件；实跑 9/0 | Batch 2 B1~B9：三档探针全走 handler、逐 target 事件、flac 失败/128k 成功只降级、UNKNOWN 不关源、全 FAIL 两轮关源、探测不清 playDead、单源只读、快照脱敏、transition 优先；实跑 11/0 | Batch 1 A1~A9：toggle 只写 user、probe 只写 auto、UNKNOWN 不关源、controls 保留手动关闭、offReason/offAt 同源、runtimeToggles 仅镜像；实跑 11/0 | Batch 0 S1~S12：新旧资格并行只读、auto-off/休眠/resolveDead/单档短路/playDead diff 全解释、建链/快照/事件零变化；实跑 12/0 |
-| `test/audit/health-breaker-quality.js` | 137 | 断言 | 5 条（Q1~Q5 按档熔断/源级聚合/半开单 trial/429 分档退避）；实跑 5/0 |
-| `test/audit/health-resolve-dead.js` | 101 | 断言 | 4 条（R1 取链失败只记 resolveDead/R2 链成功不清 playDead/R3 真实播放成功双清/R4 弱证据不摘除）；实跑 4/0 |
+| `test/audit/health-linkage-invariants.js` | 159 | 断言 | 4 条（链项 eligibility/链与 skipReason/建链后关源拦截）；实跑 4/0 |
+| `test/audit/health-state-machine-v2.js` | 147 | 断言 | 方案 6.2 M1~M10：链项 eligibility、USER_OFF 最高、AUTO_OFF 只认 FAIL、探测不清摘除、单档隔离、短路可见、休眠优先、快照 reason 同源、快照只读、未知源；实跑 11/0 |
+| `test/audit/health-authority-split.js` | 126 | 断言 |
+| `test/audit/health-probe-batch2.js` | 154 | 断言 |
+| `test/audit/health-eligibility-batch3.js` | 132 | 断言 | Batch 3 C1~C9：open/限流/半开在飞不入链，建链只读不推进 trial，skipReason 同 reducer，preview/短路可见，正常源带 eligibility，建链不写事件；实跑 9/0 | Batch 2 B1~B9：三档探针全走 handler、逐 target 事件、flac 失败/128k 成功只降级、UNKNOWN 不关源、全 FAIL 两轮关源、探测不清 playDead、单源只读、快照脱敏、transition 优先；实跑 11/0 | Batch 1 A1~A9：toggle 只写 user、probe 只写 auto、UNKNOWN 不关源、controls 保留手动关闭、offReason/offAt 同源、runtimeToggles 仅镜像；实跑 11/0 | Batch 0 S1~S12：新旧资格并行只读、auto-off/休眠/resolveDead/单档短路/playDead diff 全解释、建链/快照/事件零变化；实跑 12/0 |
+| `test/audit/health-breaker-quality.js` | 135 | 断言 | 5 条（Q1~Q5 按档熔断/源级聚合/半开单 trial/429 分档退避）；实跑 5/0 |
+| `test/audit/health-resolve-dead.js` | 106 | 断言 | 4 条（R1 取链失败只记 resolveDead/R2 链成功不清 playDead/R3 真实播放成功双清/R4 弱证据不摘除）；实跑 4/0 |
 | `test/audit/health-scoped-reset.js` | 74 | 断言 | 2 条（authority 保留质量历史只复位执行门 / all 完整归零）；实跑 2/0 |
-| `test/audit/health-scheduler-fake-clock.js` | 58 | 断言 | 2 条（±10% jitter 边界 / 播放取链在途暂停判定）；实跑 2/0 |
-| `test/audit/q-quickjs-real.js` | 127 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |
-| `test/audit/aa-p3-persist.js` | 212 | 断言 | P3 A1~A10 宿主持久化协议：导出结构/往返/URL 拒绝/版本 TTL/恢复边界/v1 拒绝/controls-only/无回滚开关；实跑 11/0 |
-| `test/audit/health-persistence-v2.js` | 170 | 断言 | F36/F57 P1~P10 持久化 v2：v2 结构/v1 拒绝/controls-only/autoOff 6h/无回滚开关/拒绝非法；实跑 10/0 |
-| `test/audit/health-probe-outcome.js` | 136 | 断言 | F20/F22 O1~O9 探测三值：PASS/FAIL/UNKNOWN 聚合、UNKNOWN 不累计失败、PASS 不清 playDead/resolveDead、事件无 URL；实跑 11/0 |
+| `test/audit/health-scheduler-fake-clock.js` | 65 | 断言 | 2 条（±10% jitter 边界 / 播放取链在途暂停判定）；实跑 2/0 |
+| `test/audit/q-quickjs-real.js` | 141 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |
+| `test/audit/aa-p3-persist.js` | 233 | 断言 | P3 A1~A10 宿主持久化协议：导出结构/往返/URL 拒绝/版本 TTL/恢复边界/v1 拒绝/controls-only/无回滚开关；实跑 11/0 |
+| `test/audit/health-persistence-v2.js` | 176 | 断言 | F36/F57 P1~P10 持久化 v2：v2 结构/v1 拒绝/controls-only/autoOff 6h/无回滚开关/拒绝非法；实跑 10/0 |
+| `test/audit/health-probe-outcome.js` | 143 | 断言 | F20/F22 O1~O9 探测三值：PASS/FAIL/UNKNOWN 聚合、UNKNOWN 不累计失败、PASS 不清 playDead/resolveDead、事件无 URL；实跑 11/0 |
 | `test/audit/health-probe-fidelity.js` | 171 | 断言 | F20/F22 F1~F10 探测保真：逐目标三值、全 FAIL、超时 UNKNOWN、POST 透传、check/可播校验、单源隔离、不写质量账、不清摘除、事件无 URL；实跑 11/0 |
 | `test/audit/health-transition-events.js` | 112 | 断言 | F33 U1~U7 迁移事件：字段/枚举/优先级保留/probe 压缩/auto_on 单发/无敏感字段/容量 500；实跑 11/0 |
-| `test/audit/health-snapshot-eta.js` | 141 | 断言 | F35 ETA/F45 限速/F46 冷启/F06 jitter/F32 eventId/F17 平台计数：字段存在、只读不改 eligible、调度 nextAt、eventId 唯一、计数守恒、默认 10% 边界；实跑 11/0 |
-| `test/audit/r-admission.js` | 510 | 断言 | 23 条 A1~A20（L4 裁决层 + v8.11.6 收尾）；先红 0/11 后绿 18/0，A16~A20 逐条注入回退变红，最新 23/0 |
-| `test/audit/u-cross-platform.js` | 354 | 断言 | 15 条（按脚本实际 `rec()` 编号）：U1 转 tx 并交付原版 / U2 严格匹配 302s 原版 / U3 kw 主平台成功且未搜 QQ / U4 `subSource=juheTx` / U5 二次缓存仍 tx / U6 全平台无匹配 `NOT_FOUND` / U7 `cross_platform` 事件 / U8 tx 只收 songmid / U9 慢主平台交付 kw / U10 关源后不交付缓存 / U11 wy 候选归一化 / U12 kw 候选归一化 / U13 三目标顺序 / U14 mg/kg 不再作为目标 / U15 mg 实际标签回填 kw；先红 1/8 → 绿 15/0 |
-| `test/audit/v-cross-platform-stress.js` | 423 | 断言 | 13 条 V1~V13（20 并发同歌 / QQ 搜索不放大 / 50 次顺序只搜 1 次 / 201 首缓存上限 / 总开关零跨平台 / 关源重开 / remix-only 全拒绝 / 主跨交替不串 / 全目标 5xx 保留原码 / 慢主平台并发 / 事件隐私 / 100 首主命中零跨平台 / 同名同歌手时长差 199s 拒绝）；实跑 13/0 |
-| `test/audit/w-fallback-owner.js` | 51 | 断言 | P1 W1~W2：W1 `inited` 已上报 / W2 5 个平台均 `fallbackOwner=source`；先红 1/2 → 绿 2/2 |
-| `test/audit/x-media-envelope.js` | 157 | 断言 | P2 X1~X12：64B/1B/1KB/1MiB/8MiB 信封还原 SHA；64B FLAC 信封 `kindOf=audio`；`byteLength` 不符 `BAD_ENVELOPE`；缺片 `TRUNCATED_MEDIA`；旧 `{type:"Buffer",data}` 兼容；`inited.mediaEnvelope=2`；0 字节零长；admit 错误码；1MiB JSON.parse 基准；先红 2/4 → 绿 12/0 |
-| `test/audit/s-health-events.js` | 230 | 断言 | 22 条 S1~S6（healthEvents 只读环形缓冲/同 traceId 串联/返回副本/隐私边界/超容丢弃）；先红 6 通过 16 失败 → 绿 22/0 |
-| `test/audit/t-health-events-stress.js` | 137 | 断言 | 12 条 T1~T9（10000 条灌满/容量 500/dropped 9500/同 trace 链/limit 边界/隐私注入）；容量注入 500→100 翻红后还原 12/0 |
+| `test/audit/health-snapshot-eta.js` | 167 | 断言 | F35 ETA/F45 限速/F46 冷启/F06 jitter/F32 eventId/F17 平台计数：字段存在、只读不改 eligible、调度 nextAt、eventId 唯一、计数守恒、默认 10% 边界；实跑 11/0 |
+| `test/audit/r-admission.js` | 534 | 断言 | 23 条 A1~A20（L4 裁决层 + v8.11.6 收尾）；先红 0/11 后绿 18/0，A16~A20 逐条注入回退变红，最新 23/0 |
+| `test/audit/u-cross-platform.js` | 361 | 断言 | 15 条（按脚本实际 `rec()` 编号）：U1 转 tx 并交付原版 / U2 严格匹配 302s 原版 / U3 kw 主平台成功且未搜 QQ / U4 `subSource=juheTx` / U5 二次缓存仍 tx / U6 全平台无匹配 `NOT_FOUND` / U7 `cross_platform` 事件 / U8 tx 只收 songmid / U9 慢主平台交付 kw / U10 关源后不交付缓存 / U11 wy 候选归一化 / U12 kw 候选归一化 / U13 三目标顺序 / U14 mg/kg 不再作为目标 / U15 mg 实际标签回填 kw；先红 1/8 → 绿 15/0 |
+| `test/audit/v-cross-platform-stress.js` | 447 | 断言 | 13 条 V1~V13（20 并发同歌 / QQ 搜索不放大 / 50 次顺序只搜 1 次 / 201 首缓存上限 / 总开关零跨平台 / 关源重开 / remix-only 全拒绝 / 主跨交替不串 / 全目标 5xx 保留原码 / 慢主平台并发 / 事件隐私 / 100 首主命中零跨平台 / 同名同歌手时长差 199s 拒绝）；实跑 13/0 |
+| `test/audit/w-fallback-owner.js` | 54 | 断言 | P1 W1~W2：W1 `inited` 已上报 / W2 5 个平台均 `fallbackOwner=source`；先红 1/2 → 绿 2/2 |
+| `test/audit/x-media-envelope.js` | 161 | 断言 | P2 X1~X12：64B/1B/1KB/1MiB/8MiB 信封还原 SHA；64B FLAC 信封 `kindOf=audio`；`byteLength` 不符 `BAD_ENVELOPE`；缺片 `TRUNCATED_MEDIA`；旧 `{type:"Buffer",data}` 兼容；`inited.mediaEnvelope=2`；0 字节零长；admit 错误码；1MiB JSON.parse 基准；先红 2/4 → 绿 12/0 |
+| `test/audit/s-health-events.js` | 290 | 断言 | 22 条 S1~S6（healthEvents 只读环形缓冲/同 traceId 串联/返回副本/隐私边界/超容丢弃）；先红 6 通过 16 失败 → 绿 22/0 |
+| `test/audit/t-health-events-stress.js` | 146 | 断言 | 12 条 T1~T9（10000 条灌满/容量 500/dropped 9500/同 trace 链/limit 边界/隐私注入）；容量注入 500→100 翻红后还原 12/0 |
 | `test/candidate-audit-test.js` | 135 | 断言 | 6 条；曾无 ID 输出，已补 |
-| `test/lx-source-smoke-test.js` | 1625 | 断言 | 67 组；T50~T57 为回退必红用例 |
-| `test/mutation/run.js` | 312 | 断言 | **22 变异体**；缺 esbuild 直接 exit 2；`--strict` 下 KILLED 之外全部 exit 1；字段名是 `name` 不是 `desc` |
-| `test/stress-round3.js` | 356 | 断言 | 14 条 T1~T14（压「态」） |
-| `test/stress-round4.js` | 1326 | 断言 | 133 条 V1a~V39b（已进 AUDIT_MATRIX） |
-| `test/stress-test.js` | 221 | 断言 | 12 条 S1~S11 |
+| `test/lx-source-smoke-test.js` | 1632 | 断言 | 67 组；T50~T57 为回退必红用例 |
+| `test/mutation/run.js` | 314 | 断言 | **22 变异体**；缺 esbuild 直接 exit 2；`--strict` 下 KILLED 之外全部 exit 1；字段名是 `name` 不是 `desc` |
+| `test/stress-round3.js` | 363 | 断言 | 14 条 T1~T14（压「态」） |
+| `test/stress-round4.js` | 1333 | 断言 | 133 条 V1a~V39b（已进 AUDIT_MATRIX） |
+| `test/stress-test.js` | 228 | 断言 | 12 条 S1~S11 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 272 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |
-| `docs/READTHROUGH.md` | 250 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
-| `docs/DOC_INDEX.md` | 99 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
+| `docs/READTHROUGH.md` | 252 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/DOC_INDEX.md` | 100 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
 | `docs/KNOWN_ISSUES.md` | 65 | 全文 | 已知问题/技术债台账（K01~K20，活文档；判断是否重构先看这里） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | 全文 | 音质能力备档与档位短路优化方案、复现证据、P0/P1/P2 |
 
@@ -208,10 +209,10 @@
 | 文件 | 行 | 读法 | 结论 |
 |---|---|---|---|
 | `scripts/dump-chain.js` | 75 | 全文 | 5×4 链序 golden 生成器，只导出 active；写完退出 |
-| `test/fixtures/chain-golden.json` | 89 | 全文 | v8.13.0 10 源 5×4 链序基线，Y9 逐项比对 |
+| `test/fixtures/chain-golden.json` | 91 | 全文 | v8.13.0 10 源 5×4 链序基线，Y9 逐项比对 |
 | `docs/SOURCE_LIFECYCLE.md` | 76 | 全文 | 当前态治理文档 |
-| `docs/SOURCE_REGISTRY.md` | 63 | 全文 | 当前态治理文档 |
-| `docs/SOURCE_RETIREMENT.md` | 67 | 全文 | 当前态治理文档 |
+| `docs/SOURCE_REGISTRY.md` | 64 | 全文 | 当前态治理文档 |
+| `docs/SOURCE_RETIREMENT.md` | 80 | 全文 | 当前态治理文档 |
 | `package-lock.json` | 499 | 全文 | esbuild 锁定 |
 | `package.json` | 17 | 全文 | v8.13.0/构建脚本入口/esbuild 依赖 |
 | `scripts/build-source.js` | 52 | 全文 | esbuild IIFE/ES2017 单文件构建 + CJS 导出桥 + 版本头校验 |
@@ -221,22 +222,23 @@
 | `scripts/verify-real-platform-chains.js` | 103 | 全文 | G7 先搜平台 ID 再隔离取链；公网不可用时如实保留上游失败码 |
 | `src/00-header.js` | 6 | 全文 | 单文件 banner |
 | `src/80-entry.js` | 10 | 全文 | 导出面 + 非枚举 PROVIDER_SPECS |
-| `src/legacy.js` | 5863 | 全文 | v8.13 实现源（契约/生命周期/取消） |
+| `src/legacy.js` | 5974 | 全文 | v8.13 实现源（契约/生命周期/取消） |
 | `src/providers/55-probation.js` | 41 | 全文 | 两个观察源规格 |
 | `src/providers/changqingVip.js` | 20 | 全文 | 12 源契约规格 |
 | `src/providers/helloworldKw.js` | 22 | 全文 | 12 源契约规格 |
+| `src/providers/qingliangTx.js` | 21 | 全文 | v8.16.0 新增：晴亮 tx 第二源规格（tx chain 2 / 320k / qingliang-tx 族） |
 | `src/providers/huibq.js` | 23 | 全文 | 12 源契约规格 |
 | `src/providers/ikun.js` | 24 | 全文 | 12 源契约规格 |
-| `src/providers/index.js` | 15 | 全文 | active/probation/all 规格入口 |
+| `src/providers/index.js` | 16 | 全文 | active/probation/all 规格入口 |
 | `src/providers/juheTx.js` | 22 | 全文 | 12 源契约规格 |
 | `src/providers/kuwoOfficial.js` | 20 | 全文 | 12 源契约规格 |
 | `src/providers/suyin163.js` | 20 | 全文 | 12 源契约规格 |
 | `src/providers/suyinKuwo.js` | 30 | 全文 | 12 源契约规格 |
 | `src/providers/wyOuter.js` | 20 | 全文 | 12 源契约规格 |
 | `src/providers/xinghaiBackend.js` | 22 | 全文 | 12 源契约规格 |
-| `test/audit/s-source-lifecycle.js` | 114 | 全文 | v8.13 审计入口 |
-| `test/audit/y-provider-contract.js` | 143 | 全文 | v8.13 审计入口 |
-| `test/audit/z-cancel.js` | 156 | 全文 | v8.13 审计入口 |
+| `test/audit/s-source-lifecycle.js` | 122 | 全文 | v8.13 审计入口 |
+| `test/audit/y-provider-contract.js` | 145 | 全文 | v8.13 审计入口 |
+| `test/audit/z-cancel.js` | 170 | 全文 | v8.13 审计入口 |
 
 ## 七、验证债清算（2026-11-10，只清「能查实的」）
 

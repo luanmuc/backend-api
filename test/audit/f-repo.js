@@ -155,9 +155,8 @@ console.log('\n[V] 交叉引用与一致性');
   const srcCnt = (read(STATIC_SRC).match(/id:\s*"[\w.]+"/g) || []).length;
   // 注意：juhe 五源写在同一行，按行数统计会得 16，真实是 20 个键（用 parseToggles 的解析结果做真值）
   const parsedN = (() => { try { const o = require(abs('scripts/source-toggles.js')).parseToggles(); return Object.keys(o.toggles || o).length; } catch (e) { return -1; } })();
-  rec('V4', `SOURCE_TOGGLES 实测 ${parsedN} 个开关（文档口径 ${docN || '未声明'}）`, parsedN === 12, `解析 ${parsedN} 键 / 行内 ${toggleN} 行`);
+  rec('V4', `SOURCE_TOGGLES 实测 ${parsedN} 个开关（文档口径 ${docN || '未声明'}）`, parsedN === 13, `解析 ${parsedN} 键 / 行内 ${toggleN} 行`);
 
-  const errN = Object.keys(JSON.parse('{}')).length; // placeholder 保持结构
   const errBlock = (read(STATIC_SRC).match(/const ERROR_CODES = \{([\s\S]*?)\n\};/) || [])[1] || '';
   const errCnt = (errBlock.match(/^\s{2}\w+:/gm) || []).length;
   const errDoc = (read('docs/DEV_GUIDE.md').match(/ERROR_CODES[^\n]*?(\d+)\s*个/) || [])[1];
@@ -194,13 +193,13 @@ console.log('\n[W] 脚本自洽');
   // 真实字段是 url/sources/kind/note（没有 id）——按 url 唯一性与字段完整性校验
   const urls = list.map(e => e.url);
   const fieldOk = list.every(e => e.url && Array.isArray(e.sources) && e.kind);
-  rec('W5', `endpoint-registry 导出 ${list.length} 条、url 唯一且字段完整`, list.length === 16 && new Set(urls).size === list.length && fieldOk,
+  rec('W5', `endpoint-registry 导出 ${list.length} 条、url 唯一且字段完整`, list.length === 17 && new Set(urls).size === list.length && fieldOk,
     `uniqUrl=${new Set(urls).size} fieldOk=${fieldOk}`);
 
   const tog = require(abs('scripts/source-toggles.js'));
   const raw = typeof tog.parseToggles === 'function' ? tog.parseToggles() : null;
   const t = raw && raw.toggles ? raw.toggles : raw;   // 真实返回是 {toggles, ...}，取内层
-  rec('W6', 'source-toggles 可解析出 12 个开关真值', !!t && Object.keys(t).length === 12, t ? Object.keys(t).length + ' 键' : 'no export');
+  rec('W6', 'source-toggles 可解析出 13 个开关真值', !!t && Object.keys(t).length === 13, t ? Object.keys(t).length + ' 键' : 'no export');
 
   const cn = require(abs('scripts/cn-date.js'));
   const today = typeof cn.todayCN === 'function' ? cn.todayCN() : null;
@@ -252,12 +251,14 @@ console.log('\n[X] 功能联动（跨模块）');
   [...srcToggle.matchAll(/(\w+):\s*(true|false)/g)].forEach(m => { srcPairs[m[1]] = m[2] === 'true'; });
   const mismatch = Object.keys(srcPairs).filter(k => tt[k] !== srcPairs[k]);
   rec('X5', `source-toggles 解析值与源码默认值逐键一致（源码 ${Object.keys(srcPairs).length} 键 / 解析 ${Object.keys(tt).length} 键）`,
-    mismatch.length === 0 && Object.keys(srcPairs).length === 12, mismatch.join(','));
+    mismatch.length === 0 && Object.keys(srcPairs).length === 13, mismatch.join(','));
 
-  const ruleN = (read('scripts/docs-audit.js').match(/规则\s*(\d+)/g) || []).length;
+  // 真判据（R23）：数 docs-audit 里实际存在的 `function ruleXxx(` 规则函数，
+  // 与 DOC_SEMANTIC_CHECKLIST 声明的条数逐数比对。旧写法只数注释里「规则 N」出现次数，恒 ≥10。
+  const ruleFns = new Set((read('scripts/docs-audit.js').match(/function (rule[A-Za-z]+)\s*\(/g) || []).map(x => x));
   const declared = (read('docs/DOC_SEMANTIC_CHECKLIST.md').match(/(\d+)\s*条规则/) || [])[1];
-  rec('X6', `docs-audit 规则数 vs DOC_SEMANTIC_CHECKLIST 声明（实读 ${ruleN} 处，声明 ${declared || '未写'}）`,
-    !declared || Number(declared) >= 10);
+  rec('X6', `docs-audit 规则函数数 vs DOC_SEMANTIC_CHECKLIST 声明（实 ${ruleFns.size} 个，声明 ${declared || '未写'}）`,
+    !declared || Number(declared) === ruleFns.size, `实=${ruleFns.size} 声明=${declared || '-'}`);
 
   const ci = read('.github/workflows/ci.yml');
   const ciRefs = [...new Set((ci.match(/(scripts|test)\/[\w./-]+\.js/g) || []))];

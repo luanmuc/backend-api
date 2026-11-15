@@ -127,5 +127,6 @@ check('C9 建链多次调用结果稳定，不触发事件', () => {
 })
 
 console.log(`\n${passed} passed, ${failures.length} failed`)
-if (failures.length) { console.log(failures.join('\n')); process.exit(1) }
-if (require.main === module) process.exit(0)
+// R30：失败分支原先是裸 process.exit(1)——被 require 时会直接杀掉调用方，只置退出码。
+if (failures.length) { console.log(failures.join('\n')); process.exitCode = 1 }
+if (require.main === module) process.exit(process.exitCode || 0)

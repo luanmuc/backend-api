@@ -11,11 +11,11 @@
 
 const path = require('path')
 const SRC = path.join(__dirname, '../../lx-source.js')
-let handler = null
 let reqMode = 'pass'
 
+// R35：本文件所有断言都直接驱动 __debug.probeSingleSource / applyProbeResult，从不经 handler 入口；
+// 原来的 handler 声明与赋值是死代码，删除。
 const setLx = () => {
-  handler = null
   globalThis.lx = {
     EVENT_NAMES: { inited: 'inited', request: 'request', updateAlert: 'updateAlert' },
     version: '2.0.0',
@@ -30,7 +30,7 @@ const setLx = () => {
       }, 1)
       return () => {}
     },
-    on(n, h) { if (n === 'request') handler = h },
+    on() {},
     send() {},
   }
 }
@@ -128,9 +128,16 @@ const probe = m => m.__debug.probeSingleSource('suyinKuwo', { probes: [pc('128k'
   })
 
   console.log(`\n${passed} passed, ${failures.length} failed`)
-  if (failures.length) {
-    for (const f of failures) console.log(`- ${f}`)
-    process.exit(1)
-  }
-  process.exit(0)
+  for (const f of failures) console.log(`- ${f}`)
+  // R35：原写法 `__exit(1)` 之后再跟一句无条件 `__exit(0)`——require 模式下前者只写 exitCode、
+  // 不终止进程，后者把 1 覆盖成 0（实测 8 passed/1 failed → AFTER_REQUIRE exitCode=0）。
+  // 这是 R33/R34 之后发现的第三份同形状脚本，改为单次按失败数出码。
+  __exit(failures.length ? 1 : 0)
 })()
+
+// __exit(R25)：被 require 时只设退出码，绝不 process.exit 杀掉调用方（脚本独立运行时行为不变）。
+// 用函数声明写在这里：声明会提升到模块顶层，IIFE / 内部函数里的调用都能找到它。
+function __exit(code) {
+  if (require.main === module) process.exit(code);
+  else process.exitCode = Number(code) || 0;
+}

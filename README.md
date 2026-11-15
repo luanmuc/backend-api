@@ -12,7 +12,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v8.15.1** 契约与死配置收口版：健康态导出源版本升 8.15.1 且兼容 8.14.1 旧包；删除 `failCacheDefaultMs`、`resolveDeadReviveMs` 两个未登记键、长青 4 个死模板与 provider 未消费 `timeoutMs`；429 退避统一由 `rateLimitBackoffMs` 决定。`lx-source.js` 内 `@version 8.15.1` |
+| 当前版本 | **v8.16.0** 接入晴亮 tx 版：新增 `qingliangTx`（晴亮 tx 线路，第三方单点）作为 tx 第二源，登记源 12→**13**、上链源 10→**11**、观察 2；`juheTx` 连续 7 天 0% 降为 tx 第三源；晴亮取链必带 `Referer`，超时/竞速/预算/取消全交本仓框架（不自带内层 3s 超时）。`lx-source.js` 内 `@version 8.16.0` |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
@@ -57,6 +57,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
+| **v8.16.0 接入晴亮 tx 源**（2026-11-15，本地单提交·未推送） | 新增 `qingliangTx`（晴亮 tx 线路，第三方单点）为 tx 第二源：登记 12→13、上链 10→11；`juheTx` 连续 7 天 0% 降为 tx 第三源；取链必带 `Referer`，超时/竞速/预算/取消全交本仓框架（不复刻候选自带 3s 内层超时）；判据自审 R23~R38 一并入账 | 2026-11-15 |
 | **v8.15.1 门禁欠账与纵深补齐（R21/R22）**（2026-11-15，已推送） | `aa-p3-persist`(A1~A10) 与 `v-eligibility`(V1~V7) 两条从未进任何门禁的断言补入 `npm test`（23→**25 脚本**）；`docs-audit` 规则 20 扩为四向咬合 + 覆盖闸门（`test/audit` → 全 `test/`，且 `npm test` 路径必须真实存在）；`g-meta` M7 递归含 `test/mutation/run.js`、M1 补「第二参布尔直写」形状（当场抓出 `stress-round4` V37a 写死 true 并改真读缓存）、M12 放宽 `[${r.id}]`；`stress-round4` 删游离字面量 `40` | 2026-11-15 |
 | **v8.15.1 契约与死配置收口**（2026-11-15，已推送 + tag） | 健康态导出源版本 8.15.1，恢复兼容 8.14.1；删除 2 个未登记配置键、长青 4 个死模板、provider 未消费 timeoutMs；429 `sourceCooldownMs` 改为显式回退 `rateLimitBackoffMs` | 2026-11-15 |
 | **v8.14.1 HDM-3 健康数据分层**（2026-11-15，已随 App b129 发布） | L0 用户控制意图永久化（controls-only 去 7 天 TTL，跨源版本/跨长期停机存活）；未知 control 源 ID 跳过，避免单个已删除源拒绝整包开关；完整健康态仍 7 天 TTL；v1 不迁移；App 侧同步 `context`/`playback_start` 分桶 | 2026-11-15 |
