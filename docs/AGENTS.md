@@ -52,6 +52,9 @@ node --expose-gc test/stress-round3.js
 # 发布自检（版本/actions/README/ROADMAP 三向同步，推送前必跑）
 node scripts/self-check.js
 
+# 产物校验用 `npm run verify:bundle`（自动先构建再验）：直接 `node scripts/verify-bundle.js`
+# 需要 dist/ 产物存在；它已收进 main()，被 require 时不会因缺 dist 抛错（M9c 守这条）
+
 # 生态扫描（v7.0 起：pdone 健康表交叉，产出新候选/失效清单）
 node scripts/ecosystem-scan.js
 

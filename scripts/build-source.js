@@ -10,7 +10,6 @@
  */
 const fs = require('fs');
 const path = require('path');
-const esbuild = require('esbuild');
 
 const ROOT = path.join(__dirname, '..');
 const HEADER = require(path.join(ROOT, 'src', '00-header.js'));
@@ -20,6 +19,10 @@ const TARGET = path.join(ROOT, 'lx-source.js');
 const VERSION = require(path.join(ROOT, 'package.json')).version;
 
 function build() {
+  // esbuild 惰性加载：顶层 require 会让「被 require 的模块」依赖本机开发依赖——
+  // CI 用 npm ci --ignore-scripts 装不到 esbuild 二进制，M9b（require 安全）就会红。
+  // eslint-disable-next-line global-require
+  const esbuild = require('esbuild');
   esbuild.buildSync({
     entryPoints: [ENTRY],
     bundle: true,

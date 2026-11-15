@@ -307,6 +307,46 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
     bad.length ? bad.join(', ') : `${scriptJs.length} 个脚本 require 后均正常返回`);
 }
 
+// ---------- M9c 顶层不得依赖「环境侧」资源（M9b 的本地可复现面）----------
+// M9b 是行为级判据，但在本机跑时 dist/ 与开发依赖都在，于是「顶层 require(dist 产物)」与
+// 「顶层 require 外部包」这两类只在 CI 干净检出里才红——v8.16.0 实测：build-source / verify-bundle
+// 在 npm ci --ignore-scripts + 无 dist 的 CI 里 rc=1/exit-before-return，本地却全绿。
+// 这一条把它们变成本地就能复现的静态判据：
+//   ① 顶层（col 0）require 非内置、非相对路径的外部包 → 必须惰性加载（放进函数内）；
+//   ② 顶层 require 的路径变量若指向未入库的 dist/ 产物 → 必须放进 main()。
+{
+  const stripLocal = (t) => t
+    .replace(/\/\*[\s\S]*?\*\//g, (mm) => mm.replace(/[^\n]/g, ''))
+    .replace(/^\s*(?:\/\/|\*)[^\n]*$/gm, '');
+  const builtins = new Set(require('module').builtinModules);
+  const bad = [];
+  for (const f of scriptJs) {
+    const base = path.basename(f);
+    const lines = stripLocal(read(f)).split('\n');
+    const topVars = {};
+    for (const l of lines) {
+      const m = /^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/.exec(l);
+      if (m) topVars[m[1]] = l;
+    }
+    for (const [i, l] of lines.entries()) {
+      if (/^\s/.test(l)) continue;
+      const rm = /require\(\s*(?:'([^']+)'|([A-Za-z_$][\w$]*))\s*\)/.exec(l);
+      if (!rm) continue;
+      const lit = rm[1];
+      const ident = rm[2];
+      if (lit) {
+        if (lit.startsWith('.') || lit.startsWith('/')) continue;
+        if (builtins.has(lit.split('/')[0])) continue;
+        bad.push(`${base}:${i + 1}(${lit})`);
+      } else if (ident && topVars[ident] && /\bdist\b/.test(topVars[ident])) {
+        bad.push(`${base}:${i + 1}(${ident}->dist)`);
+      }
+    }
+  }
+  rec('M9c', 'scripts 顶层不依赖环境侧资源（外部包惰性加载 / 未入库 dist 产物进 main）', bad.length === 0,
+    bad.length ? bad.join(', ') : `${scriptJs.length} 个脚本顶层依赖均为内置模块或已入库文件`);
+}
+
 // ---------- M10 开关计数口径统一走 parseToggles ----------
 {
   const fRepo = read(path.join(AUDIT, 'f-repo.js'));
@@ -397,7 +437,7 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
 
 // ---------- 汇总 ----------
 const fail = out.filter((o) => !o.ok);
-console.log(`\n元审计（M1~M14）汇总：${out.length - fail.length} 通过 / ${fail.length} 失败`);
+console.log(`\n元审计（M1~M14 + M9b/M9c）汇总：${out.length - fail.length} 通过 / ${fail.length} 失败`);
 if (fail.length) console.log('失败项：' + fail.map((f) => f.id).join(', '));
 // require.main 守卫：被 require 时不得杀调用方
 if (require.main === module) process.exit(fail.length ? 1 : 0);

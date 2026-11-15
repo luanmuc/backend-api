@@ -57,6 +57,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
+| **v8.16.0 修 CI 红（require 安全环境侧依赖）+ M9c**（2026-11-16，未发版） | 源仓 CI 三次 push 全红但本地全绿：`build-source` 顶层 require esbuild（CI `npm ci --ignore-scripts` 无二进制）、`verify-bundle` 顶层断言 + 顶层 require 未入库 `dist/`。改为惰性 require / 断言收进 `main()`；新增 M9c 静态判据（顶层外部包必须惰性、未入库产物必须进 main） | 2026-11-16 |
 | **v8.16.0 判否候选复核 R43**（2026-11-16，未发版） | hyw 复测：首页 200 但业务 `/api/music/url` 返回 401「需要卡密」+ `cardKeyRequired:true` → **维持判否（付费门）**；`recheck-candidates.js` 修误报（首页 200 不再算恢复，新增业务探测与 `paid` 状态，内建自检 RC1~RC4） | 2026-11-16 |
 | **v8.16.0 接入晴亮 tx 源**（2026-11-15，已推送 master + tag `v8.16.0` + Release 资产） | 新增 `qingliangTx`（晴亮 tx 线路，第三方单点）为 tx 第二源：登记 12→13、上链 10→11；`juheTx` 连续 7 天 0% 降为 tx 第三源；取链必带 `Referer`，超时/竞速/预算/取消全交本仓框架（不复刻候选自带 3s 内层超时）；判据自审 R23~R38 一并入账 | 2026-11-15 |
 | **v8.15.1 门禁欠账与纵深补齐（R21/R22）**（2026-11-15，已推送） | `aa-p3-persist`(A1~A10) 与 `v-eligibility`(V1~V7) 两条从未进任何门禁的断言补入 `npm test`（23→**25 脚本**）；`docs-audit` 规则 20 扩为四向咬合 + 覆盖闸门（`test/audit` → 全 `test/`，且 `npm test` 路径必须真实存在）；`g-meta` M7 递归含 `test/mutation/run.js`、M1 补「第二参布尔直写」形状（当场抓出 `stress-round4` V37a 写死 true 并改真读缓存）、M12 放宽 `[${r.id}]`；`stress-round4` 删游离字面量 `40` | 2026-11-15 |

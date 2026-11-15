@@ -8,8 +8,8 @@
 
 | 脚本 | 职责 | 触发 | 副作用 |
 |---|---|---|---|
-| `build-source.js` (52) | 单文件产物构建：`src/*.js` → esbuild IIFE + CommonJS 桥，写 `lx-source.js`，并校验产物 IIFE 形态与 `@version` 一致性 | `npm run build` / 发布前 | **改** `lx-source.js`（唯一权威产物） |
-| `verify-bundle.js` (88) | 产物门禁 B1~B8：版本头、契约 12/10/2、逐源一致、五平台链可重建、取消 API、退役源不在产物、体积/行数上限 | `npm run verify:bundle` / CI | 只读 + 报错退出 |
+| `build-source.js` (55) | 单文件产物构建：`src/*.js` → esbuild IIFE + CommonJS 桥，写 `lx-source.js`，并校验产物 IIFE 形态与 `@version` 一致性 | `npm run build` / 发布前 | **改** `lx-source.js`（唯一权威产物） |
+| `verify-bundle.js` (97) | 产物门禁 B1~B8：版本头、契约 12/10/2、逐源一致、五平台链可重建、取消 API、退役源不在产物、体积/行数上限 | `npm run verify:bundle` / CI | 只读 + 报错退出 |
 | `source-inventory.js` (112) | 源清单预算：12/10/2（登记/上链/观察）+ 退役 8 源不得回产物 + 观察源默认关闭、必须有 `reviewAt`、不得占链位 | `npm run inventory` / CI | 只读 + 报错退出 |
 | `dump-chain.js` (75) | 链序 golden 生成：10 个 active 源 × 5 平台 × 4 音质，写 `test/fixtures/chain-golden.json`（`sourceHead` 读真实 HEAD，不写死） | 链序变更后手动 `--json` | **改** `test/fixtures/chain-golden.json` |
 
@@ -56,7 +56,7 @@
 
 除显式标注为纯 CLI 的脚本外，`scripts/*.js` 被 `require` 时**不得**写文件、打网络、`process.exit`。
 入口一律写 `if (require.main === module) main();`，纯 CLI 脚本（`health-alert.js`）在被 require 时首行 return。
-`test/audit/g-meta.js` 的 M9b 会逐个 require 全部脚本并断言「加载后仍能继续执行」，缩进的 `process.exit` 与顶层 `main()` 都会被抓出来。
+`test/audit/g-meta.js` 的 M9b 会逐个 require 全部脚本并断言「加载后仍能继续执行」，缩进的 `process.exit` 与顶层 `main()` 都会被抓出来。M9c 再补静态面：顶层 `require` 外部包（如 `esbuild`）必须惰性加载、顶层 `require` 指向未入库的 `dist/` 产物必须进 `main()`——这两类只在 CI 干净检出里才炸（`npm ci --ignore-scripts` 无 esbuild 二进制、`dist/` 不在库里），本地有产物时 M9b 照样绿。
 
 ## 七、常用命令
 

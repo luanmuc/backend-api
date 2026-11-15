@@ -41,7 +41,7 @@
 | `test/audit/t-health-events-stress.js` | **12** | 2.4 方案压力：10000 条灌满后容量 500/dropped 9500/seq 单调、同 trace 链、limit 边界、副本、非法参数、字段白名单、隐私注入、读取吞吐 | mock 宿主 + `__debug` | `node test/audit/t-health-events-stress.js` |
 | `test/audit/h-toggles.js` | 8 | v8.13 口径：helloworldKw / 星海后端 / 酷我官方 / Juhe(tx) / changqingVip 开启后最小可用性；两个观察源手动开启仍不进链但探测可见；酷我封面透出 | mock 宿主 | `node test/audit/h-toggles.js` |
 | `test/audit/f-repo.js` | 54 | 三轮新增：全仓 **72** 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
-| `test/audit/g-meta.js` | 14 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
+| `test/audit/g-meta.js` | 16 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/顶层环境侧依赖/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
 | `test/stress-test.js` | 12 | 压测 S 组压「量」：并发/预算/配额/熔断/缓存容量/长跑/极端参数/闸门对照/定时器 | `--expose-gc` | `node --expose-gc test/stress-test.js` |
 | `test/stress-round3.js` | 14 | 压测 T 组压「态」：跨档总预算、源级冷却与本地限速分离、片段翻转、闸门 8 组合矩阵、config 热更新、错误码注入、probe 并发、写满容量堆增长、档位串槽、熔断跨源污染 | `--expose-gc` | `node --expose-gc test/stress-round3.js` |
 | `test/stress-round4.js` | **133** | 压测 V 组压「判据」（第四轮新增）：故障谱系 10 类 × 5 平台 × 3 档 = 150 组零假成功 / 同歌同档 100 并发只外呼 1 次 / 220 首并发无违约 / 缓存 400 首内命中·700 首后 LRU 淘汰 / 熔断全周期 / 限流滑窗 / 降档预算与末档保底 / 随机 2000 次 4 条不变量 / soak 4000 次堆收敛与句柄不累积 / 20 次重载缓存不跨实例 / MISMATCH 拒错歌 / 验真时长三阈值边界 / CONFIG_ERROR / 配置脱敏与写白名单 / logEnabled 静音 / raceBatchSize 串并行 / 音质短路拦停 / 冷启动预热开关与 TTL（预热计数按 URL+timeout 双键，隔离同 URL 健康探针） | 纯 mock 宿主 | `node --expose-gc test/stress-round4.js` |
