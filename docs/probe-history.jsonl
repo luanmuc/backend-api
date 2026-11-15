@@ -830,3 +830,20 @@
 {"date":"2026-11-15","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":1113,"reason":"OK"}
 {"date":"2026-11-15","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":854,"reason":"OK"}
 {"date":"2026-11-15","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":549,"reason":"OK"}
+{"date":"2026-11-16","url":"https://oiapi.net/api/QQ_Music","ok":false,"status":404,"time":861,"reason":"HTTP 404"}
+{"date":"2026-11-16","url":"https://oiapi.net/api/Music_163","ok":false,"status":200,"time":838,"reason":"PAYLOAD_NO_URL","payload":false}
+{"date":"2026-11-16","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":845,"reason":"OK","payload":true}
+{"date":"2026-11-16","url":"https://api.xcvts.cn/api/music/migu","ok":false,"status":206,"time":1890,"reason":"PAYLOAD_NO_URL","payload":false}
+{"date":"2026-11-16","url":"https://lxmusicapi.onrender.com","ok":false,"status":503,"time":472,"reason":"HTTP 503"}
+{"date":"2026-11-16","url":"https://api.music.lerd.dpdns.org","ok":false,"status":429,"time":71,"reason":"HTTP 429"}
+{"date":"2026-11-16","url":"https://music.lzmhhh.com/api/music/url","ok":false,"status":500,"time":1040,"reason":"HTTP 500"}
+{"date":"2026-11-16","url":"https://yy.zddyr.top/lx/api/","ok":true,"status":200,"time":784,"reason":"OK","payload":true}
+{"date":"2026-11-16","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":637,"reason":"OK","payload":true}
+{"date":"2026-11-16","url":"https://c.wwwweb.top","ok":true,"status":200,"time":2592,"reason":"OK","payload":true}
+{"date":"2026-11-16","url":"http://nmobi.kuwo.cn/mobi.s","ok":false,"status":404,"time":822,"reason":"HTTP 404"}
+{"date":"2026-11-16","url":"https://musicserver.haitangw.cc/v1/music/resolve-url","ok":false,"status":404,"time":1687,"reason":"HTTP 404"}
+{"date":"2026-11-16","url":"https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}","ok":true,"status":200,"time":1021,"reason":"OK"}
+{"date":"2026-11-16","url":"https://music.163.com/song/media/outer/url?id={id}.mp3","ok":true,"status":302,"time":992,"reason":"OK"}
+{"date":"2026-11-16","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":707,"reason":"OK"}
+{"date":"2026-11-16","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":735,"reason":"OK"}
+{"date":"2026-11-16","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":706,"reason":"OK"}
