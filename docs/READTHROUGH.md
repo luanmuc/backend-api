@@ -6,10 +6,10 @@
 >
 > **时效说明**：以下逐文件结论是 2026-11-10 通读时的历史快照，保留作为审计证据；当前版本号、断言数、行数以 `README.md`、`docs/TESTING.md` 与 `scripts/docs-audit.js` 的实测为准。
 
-HEAD `1179b37`（v8.14.0）
+HEAD `c3a02f2`（v8.14.1）
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `e0a4590`。
-文件数：**153**　总行数：**38148**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**155**　总行数：**38328**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -53,17 +53,17 @@ HEAD `1179b37`（v8.14.0）
 | `.github/workflows/ci.yml` | 238 | 全文 | 7 个 job（test-fast / stress-long / stress-short / mutation / probe / ecosystem / purge-cdn，2026-11-14 拆并行）；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 2 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
-| `README.md` | 123 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
+| `README.md` | 124 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 42 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
-| `lx-source.js` | 5707 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
+| `lx-source.js` | 5709 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
 | `docs/AGENTS.md` | 191 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 94 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突）→ **2026-11-12 已修：4509 行** |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
-| `docs/AUDIT_MATRIX.md` | 193 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
+| `docs/AUDIT_MATRIX.md` | 195 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/archive/AUDIT_PLAN-v9.0.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 243 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 78 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 80 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 519 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -101,9 +101,11 @@ HEAD `1179b37`（v8.14.0）
 | `docs/health-daily/2026-11-13.json` | 66 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-14.md` | 47 | 生成 | 11-14 日报（远端 probe 产出） |
 | `docs/health-daily/2026-11-14.json` | 65 | 生成 | 同份日报的 json |
+| `docs/health-daily/2026-11-15.md` | 47 | 生成 | 11-15 日报（远端 probe 产出） |
+| `docs/health-daily/2026-11-15.json` | 65 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-09.json` | 48 | 生成 | 同日 json（date/prevDate/registered/judged/handle/watch/changes） |
 | `docs/health-daily/2026-11-08.json` | 54 | 生成 | 字段 date/prevDate/prevDateMode/prevDates/registered/judged/handle/watch/changes |
-| `docs/probe-history.jsonl` | 800 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
+| `docs/probe-history.jsonl` | 816 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | 全文 | 五组账 + 5 次自我推翻；e-extra 82 / 3179 行 / 66 文件 过期 |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
@@ -148,7 +150,7 @@ HEAD `1179b37`（v8.14.0）
 | `test/audit/health-scheduler-fake-clock.js` | 58 | 断言 | 2 条（±10% jitter 边界 / 播放取链在途暂停判定）；实跑 2/0 |
 | `test/audit/q-quickjs-real.js` | 127 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |
 | `test/audit/aa-p3-persist.js` | 212 | 断言 | P3 A1~A10 宿主持久化协议：导出结构/往返/URL 拒绝/版本 TTL/恢复边界/v1 拒绝/controls-only/无回滚开关；实跑 11/0 |
-| `test/audit/health-persistence-v2.js` | 132 | 断言 | F36/F57 P1~P8 持久化 v2：v2 结构/v1 拒绝/controls-only/autoOff 6h/无回滚开关/拒绝非法；实跑 11/0 |
+| `test/audit/health-persistence-v2.js` | 166 | 断言 | F36/F57 P1~P10 持久化 v2：v2 结构/v1 拒绝/controls-only/autoOff 6h/无回滚开关/拒绝非法；实跑 10/0 |
 | `test/audit/health-probe-outcome.js` | 136 | 断言 | F20/F22 O1~O9 探测三值：PASS/FAIL/UNKNOWN 聚合、UNKNOWN 不累计失败、PASS 不清 playDead/resolveDead、事件无 URL；实跑 11/0 |
 | `test/audit/health-probe-fidelity.js` | 171 | 断言 | F20/F22 F1~F10 探测保真：逐目标三值、全 FAIL、超时 UNKNOWN、POST 透传、check/可播校验、单源隔离、不写质量账、不清摘除、事件无 URL；实跑 11/0 |
 | `test/audit/health-transition-events.js` | 112 | 断言 | F33 U1~U7 迁移事件：字段/枚举/优先级保留/probe 压缩/auto_on 单发/无敏感字段/容量 500；实跑 11/0 |
@@ -168,8 +170,8 @@ HEAD `1179b37`（v8.14.0）
 | `test/stress-test.js` | 221 | 断言 | 12 条 S1~S11 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 272 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |
-| `docs/READTHROUGH.md` | 247 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
-| `docs/DOC_INDEX.md` | 97 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
+| `docs/READTHROUGH.md` | 249 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/DOC_INDEX.md` | 99 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
 | `docs/KNOWN_ISSUES.md` | 65 | 全文 | 已知问题/技术债台账（K01~K20，活文档；判断是否重构先看这里） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | 全文 | 音质能力备档与档位短路优化方案、复现证据、P0/P1/P2 |
 
@@ -218,7 +220,7 @@ HEAD `1179b37`（v8.14.0）
 | `scripts/verify-real-platform-chains.js` | 103 | 全文 | G7 先搜平台 ID 再隔离取链；公网不可用时如实保留上游失败码 |
 | `src/00-header.js` | 6 | 全文 | 单文件 banner |
 | `src/80-entry.js` | 10 | 全文 | 导出面 + 非枚举 PROVIDER_SPECS |
-| `src/legacy.js` | 5825 | 全文 | v8.13 实现源（契约/生命周期/取消） |
+| `src/legacy.js` | 5832 | 全文 | v8.13 实现源（契约/生命周期/取消） |
 | `src/providers/55-probation.js` | 41 | 全文 | 两个观察源规格 |
 | `src/providers/changqingVip.js` | 20 | 全文 | 12 源契约规格 |
 | `src/providers/helloworldKw.js` | 22 | 全文 | 12 源契约规格 |

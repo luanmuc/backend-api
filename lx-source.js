@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.14.0 音质优先与 CI 编排版（12 登记源 / 10 上链 / 2 观察；音质优先播放与真实交付档回填；K08/K07 探路策略；CI 并行/缓存收口）
- * @version 8.14.0
+ * @description v8.14.1 HDM-3 健康数据分层版（12 登记源 / 10 上链 / 2 观察；L0 用户控制意图永久化、controls-only 去 7 天 TTL、未知 control 源跳过；完整健康态仍 7 天 TTL；v1 不迁移）
+ * @version 8.14.1
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -3492,7 +3492,7 @@ var __lxSourceBundle = (() => {
       }
       var HEALTH_STATE_VERSION = 2;
       var HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-      var HEALTH_STATE_SOURCE_VERSION = "8.14.0";
+      var HEALTH_STATE_SOURCE_VERSION = "8.14.1";
       var HEALTH_STATE_MAX_BYTES = 256 * 1024;
       var HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1e3;
       var HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1e3;
@@ -3614,14 +3614,15 @@ var __lxSourceBundle = (() => {
           if (!isHealthPlainObject(state)) return { ok: false, reason: "state \u5FC5\u987B\u662F\u5BF9\u8C61" };
           if (!HEALTH_STATE_ACCEPTED_VERSIONS.includes(state.v)) return { ok: false, reason: "schema version \u4E0D\u7B26" };
           if (!healthNumber(state.savedAt, true)) return { ok: false, reason: "savedAt \u975E\u6CD5" };
-          const age = Date.now() - state.savedAt;
-          if (age < -HEALTH_STATE_FUTURE_TOLERANCE_MS || age > HEALTH_STATE_TTL_MS) return { ok: false, reason: "savedAt \u8D85\u51FA TTL" };
-          if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state \u8D85\u8FC7 256KB" };
-          const forbidden = checkHealthForbiddenKeys(state, "state");
-          if (forbidden) return { ok: false, reason: `\u7981\u6B62\u5B57\u6BB5 ${forbidden}` };
           const controlsRaw = state.controls === void 0 ? {} : state.controls;
           if (!isHealthPlainObject(controlsRaw)) return { ok: false, reason: "controls \u975E\u6CD5" };
           const controlsOnly = (!isHealthPlainObject(state.sources) || Object.keys(state.sources).length === 0) && Object.keys(controlsRaw).length > 0;
+          const age = Date.now() - state.savedAt;
+          if (age < -HEALTH_STATE_FUTURE_TOLERANCE_MS) return { ok: false, reason: "savedAt \u5728\u672A\u6765" };
+          if (!controlsOnly && age > HEALTH_STATE_TTL_MS) return { ok: false, reason: "savedAt \u8D85\u51FA TTL" };
+          if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state \u8D85\u8FC7 256KB" };
+          const forbidden = checkHealthForbiddenKeys(state, "state");
+          if (forbidden) return { ok: false, reason: `\u7981\u6B62\u5B57\u6BB5 ${forbidden}` };
           if (!controlsOnly && state.sourceVersion !== HEALTH_STATE_SOURCE_VERSION) return { ok: false, reason: "sourceVersion \u4E0D\u7B26" };
           if (!isHealthPlainObject(state.sources)) {
             if (!controlsOnly) return { ok: false, reason: "sources \u5FC5\u987B\u662F\u5BF9\u8C61" };
@@ -3691,7 +3692,7 @@ var __lxSourceBundle = (() => {
           }
           const controls = {};
           for (const [id, c] of Object.entries(controlsRaw)) {
-            if (!SOURCE_HANDLERS[id]) return { ok: false, reason: `controls.${id} \u672A\u77E5\u6E90` };
+            if (!SOURCE_HANDLERS[id]) continue;
             if (!isHealthPlainObject(c)) return { ok: false, reason: `controls.${id} \u975E\u6CD5` };
             if (typeof c.enabled !== "boolean") return { ok: false, reason: `controls.${id}.enabled \u975E\u6CD5` };
             if (c.manualOff !== void 0 && typeof c.manualOff !== "boolean") return { ok: false, reason: `controls.${id}.manualOff \u975E\u6CD5` };
@@ -3719,6 +3720,7 @@ var __lxSourceBundle = (() => {
             restored++;
           }
           applyHealthControls(controls);
+          if (controlsOnly) return { ok: true, restored: 0, controlsRestored: Object.keys(controls).length };
           qualitySkipProbeAt.clear();
           for (const [key, at] of Object.entries(qualityShortCircuit)) qualitySkipProbeAt.set(key, at);
           return { ok: true, restored, controlsRestored: Object.keys(controls).length };
@@ -5191,7 +5193,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.14.0 \u5DF2\u52A0\u8F7D\uFF0812 \u767B\u8BB0 / 10 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.14.1 \u5DF2\u52A0\u8F7D\uFF0812 \u767B\u8BB0 / 10 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {

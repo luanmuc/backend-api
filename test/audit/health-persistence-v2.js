@@ -91,7 +91,7 @@ check('P4 controls-only 不会误恢复健康元数据', () => {
 check('P5 autoOff 超过 6h 不复活，保留原因字段', () => {
   const m = fresh()
   const oldAt = Date.now() - 7 * 3600 * 1000
-  const res = m.restoreHealthState({ v: 2, sourceVersion: '8.14.0', savedAt: Date.now(), sources: {}, qualityShortCircuit: {}, controls: { suyinQQ: { enabled: true, autoOff: true, autoOffAt: oldAt, autoOffReason: 'AUTO_OFF_PROBE' } } })
+  const res = m.restoreHealthState({ v: 2, sourceVersion: '8.14.1', savedAt: Date.now(), sources: {}, qualityShortCircuit: {}, controls: { suyinQQ: { enabled: true, autoOff: true, autoOffAt: oldAt, autoOffReason: 'AUTO_OFF_PROBE' } } })
   assert(res.ok === true, '旧 autoOff 应可校验通过')
   const snap = m.getHealthSnapshot().suyinQQ
   assert(snap.autoOff !== true, '超过 6h 的 autoOff 不得恢复')
@@ -105,14 +105,48 @@ check('P6 无 v1 回滚开关，始终导出 v2', () => {
   assert(st.controls && st.controls.suyinQQ, 'v2 应带 controls')
 })
 
-check('P7 版本/未知源/超容量/禁止字段全部拒绝', () => {
+check('P7 版本/未知源跳过/超容量/禁止字段', () => {
   const m = fresh()
-  const base = { v: 2, sourceVersion: '8.14.0', savedAt: Date.now(), sources: {}, qualityShortCircuit: {}, controls: { suyinQQ: { enabled: true } } }
+  const base = { v: 2, sourceVersion: '8.14.1', savedAt: Date.now(), sources: {}, qualityShortCircuit: {}, controls: { suyinQQ: { enabled: true } } }
   assert(m.restoreHealthState(Object.assign({}, base, { v: 3 })).ok === false, 'v3 应拒绝')
-  assert(m.restoreHealthState(Object.assign({}, base, { controls: { notASource: { enabled: true } } })).ok === false, '未知源应拒绝')
+  const mixed = m.restoreHealthState(Object.assign({}, base, { controls: { suyinQQ: { enabled: false, manualOff: true }, notASource: { enabled: true } } }))
+  assert(mixed.ok === true, `未知源应跳过而不是拒绝整包：${JSON.stringify(mixed)}`)
+  assert(mixed.controlsRestored === 1, `未知源不应计入 controlsRestored：${JSON.stringify(mixed)}`)
+  assert(m.getHealthSnapshot().suyinQQ.offReason === 'USER_OFF', '已知源开关必须恢复')
   assert(m.restoreHealthState(Object.assign({}, base, { controls: { suyinQQ: { enabled: true, successUrl: 'https://x' } } })).ok === false, '禁止字段应拒绝')
   const big = Object.assign({}, base, { controls: { suyinQQ: { enabled: true, note: 'x'.repeat(300000) } } })
   assert(m.restoreHealthState(big).ok === false, '超容量应拒绝')
+})
+
+check('P9 controls-only 不受 7 天 TTL 限制，完整健康仍受 TTL 限制', () => {
+  const oldAt = Date.now() - 8 * 24 * 3600 * 1000
+  const m = fresh()
+  const controlsOnly = { v: 2, sourceVersion: '8.14.1', savedAt: oldAt, sources: {}, qualityShortCircuit: {}, controls: { suyinQQ: { enabled: false, manualOff: true } } }
+  const res = m.restoreHealthState(controlsOnly)
+  assert(res.ok === true, `controls-only 8 天应接受：${JSON.stringify(res)}`)
+  assert(res.controlsRestored === 1, 'controls-only 应恢复开关')
+  const full = m.exportHealthState()
+  full.savedAt = oldAt
+  const m2 = fresh()
+  assert(m2.restoreHealthState(full).ok === false, '完整健康 8 天必须拒绝，不能复活旧熔断')
+})
+
+check('P10 controls-only 不得改动质量短路/健康元数据', () => {
+  const m = fresh()
+  const key = 'suyinKuwo:flac'
+  const until = Date.now() + 10 * 60 * 1000
+  m.__debug.qualitySkipProbeAt.set(key, until)
+  const res = m.restoreHealthState({
+    v: 2,
+    sourceVersion: '0.0.0',
+    savedAt: Date.now(),
+    sources: {},
+    qualityShortCircuit: {},
+    controls: { suyinQQ: { enabled: false, manualOff: true } },
+  })
+  assert(res.ok === true, `controls-only 应成功：${JSON.stringify(res)}`)
+  assert(m.__debug.qualitySkipProbeAt.get(key) === until, 'controls-only 清掉了质量短路表')
+  assert(m.getHealthSnapshot().suyinQQ.offReason === 'USER_OFF', '控制态未恢复')
 })
 
 check('P8 导出不含 URL/歌名/缓存键', () => {

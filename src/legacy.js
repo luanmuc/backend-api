@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.14.0 音质优先与 CI 编排版（2026-11-14：音质优先播放、真实交付档回填、片段标记与置信度；K08 唯一高质源 10min 探路、K07 forceQualityProbe；CI test-fast/stress-long/stress-short 并行收口）。历史版本见 docs/CHANGELOG.md。
- * @version 8.14.0 音质优先与 CI 编排版（音质优先 + 真实交付档 + K08/K07 探路 + CI 并行/缓存）
+ * @description v8.14.1 HDM-3 健康数据分层版（2026-11-15：L0 用户控制意图永久化、controls-only 去 7 天 TTL、未知 control 源跳过；完整健康态仍 7 天 TTL；v1 不迁移）。历史版本见 docs/CHANGELOG.md。
+ * @version 8.14.1 健康数据分层（L0 永久 / L1 7天绑版本 / L2 7天滚动）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -3871,7 +3871,7 @@ function getHealthSnapshot() {
 // ============================================================
 const HEALTH_STATE_VERSION = 2; // 单一路径：只导出/恢复 v2
 const HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-const HEALTH_STATE_SOURCE_VERSION = "8.14.0";
+const HEALTH_STATE_SOURCE_VERSION = "8.14.1";
 const HEALTH_STATE_MAX_BYTES = 256 * 1024;
 const HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1000;
 const HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1000;
@@ -3989,14 +3989,16 @@ function restoreHealthState(state) {
     if (!isHealthPlainObject(state)) return { ok: false, reason: "state 必须是对象" };
     if (!HEALTH_STATE_ACCEPTED_VERSIONS.includes(state.v)) return { ok: false, reason: "schema version 不符" };
     if (!healthNumber(state.savedAt, true)) return { ok: false, reason: "savedAt 非法" };
-    const age = Date.now() - state.savedAt;
-    if (age < -HEALTH_STATE_FUTURE_TOLERANCE_MS || age > HEALTH_STATE_TTL_MS) return { ok: false, reason: "savedAt 超出 TTL" };
-    if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state 超过 256KB" };
-    const forbidden = checkHealthForbiddenKeys(state, "state");
-    if (forbidden) return { ok: false, reason: `禁止字段 ${forbidden}` };
     const controlsRaw = state.controls === undefined ? {} : state.controls;
     if (!isHealthPlainObject(controlsRaw)) return { ok: false, reason: "controls 非法" };
     const controlsOnly = (!isHealthPlainObject(state.sources) || Object.keys(state.sources).length === 0) && Object.keys(controlsRaw).length > 0;
+    const age = Date.now() - state.savedAt;
+    if (age < -HEALTH_STATE_FUTURE_TOLERANCE_MS) return { ok: false, reason: "savedAt 在未来" };
+    // L0 控制态是永久用户意图，只受未来时间容差约束；完整健康态仍按 7 天 TTL。
+    if (!controlsOnly && age > HEALTH_STATE_TTL_MS) return { ok: false, reason: "savedAt 超出 TTL" };
+    if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state 超过 256KB" };
+    const forbidden = checkHealthForbiddenKeys(state, "state");
+    if (forbidden) return { ok: false, reason: `禁止字段 ${forbidden}` };
     if (!controlsOnly && state.sourceVersion !== HEALTH_STATE_SOURCE_VERSION) return { ok: false, reason: "sourceVersion 不符" };
     if (!isHealthPlainObject(state.sources)) {
       if (!controlsOnly) return { ok: false, reason: "sources 必须是对象" };
@@ -4067,9 +4069,10 @@ function restoreHealthState(state) {
     }
 
     // v8.14：恢复用户意图（永久）与 autoOff（短期临时态）。旧状态没有 controls 时保持默认。
+    // 源集合会随版本变化：未知 control ID 跳过，不能让一个已删除的源 ID 拒绝整包开关。
     const controls = {};
     for (const [id, c] of Object.entries(controlsRaw)) {
-      if (!SOURCE_HANDLERS[id]) return { ok: false, reason: `controls.${id} 未知源` };
+      if (!SOURCE_HANDLERS[id]) continue;
       if (!isHealthPlainObject(c)) return { ok: false, reason: `controls.${id} 非法` };
       if (typeof c.enabled !== "boolean") return { ok: false, reason: `controls.${id}.enabled 非法` };
       if (c.manualOff !== undefined && typeof c.manualOff !== "boolean") return { ok: false, reason: `controls.${id}.manualOff 非法` };
@@ -4098,6 +4101,10 @@ function restoreHealthState(state) {
       restored++;
     }
     applyHealthControls(controls);
+    // controls-only 只恢复用户意图，绝不能触碰任何健康元数据。
+    // 启动时 App 会先恢复 control、再恢复完整健康态；若这里先清空质量短路表，
+    // 单独恢复控制态或健康态尚未回写的窗口内，会误清正在生效的探路短路。
+    if (controlsOnly) return { ok: true, restored: 0, controlsRestored: Object.keys(controls).length };
     qualitySkipProbeAt.clear();
     for (const [key, at] of Object.entries(qualityShortCircuit)) qualitySkipProbeAt.set(key, at);
     return { ok: true, restored, controlsRestored: Object.keys(controls).length };
@@ -5698,7 +5705,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.14.0 已加载（12 登记 / 10 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v8.14.1 已加载（12 登记 / 10 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

@@ -23,7 +23,7 @@
 | `docs/音源架构执行全过程-2026-11-12.md` | 143 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `.github/workflows/ci.yml` | 238 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `.github/workflows/docs-audit.yml` | 48 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
-| `README.md` | 123 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `README.md` | 124 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `README_HEALTH.md` | 42 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AGENTS.md` | 191 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -56,9 +56,11 @@
 | `docs/health-daily/2026-11-13.json` | 66 | .json | ✓ | — | — | — | — | — | — | U10 |
 | `docs/health-daily/2026-11-14.md` | 47 | .md | ✓ | — | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/health-daily/2026-11-14.json` | 65 | .json | ✓ | — | — | — | — | — | — | U10 |
+| `docs/health-daily/2026-11-15.md` | 47 | .md | ✓ | — | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/health-daily/2026-11-15.json` | 65 | .json | ✓ | — | — | — | — | — | — | U10 |
 | `docs/health-daily/2026-11-09.md` | 48 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/probe-history.jsonl` | 800 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
-| `lx-source.js` | 5707 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
+| `docs/probe-history.jsonl` | 816 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
+| `lx-source.js` | 5709 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
 | `scripts/candidate-audit.js` | 342 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/cn-date.js` | 17 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/doc-sync-map.js` | 111 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
@@ -96,7 +98,7 @@
 | `test/audit/health-resolve-dead.js` | 101 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | R1~R4/F42 取链摘除分层 |
 | `test/audit/health-scoped-reset.js` | 74 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | S1~S2/F38 scoped 清账 |
 | `test/audit/health-scheduler-fake-clock.js` | 58 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | N1~N2/F21 探测 jitter/暂停 |
-| `test/audit/health-persistence-v2.js` | 132 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F36/F57 P1~P8 持久化 v2 |
+| `test/audit/health-persistence-v2.js` | 166 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F36/F57 P1~P10 持久化 v2 |
 | `test/audit/health-probe-outcome.js` | 136 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F20/F22 O1~O9 探测三值 |
 | `test/audit/health-probe-fidelity.js` | 171 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F20/F22 F1~F10 探测保真 |
 | `test/audit/health-transition-events.js` | 112 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F33 U1~U7 迁移事件优先级 |
@@ -109,8 +111,8 @@
 | `docs/README.md` | 71 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 54 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/TESTING.md` | 165 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/CHANGELOG.md` | 78 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_MATRIX.md` | 193 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/CHANGELOG.md` | 80 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 195 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 451 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
 | `test/stress-round3.js` | 356 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
 | `test/audit/g-meta.js` | 314 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14 |
@@ -139,14 +141,14 @@
 | `test/stress-round4.js` | 1319 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 272 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
-| `docs/READTHROUGH.md` | 247 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
-| `docs/DOC_INDEX.md` | 97 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
+| `docs/READTHROUGH.md` | 249 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
+| `docs/DOC_INDEX.md` | 99 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
 | `docs/KNOWN_ISSUES.md` | 65 | .md | ✓ | ✓ | — | — | — | — | — | 已知问题/技术债台账（K01~K20） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | .md | ✓ | ✓ | — | — | — | — | — | 音质策略优化方案（含复现证据） |
 ## 汇总
 
-- 文件总数：**153**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**38148**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**155**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**38328**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_LIFECYCLE.md` | 76 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
@@ -161,7 +163,7 @@
 | `scripts/verify-real-platform-chains.js` | 103 | .js | ✓ | — | — | — | ✓ | ✓ | — | G7 平台 ID 链真实证据 |
 | `src/00-header.js` | 6 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/80-entry.js` | 10 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/legacy.js` | 5825 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/legacy.js` | 5832 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/55-probation.js` | 41 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/changqingVip.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/helloworldKw.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
