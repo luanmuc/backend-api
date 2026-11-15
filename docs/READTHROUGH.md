@@ -9,7 +9,7 @@
 历史快照 HEAD `eb2ce1c`（v8.15.1）；当前工作区 **v8.15.1** 契约与死配置收口版
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `eb2ce1c`。
-文件数：**156**　总行数：**38585**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**156**　总行数：**38599**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -101,11 +101,11 @@
 | `docs/health-daily/2026-11-13.json` | 66 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-14.md` | 47 | 生成 | 11-14 日报（远端 probe 产出） |
 | `docs/health-daily/2026-11-14.json` | 65 | 生成 | 同份日报的 json |
-| `docs/health-daily/2026-11-15.md` | 47 | 生成 | 11-15 日报（远端 probe 产出） |
-| `docs/health-daily/2026-11-15.json` | 65 | 生成 | 同份日报的 json |
+| `docs/health-daily/2026-11-15.md` | 46 | 生成 | 11-15 日报（远端 probe 产出） |
+| `docs/health-daily/2026-11-15.json` | 64 | 生成 | 同份日报的 json |
 | `docs/health-daily/2026-11-09.json` | 48 | 生成 | 同日 json（date/prevDate/registered/judged/handle/watch/changes） |
 | `docs/health-daily/2026-11-08.json` | 54 | 生成 | 字段 date/prevDate/prevDateMode/prevDates/registered/judged/handle/watch/changes |
-| `docs/probe-history.jsonl` | 816 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
+| `docs/probe-history.jsonl` | 832 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | 全文 | 五组账 + 5 次自我推翻；e-extra 82 / 3179 行 / 66 文件 过期 |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
