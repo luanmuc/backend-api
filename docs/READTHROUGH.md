@@ -9,7 +9,7 @@
 历史快照 HEAD `1edc6df`（v8.16.0）；当前工作区 **v8.15.1** 契约与死配置收口版
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `eb2ce1c`。
-文件数：**138**　总行数：**39606**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**138**　总行数：**39615**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -63,7 +63,7 @@
 | `docs/archive/AUDIT_PLAN-v9.0.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 243 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 126 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 127 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 541 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -110,7 +110,7 @@
 | `test/audit/b-logic.js` | 239 | 断言 | 30 条（C4~C10 等，含循环生成）；实跑 30/0 |
 | `test/audit/d-func.js` | 241 | 断言 | 30 条（D1/I3~I5/E1~E4）；实跑 30/0 |
 | `test/audit/e-extra.js` | 944 | 断言 | 94 条（含 U500/U410/U404/U429/U403 状态码族、EDGE/FAULT 五轮补测）；实跑 94/0 |
-| `test/audit/f-repo.js` | 458 | 断言 | U~Z 54 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支；Z9 用假 git 对健康表写回做 push 失败注入）；实跑 54/0 |
+| `test/audit/f-repo.js` | 466 | 断言 | U~Z 54 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支；Z9 用假 git 对健康表写回做 push 失败注入）；实跑 54/0 |
 | `test/audit/g-meta.js` | 404 | 断言 | 15 条（M1~M14 + M9b 行为级 require 守卫；审断言本身）；实跑 15/0 |
 | `test/audit/p-gaps.js` | 182 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
 | `test/audit/q-dfix.js` | 142 | 断言 | 5 条：Q1 D-04 half-open 遇 429 收口回 open（删收口段立刻红）；Q2 closed 态 429 只退避不熔断；Q3（v8.11.3）D-01 toggle 开启后失败缓存失效，先红后绿；Q4 D-08 单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 PARAM_ERROR，先红后绿；实跑 5/0 |
@@ -193,7 +193,7 @@
 | `docs/SOURCE_LIFECYCLE.md` | 76 | 全文 | 当前态治理文档 |
 | `docs/SOURCE_REGISTRY.md` | 64 | 全文 | 当前态治理文档 |
 | `docs/SOURCE_RETIREMENT.md` | 80 | 全文 | 当前态治理文档 |
-| `package-lock.json` | 499 | 全文 | esbuild 锁定 |
+| `package-lock.json` | 499 | 全文 | esbuild 锁（2026-11-16 补读；修根 version 8.15.0→8.16.0 漂移，f-repo U14 守） |
 | `package.json` | 17 | 全文 | v8.13.0/构建脚本入口/esbuild 依赖 |
 | `scripts/build-source.js` | 52 | 全文 | esbuild IIFE/ES2017 单文件构建 + CJS 导出桥 + 版本头校验 |
 | `scripts/source-inventory.js` | 112 | 全文 | 12/10/2 机器闸门 --check |

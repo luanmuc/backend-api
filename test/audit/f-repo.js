@@ -116,6 +116,14 @@ console.log('\n[U] 全文件静态合规（' + files.length + ' 个 tracked 文�
 
   const empty = files.filter(f => fs.statSync(abs(f)).size === 0);
   rec('U13', '无空文件', empty.length === 0, empty.join(','));
+  // U14（v8.16）：package-lock 根 version 必须与 package.json 一致——升版只改 package.json 时
+  // lock 会长期漂在旧版本（实测 v8.16.0 时 lock 仍写 8.15.0），npm ci / 版本核对都会踩到。
+  const pkgVer = JSON.parse(read('package.json')).version;
+  const lock = JSON.parse(read('package-lock.json'));
+  const lockVer = lock.version;
+  const lockRootVer = (lock.packages && lock.packages[''] || {}).version;
+  rec('U14', `package-lock 版本与 package.json 一致（${pkgVer}）`,
+    lockVer === pkgVer && lockRootVer === pkgVer, `lock=${lockVer} lockRoot=${lockRootVer}`);
 }
 
 // ══ V 组：交叉引用与数字一致性 ══
