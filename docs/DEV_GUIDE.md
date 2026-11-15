@@ -27,7 +27,7 @@
 | ⑦ 注册表 + 调度 + 健康分 | 3041~4106 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，3s grace，10min 缓存，`cross_platform` 事件） |
 | ⑧ 上报 + 事件监听 | 4208~4509（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> **v8.15.0 本地构建**：`lx-source.js` 共 **5740 行 / 300268 bytes**，`@version 8.15.0`；构建脚本的版本头校验改为读 `package.json`，不再硬编码。
+> **v8.15.0 已推送 master 并建 tag `v8.15.0`**：`lx-source.js` 共 **5740 行 / 300268 bytes**，`@version 8.15.0`；构建脚本的版本头校验改为读 `package.json`，不再硬编码。
 > 行段为 **v8.14.1 基线（`lx-source.js` 共 5740 行，`@version 8.14.1`，297937 bytes）** 实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 校验末段边界 = EOF。
 > **v8.15.0 压测适配**：`stress-round4` 的 V18 预热计数按 `coldStartTimeoutMs` 双键隔离；冷启动超时被钳到总预算后，测试需同步抬高 `raceBudgetMs`，否则实际请求超时变成总预算、按 4321ms 计数会假红。
 
