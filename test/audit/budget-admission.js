@@ -35,4 +35,4 @@ rec('A2-5', '总预算+末档保底硬顶 16s', b.totalMs === 15000 && b.floorMs
 rec('A2-6', '冷启动超时不得超过总预算', d.resolveColdStartTimeout(30000, 12000) === 12000, String(d.resolveColdStartTimeout(30000, 12000)))
 rec('A2-7', '单链预算到期不再给 1s 宽限', /const budgetLeft = Math\.max\([^\n]+, 0\);/.test(legacy) && !/const budgetLeft = Math\.max\([^\n]+, 1000\);/.test(legacy))
 console.log(`\n${fail ? 'FAIL' : 'PASS'} (${fail} failures)`)
-process.exit(fail ? 1 : 0)
+if (require.main === module) process.exit(fail ? 1 : 0)

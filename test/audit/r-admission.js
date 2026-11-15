@@ -501,7 +501,7 @@ need('A8', 'skipReason：健康源 null，被摘除源给出理由', () => {
       }
     }
     rec('A20', '非 strong 证据全遍历：TTL 永不 >60s 且 playDead 恒 false',
-      !!dbg.admissionLedger && codes.length >= 8 && verdicts.length === 7 && bad.length === 0,
+      !!dbg.admissionLedger && codes.length >= 8 && verdicts.length === 8 && bad.length === 0,
       `has=${!!dbg.admissionLedger} codes=${codes.length} verdicts=${verdicts.length} bad=${bad.slice(0, 3).join(',')}(${bad.length})`);
   }
 

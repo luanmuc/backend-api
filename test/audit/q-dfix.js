@@ -109,7 +109,7 @@ if (!dbg || !dbg.breakerMap || typeof dbg.recordRateLimit !== 'function') {
       } catch (e) {
         const ms = Date.now() - t0;
         rec('Q4', 'D-08：单链悬挂源必须在预算内被判超时',
-          e.code === 'NETWORK_TIMEOUT' && ms < 3000, `code=${e.code} 耗时=${ms}ms（预算 2000ms）`);
+          e.code === 'BUDGET_EXHAUSTED' && ms < 3000, `code=${e.code} 耗时=${ms}ms（预算 2000ms）`);
       }
     }
 
