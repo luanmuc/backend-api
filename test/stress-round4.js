@@ -622,6 +622,9 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     const WARM_TIMEOUT = 4321; // 唯一冷启动超时，用来把预热外呼与同 URL 的健康探针分开计数
     const mk = (over) => Object.assign({}, BASE_CFG, {
       failCacheNotFoundMs: 1, failCacheExpiredMs: 1, allFailShortTtlMs: 1, breakerThreshold: 100,
+      // v8.15.0：冷启动超时被钳到总预算内，V18 的 4321ms 唯一键必须给足总预算，
+      // 否则实际请求超时会变成 BASE_CFG.raceBudgetMs，按 4321 计数会假红（实测 V18b/V18d）。
+      raceBudgetMs: WARM_TIMEOUT + 100, raceBudgetPerQuality: WARM_TIMEOUT + 100,
       coldStartTimeoutMs: WARM_TIMEOUT,
     }, over);
     const setup = (over) => {

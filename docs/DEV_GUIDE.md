@@ -29,6 +29,8 @@
 
 > **v8.15.0 本地构建**：`lx-source.js` 共 **5740 行 / 300268 bytes**，`@version 8.15.0`；构建脚本的版本头校验改为读 `package.json`，不再硬编码。
 > 行段为 **v8.14.1 基线（`lx-source.js` 共 5740 行，`@version 8.14.1`，297937 bytes）** 实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 校验末段边界 = EOF。
+> **v8.15.0 压测适配**：`stress-round4` 的 V18 预热计数按 `coldStartTimeoutMs` 双键隔离；冷启动超时被钳到总预算后，测试需同步抬高 `raceBudgetMs`，否则实际请求超时变成总预算、按 4321ms 计数会假红。
+
 > **v8.15.0 构建口径（延续 v8.14.1）**：`scripts/build-source.js` 使用 esbuild `bundle:true / format:iife / globalName:__lxSourceBundle / platform:neutral / target:es2017`，产物末尾补 CommonJS 桥 `module.exports = __lxSourceBundle`。这样既是单文件 IIFE，又保留洛雪宿主读取的导出面；`verify-bundle` B1 校验 IIFE 包装与导出桥，B2 校验运行 API。10 个 active provider 已拆到 `src/providers/`，核心运行时仍在 `src/legacy.js`（未做 10/20/30/40/60/70 的全量模块拆分）。
 
 ## 三、核心机制详解
