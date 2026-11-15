@@ -25,7 +25,14 @@ const src = read(SRC);
 
 // 所有审计/测试脚本文件清单（用于 M1~M3、M8~M12）
 const auditFiles = fs.readdirSync(AUDIT).filter((f) => f.endsWith('.js')).map((f) => path.join(AUDIT, f));
-const testFiles = fs.readdirSync(TESTS).filter((f) => f.endsWith('.js')).map((f) => path.join(TESTS, f));
+// v8.15.1（R22）：原先只 readdir 顶层，test/mutation/run.js 这类子目录入口整条在守备之外
+// （M1/M2/M7/M8/M9 都漏扫它；M7 的「46 个脚本均已登记」也因此比实际少 1）。
+const walkJs = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => {
+  const p = path.join(dir, d.name);
+  if (d.isDirectory()) return walkJs(p);
+  return d.name.endsWith('.js') ? [p] : [];
+});
+const testFiles = walkJs(TESTS);
 const allTestJs = [...auditFiles, ...testFiles];
 const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f) => path.join(SCRIPTS, f));
 
@@ -46,6 +53,13 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
     while ((m = re2.exec(t))) {
       const ln = t.slice(0, m.index).split('\n').length;
       hits.push(`${path.basename(f)}:${ln}(rec 恒真)`);
+    }
+    // v8.15.1（R22）：另一种调用形状——rec 的签名有的脚本是 (id, ok, detail)，
+    // 写死成 `rec(…, true, …)`（第二参布尔字面量）时 re2 只认「id, 名称, true」抓不到。
+    const re3 = /rec\(\s*['"][A-Z][0-9]+[a-z]?['"]\s*,\s*true\s*,/g;
+    while ((m = re3.exec(t))) {
+      const ln = t.slice(0, m.index).split('\n').length;
+      hits.push(`${path.basename(f)}:${ln}(rec 恒真·布尔直写)`);
     }
   }
   rec('M1', '无恒真断言（恒真空壳 / rec 写死 true）', hits.length === 0,
@@ -186,13 +200,15 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
 // ---------- M7 TESTING 入口表覆盖 test/ 下全部脚本 ----------
 {
   const testing = read(path.join(ROOT, 'docs/TESTING.md'));
-  const testJs = fs.readdirSync(TESTS).filter((f) => f.endsWith('.js'));
-  const auditJs = fs.readdirSync(AUDIT).filter((f) => f.endsWith('.js'));
+  // 按「仓库相对路径」核对（TESTING 的入口表一律写 `test/...`），这样新增子目录入口
+  // 不会因为同名/只写文件名而假过。
   const missing = [];
-  for (const f of testJs) if (!testing.includes(f)) missing.push('test/' + f);
-  for (const f of auditJs) if (!testing.includes(f)) missing.push('test/audit/' + f);
+  for (const p of testFiles) {
+    const rel = path.relative(ROOT, p).split(path.sep).join('/');
+    if (!testing.includes(rel)) missing.push(rel);
+  }
   rec('M7', 'TESTING 入口表列出全部测试脚本', missing.length === 0,
-    missing.length ? '缺: ' + missing.join(', ') : `${testJs.length + auditJs.length} 个脚本均已登记`);
+    missing.length ? '缺: ' + missing.join(', ') : `${testFiles.length} 个脚本（含子目录）均已登记`);
 }
 
 // ---------- M8 每个审计脚本都有显式退出码 ----------
@@ -276,8 +292,10 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
   for (const f of allTestJs) {
     const t = read(f);
     if (!/console\.log|console\.info/.test(t)) continue;
-    // 断言输出函数里必须出现 [${id}] 或 [id]
-    const hasId = /\[\$\{id\}\]|\[id\]|\[\$\{id\}|'\[' \+ id/.test(t);
+    // 断言输出函数里必须出现 [${id}] 或 [id]；
+    // v8.15.1（R22）：也接受 [${r.id}] 这类成员访问（test/mutation/run.js 的复盘行就是这么打的，
+    // 旧写法只认变量名恰好叫 id，扩到子目录后立刻变成假红）。
+    const hasId = /\[\$\{[^}\n]*\bid\b[^}\n]*\}\]|\[id\]|\[\$\{id\}|'\[' \+ id/.test(t);
     if (!hasId) bad.push(path.basename(f));
   }
   rec('M12', '断言输出带 ID，失败可定位', bad.length === 0,

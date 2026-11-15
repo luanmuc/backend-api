@@ -606,7 +606,7 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
       'probeMs 到期 → 放行一次（false，不再跳过该档）');
     rec('V17c', dbg.isQualityHopeless('suyinKuwo', 'flac') === true,
       '放行时已重置计时 → 下一次立刻重新短路（true）');
-40    // 未达标不短路（防止把"只失败 2 次"的源误摘）
+    // 未达标不短路（防止把"只失败 2 次"的源误摘）
     br.byQuality = { flac: { fail: 2, success: 0 } };
     dbg.qualitySkipProbeAt.delete(KEY);
     rec('V17d', dbg.isQualityHopeless('suyinKuwo', 'flac') === false,
@@ -1244,7 +1244,11 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     // 注入一条「URL 指向片段、但标着 flac」的历史脏条目
     const dirtyKey = m.__debug.buildCacheKey('kw', S37, 'flac');
     m.__debug.setCachedUrl(dirtyKey, 'https://cdn.test/audio.test/dirty-frag.flac', 'flac', 'suyinKuwo');
-    rec('V37a', true, `脏条目已注入 flac 槽（构造前提）`);
+    // 前提断言必须真读一次缓存（R22）：原先写死布尔字面量等于什么都没测，
+    // g-meta M1 的恒真扫描对这种「第二参布尔直写」形状也抓不到（已一并补齐）。
+    const seeded = m.__debug.successCache.get(dirtyKey);
+    rec('V37a', !!(seeded && String(seeded.url).includes('dirty-frag')),
+      `脏条目已注入 flac 槽（构造前提）：cache.url=${seeded ? String(seeded.url).slice(-16) : '缺失'}`);
 
     fetchFault = okJSON37;
     // 关键：按 URL 分流——脏条目本身仍是 5 秒片段（复验应拒），新解析出来的 URL 才是完整版。

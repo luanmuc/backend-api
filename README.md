@@ -57,6 +57,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
+| **v8.15.1 门禁欠账与纵深补齐（R21/R22）**（2026-11-15，已推送） | `aa-p3-persist`(A1~A10) 与 `v-eligibility`(V1~V7) 两条从未进任何门禁的断言补入 `npm test`（23→**25 脚本**）；`docs-audit` 规则 20 扩为四向咬合 + 覆盖闸门（`test/audit` → 全 `test/`，且 `npm test` 路径必须真实存在）；`g-meta` M7 递归含 `test/mutation/run.js`、M1 补「第二参布尔直写」形状（当场抓出 `stress-round4` V37a 写死 true 并改真读缓存）、M12 放宽 `[${r.id}]`；`stress-round4` 删游离字面量 `40` | 2026-11-15 |
 | **v8.15.1 契约与死配置收口**（2026-11-15，已推送 + tag） | 健康态导出源版本 8.15.1，恢复兼容 8.14.1；删除 2 个未登记配置键、长青 4 个死模板、provider 未消费 timeoutMs；429 `sourceCooldownMs` 改为显式回退 `rateLimitBackoffMs` | 2026-11-15 |
 | **v8.14.1 HDM-3 健康数据分层**（2026-11-15，已随 App b129 发布） | L0 用户控制意图永久化（controls-only 去 7 天 TTL，跨源版本/跨长期停机存活）；未知 control 源 ID 跳过，避免单个已删除源拒绝整包开关；完整健康态仍 7 天 TTL；v1 不迁移；App 侧同步 `context`/`playback_start` 分桶 | 2026-11-15 |
 | **v8.14.0 音质优先与 CI 编排**（2026-11-14，已发布） | App 自定义源只按 `global.lx.qualityList` 选请求档，不再用内置 `_qualitys` 把 flac 错降 128k；源侧真实交付档回填、片段标记、置信度、`musicUrl` 透出 `qualityCeilingApplied`、缓存按实际档写入；K08 `qualityShortCircuitUniqueProbeMs` 10min + `countActiveQualitySources`；K07 `forceQualityProbe`；源仓 CI 拆 `test-fast`/`stress-long`/`stress-short` 并行，App CI 四 job + node_modules/Gradle build cache；`lx-source.js` 297753 bytes | 2026-11-14 |

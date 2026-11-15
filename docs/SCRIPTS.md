@@ -32,7 +32,7 @@
 | 脚本 | 职责 | 触发 | 副作用 |
 |---|---|---|---|
 | `self-check.js` (116) | 发布自检门 L2：`@version` ↔ logInfo 串、各平台 actions 声明、README/ROADMAP 三向同步 | 手动 / CI | 只读 + 报错退出 |
-| `docs-audit.js` (458) | 文档一致性 L4：22 条规则，可自动修数字/版本/行数/脚本清单 | CI 每日 / `--dry-run` | **默认会改文档**；`--dry-run` 只报告 |
+| `docs-audit.js` (473) | 文档一致性 L4：22 条规则，可自动修数字/版本/行数/脚本清单 | CI 每日 / `--dry-run` | **默认会改文档**；`--dry-run` 只报告 |
 | `doc-sync-map.js` (111) | 改动文件 → 必同步文档清单（hook 用），`--check` 硬触发拦截 | commit 时 hook | 无（被 hook 调用） |
 
 ## 四、单一真相模块（被其他脚本 require）

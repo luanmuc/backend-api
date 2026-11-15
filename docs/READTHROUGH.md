@@ -9,7 +9,7 @@
 历史快照 HEAD `eb2ce1c`（v8.15.1）；当前工作区 **v8.15.1** 契约与死配置收口版
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `eb2ce1c`。
-文件数：**156**　总行数：**38616**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**156**　总行数：**38658**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -53,7 +53,7 @@
 | `.github/workflows/ci.yml` | 238 | 全文 | 7 个 job（test-fast / stress-long / stress-short / mutation / probe / ecosystem / purge-cdn，2026-11-14 拆并行）；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 2 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
-| `README.md` | 125 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
+| `README.md` | 126 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 42 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
 | `lx-source.js` | 5733 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
 | `docs/AGENTS.md` | 191 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
@@ -63,7 +63,7 @@
 | `docs/archive/AUDIT_PLAN-v9.0.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 243 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 88 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 92 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 528 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -110,7 +110,7 @@
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |
 | `scripts/cn-date.js` | 17 | 全文 | 北京日期单一来源 |
-| `scripts/docs-audit.js` | 458 | 全文 | **14 条规则**；不校 README 当前版本行 / CI 数字 / 矩阵数字（过时数字的根因） |
+| `scripts/docs-audit.js` | 473 | 全文 | **14 条规则**；不校 README 当前版本行 / CI 数字 / 矩阵数字（过时数字的根因） |
 | `scripts/doc-sync-map.js` | 111 | 全文 | 规则指向 `docs/SYNC_POINTS.md`（两仓均无，悬空） |
 | `scripts/ecosystem-scan.js` | 165 | 全文 | 从 SOURCE_HANDLERS 动态提取，防漂移 |
 | `scripts/endpoint-registry.js` | 74 | 全文 | **16 条端点（源端点 13：12 登记源中 helloworldKw 占 2 条；工具端点 3）**；v8.15.1 删重复「明确不登记」注释块并修正段头；导出 WINDOW_DAYS/CONSECUTIVE_FAIL_DAYS/EXCLUDE_DOMAINS |
@@ -130,7 +130,7 @@
 | `test/audit/d-func.js` | 230 | 断言 | 30 条（D1/I3~I5/E1~E4）；实跑 30/0 |
 | `test/audit/e-extra.js` | 927 | 断言 | 94 条（含 U500/U410/U404/U429/U403 状态码族、EDGE/FAULT 五轮补测）；实跑 94/0 |
 | `test/audit/f-repo.js` | 451 | 断言 | U~Z 54 条（Z6/Z7 抽取 ci.yml 告警 run 块真跑三分支；Z9 用假 git 对健康表写回做 push 失败注入）；实跑 54/0 |
-| `test/audit/g-meta.js` | 337 | 断言 | 14 条 M1~M14（审断言本身）；实跑 14/0 |
+| `test/audit/g-meta.js` | 355 | 断言 | 15 条（M1~M14 + M9b 行为级 require 守卫；审断言本身）；实跑 15/0 |
 | `test/audit/p-gaps.js` | 170 | 断言 | 4 条（T-4/T-5/T-6/T-7 零覆盖补测）；逐条反向改坏 4/4 红 → 还原 4/0 |
 | `test/audit/q-dfix.js` | 133 | 断言 | 5 条：Q1 D-04 half-open 遇 429 收口回 open（删收口段立刻红）；Q2 closed 态 429 只退避不熔断；Q3（v8.11.3）D-01 toggle 开启后失败缓存失效，先红后绿；Q4 D-08 单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 PARAM_ERROR，先红后绿；实跑 5/0 |
 | `test/audit/q2-dseries.js` | 79 | 断言 | 3 条：R1 D-06 布尔键 `??` 语义、R2 D-05 真键可写/死键忽略、R3 D-26 mg 链不含星海备；三条注入回退均变红，还原后 sha 一致 |
@@ -167,7 +167,7 @@
 | `test/lx-source-smoke-test.js` | 1625 | 断言 | 67 组；T50~T57 为回退必红用例 |
 | `test/mutation/run.js` | 312 | 断言 | **22 变异体**；缺 esbuild 直接 exit 2；`--strict` 下 KILLED 之外全部 exit 1；字段名是 `name` 不是 `desc` |
 | `test/stress-round3.js` | 356 | 断言 | 14 条 T1~T14（压「态」） |
-| `test/stress-round4.js` | 1322 | 断言 | 133 条 V1a~V39b（已进 AUDIT_MATRIX） |
+| `test/stress-round4.js` | 1326 | 断言 | 133 条 V1a~V39b（已进 AUDIT_MATRIX） |
 | `test/stress-test.js` | 221 | 断言 | 12 条 S1~S11 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 272 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |

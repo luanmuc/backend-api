@@ -358,11 +358,15 @@ function ruleDocIndex() {
 }
 
 // ── 规则 20：测试入口数 ↔ test 下实际入口脚本数（含 npm test 子集与覆盖闸门）──
-// v8.15.2：原先只数入口总数，两个数字各自漂——`npm test` 实际 23 条时文档还写 21；
-// 且 test/audit 下有脚本既不在 npm test 也不在 CI（断言写了但永不执行）。本规则一并咬合。
+// v8.15.1（R21）：原先只数入口总数，两个数字各自漂——`npm test` 实际 23 条时文档还写 21；
+// 且 test/audit 下有脚本既不在 npm test 也不在 CI（断言写了但永不执行）。
+// v8.15.1（R22）：覆盖闸门原先只扫 test/audit 子目录，根级压测（stress-round3/4、
+// stress-test、candidate-audit-test）与 test/mutation/run.js 全在守备之外；同时补「npm test
+// 里登记的路径必须真实存在」——路径改名后该条会静默失败，整串退出码照样 0。
 function ruleTestEntryCount() {
-  const n = execSync("git ls-files 'test/**/*.js' 'test/*.js'", { encoding: 'utf8', cwd: ROOT })
-    .trim().split('\n').filter((f) => f.endsWith('.js')).length;
+  const tracked = execSync('git ls-files test', { encoding: 'utf8', cwd: ROOT })
+    .trim().split('\n').filter((f) => f.endsWith('.js'));
+  const n = tracked.length;
   align('docs/README.md', /(\d+) 个测试入口/, () => `${n} 个测试入口`, '文档地图测试入口数');
   align('docs/TESTING.md', /\*\*(\d+) 个入口\*\*/, () => `**${n} 个入口**`, 'TESTING 入口数');
 
@@ -371,14 +375,25 @@ function ruleTestEntryCount() {
   align('docs/TESTING.md', /`npm test` 的 \*\*(\d+) 个脚本\*\*/, () => `\`npm test\` 的 **${npmCount} 个脚本**`, 'TESTING npm test 脚本数');
   align('docs/TESTING.md', /其余 (\d+) 个按需执行/, () => `其余 ${n - npmCount} 个按需执行`, 'TESTING 按需执行数');
 
-  const ci = read('.github/workflows/ci.yml');
-  const uncovered = fs.readdirSync(path.join(ROOT, 'test/audit'))
-    .filter((f) => f.endsWith('.js'))
-    .filter((f) => !testCmd.includes(`test/audit/${f}`) && !ci.includes(f));
-  if (uncovered.length) {
-    for (const f of uncovered) report.push(`🔴 规则20：test/audit/${f} 既不在 npm test 也不在 CI —— 断言永不执行`);
+  // (a) npm test 登记的每个脚本必须真实存在（否则那一步只是 ENOENT，却被整串 && 掩盖）
+  const npmPaths = testCmd.split('&&').map((s) => s.trim()).map((s) => {
+    const m = /^node(?:\s+--[^ ]+)*\s+([^ ]+\.js)$/.exec(s);
+    return m ? m[1] : null;
+  }).filter(Boolean);
+  const dangling = npmPaths.filter((p) => !fs.existsSync(path.join(ROOT, p)));
+  if (dangling.length) {
+    for (const p of dangling) report.push(`🔴 规则20：package.json test 登记的 ${p} 不存在 —— 该步只会 ENOENT`);
   } else {
-    report.push('🟢 规则20：test/audit 全部入口均被 npm test 或 CI 覆盖');
+    report.push(`🟢 规则20：npm test 的 ${npmPaths.length} 个脚本路径均存在`);
+  }
+
+  // (b) test 下每个 .js 至少被 npm test 或 CI 引用一次（跨全部子目录，不只 audit/）
+  const ci = read('.github/workflows/ci.yml');
+  const uncovered = tracked.filter((f) => !testCmd.includes(f) && !ci.includes(f));
+  if (uncovered.length) {
+    for (const f of uncovered) report.push(`🔴 规则20：${f} 既不在 npm test 也不在 CI —— 断言永不执行`);
+  } else {
+    report.push(`🟢 规则20：test/ 全部 ${tracked.length} 个入口均被 npm test 或 CI 覆盖`);
   }
 }
 
