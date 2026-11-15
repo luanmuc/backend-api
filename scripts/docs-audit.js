@@ -357,12 +357,29 @@ function ruleDocIndex() {
   if (stale.length) report.push(`🔴 [docs/DOC_INDEX.md] 登记了不存在的文件：${stale.join(', ')}`);
 }
 
-// ── 规则 20：测试入口数 ↔ test 下实际入口脚本数 ───────────────────────
+// ── 规则 20：测试入口数 ↔ test 下实际入口脚本数（含 npm test 子集与覆盖闸门）──
+// v8.15.2：原先只数入口总数，两个数字各自漂——`npm test` 实际 23 条时文档还写 21；
+// 且 test/audit 下有脚本既不在 npm test 也不在 CI（断言写了但永不执行）。本规则一并咬合。
 function ruleTestEntryCount() {
   const n = execSync("git ls-files 'test/**/*.js' 'test/*.js'", { encoding: 'utf8', cwd: ROOT })
     .trim().split('\n').filter((f) => f.endsWith('.js')).length;
   align('docs/README.md', /(\d+) 个测试入口/, () => `${n} 个测试入口`, '文档地图测试入口数');
   align('docs/TESTING.md', /\*\*(\d+) 个入口\*\*/, () => `**${n} 个入口**`, 'TESTING 入口数');
+
+  const testCmd = JSON.parse(read('package.json')).scripts.test;
+  const npmCount = (testCmd.match(/node /g) || []).length;
+  align('docs/TESTING.md', /`npm test` 的 \*\*(\d+) 个脚本\*\*/, () => `\`npm test\` 的 **${npmCount} 个脚本**`, 'TESTING npm test 脚本数');
+  align('docs/TESTING.md', /其余 (\d+) 个按需执行/, () => `其余 ${n - npmCount} 个按需执行`, 'TESTING 按需执行数');
+
+  const ci = read('.github/workflows/ci.yml');
+  const uncovered = fs.readdirSync(path.join(ROOT, 'test/audit'))
+    .filter((f) => f.endsWith('.js'))
+    .filter((f) => !testCmd.includes(`test/audit/${f}`) && !ci.includes(f));
+  if (uncovered.length) {
+    for (const f of uncovered) report.push(`🔴 规则20：test/audit/${f} 既不在 npm test 也不在 CI —— 断言永不执行`);
+  } else {
+    report.push('🟢 规则20：test/audit 全部入口均被 npm test 或 CI 覆盖');
+  }
 }
 
 // ── 规则 21：缺陷编号上界 ↔ AUDIT_RESULTS 实有最大 D-xx ───────────────
