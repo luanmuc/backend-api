@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **46 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **21 个脚本**（冒烟 1 + 审计 20，含 `e-extra`、`quality-policy-v2`），其余 25 个按需执行。
+> **47 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **21 个脚本**（冒烟 1 + 审计 20，含 `e-extra`、`quality-policy-v2`），其余 25 个按需执行。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
 > 断言实测（2026-11-13 当前工作树）：冒烟 **67 组** + 压测 **159 条**（12/14/**133**）+ 审计断言按各脚本输出汇总（本轮新增 health-snapshot **11/0**、health-probe-batch2 **9/0**、health-eligibility-batch3 **9/0**）；历史 429/655 是旧口径，不再作为当前总数。逐入口明细见下方「入口总表」。变异体 **22 个**（`--full --strict` 全量 **22 killed / 0 survived**，2026-11-13 实测）。
@@ -68,7 +68,7 @@
 | `test/audit/x-media-envelope.js` | **11** | v8.12.4 P2 桥媒体信封：X1 64B body SHA / X2 64B FLAC 信封 `kindOf=audio` / X3 1MiB / X4 8MiB 32 片 / X5 `byteLength` 不符返回 `BAD_ENVELOPE` / X6 旧 `{type:"Buffer",data}` 兼容 / X7 `inited.mediaEnvelope=2` 能力声明 / X8 0 字节零长 / X9 缺片 `TRUNCATED_MEDIA` / X10 1B/1KB roundtrip / X11 缺片进入 admit / X12 1MiB `JSON.parse` ≤10ms | mock 宿主 | `node test/audit/x-media-envelope.js` |
 | `test/audit/v-cross-platform-stress.js` | **12** | v8.12.1 跨平台压力（V 组）：V1 20 并发同歌 20/20 tx / V2 并发 QQ 搜索不放大 / V3 50 次顺序同歌只搜 1 次 / V4 201 首不同歌缓存上限清空后仍可交付 / V5 总开关关闭零跨平台 / V6 关源不交付缓存、重开恢复 / V7 30 次 remix-only 全拒绝 / V8 主/跨交替 40 次标签不串 / V9 目标全 5xx 保留主平台 NOT_FOUND / V10 10 并发慢主平台全部 kw / V11 `cross_platform` 事件 ≥5 且无歌名/URL / V12 100 首主命中零跨平台 | mock 宿主 | `node test/audit/v-cross-platform-stress.js` |
 | `test/audit/y-provider-contract.js` | **15** | v8.13 Provider Contract：12/10/2 预算、key 对齐、上游族唯一、qualitys/platforms/chain、active 必须有链位次、probation 无链位次且默认关闭 + reviewAt、覆盖缺口、非法契约拒绝加载 | mock 宿主 + `validateProviderContracts` | `node test/audit/y-provider-contract.js` |
-| `test/audit/s-source-lifecycle.js` | **14** | v8.14.1 生命周期治理：三份治理文档存在、增源七步/减源五条/一进一出、`source-inventory --check`、退役源清零、版本 8.14.1 | 读文件 + 子进程 | `node test/audit/s-source-lifecycle.js` |
+| `test/audit/s-source-lifecycle.js` | **14** | v8.15.0 生命周期治理：三份治理文档存在、增源七步/减源五条/一进一出、`source-inventory --check`、退役源清零、版本 8.15.0 | 读文件 + 子进程 | `node test/audit/s-source-lifecycle.js` |
 | `test/audit/z-cancel.js` | **10** | v8.13 协作式真取消：预取消零外呼、请求中取消调用宿主 `lx.request` 返回的取消句柄、race 取消全部 launcher、wrapExecute 前后检查、取消不写熔断/失败计数、观察源不进链 | mock 宿主 + `__debug` | `node test/audit/z-cancel.js` |
 | `test/mutation/run.js` | 22 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（在临时副本上跑）；2026-11-13 `--full --strict` 全量（MU19 锚点已随 `revertHalfOpenOnSkip(id,quality)` 更新） **22 killed / 0 survived**；变异器改为改 `src/*` 后重建再跑门禁，22 个锚点全部命中；2026-11-10 曾因对压缩产物打锚点出现 skipped，已消除 | 本地 | `node test/mutation/run.js [--full] [--strict]` |
 

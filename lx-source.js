@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.14.1 HDM-3 健康数据分层版（12 登记源 / 10 上链 / 2 观察；L0 用户控制意图永久化、controls-only 去 7 天 TTL、未知 control 源跳过；完整健康态仍 7 天 TTL；v1 不迁移）
- * @version 8.14.1
+ * @description v8.15.0 预算边界与归因版（12 登记源 / 10 上链 / 2 观察；BUDGET_EXHAUSTED 独立归因且不摘源；总预算+末档保底硬顶 16s；冷启动超时不得超过总预算；单链预算到期不再白给 1s；跨平台 grace/search 3s）
+ * @version 8.15.0
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -77,8 +77,8 @@ var __lxSourceBundle = (() => {
         // v8.12：跨平台兜底开关与等待窗口。确定性失败立即回退；只有超时类失败先给主平台
         // 一个 grace 窗口，避免主平台马上要成功时白跑一次跨平台搜索。
         crossPlatformEnabled: (_e = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformEnabled) != null ? _e : true,
-        crossPlatformGraceMs: (_f = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformGraceMs) != null ? _f : 6e3,
-        crossPlatformSearchTimeoutMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformSearchTimeoutMs || 4e3,
+        crossPlatformGraceMs: (_f = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformGraceMs) != null ? _f : 3e3,
+        crossPlatformSearchTimeoutMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformSearchTimeoutMs || 3e3,
         // v8.11.2（D-33，V23b 实测暴露）：previewUrlPreFilter 旧不在白名单，cfg() 永远拿到默认 false，
         // 开关等于不存在（helloworld 的试听URL预筛因此从未执行）。补进白名单，布尔用 ?? 防 false 被吞。
         previewUrlPreFilter: (_g = typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.previewUrlPreFilter) != null ? _g : false,
@@ -137,8 +137,8 @@ var __lxSourceBundle = (() => {
         // v8.8：每批并发源数
         raceBatchStaggerMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBatchStaggerMs || 300,
         // v8.8：批间错峰
-        coldStartTimeoutMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartTimeoutMs || 8e3,
-        // v8.8：冷启动源单源超时
+        coldStartTimeoutMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartTimeoutMs || 5e3,
+        // v8.8：冷启动源单源超时；必须在总预算内留出重试空间
         coldStartProbeTimeoutMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartProbeTimeoutMs || 3e4,
         // v8.10：冷启动源探针超时（onrender 冷态 30s，8s 必误判）
         coldStartWarmTtlMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartWarmTtlMs || 3e5,
@@ -152,7 +152,7 @@ var __lxSourceBundle = (() => {
         qualityShortCircuitProbeMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitProbeMs || 36e5,
         // v8.10：短路放行探路间隔(1h，原 6h 太长)
         qualityShortCircuitUniqueProbeMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitUniqueProbeMs || 6e5,
-        // v8.16：唯一高质源探路间隔(10min)
+        // v8.14.1：唯一高质源探路间隔(10min)
         playDeadReviveMs: typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.playDeadReviveMs || 3e5,
         // v7.0：播放摘除后半开试探冷却期(5min)
         // 五轮 MEM：记忆表条目上限（与 ALLOWED_KEYS/PARAM_LIMITS 同步登记；漏了这行注入会静默失效）
@@ -185,6 +185,8 @@ var __lxSourceBundle = (() => {
       var RETRY_TIMES = 1;
       var ERROR_CODES = {
         NETWORK_TIMEOUT: "NETWORK_TIMEOUT",
+        // 预算耗尽不是上游超时：必须独立成码，不能计入源健康失败/摘除。
+        BUDGET_EXHAUSTED: "BUDGET_EXHAUSTED",
         NETWORK_ERROR: "NETWORK_ERROR",
         PARAM_ERROR: "PARAM_ERROR",
         RATE_LIMIT: "RATE_LIMIT",
@@ -297,7 +299,8 @@ var __lxSourceBundle = (() => {
         [ERROR_CODES.NOT_AUDIO]: "\u63A5\u53E3\u8FD4\u56DE\u7684\u4E0D\u662F\u6709\u6548\u97F3\u9891\u5185\u5BB9",
         [ERROR_CODES.STREAM_PLAYLIST]: "\u63A5\u53E3\u8FD4\u56DE\u7684\u662F\u6D41\u64AD\u653E\u5217\u8868\uFF0C\u64AD\u653E\u5668\u4E0D\u652F\u6301",
         [ERROR_CODES.TRUNCATED_MEDIA]: "\u6865\u5A92\u4F53\u4FE1\u5C01\u5206\u7247\u7F3A\u5931\u6216\u88AB\u622A\u65AD",
-        [ERROR_CODES.BAD_ENVELOPE]: "\u6865\u5A92\u4F53\u4FE1\u5C01\u7ED3\u6784\u6216\u957F\u5EA6\u4E0D\u7B26"
+        [ERROR_CODES.BAD_ENVELOPE]: "\u6865\u5A92\u4F53\u4FE1\u5C01\u7ED3\u6784\u6216\u957F\u5EA6\u4E0D\u7B26",
+        [ERROR_CODES.BUDGET_EXHAUSTED]: "\u672C\u5730\u53D6\u94FE\u9884\u7B97\u8017\u5C3D\uFF08\u4E0D\u662F\u4E0A\u6E38\u8D85\u65F6\uFF09"
       };
       var FAIL_CACHE_TTL_BY_CODE = {
         [ERROR_CODES.NOT_FOUND]: 60 * 60 * 1e3,
@@ -323,6 +326,8 @@ var __lxSourceBundle = (() => {
         // 限流 → 不缓存(会恢复)
         [ERROR_CODES.NETWORK_TIMEOUT]: 0,
         // 超时 → 不缓存(瞬时)
+        [ERROR_CODES.BUDGET_EXHAUSTED]: 0,
+        // 本地预算耗尽 → 不缓存
         [ERROR_CODES.NETWORK_ERROR]: 0,
         // 网络错误 → 不缓存(瞬时)
         [ERROR_CODES.SERVER_ERROR]: 0
@@ -1018,6 +1023,7 @@ var __lxSourceBundle = (() => {
         ERROR_CODES.TRUNCATED_MEDIA
       ]);
       var QUALITY_TRANSIENT_CODES = /* @__PURE__ */ new Set([
+        ERROR_CODES.BUDGET_EXHAUSTED,
         ERROR_CODES.LINK_EXPIRED,
         ERROR_CODES.NETWORK_TIMEOUT,
         ERROR_CODES.NETWORK_ERROR,
@@ -1550,6 +1556,18 @@ var __lxSourceBundle = (() => {
             throw e;
           }
         );
+      }
+      var BUDGET_TOTAL_HARD_LIMIT_MS = 16e3;
+      function resolveBudgetBounds(totalRaw, floorRaw) {
+        const totalMs = Math.min(Math.max(Number(totalRaw) || 12e3, 1e3), 15e3);
+        const floorNum = Number(floorRaw);
+        const floorBase = Number.isFinite(floorNum) ? Math.max(floorNum, 0) : 3e3;
+        const floorMs = Math.min(floorBase, Math.max(0, BUDGET_TOTAL_HARD_LIMIT_MS - totalMs));
+        return { totalMs, floorMs };
+      }
+      function resolveColdStartTimeout(coldRaw, totalRaw) {
+        const totalMs = Math.min(Math.max(Number(totalRaw) || 12e3, 1e3), 15e3);
+        return Math.min(Math.max(Number(coldRaw) || 5e3, 1e3), totalMs);
       }
       async function httpRequestWithRetry(url, options = {}, retries = RETRY_TIMES) {
         let lastError = null;
@@ -2135,7 +2153,9 @@ var __lxSourceBundle = (() => {
         RATE_LIMITED: { deliverable: false, ttlMs: 0, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 45e3 },
         BUSINESS: { deliverable: false, ttlMs: 36e5, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
         TRANSIENT: { deliverable: false, ttlMs: 0, health: "hardFail", playDead: false, resolveDead: true, sourceCooldownMs: 0 },
-        BROKEN: { deliverable: false, ttlMs: 6e4, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 }
+        BROKEN: { deliverable: false, ttlMs: 6e4, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+        // 本地预算耗尽：不交付，但绝不能当“网络失败”摘除源；TTL 0 由全失败短缓存收口。
+        BUDGET: { deliverable: false, ttlMs: 0, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 }
       };
       var CODE_RANK = {
         [ERROR_CODES.NOT_AUDIO]: 3,
@@ -2147,6 +2167,8 @@ var __lxSourceBundle = (() => {
         [ERROR_CODES.PARAM_ERROR]: 2,
         [ERROR_CODES.CONFIG_ERROR]: 2,
         [ERROR_CODES.RATE_LIMIT]: 1,
+        // 本地预算耗尽是编排保护，不是“平台没这首歌”，但优先级要高于网络类，避免聚合后被 NETWORK_TIMEOUT 吞掉。
+        [ERROR_CODES.BUDGET_EXHAUSTED]: 2,
         [ERROR_CODES.NETWORK_TIMEOUT]: 1,
         [ERROR_CODES.NETWORK_ERROR]: 1,
         [ERROR_CODES.SERVER_ERROR]: 1
@@ -2168,6 +2190,8 @@ var __lxSourceBundle = (() => {
           case ERROR_CODES.PARAM_ERROR:
           case ERROR_CODES.CONFIG_ERROR:
             return "BROKEN";
+          case ERROR_CODES.BUDGET_EXHAUSTED:
+            return "BUDGET";
           default:
             return "TRANSIENT";
         }
@@ -3115,8 +3139,8 @@ var __lxSourceBundle = (() => {
         const res = await httpRequestWithRetry(url, {
           method: "GET",
           headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent(), "X-Request-Key": HUIBQ_REQUEST_KEY },
-          timeout: cfg("coldStartTimeoutMs", 8e3),
-          // v8.8：冷启动源放宽单源超时（默认8s）
+          timeout: resolveColdStartTimeout(cfg("coldStartTimeoutMs", 5e3), cfg("raceBudgetMs", 12e3)),
+          // v8.14.1：冷启动超时不得超过总预算
           cancelToken
         });
         const body = res.body;
@@ -3946,6 +3970,8 @@ var __lxSourceBundle = (() => {
           return Promise.reject(new Error(`${ERROR_CODES.NOT_FOUND}: \u65E0\u53EF\u7ADE\u901F\u7684\u97F3\u6E90`));
         }
         return new Promise((resolve, reject) => {
+          const enteredAt = Date.now();
+          const budgetMs = Math.max(0, Math.round(deadline - enteredAt));
           let settled = false;
           const cancelTokens = launchers.map(() => createCancelToken());
           const cancelAll = (why) => {
@@ -4040,7 +4066,7 @@ var __lxSourceBundle = (() => {
             budgetTimer = null;
             if (settled) return;
             if (candidate) return settle(candidate);
-            fail(new Error(`${ERROR_CODES.NETWORK_TIMEOUT}: \u7ADE\u901F\u9884\u7B97\u8017\u5C3D(${cfg("raceBudgetMs", 12e3)}ms)`));
+            fail(new Error(`${ERROR_CODES.BUDGET_EXHAUSTED}: \u7ADE\u901F\u9884\u7B97\u8017\u5C3D(${budgetMs}ms)`));
           }, Math.max(deadline - Date.now(), 0));
         });
       }
@@ -4186,14 +4212,16 @@ var __lxSourceBundle = (() => {
       }
       async function fallbackRace(chain, platform, songInfo, quality, deadline) {
         if (deadline && Date.now() >= deadline) {
-          const budgetErr = new Error(`${ERROR_CODES.NETWORK_TIMEOUT}: \u7ADE\u901F\u9884\u7B97\u8017\u5C3D(${cfg("raceBudgetMs", 12e3)}ms)\uFF0C\u8DF3\u8FC7\u672C\u6863`);
-          budgetErr.detail = [{ source: "budget", quality, code: ERROR_CODES.NETWORK_TIMEOUT, reason: "\u9884\u7B97\u8017\u5C3D" }];
+          const budgetErr = new Error(`${ERROR_CODES.BUDGET_EXHAUSTED}: \u7ADE\u901F\u9884\u7B97\u8017\u5C3D\uFF08\u672C\u6863\u5DF2\u5230\u671F\uFF09\uFF0C\u8DF3\u8FC7\u672C\u6863`);
+          budgetErr.code = ERROR_CODES.BUDGET_EXHAUSTED;
+          budgetErr.detail = [{ source: "budget", quality, code: ERROR_CODES.BUDGET_EXHAUSTED, reason: "\u9884\u7B97\u8017\u5C3D" }];
           throw budgetErr;
         }
         const collectDetails = [];
         if (chain.length === 1) {
           logDebug(`[\u7ADE\u901F] \u5355\u94FE\u8BF7\u6C42: ${platform} ${quality} \u6E90=${chain[0].id}`);
-          const budgetLeft = Math.max((Number(deadline) || Date.now() + cfg("raceBudgetMs", 12e3)) - Date.now(), 1e3);
+          const budgetLeft = Math.max((Number(deadline) || Date.now() + cfg("raceBudgetMs", 12e3)) - Date.now(), 0);
+          if (budgetLeft <= 0) throw Object.assign(new Error(`${ERROR_CODES.BUDGET_EXHAUSTED}: \u5355\u6E90\u8D85\u51FA\u9884\u7B97(0ms)`), { code: ERROR_CODES.BUDGET_EXHAUSTED });
           let singleTimer = null;
           const singleToken = createCancelToken();
           try {
@@ -4202,7 +4230,7 @@ var __lxSourceBundle = (() => {
               new Promise((_, reject) => {
                 singleTimer = setTimeout(() => {
                   singleToken.cancel("single_budget");
-                  reject(Object.assign(new Error(`${ERROR_CODES.NETWORK_TIMEOUT}: \u5355\u6E90\u8D85\u51FA\u9884\u7B97(${Math.round(budgetLeft)}ms)`), { code: ERROR_CODES.NETWORK_TIMEOUT }));
+                  reject(Object.assign(new Error(`${ERROR_CODES.BUDGET_EXHAUSTED}: \u5355\u6E90\u8D85\u51FA\u9884\u7B97(${Math.round(budgetLeft)}ms)`), { code: ERROR_CODES.BUDGET_EXHAUSTED }));
                 }, budgetLeft);
               })
             ]);
@@ -4426,7 +4454,8 @@ var __lxSourceBundle = (() => {
         }
         const qualityChain = buildQualityChain(effectiveQuality);
         const attemptedQualities = /* @__PURE__ */ new Set();
-        const totalDeadline = Date.now() + cfg("raceBudgetMs", 12e3);
+        const { totalMs: totalBudgetMs, floorMs: budgetFloorMs } = resolveBudgetBounds(cfg("raceBudgetMs", 12e3), cfg("raceBudgetFloorMs", 3e3));
+        const totalDeadline = Date.now() + totalBudgetMs;
         const perQBudget = cfg("raceBudgetPerQuality", { flac: 6e3, "320k": 5e3, "128k": 5e3, flac24bit: 6e3 });
         for (let qi = 0; qi < qualityChain.length; qi++) {
           const q = qualityChain[qi];
@@ -4473,13 +4502,13 @@ var __lxSourceBundle = (() => {
             continue;
           }
           const remaining = Math.max(totalDeadline - Date.now(), 0);
-          const perQ = perQBudget[q] || cfg("raceBudgetMs", 12e3);
-          const floorMs = cfg("raceBudgetFloorMs", 3e3);
+          const perQ = perQBudget[q] || totalBudgetMs;
+          const floorMs = budgetFloorMs;
           const qBudget = Math.min(perQ, remaining);
-          const budget = isLast ? Math.min(Math.max(qBudget, floorMs), cfg("raceBudgetMs", 12e3) + floorMs) : qBudget;
+          const budget = isLast ? Math.min(Math.max(qBudget, floorMs), totalBudgetMs + floorMs) : qBudget;
           if (chain.length) attemptedQualities.add(q);
           const raceDeadline = Date.now() + budget;
-          logDebug(`[${platform}][${q}] \u97F3\u6E90\u94FE: ${chain.map((h) => h.id).join(">")} (\u6309\u5065\u5EB7\u6392\u5E8F)\uFF0C\u9884\u7B97 ${Math.round(raceDeadline - Date.now())}ms${isLast ? "\uFF08\u672B\u6863\u4FDD\u5E95\uFF0C\u53EF\u6EA2\u51FA\u603B\u9884\u7B97\u81F3" + Math.round((cfg("raceBudgetMs", 12e3) + floorMs) / 1e3) + "s\uFF09" : ""}`);
+          logDebug(`[${platform}][${q}] \u97F3\u6E90\u94FE: ${chain.map((h) => h.id).join(">")} (\u6309\u5065\u5EB7\u6392\u5E8F)\uFF0C\u9884\u7B97 ${Math.round(raceDeadline - Date.now())}ms${isLast ? "\uFF08\u672B\u6863\u4FDD\u5E95\uFF0C\u53EF\u6EA2\u51FA\u603B\u9884\u7B97\u81F3" + Math.round((totalBudgetMs + floorMs) / 1e3) + "s\uFF09" : ""}`);
           try {
             const { url, source } = await fallbackRace(chain, platform, songInfo, selectedQuality, raceDeadline);
             const reqQ = String(quality || (QUALITY_FIRST ? "flac" : "128k")).toLowerCase();
@@ -4658,7 +4687,7 @@ var __lxSourceBundle = (() => {
         var _a2, _b2, _c2;
         const query = buildCrossSearchQuery(songInfo);
         if (!query) return [];
-        const timeout = cfg("crossPlatformSearchTimeoutMs", 4e3);
+        const timeout = cfg("crossPlatformSearchTimeoutMs", 3e3);
         if (platform === "tx") {
           const url = `${QQ_SEARCH_API}?w=${encodeURIComponent(query)}&format=json&n=10&p=1`;
           const res = await httpRequestWithRetry(url, {
@@ -4866,7 +4895,7 @@ var __lxSourceBundle = (() => {
             startFallback(code);
             if (fallbackDone && fallbackErr) settleErr(fallbackErr);
           });
-          const graceMs = Math.max(0, Number(cfg("crossPlatformGraceMs", 6e3)) || 0);
+          const graceMs = Math.max(0, Number(cfg("crossPlatformGraceMs", 3e3)) || 0);
           timer = setTimeout(() => {
             if (!settled) startFallback(primaryErr ? extractErrorCode(primaryErr) : "PRIMARY_SLOW");
           }, graceMs);
@@ -5062,9 +5091,9 @@ var __lxSourceBundle = (() => {
             probeConcurrency: { min: 1, max: 8 },
             // v8.14 探测并发上限 1~8
             raceBudgetMs: { max: 15 * 1e3 },
-            // v8.10.3：总预算（死键 raceOverallTimeoutMs 已移除，唯一真相）
+            // v8.10.3：总预算（死键 raceOverallTimeoutMs 已移除，唯一真相；运行时与 floor 合计钳制 16s）
             raceBudgetFloorMs: { max: 15 * 1e3 },
-            // 末档保底不得超过总预算上限
+            // 末档保底；与总预算合计不得超过 16s，超出部分运行时钳掉
             raceBatchSize: { max: 10 },
             // 每批并发源数
             raceBatchStaggerMs: { max: 2e3 },
@@ -5193,7 +5222,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.14.1 \u5DF2\u52A0\u8F7D\uFF0812 \u767B\u8BB0 / 10 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.15.0 \u5DF2\u52A0\u8F7D\uFF0812 \u767B\u8BB0 / 10 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {
@@ -5250,6 +5279,8 @@ var __lxSourceBundle = (() => {
             raceWithCancel,
             httpRequest,
             raceFirst,
+            resolveBudgetBounds,
+            resolveColdStartTimeout,
             wrapExecute,
             throwIfCanceled,
             probeSingleSource,

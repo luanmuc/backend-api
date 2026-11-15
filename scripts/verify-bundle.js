@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+const VERSION = require(path.join(ROOT, 'package.json')).version;
 const DIST = path.join(ROOT, 'dist', 'lx-source.js');
 const HOST = {
   EVENT_NAMES: { inited: 'inited', request: 'request', updateAlert: 'updateAlert' },
@@ -27,10 +28,10 @@ globalThis.lx = HOST;
 globalThis.__lxSourceConfig = { healthCheckIntervalMs: 3600000 };
 const mod = require(DIST);
 
-rec('B1', '单文件产物存在、为 IIFE 包装且带 8.14.1 版本头', () => {
+rec('B1', `单文件产物存在、为 IIFE 包装且带 ${VERSION} 版本头`, () => {
   assert.ok(fs.existsSync(DIST));
   const code = fs.readFileSync(DIST, 'utf8');
-  assert.match(code, /@version 8\.14\.1/);
+  assert.ok(code.includes(`@version ${VERSION}`), `缺少 @version ${VERSION}`);
   assert.match(code, /var __lxSourceBundle = \(\(\) => \{/);
   assert.match(code, /module\.exports\s*=\s*__lxSourceBundle/);
 });

@@ -4,7 +4,7 @@
 > **App 每次云编译（CI）会自动拉取本仓库根目录 `lx-source.js` 覆盖内置数据源**，因此：
 > - 本仓库是唯一权威数据源入口，改数据源只改这里；
 > - App 构建直接拉 `master` 的 `lx-source.js`，实际内置版本以构建日志的跨仓版本闸门和 APK 内 `assets/builtin_source.js` 为准；
-> - Releases 页是归档入口，不参与构建取源。截至 2026-11-14，`v8.12.1`~`v8.12.5` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.13.0` 已推送 master（b116 发布），`v8.13.1` 已随 b125 发布、未单独建 tag；**`v8.14.0` 为音质优先与 CI 编排版，已建 tag/Release；`v8.14.1` 为 HDM-3 健康数据分层版（已随 App b129 发布）**；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
+> - Releases 页是归档入口，不参与构建取源。截至 2026-11-14，`v8.12.1`~`v8.12.5` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.13.0` 已推送 master（b116 发布），`v8.13.1` 已随 b125 发布、未单独建 tag；**`v8.14.0` 为音质优先与 CI 编排版，已建 tag/Release；`v8.14.1` 为 HDM-3 健康数据分层版（已随 App b129 发布）；`v8.15.0` 为预算边界与归因版（本地提交，待推送，未建 tag/Release）**；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
 
 > **免责声明**：本项目仅供学习交流与技术研究。仅做接口聚合，不存储任何媒体文件；第三方接口的可用性与版权责任归相应服务方。使用即代表同意仅限个人学习用途，禁止商用。
 
@@ -12,7 +12,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v8.14.1** HDM-3 健康数据分层版：在 v8.14.0 之上，把用户控制意图（L0）改为永久持久化、controls-only 不再受 7 天 TTL；未知 control 源 ID 跳过而不拒绝整包；完整健康态仍按 7 天 TTL；v1 仍不迁移。`lx-source.js` 内 `@version 8.14.1` |
+| 当前版本 | **v8.15.0** 预算边界与归因版：预算耗尽改用 `BUDGET_EXHAUSTED` 独立归因，不累计 `resolveDead`/不摘源；总预算+末档保底运行时硬顶 16s；冷启动超时不得超过总预算；单链预算到期不再白给 1s；跨平台 grace/search 3s。`lx-source.js` 内 `@version 8.15.0` |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |

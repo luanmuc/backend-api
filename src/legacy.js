@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.14.1 HDM-3 健康数据分层版（2026-11-15：L0 用户控制意图永久化、controls-only 去 7 天 TTL、未知 control 源跳过；完整健康态仍 7 天 TTL；v1 不迁移）。历史版本见 docs/CHANGELOG.md。
- * @version 8.14.1 健康数据分层（L0 永久 / L1 7天绑版本 / L2 7天滚动）
+ * @description v8.15.0 预算边界与归因版（2026-11-15：BUDGET_EXHAUSTED 独立归因且不摘源；总预算+末档保底硬顶 16s；冷启动超时不得超过总预算；单链预算到期不再白给 1s；跨平台 grace/search 3s）。历史版本见 docs/CHANGELOG.md。
+ * @version 8.15.0 预算边界与归因（16s 硬顶 / 冷启动钳制 / BUDGET 不摘源）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -39,8 +39,8 @@ const USER_CONFIG = {
   // v8.12：跨平台兜底开关与等待窗口。确定性失败立即回退；只有超时类失败先给主平台
   // 一个 grace 窗口，避免主平台马上要成功时白跑一次跨平台搜索。
   crossPlatformEnabled: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformEnabled) ?? true,
-  crossPlatformGraceMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformGraceMs) ?? 6000,
-  crossPlatformSearchTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformSearchTimeoutMs) || 4000,
+  crossPlatformGraceMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformGraceMs) ?? 3000,
+  crossPlatformSearchTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.crossPlatformSearchTimeoutMs) || 3000,
   // v8.11.2（D-33，V23b 实测暴露）：previewUrlPreFilter 旧不在白名单，cfg() 永远拿到默认 false，
   // 开关等于不存在（helloworld 的试听URL预筛因此从未执行）。补进白名单，布尔用 ?? 防 false 被吞。
   previewUrlPreFilter: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.previewUrlPreFilter) ?? false,
@@ -75,14 +75,14 @@ const USER_CONFIG = {
   raceBudgetFloorMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBudgetFloorMs != null) ? globalThis.__lxSourceConfig.raceBudgetFloorMs : 3000,     // v8.10：最后一档保底预算(防整次取链失败)
   raceBatchSize: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBatchSize) || 3,             // v8.8：每批并发源数
   raceBatchStaggerMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.raceBatchStaggerMs) || 300, // v8.8：批间错峰
-  coldStartTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartTimeoutMs) || 8000, // v8.8：冷启动源单源超时
+  coldStartTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartTimeoutMs) || 5000, // v8.8：冷启动源单源超时；必须在总预算内留出重试空间
   coldStartProbeTimeoutMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartProbeTimeoutMs) || 30000, // v8.10：冷启动源探针超时（onrender 冷态 30s，8s 必误判）
   coldStartWarmTtlMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.coldStartWarmTtlMs) || 300000, // v8.8：冷启动预热间隔
   qualityShortCircuit: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.qualityShortCircuit : undefined, // v8.8：档位短路开关(缺省 true)
   coldStartWarmEnabled: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig) ? globalThis.__lxSourceConfig.coldStartWarmEnabled : undefined, // v8.8：冷启动预热开关(缺省 true)
   qualityShortCircuitSamples: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitSamples) || 3, // v8.8：档位短路样本门槛
   qualityShortCircuitProbeMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitProbeMs) || 3600000, // v8.10：短路放行探路间隔(1h，原 6h 太长)
-  qualityShortCircuitUniqueProbeMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitUniqueProbeMs) || 600000, // v8.16：唯一高质源探路间隔(10min)
+  qualityShortCircuitUniqueProbeMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.qualityShortCircuitUniqueProbeMs) || 600000, // v8.14.1：唯一高质源探路间隔(10min)
   playDeadReviveMs: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.playDeadReviveMs) || 300000,        // v7.0：播放摘除后半开试探冷却期(5min)
   // 五轮 MEM：记忆表条目上限（与 ALLOWED_KEYS/PARAM_LIMITS 同步登记；漏了这行注入会静默失效）
   memoryMapMax: (typeof globalThis !== "undefined" && globalThis.__lxSourceConfig && globalThis.__lxSourceConfig.memoryMapMax) || 2000,
@@ -129,6 +129,8 @@ const RETRY_TIMES = 1;                  // 网络错误重试次数(v1.0:2→1�
 
 const ERROR_CODES = {
   NETWORK_TIMEOUT: 'NETWORK_TIMEOUT',
+  // 预算耗尽不是上游超时：必须独立成码，不能计入源健康失败/摘除。
+  BUDGET_EXHAUSTED: 'BUDGET_EXHAUSTED',
   NETWORK_ERROR: 'NETWORK_ERROR',
   PARAM_ERROR: 'PARAM_ERROR',
   RATE_LIMIT: 'RATE_LIMIT',
@@ -235,6 +237,7 @@ const CODE_HINT = {
   [ERROR_CODES.STREAM_PLAYLIST]: "接口返回的是流播放列表，播放器不支持",
   [ERROR_CODES.TRUNCATED_MEDIA]: "桥媒体信封分片缺失或被截断",
   [ERROR_CODES.BAD_ENVELOPE]: "桥媒体信封结构或长度不符",
+  [ERROR_CODES.BUDGET_EXHAUSTED]: "本地取链预算耗尽（不是上游超时）",
 };
 
 
@@ -252,6 +255,7 @@ const FAIL_CACHE_TTL_BY_CODE = {
   [ERROR_CODES.BAD_ENVELOPE]: 0,                  // 信封结构错误 → 不缓存
   [ERROR_CODES.RATE_LIMIT]: 0,                     // 限流 → 不缓存(会恢复)
   [ERROR_CODES.NETWORK_TIMEOUT]: 0,                // 超时 → 不缓存(瞬时)
+  [ERROR_CODES.BUDGET_EXHAUSTED]: 0,               // 本地预算耗尽 → 不缓存
   [ERROR_CODES.NETWORK_ERROR]: 0,                  // 网络错误 → 不缓存(瞬时)
   [ERROR_CODES.SERVER_ERROR]: 0,                   // 5xx → 不缓存(服务端会恢复)
 };
@@ -1015,6 +1019,7 @@ const QUALITY_DELIVERY_CODES = new Set([
   ERROR_CODES.TRUNCATED_MEDIA
 ]);
 const QUALITY_TRANSIENT_CODES = new Set([
+  ERROR_CODES.BUDGET_EXHAUSTED,
   ERROR_CODES.LINK_EXPIRED,
   ERROR_CODES.NETWORK_TIMEOUT,
   ERROR_CODES.NETWORK_ERROR,
@@ -1578,6 +1583,22 @@ function httpRequest(url, options = { method: "GET" }) {
     (v) => { clearHostCancel(); return v; },
     (e) => { clearHostCancel(); throw e; }
   );
+}
+
+// v8.14.1：预算边界统一入口。总预算与末档保底共享 16s 硬顶，
+// 防止 raceBudgetMs/raceBudgetFloorMs 各自合法但叠加后越过 App 桥 23s。
+const BUDGET_TOTAL_HARD_LIMIT_MS = 16000;
+function resolveBudgetBounds(totalRaw, floorRaw) {
+  const totalMs = Math.min(Math.max(Number(totalRaw) || 12000, 1000), 15000);
+  // floor=0 是合法“关闭末档保底”，不能被 || 吞成默认 3000（T43 依赖此语义）。
+  const floorNum = Number(floorRaw);
+  const floorBase = Number.isFinite(floorNum) ? Math.max(floorNum, 0) : 3000;
+  const floorMs = Math.min(floorBase, Math.max(0, BUDGET_TOTAL_HARD_LIMIT_MS - totalMs));
+  return { totalMs, floorMs };
+}
+function resolveColdStartTimeout(coldRaw, totalRaw) {
+  const totalMs = Math.min(Math.max(Number(totalRaw) || 12000, 1000), 15000);
+  return Math.min(Math.max(Number(coldRaw) || 5000, 1000), totalMs);
 }
 
 async function httpRequestWithRetry(url, options = {}, retries = RETRY_TIMES) {
@@ -2249,6 +2270,8 @@ const ADMISSION_POLICY = {
   BUSINESS:     { deliverable: false, ttlMs: 3600000, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
   TRANSIENT:    { deliverable: false, ttlMs: 0,       health: "hardFail",     playDead: false, resolveDead: true,  sourceCooldownMs: 0 },
   BROKEN:       { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+  // 本地预算耗尽：不交付，但绝不能当“网络失败”摘除源；TTL 0 由全失败短缓存收口。
+  BUDGET:       { deliverable: false, ttlMs: 0,       health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
 };
 
 // 代表码优先级：确定性业务码(1) < 交付类码(2) < 网络类码(3)。高优先不被低覆盖。
@@ -2265,6 +2288,8 @@ const CODE_RANK = {
   [ERROR_CODES.PARAM_ERROR]: 2,
   [ERROR_CODES.CONFIG_ERROR]: 2,
   [ERROR_CODES.RATE_LIMIT]: 1,
+  // 本地预算耗尽是编排保护，不是“平台没这首歌”，但优先级要高于网络类，避免聚合后被 NETWORK_TIMEOUT 吞掉。
+  [ERROR_CODES.BUDGET_EXHAUSTED]: 2,
   [ERROR_CODES.NETWORK_TIMEOUT]: 1,
   [ERROR_CODES.NETWORK_ERROR]: 1,
   [ERROR_CODES.SERVER_ERROR]: 1,
@@ -2282,6 +2307,7 @@ function verdictOfCode(code) {
     case ERROR_CODES.PREVIEW_FRAGMENT: return "FRAGMENT";
     case ERROR_CODES.PARAM_ERROR:
     case ERROR_CODES.CONFIG_ERROR: return "BROKEN";
+    case ERROR_CODES.BUDGET_EXHAUSTED: return "BUDGET";
     default: return "TRANSIENT";
   }
 }
@@ -3406,7 +3432,7 @@ async function huibqGetUrl(platform, songId, quality, songInfo, cancelToken = nu
   const res = await httpRequestWithRetry(url, {
     method: "GET",
     headers: { "Content-Type": "application/json", "User-Agent": getMobileUserAgent(), "X-Request-Key": HUIBQ_REQUEST_KEY },
-    timeout: cfg('coldStartTimeoutMs', 8000), // v8.8：冷启动源放宽单源超时（默认8s）
+    timeout: resolveColdStartTimeout(cfg('coldStartTimeoutMs', 5000), cfg('raceBudgetMs', 12000)), // v8.14.1：冷启动超时不得超过总预算
     cancelToken
   });
   const body = res.body;
@@ -4329,6 +4355,8 @@ function raceFirst(launchers, opts = {}) {
     return Promise.reject(new Error(`${ERROR_CODES.NOT_FOUND}: 无可竞速的音源`));
   }
   return new Promise((resolve, reject) => {
+    const enteredAt = Date.now();
+    const budgetMs = Math.max(0, Math.round(deadline - enteredAt));
     let settled = false;
     const cancelTokens = launchers.map(() => createCancelToken());
     const cancelAll = (why) => { for (const t of cancelTokens) t.cancel(why); };
@@ -4406,7 +4434,7 @@ function raceFirst(launchers, opts = {}) {
       budgetTimer = null;
       if (settled) return;
       if (candidate) return settle(candidate);
-      fail(new Error(`${ERROR_CODES.NETWORK_TIMEOUT}: 竞速预算耗尽(${cfg('raceBudgetMs', 12000)}ms)`));
+      fail(new Error(`${ERROR_CODES.BUDGET_EXHAUSTED}: 竞速预算耗尽(${budgetMs}ms)`));
     }, Math.max(deadline - Date.now(), 0));
   });
 }
@@ -4589,8 +4617,9 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
 async function fallbackRace(chain, platform, songInfo, quality, deadline) {
   // v8.8：预算耗尽快速失败（跨音质档共享）
   if (deadline && Date.now() >= deadline) {
-    const budgetErr = new Error(`${ERROR_CODES.NETWORK_TIMEOUT}: 竞速预算耗尽(${cfg('raceBudgetMs', 12000)}ms)，跳过本档`);
-    budgetErr.detail = [{ source: "budget", quality, code: ERROR_CODES.NETWORK_TIMEOUT, reason: "预算耗尽" }];
+    const budgetErr = new Error(`${ERROR_CODES.BUDGET_EXHAUSTED}: 竞速预算耗尽（本档已到期），跳过本档`);
+    budgetErr.code = ERROR_CODES.BUDGET_EXHAUSTED;
+    budgetErr.detail = [{ source: "budget", quality, code: ERROR_CODES.BUDGET_EXHAUSTED, reason: "预算耗尽" }];
     throw budgetErr;
   }
   // v3.0：失败原因结构化——detail 数组每项 {source, quality, code, reason}，供 App 端展示/统计
@@ -4601,7 +4630,8 @@ async function fallbackRace(chain, platform, songInfo, quality, deadline) {
     // v8.11.1（审计修复）：单链分支此前直接 await wrapExecute，完全绕过 raceFirst，
     // 也就绕过了所有 deadline —— 实测单源 8s 无响应时，flac 档跑 20.4s、末档 floor 再跑 20.4s，
     // 单次点歌 40.8s 远超 15s 预算。此处补上单源硬上限，到点即判超时（在飞请求自然结束，不影响后续档）。
-    const budgetLeft = Math.max((Number(deadline) || (Date.now() + cfg('raceBudgetMs', 12000))) - Date.now(), 1000);
+    const budgetLeft = Math.max((Number(deadline) || (Date.now() + cfg('raceBudgetMs', 12000))) - Date.now(), 0);
+    if (budgetLeft <= 0) throw Object.assign(new Error(`${ERROR_CODES.BUDGET_EXHAUSTED}: 单源超出预算(0ms)`), { code: ERROR_CODES.BUDGET_EXHAUSTED });
     let singleTimer = null;
     const singleToken = createCancelToken();
     try {
@@ -4610,7 +4640,7 @@ async function fallbackRace(chain, platform, songInfo, quality, deadline) {
         new Promise((_, reject) => {
           singleTimer = setTimeout(() => {
             singleToken.cancel("single_budget");
-            reject(Object.assign(new Error(`${ERROR_CODES.NETWORK_TIMEOUT}: 单源超出预算(${Math.round(budgetLeft)}ms)`), { code: ERROR_CODES.NETWORK_TIMEOUT }));
+            reject(Object.assign(new Error(`${ERROR_CODES.BUDGET_EXHAUSTED}: 单源超出预算(${Math.round(budgetLeft)}ms)`), { code: ERROR_CODES.BUDGET_EXHAUSTED }));
           }, budgetLeft);
         }),
       ]);
@@ -4742,7 +4772,7 @@ function isQualityHopeless(sourceId, quality, platform, opts) {
   const definitive = q.definitiveFail === undefined ? (q.fail || 0) : q.definitiveFail;
   if ((definitive + (q.linkExpired || 0)) < cfg('qualityShortCircuitSamples', 3)) return false;
   const key = qualityShortCircuitKey(sourceId, quality);
-  // v8.16（K08）：平台内只有这一个源能交付该高质档时，1h 窗口会把“唯一希望”压死；
+  // v8.14.1（K08）：平台内只有这一个源能交付该高质档时，1h 窗口会把“唯一希望”压死；
   // 唯一源用更短的 10min 探路，仍然保持短路（不每次点歌都白试）。
   const uniqueQualitySource = !!platform && countActiveQualitySources(platform, quality) <= 1;
   const probeMs = uniqueQualitySource
@@ -4756,7 +4786,7 @@ function isQualityHopeless(sourceId, quality, platform, opts) {
   return true;
 }
 
-// v8.16（K07）：源侧强制探路——把下一次短路检查标记为“已到期”，只放行一轮链构建；
+// v8.14.1（K07）：源侧强制探路——把下一次短路检查标记为“已到期”，只放行一轮链构建；
 // 若用户不主动调用，短路行为完全不变。App 侧入口留 P2。
 function forceQualityProbe(sourceId, quality) {
   if (!SOURCE_HANDLERS[sourceId]) return false;
@@ -4907,8 +4937,11 @@ async function getUrlWithFallback(platform, songInfo, quality) {
   // v8.15（P0）：记录本轮真正进入过请求链的档；高质档被短路/熔断跳过时不得记成能力上限。
   const attemptedQualities = new Set();
   // v8.8：单次请求总预算（跨音质档共享）；v8.10：分档预算 + 最后一档保底（防高音质吃满总预算饿死低档）
-  const totalDeadline = Date.now() + cfg('raceBudgetMs', 12000);
+  const { totalMs: totalBudgetMs, floorMs: budgetFloorMs } = resolveBudgetBounds(cfg('raceBudgetMs', 12000), cfg('raceBudgetFloorMs', 3000));
+  const totalDeadline = Date.now() + totalBudgetMs;
   const perQBudget = cfg('raceBudgetPerQuality', { flac: 6000, "320k": 5000, "128k": 5000, flac24bit: 6000 });
+  // v8.14.1：单档重试受 raceDeadline 的 cancelToken 约束，预算到点后第二次尝试不会越过本档；
+  // perQ 保持 5/6s 是“单档最多等一次超时”，不把重试预算叠进总预算。
   for (let qi = 0; qi < qualityChain.length; qi++) {
     const q = qualityChain[qi];
     const isLast = qi === qualityChain.length - 1;
@@ -4974,15 +5007,15 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     // 末档保底 floor 允许突破总预算（否则前两档吃满预算时末档 0ms 必败 → 点歌无声），
     // 但上界显式钳在 "总预算 + 保底"，即默认 12s + 3s = 15s（与 PARAM_LIMITS 上限一致）
     const remaining = Math.max(totalDeadline - Date.now(), 0);
-    const perQ = perQBudget[q] || cfg('raceBudgetMs', 12000);
-    const floorMs = cfg('raceBudgetFloorMs', 3000);
+    const perQ = perQBudget[q] || totalBudgetMs;
+    const floorMs = budgetFloorMs;
     const qBudget = Math.min(perQ, remaining);
     const budget = isLast
-      ? Math.min(Math.max(qBudget, floorMs), cfg('raceBudgetMs', 12000) + floorMs)
+      ? Math.min(Math.max(qBudget, floorMs), totalBudgetMs + floorMs)
       : qBudget;
     if (chain.length) attemptedQualities.add(q);
     const raceDeadline = Date.now() + budget;
-    logDebug(`[${platform}][${q}] 音源链: ${chain.map(h => h.id).join(">")} (按健康排序)，预算 ${Math.round(raceDeadline - Date.now())}ms${isLast ? '（末档保底，可溢出总预算至' + Math.round((cfg('raceBudgetMs', 12000) + floorMs) / 1000) + 's）' : ''}`);
+    logDebug(`[${platform}][${q}] 音源链: ${chain.map(h => h.id).join(">")} (按健康排序)，预算 ${Math.round(raceDeadline - Date.now())}ms${isLast ? '（末档保底，可溢出总预算至' + Math.round((totalBudgetMs + floorMs) / 1000) + 's）' : ''}`);
     try {
       const { url, source } = await fallbackRace(chain, platform, songInfo, selectedQuality, raceDeadline);
       // v8.10.3：缓存槽必须与"实交付音质"一致——旧实现用请求音质的 key 写实交付音质的值，
@@ -5194,7 +5227,7 @@ function normalizeKWCandidate(item) {
 async function crossSearchPlatform(platform, songInfo) {
   const query = buildCrossSearchQuery(songInfo);
   if (!query) return [];
-  const timeout = cfg("crossPlatformSearchTimeoutMs", 4000);
+  const timeout = cfg("crossPlatformSearchTimeoutMs", 3000);
   if (platform === "tx") {
     const url = `${QQ_SEARCH_API}?w=${encodeURIComponent(query)}&format=json&n=10&p=1`;
     const res = await httpRequestWithRetry(url, {
@@ -5412,7 +5445,7 @@ async function getUrlWithCrossPlatformFallback(platform, songInfo, quality, trac
       // 跨平台已经先失败、现在主平台也失败 → 此时才允许整体失败。
       if (fallbackDone && fallbackErr) settleErr(fallbackErr);
     });
-    const graceMs = Math.max(0, Number(cfg("crossPlatformGraceMs", 6000)) || 0);
+    const graceMs = Math.max(0, Number(cfg("crossPlatformGraceMs", 3000)) || 0);
     timer = setTimeout(() => {
       if (!settled) startFallback(primaryErr ? extractErrorCode(primaryErr) : "PRIMARY_SLOW");
     }, graceMs);
@@ -5479,7 +5512,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
     });
   }
   if (action === "forceQualityProbe") {
-    // v8.16（K07）：源侧强制探路，只解除一次档位短路；不改 breaker/健康账本。
+    // v8.14.1（K07）：源侧强制探路，只解除一次档位短路；不改 breaker/健康账本。
     const id = info && (info.sourceId || info.id);
     if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
     const q = String((info && info.quality) || "flac").toLowerCase();
@@ -5579,8 +5612,8 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       probeTierCoreInterval: { min: 1, max: 10 },        // F22：核心源间隔 1~10 轮
       probeTierSecondaryInterval: { min: 1, max: 20 },   // F22：次要源间隔 1~20 轮
       probeConcurrency: { min: 1, max: 8 },              // v8.14 探测并发上限 1~8
-      raceBudgetMs: { max: 15 * 1000 },                     // v8.10.3：总预算（死键 raceOverallTimeoutMs 已移除，唯一真相）
-      raceBudgetFloorMs: { max: 15 * 1000 },            // 末档保底不得超过总预算上限
+      raceBudgetMs: { max: 15 * 1000 },                     // v8.10.3：总预算（死键 raceOverallTimeoutMs 已移除，唯一真相；运行时与 floor 合计钳制 16s）
+      raceBudgetFloorMs: { max: 15 * 1000 },            // 末档保底；与总预算合计不得超过 16s，超出部分运行时钳掉
       raceBatchSize: { max: 10 },                         // 每批并发源数
       raceBatchStaggerMs: { max: 2000 },                // 批间错峰
       raceMatchWaitMs: { max: 5 * 1000 },               // 最大 5 秒
@@ -5705,7 +5738,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.14.1 已加载（12 登记 / 10 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v8.15.0 已加载（12 登记 / 10 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
@@ -5764,6 +5797,8 @@ if (typeof module !== "undefined" && module.exports) {
       raceWithCancel,
       httpRequest,
       raceFirst,
+      resolveBudgetBounds,
+      resolveColdStartTimeout,
       wrapExecute,
       throwIfCanceled,
       probeSingleSource,

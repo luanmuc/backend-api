@@ -24,11 +24,12 @@
 | ④ HTTP 封装 + 交付真实性判据层 + **L0 归一层 + L4 裁决层** | 1021~1984 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`（Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行 `ok:null`）；**v8.11.5 新增 L0**：`decodeBase64Ascii`/`toBytes`/`kindOf`/`headerEvidence`/`totalBytesOf`（认 `view`/数组/`{type:"Buffer",data}`/base64 串）；**v8.11.5 新增 L4**：`ADMISSION_POLICY`/`CODE_RANK`/`verdictOfCode`/`strongestEvidence`/`isFragmentInfo`/`admissionLedger`/`admit`/`skipReason`/`clearSourceLedger`/`trialMarkOf`/`applyAdmission`/`rememberFragmentSource`；**v8.11.6**：`structuralSkipReason`（建链纯结构判据）/`toggleSource`（开/关统一清账）/`probeByHeaders`（HEAD 补证）；**v8.11.7**：`config` 写模式布尔白名单（8 键）+ 数字白名单补齐 13 键，`verifyDurRatio`/`verifyDurGapSec` 允许 0 |
 | ⑤ 歌曲信息与匹配工具 | 1985~2302 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey`、`getHashOrMid` |
 | ⑥ 音源实现 | 2303~3040 | 1 个子源（10 上链 + 2 观察），每个源自带 `maxQuality`、`platforms`、`lifecycle` 与 `chain` 声明 |
-| ⑦ 注册表 + 调度 + 健康分 | 3041~4106 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，6s grace，10min 缓存，`cross_platform` 事件） |
+| ⑦ 注册表 + 调度 + 健康分 | 3041~4106 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，3s grace，10min 缓存，`cross_platform` 事件） |
 | ⑧ 上报 + 事件监听 | 4208~4509（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> 行段为 **v8.14.1 基线（`lx-source.js` 共 5709 行，`@version 8.14.1`，297937 bytes）** 实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 校验末段边界 = EOF。
-> **v8.14.1 构建口径**：`scripts/build-source.js` 使用 esbuild `bundle:true / format:iife / globalName:__lxSourceBundle / platform:neutral / target:es2017`，产物末尾补 CommonJS 桥 `module.exports = __lxSourceBundle`。这样既是单文件 IIFE，又保留洛雪宿主读取的导出面；`verify-bundle` B1 校验 IIFE 包装与导出桥，B2 校验运行 API。10 个 active provider 已拆到 `src/providers/`，核心运行时仍在 `src/legacy.js`（未做 10/20/30/40/60/70 的全量模块拆分）。
+> **v8.15.0 本地构建**：`lx-source.js` 共 **5740 行 / 300268 bytes**，`@version 8.15.0`；构建脚本的版本头校验改为读 `package.json`，不再硬编码。
+> 行段为 **v8.14.1 基线（`lx-source.js` 共 5740 行，`@version 8.14.1`，297937 bytes）** 实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 校验末段边界 = EOF。
+> **v8.15.0 构建口径（延续 v8.14.1）**：`scripts/build-source.js` 使用 esbuild `bundle:true / format:iife / globalName:__lxSourceBundle / platform:neutral / target:es2017`，产物末尾补 CommonJS 桥 `module.exports = __lxSourceBundle`。这样既是单文件 IIFE，又保留洛雪宿主读取的导出面；`verify-bundle` B1 校验 IIFE 包装与导出桥，B2 校验运行 API。10 个 active provider 已拆到 `src/providers/`，核心运行时仍在 `src/legacy.js`（未做 10/20/30/40/60/70 的全量模块拆分）。
 
 ## 三、核心机制详解
 
@@ -55,8 +56,8 @@ on(request musicUrl)
 
 - **v8.8 分批错峰并发**：链路按 `(h.batch||1)` 分组，首批（batch=1）最多 `raceBatchSize`(3) 个同时启动，批间错峰 `raceBatchStaggerMs`(300ms)；`batch>1` 的配额源（gdWy）排到后续批，前批全败才打；
 - **verified 精确等待**：未校验源先成功时，仅当仍有 `verified` 源在飞才等 `raceMatchWaitMs`(600ms)，否则立即交付（不再无脑白等）；
-- **跨音质档总预算 + v8.10 分档预算**：`getUrlWithFallback` 生成 `totalDeadline = now + raceBudgetMs`(12s)，逐档算 `qBudget = min(该档预算, 剩余总预算)`；最后一档保底 `raceBudgetFloorMs`(3s) 防整次取链失败（防高音质吃满总预算饿死低档致点歌无声）；
-- **档位短路（v8.16 口径）**：某源某档 `byQuality[q].success=0` 且 `(definitiveFail + linkExpired) ≥ qualityShortCircuitSamples`(3) → 该档跳过该源（整链短路则直接降档）；非唯一源每 `qualityShortCircuitProbeMs`（实际默认 **1h**，`cfg` 默认 3600000）放行一次真实探路；若平台内只有这一个 active 源能交付该档，改用 `qualityShortCircuitUniqueProbeMs`（默认 **10min**，600000），避免唯一希望被 1h 压死。`forceQualityProbe(sourceId, quality)`（request action `forceQualityProbe`）可把下一次检查标记为到期，只放行一轮，不改 breaker/健康账本。
+- **跨音质档总预算 + v8.10 分档预算**：`getUrlWithFallback` 生成 `totalDeadline = now + raceBudgetMs`(12s)，逐档算 `qBudget = min(该档预算, 剩余总预算)`；最后一档保底 `raceBudgetFloorMs`(3s) 防整次取链失败；v8.14.1 起 `raceBudgetMs + raceBudgetFloorMs` 运行时硬顶 16s，冷启动超时不得超过总预算（防高音质吃满总预算饿死低档致点歌无声）；
+- **档位短路（v8.14.1 口径）**：某源某档 `byQuality[q].success=0` 且 `(definitiveFail + linkExpired) ≥ qualityShortCircuitSamples`(3) → 该档跳过该源（整链短路则直接降档）；非唯一源每 `qualityShortCircuitProbeMs`（实际默认 **1h**，`cfg` 默认 3600000）放行一次真实探路；若平台内只有这一个 active 源能交付该档，改用 `qualityShortCircuitUniqueProbeMs`（默认 **10min**，600000），避免唯一希望被 1h 压死。`forceQualityProbe(sourceId, quality)`（request action `forceQualityProbe`）可把下一次检查标记为到期，只放行一轮，不改 breaker/健康账本。
   - `definitiveFail` 只记“该档交付确实坏掉”的失败：`NOT_AUDIO` / `STREAM_PLAYLIST` / `BAD_ENVELOPE` / `TRUNCATED_MEDIA`；超时、5xx、`LINK_EXPIRED` 中的网络类不进来，交给 breaker 的 180s 冷却/半开。
   - 判据刻意排除 `businessFail` 的歌曲级结论（404 无版权/歌不存在/错歌）：这是歌的问题不是源的问题，连续 3 首无版权歌不该把源该档短路 1h；
   - 但包含 `linkExpired`（410 死链）：oiapi flac/320k 是 VIP 死链恒 410，属“这一档拿不到”，必须能短路（v8.9 拆分，冒烟 T45 固化两种场景）；
@@ -79,6 +80,7 @@ on(request musicUrl)
 | `BUSINESS` | false | 3600000 | businessFail | 歌不存在/错歌/死链（1h 歌级锁） |
 | `TRANSIENT` | false | 0 | hardFail | 网络类（超时/断连/5xx），不缓存失败 |
 | `BROKEN` | false | 60000 | businessFail | 常量级失败（配置缺失/参数错误） |
+| `BUDGET` | false | 0 | businessFail | 本地竞速/单源预算耗尽，不是上游超时；不 bump `resolveDead`/`playDead`，不摘除 |
 
 - **`admit(input)` 五级短路**：`trialMark`（API 层试听标记）→ `ctx.probe.ok===true`（放行）→ `stage==='fallback' && attempts`（按 `CODE_RANK` 取最高 + 最强证据）→ `delivery`（429/非 200-206/字节分类）→ `error.code`；输出 `{verdict, code, deliverable, evidence, quality, ledger, reason}`。
 - **代表码优先级 `CODE_RANK`**：交付类 `NOT_AUDIO`/`PREVIEW_FRAGMENT`/`STREAM_PLAYLIST` = **3**；业务类 `NOT_FOUND`/`MISMATCH`/`LINK_EXPIRED`/`PARAM_ERROR`/`CONFIG_ERROR` = **2**；网络与限流 = **1**。**大者优先**——旧实现「业务码一旦出现即固定」会把 `NOT_AUDIO` 吞成 `NOT_FOUND`，用户二次点击秒回「该请求已知失败(缓存中)」。
@@ -452,11 +454,11 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 ## 十一、配置键总表（v8.12.1 基线；v8.12.2~v8.12.5 未改配置面）
 
-> 单一真相仍是 `lx-source.js` 的 `USER_CONFIG`（默认值）、`ALLOWED_KEYS`（28 个数字可写）、`ALLOWED_BOOL_KEYS`（9 个布尔可写）与 `PARAM_LIMITS`（上限）。本表是镜像，配置面有改动时必须同步。v8.10.3 曾出现「死键在面板能写、运行时根本不读」，根因就是没有可对照的键表。
+> 单一真相仍是 `lx-source.js` 的 `USER_CONFIG`（默认值）、`ALLOWED_KEYS`（34 个数字可写）、`ALLOWED_BOOL_KEYS`（9 个布尔可写）与 `PARAM_LIMITS`（上限）。本表是镜像，配置面有改动时必须同步。v8.10.3 曾出现「死键在面板能写、运行时根本不读」，根因就是没有可对照的键表。
 
 ### 11.1 面板可写（`config` action 生效）
 
-#### 数字键（`ALLOWED_KEYS`，28 个）
+#### 数字键（`ALLOWED_KEYS`，34 个）
 
 | 键 | 默认 | 上限 | 说明 |
 | --- | --- | --- | --- |
@@ -472,11 +474,11 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | `rateWindowMax` | 5 | max 20 | 窗口内请求上限 |
 | `healthCheckIntervalMs` | 600000（10min） | min 1min | 健康探测间隔 |
 | `raceMatchWaitMs` | 600 | max 5s | verified 精确等待窗口 |
-| `raceBudgetMs` | 12000 | max 15s | 单次取链总预算（跨音质档共享） |
-| `raceBudgetFloorMs` | 3000 | max 15s | 末档保底（允许突破总预算，最坏 12s+3s=15s） |
+| `raceBudgetMs` | 12000 | max 15s | 单次取链总预算（跨音质档共享）；与 floor 合计硬顶 16s |
+| `raceBudgetFloorMs` | 3000 | max 15s | 末档保底；与总预算合计不得超过 16s，超出部分运行时钳掉 |
 | `raceBatchSize` | 3 | max 10 | 每批并发源数 |
 | `raceBatchStaggerMs` | 300 | max 2000 | 批间错峰 |
-| `coldStartTimeoutMs` | 8000 | max 30s | 冷启动源单源取链超时 |
+| `coldStartTimeoutMs` | 5000 | max 30s | 冷启动源单源取链超时；不得超过 `raceBudgetMs` |
 | `coldStartProbeTimeoutMs` | 30000 | max 60s | 冷启动源探针超时（onrender 冷态 30s） |
 | `coldStartWarmTtlMs` | 300000 | max 1h | 冷启动预热间隔 |
 | `qualityShortCircuitSamples` | 3 | max 20 | 短路样本门槛 |
