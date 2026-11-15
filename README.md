@@ -4,7 +4,7 @@
 > **App 每次云编译（CI）会自动拉取本仓库根目录 `lx-source.js` 覆盖内置数据源**，因此：
 > - 本仓库是唯一权威数据源入口，改数据源只改这里；
 > - App 构建直接拉 `master` 的 `lx-source.js`，实际内置版本以构建日志的跨仓版本闸门和 APK 内 `assets/builtin_source.js` 为准；
-> - Releases 页是归档入口，不参与构建取源。截至 2026-11-14，`v8.12.1`~`v8.12.5` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.13.0` 已推送 master（b116 发布），`v8.13.1` 已随 b125 发布、未单独建 tag；**`v8.14.0` 为音质优先与 CI 编排版，已建 tag/Release；`v8.14.1` 为 HDM-3 健康数据分层版（已推送待发布）**；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
+> - Releases 页是归档入口，不参与构建取源。截至 2026-11-14，`v8.12.1`~`v8.12.5` 已建 tag + Release + `lx-source-vX.js` 资产，`v8.11.7` 已补资产；`v8.13.0` 已推送 master（b116 发布），`v8.13.1` 已随 b125 发布、未单独建 tag；**`v8.14.0` 为音质优先与 CI 编排版，已建 tag/Release；`v8.14.1` 为 HDM-3 健康数据分层版（已随 App b129 发布）**；`v8.12.2` tag 的 CI `test` 在 V2 文档门禁红（历史 `DEV_GUIDE` 缺版本串，`probe` 绿，代码/资产不受影响）。
 
 > **免责声明**：本项目仅供学习交流与技术研究。仅做接口聚合，不存储任何媒体文件；第三方接口的可用性与版权责任归相应服务方。使用即代表同意仅限个人学习用途，禁止商用。
 
@@ -57,7 +57,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
-| **v8.14.1 HDM-3 健康数据分层**（2026-11-15，已推送待发布） | L0 用户控制意图永久化（controls-only 去 7 天 TTL，跨源版本/跨长期停机存活）；未知 control 源 ID 跳过，避免单个已删除源拒绝整包开关；完整健康态仍 7 天 TTL；v1 不迁移；App 侧同步 `context`/`playback_start` 分桶 | 2026-11-15 |
+| **v8.14.1 HDM-3 健康数据分层**（2026-11-15，已随 App b129 发布） | L0 用户控制意图永久化（controls-only 去 7 天 TTL，跨源版本/跨长期停机存活）；未知 control 源 ID 跳过，避免单个已删除源拒绝整包开关；完整健康态仍 7 天 TTL；v1 不迁移；App 侧同步 `context`/`playback_start` 分桶 | 2026-11-15 |
 | **v8.14.0 音质优先与 CI 编排**（2026-11-14，已发布） | App 自定义源只按 `global.lx.qualityList` 选请求档，不再用内置 `_qualitys` 把 flac 错降 128k；源侧真实交付档回填、片段标记、置信度、`musicUrl` 透出 `qualityCeilingApplied`、缓存按实际档写入；K08 `qualityShortCircuitUniqueProbeMs` 10min + `countActiveQualitySources`；K07 `forceQualityProbe`；源仓 CI 拆 `test-fast`/`stress-long`/`stress-short` 并行，App CI 四 job + node_modules/Gradle build cache；`lx-source.js` 297753 bytes | 2026-11-14 |
 | **v8.13.1 K08/K07 源侧策略**（2026-11-14，本地未推送） | 唯一高质源探路由 1h 缩短为 10min（`qualityShortCircuitUniqueProbeMs`，平台内 active 源 ≤1）；新增 `forceQualityProbe` request action，只放行一轮档位短路；QP9~QP12 12/0，`npm test` rc0，audit 40/40，`verify:bundle` 8/0（297666 bytes） | 2026-11-14 |
 | **v8.13.1 音质真实标签补修**（2026-11-14，本地未推送） | m4a/ogg 按 content-length+时长估算码率（≥256kbps→320k、其余→128k）、wav→flac、未知总字节保留请求档；`sniffAudioBytes` 只认可信总字节；全档片段兜底 `fragment: true` + `qualityConfidence: unknown`；新增 `quality-truth` 8/0 | 2026-11-14 |
