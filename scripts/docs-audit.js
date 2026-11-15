@@ -230,12 +230,23 @@ function ruleSourceAuditFacts() {
 }
 
 // ── 共用：全仓 tracked 文件 → 行数映射（矩阵/台账/索引类文档的真值来源）──
+// 自动生成目录：每日 CI 会提交 docs/health-daily/*.md|json（scripts/health-daily.js 覆盖写），
+// 逐文件登记会每天制造一次「未登记」红（bot 提交必然撞门禁，人工补登记永远追不上）。
+// 口径：整目录作为一个登记单位——行数取目录内合计，台账/矩阵/DOC_INDEX 各留一行即可。
+const AUTO_GEN_DIRS = ['docs/health-daily/'];
+const autoGenDirOf = (f) => AUTO_GEN_DIRS.find((p) => f.startsWith(p)) || null;
+// DOC_INDEX 里的整目录行（以目录名登记）：只要目录下还有文件就算有效，不报「登记了不存在的文件」
+const dirRowOk = (f) => AUTO_GEN_DIRS.includes(f);
+
 function trackedLines() {
   const list = execSync('git -c core.quotepath=false ls-files', { encoding: 'utf8', cwd: ROOT })
     .trim().split('\n').filter(Boolean);
   const map = new Map();
   for (const f of list) {
-    map.set(f, Number(execSync(`wc -l < ${JSON.stringify(f)}`, { encoding: 'utf8', cwd: ROOT }).trim()));
+    const dir = autoGenDirOf(f);
+    const key = dir || f;
+    const n = Number(execSync(`wc -l < ${JSON.stringify(f)}`, { encoding: 'utf8', cwd: ROOT }).trim());
+    map.set(key, (map.get(key) || 0) + n);
   }
   return map;
 }
@@ -350,10 +361,14 @@ function ruleDocIndex() {
   const idx = read('docs/DOC_INDEX.md');
   const docs = execSync('git -c core.quotepath=false ls-files docs', { encoding: 'utf8', cwd: ROOT })
     .trim().split('\n').filter(Boolean);
-  const miss = docs.filter((f) => !idx.includes('`' + f + '`'));
+  // 自动生成目录按整目录登记（与 trackedLines 同一口径），不逐文件要求
+  const miss = docs.filter((f) => !autoGenDirOf(f)).filter((f) => !idx.includes('`' + f + '`'));
+  const dirMiss = AUTO_GEN_DIRS.filter((d) => docs.some((f) => f.startsWith(d)) && !idx.includes('`' + d + '`'));
+  if (dirMiss.length) report.push(`🔴 [docs/DOC_INDEX.md] 自动生成目录未登记：${dirMiss.join(', ')}`);
   if (miss.length) report.push(`🔴 [docs/DOC_INDEX.md] ${miss.length} 个 docs 文件未登记：${miss.join(', ')}`);
   else report.push(`🟢 [docs/DOC_INDEX.md] docs 下 ${docs.length} 个文件全部登记`);
-  const stale = [...idx.matchAll(/^\| `(docs\/[^`]+)` \|/gm)].map((m) => m[1]).filter((f) => !docs.includes(f));
+  const stale = [...idx.matchAll(/^\| `(docs\/[^`]+)` \|/gm)].map((m) => m[1])
+    .filter((f) => dirRowOk(f) ? !docs.some((d) => d.startsWith(f)) : !docs.includes(f));
   if (stale.length) report.push(`🔴 [docs/DOC_INDEX.md] 登记了不存在的文件：${stale.join(', ')}`);
 }
 

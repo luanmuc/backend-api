@@ -52,27 +52,7 @@
 | `docs/archive/audit-plans/stress-round4.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/audit-plans/stress-round5.md` | 当前态 | 人 | 每次压测变更后 | — |
 | `docs/candidate-status.md` | 自动生成 | scripts/recheck-candidates.js | 每次候选复检覆盖 | 规则5 新鲜度 |
-| `docs/health-daily/2026-11-03.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-04.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-05.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-06.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-07.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-08.json` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-09.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-10.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-10.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
-| `docs/health-daily/2026-11-11.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-11.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
-| `docs/health-daily/2026-11-12.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-12.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
-| `docs/health-daily/2026-11-13.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-13.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
-| `docs/health-daily/2026-11-14.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-14.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
-| `docs/health-daily/2026-11-15.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-15.json` | 自动生成 | scripts/health-daily.js | 同上（日报机器可读版） | — |
-| `docs/health-daily/2026-11-09.json` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
-| `docs/health-daily/2026-11-08.md` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | — |
+| `docs/health-daily/` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | 整目录登记（逐文件豁免；90 天滚动清理） |
 | `docs/probe-history.jsonl` | 自动追加 | scripts/probe.js | 每次巡检追加一行 | — |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |

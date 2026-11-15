@@ -185,6 +185,12 @@ console.log('\n[W] 脚本自洽');
   const run = (cmd, args) => { try { execFileSync(cmd, args, { cwd: ROOT, stdio: 'pipe', timeout: 180000 }); return 0; } catch (e) { return e.status === undefined ? -1 : e.status; } };
   rec('W1', 'self-check 退出 0', run('node', [abs('scripts/self-check.js')]) === 0);
   rec('W2', 'docs-audit --dry-run 退出 0', run('node', [abs('scripts/docs-audit.js'), '--dry-run']) === 0);
+  // W2b（v8.16.0）：自动生成目录按「整目录一个登记单位」——否则每日 CI 提交 docs/health-daily/*
+  // 必然撞规则17/18/19 的「未登记」红，人工补登记永远追不上（实测 2026-11-16 那次 bot 提交）。
+  const daSrc = read('scripts/docs-audit.js');
+  const autoDirs = (daSrc.match(/const AUTO_GEN_DIRS = \[([^\]]*)\]/) || ['', ''])[1];
+  rec('W2b', 'docs-audit 把 docs/health-daily/ 按整目录登记（跨日提交不再撞红）',
+    /docs\/health-daily\//.test(autoDirs) && /autoGenDirOf\(f\)/.test(daSrc), autoDirs.trim() || '未找到 AUTO_GEN_DIRS');
   rec('W3', 'probe --selftest-duration 退出 0', run('node', [abs('scripts/probe.js'), '--selftest-duration']) === 0);
   rec('W4', 'candidate-audit-test 退出 0', run('node', [abs('test/candidate-audit-test.js')]) === 0);
 
