@@ -3,7 +3,8 @@
  * recheck-candidates.js — 判否候选恢复探测（触发式待办自动监控）
  *
  * 探测已判否候选的关键通道，若恢复则提示可重评（触发式待办 → 主动发现）：
- *   - hyw    ：后端 `103.79.184.97` 全端点曾 nginx 502（2026-10-30 判否）
+ *   - hyw    ：后端 `103.79.184.97` 曾 nginx 502（2026-10-30 判否）；2026-11-16 复核：首页 200 但业务
+ *              `/api/music/url` 返回 401「需要卡密」+ `cardKeyRequired:true` → 付费门，维持判否
  *   - huanyin：music-dl.sayqz.com DNS 曾不可解析 + api.xcvts.cn 咪咕业务 502（2026-11-05 判否）
  *
  * 输出：终端报告 + 自动更新 docs/candidate-status.md（CI 提交回 master，
@@ -22,10 +23,12 @@ const path = require('path');
 const CANDIDATES = [
   {
     name: 'hyw（HYWmusic v1.2.0）',
-    judge: '2026-10-30 判否：后端 103.79.184.97 全端点 http/https 均 nginx 502（脚本本身协议规范、未混淆、10 平台上报）',
+    judge: '2026-10-30 判否：后端 103.79.184.97 全端点 http/https 均 nginx 502（脚本本身协议规范、未混淆、10 平台上报）；2026-11-16 复核：后端已恢复但业务接口要求卡密（401 cardKeyRequired），付费门不可接入',
     checks: [
-      { label: '后端 http 103.79.184.97', type: 'http', url: 'http://103.79.184.97/' },
-      { label: '后端 https 103.79.184.97', type: 'http', url: 'https://103.79.184.97/' },
+      // 首页 200 只说明站点活着，不等于「业务通道可用」——2026-11-16 实测首页 200 但业务 401 卡密门
+      { label: '首页 https 103.79.184.97', type: 'page', url: 'https://103.79.184.97/' },
+      // 判定恢复的唯一硬口径：业务接口能出链（未带 key 时若返回 401 卡密门 → 付费门，不接入）
+      { label: '业务 /api/music/url（不带 key）', type: 'biz', url: 'https://103.79.184.97/api/music/url?platform=tx&songmid=0039MnYb0qxYhV&quality=320k' },
     ],
   },
   {
@@ -49,11 +52,17 @@ async function checkHttp(url) {
     clearTimeout(timer);
     const text = await resp.text().catch(() => '');
     let bizCode = null;
+    let gate = false;
+    let cardKeyRequired = false;
     try {
       const j = JSON.parse(text);
       bizCode = j && typeof j === 'object' && 'code' in j ? j.code : null;
+      // 付费/卡密门：401/403 且响应自述「需卡密」——视为不可接入，不是「已恢复」
+      cardKeyRequired = !!(j && (j.cardKeyRequired === true || (j.received && j.received.cardKeyRequired === true)));
+      gate = (resp.status === 401 || resp.status === 403 || bizCode === 401 || bizCode === 403)
+        && (cardKeyRequired || /卡密|cardKey|激活码/i.test(String(j && j.message || '')));
     } catch (_) { /* 非 JSON（如 HTML/纯文本 502 页） */ }
-    return { ok: true, status: resp.status, bizCode, sample: text.slice(0, 80).replace(/\n/g, ' ') };
+    return { ok: true, status: resp.status, bizCode, gate, cardKeyRequired, sample: text.slice(0, 80).replace(/\n/g, ' ') };
   } catch (e) {
     return { ok: false, error: e.name === 'AbortError' ? '超时' : (e.cause?.code || e.message || String(e)) };
   }
@@ -73,30 +82,60 @@ async function runCheck(c) {
   return { ...c, result: r };
 }
 
-// 判定单候选状态：'recovered'（可重评）| 'review'（需人工核查）| 'dead'（仍失效）
+// 判定单候选状态：'recovered'（可重评）| 'review'（需人工核查）| 'paid'（付费/卡密门）| 'dead'（仍失效）
+// 优先级刻意写成「付费门 > 域名 > 业务出链 > 参数疑变 > 仅页面活 > 死」：
+// 首页 200 曾经把「需要卡密的付费门」误报成「已恢复-可重评」，2026-11-16 实测纠偏。
 function candidateState(checks) {
+  // 付费/卡密门最优先：业务接口自述需卡密，首页再怎么 200 也不是可接入的公益源
+  if (checks.some(c => c.result && c.result.ok && c.result.gate)) return 'paid';
   // 域名恢复（huanyin）：DNS 可解析 → 重评信号
   if (checks.some(c => c.type === 'dns' && c.result.ok)) return 'recovered';
-  // 业务通道：成功结构（code 0/200 且含数据）→ 恢复；502 → 仍被限；400 → 疑似协议/参数变更
-  let sawBiz = false;
+  // 业务通道：出链成功（code 0/200）才算恢复
   for (const c of checks) {
-    if (c.result.ok && c.result.bizCode !== null && c.result.bizCode !== undefined) {
-      sawBiz = true;
-      if (c.result.bizCode === 0 || c.result.bizCode === 200) return 'recovered';
-    }
+    if (c.result.ok && (c.result.bizCode === 0 || c.result.bizCode === 200)) return 'recovered';
   }
-  if (sawBiz && checks.some(c => c.result.ok && c.result.bizCode === 400)) return 'review';
-  // http 通道（hyw）：非 502 且非连接错误 → 恢复
-  for (const c of checks) {
-    if (c.result.ok && typeof c.result.status === 'number') {
-      if (c.result.status !== 502) return 'recovered';
-    }
-  }
+  // 400 → 疑似协议/参数变更，需人工核查
+  if (checks.some(c => c.result.ok && c.result.bizCode === 400)) return 'review';
+  // 只有首页活着、无任何业务证据 → 只能算「需人工核查」，不得判恢复
+  if (checks.some(c => c.result.ok && typeof c.result.status === 'number' && c.result.status !== 502)) return 'review';
   return 'dead';
+}
+
+// ── 自检（判定口径回归，2026-11-16 由 hyw 误报事故倒逼） ──────────────────
+// 事故：首页 HTTP 200 → 旧判据直接判「已恢复-可重评」，而业务接口实际是 401 卡密门，
+// 导致触发式待办被反复误唤醒。这四条断言守住「首页活着 ≠ 通道可用」。
+function selfTest() {
+  const cases = [
+    ['RC1', '业务 401 + cardKeyRequired → 付费门', 'paid', [
+      { type: 'page', label: 'p', result: { ok: true, status: 200, bizCode: null, gate: false } },
+      { type: 'biz', label: 'b', result: { ok: true, status: 401, bizCode: 401, gate: true, cardKeyRequired: true } },
+    ]],
+    ['RC2', '仅首页 200、无业务证据 → 不得判恢复', 'review', [
+      { type: 'page', label: 'p', result: { ok: true, status: 200, bizCode: null, gate: false } },
+      { type: 'biz', label: 'b', result: { ok: false, error: 'ECONNREFUSED' } },
+    ]],
+    ['RC3', '业务出链 code 200 → 恢复', 'recovered', [
+      { type: 'biz', label: 'b', result: { ok: true, status: 200, bizCode: 200, gate: false } },
+    ]],
+    ['RC4', '业务 502 → 仍失效', 'dead', [
+      { type: 'page', label: 'p', result: { ok: true, status: 502, bizCode: null, gate: false } },
+      { type: 'biz', label: 'b', result: { ok: true, status: 502, bizCode: 502, gate: false } },
+    ]],
+  ];
+  let fail = 0;
+  for (const [id, name, expect, checks] of cases) {
+    const got = candidateState(checks);
+    const ok = got === expect;
+    if (!ok) fail += 1;
+    console.log(`${ok ? '✓' : '✗'} [${id}] ${name} — 期望 ${expect} 实得 ${got}`);
+  }
+  console.log(`自检 ${cases.length - fail}/${cases.length} 通过\n`);
+  return fail;
 }
 
 // ── 主流程 ──────────────────────────────────────────────────────────────
 async function main() {
+  const selftestFail = selfTest();
   const lines = [];
   const stamp = new Date().toISOString().replace('T', ' ').slice(0, 19) + 'Z';
   console.log(`候选恢复探测（${stamp}）\n`);
@@ -115,10 +154,12 @@ async function main() {
     }
     const st = candidateState(results);
     const verdict = st === 'recovered' ? '🟢 已恢复 —— 可启动重评（候选实证流程）'
-      : st === 'review' ? '🟡 需人工核查 —— 接口有响应但参数/协议疑变更，建议重评'
+      : st === 'paid' ? '⚪ 付费/卡密门 —— 不可接入（维持判否，不再提示重评）'
+      : st === 'review' ? '🟡 需人工核查 —— 接口有响应但通道未证实/参数疑变更，建议重评'
       : '🔴 仍失效 —— 继续等待';
     console.log(`  ➜ ${verdict}\n`);
-    const stLabel = st === 'recovered' ? '🟢 已恢复-可重评' : st === 'review' ? '🟡 需人工核查' : '🔴 仍失效';
+    const stLabel = st === 'recovered' ? '🟢 已恢复-可重评' : st === 'paid' ? '⚪ 付费门-维持判否'
+      : st === 'review' ? '🟡 需人工核查' : '🔴 仍失效';
     lines.push(`| ${cand.name} | ${stLabel} | ${cand.checks.map(c => {
       const r = results.find(x => x.label === c.label);
       return r.type === 'dns'
@@ -141,8 +182,9 @@ async function main() {
   ].join('\n');
   fs.writeFileSync(out, md);
   console.log(`\n状态已写入 docs/candidate-status.md`);
+  if (selftestFail) process.exit(1);
 }
 
 // 只有直接运行才探测并覆写 candidate-status；被 require 时保持沉默。
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
-module.exports = { candidateState, CANDIDATES };
+module.exports = { candidateState, selfTest, CANDIDATES };

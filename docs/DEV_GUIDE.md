@@ -27,7 +27,7 @@
 | ⑦ 注册表 + 调度 + 健康分 | 4366~4896 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，3s grace，10min 缓存，`cross_platform` 事件） |
 | ⑧ 上报 + 事件监听 | 4992~5863（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> **v8.16.0 本地待发布**：`lx-source.js` 共 **5863 行 / 306286 bytes**，`@version 8.16.0`；构建脚本的版本头校验改为读 `package.json`，不再硬编码。
+> **v8.16.0（已推送 master `c64a937` + tag `v8.16.0` + Release 资产）**：`lx-source.js` 共 5863 行 / 306286 bytes，`@version 8.16.0`；构建脚本的版本头校验改为读 `package.json`，不再硬编码。
 > 行段为 **v8.16.0 产物**实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 从 `var PROVIDER_CONTRACT` 校验末段边界 = EOF。
 > **v8.15.1 压测适配**：`stress-round4` 的 V18 预热计数按 `coldStartTimeoutMs` 双键隔离；冷启动超时被钳到总预算后，测试需同步抬高 `raceBudgetMs`，否则实际请求超时变成总预算、按 4321ms 计数会假红。
 
@@ -342,6 +342,16 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 |---|---|---|
 | **hyw（HYWmusic v1.2.0）** | 后端 502 | 后端已恢复（http/https 103.79.184.97=HTTP 200），但首页显示**需要卡密**（"卡密总数/登录控制台"），非免费公益源 → 维持判否 |
 | **huanyin（幻音 v3）** | 主域名 DNS 失效 + 咪咕 502 | 主域名 music-dl.sayqz.com DNS 仍失效；业务接口 api.xcvts.cn 已接入（suyinMigu）→ 无新增量，维持判否 |
+
+> **2026-11-16 复评（hyw 二次，附实测）**：`candidate-status.md` 又报 hyw「🟢 已恢复-可重评」，逐项实测后**仍是付费门**——
+> `GET https://103.79.184.97/api/music/url?platform=tx&songmid=0039MnYb0qxYhV&quality=320k` → **HTTP 401**，
+> body `{"code":401,"message":"需要卡密才能访问，请在请求中携带 key 参数","received":{…,"hasKey":false,"cardKeyRequired":true}}`；
+> 首页 `https://103.79.184.97/` 仍是 HTTP 200 且页面含「卡密总数 / 登录控制台」。**维持判否**。
+>
+> 顺带修掉误报的根因：`scripts/recheck-candidates.js` 原来只看「首页 HTTP≠502 就算恢复」，把付费门当成了恢复。
+> 改法：hyw 探测增加**业务接口**（`type:'biz'`）一项，判据优先级改为「付费/卡密门 > 域名 > 业务出链 code 0/200 > 参数疑变 > 仅首页活着 > 死」，
+> 新增状态 `paid`（⚪ 付费门-维持判否）。并给脚本加 4 条内建自检（RC1~RC4，红证即今天的误报形状：仅首页 200 必须判 `review` 而不是 `recovered`），
+> 自检失败时进程 rc=1。实跑：`node scripts/recheck-candidates.js` → 自检 4/4、hyw ⚪、huanyin 🟡、rc=0。
 
 **新发现但无法接入的源：**
 | 候选 | 原因 |

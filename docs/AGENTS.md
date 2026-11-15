@@ -55,7 +55,9 @@ node scripts/self-check.js
 # 生态扫描（v7.0 起：pdone 健康表交叉，产出新候选/失效清单）
 node scripts/ecosystem-scan.js
 
-# 判否候选恢复探测（hyw/huanyin 触发式待办监控；CI 每日自动跑，恢复即提示重评）
+# 判否候选恢复探测（hyw/huanyin 触发式待办监控；CI 每日自动跑）
+# 口径：判恢复必须打到业务接口（code 0/200），首页 200 只算「需人工核查」；付费/卡密门输出「⚪ 维持判否」
+# 脚本内建自检 RC1~RC4，失败 rc=1
 node scripts/recheck-candidates.js
 # L4 文档一致性巡检（低风险自动修复：冒烟用例数/@version 子串/pdone URL；--dry-run 只报告）
 node scripts/docs-audit.js

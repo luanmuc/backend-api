@@ -72,6 +72,22 @@
 
 判据：**接进来必须能给出「我方尚未覆盖的上游」**；同一上游多接一份，只是同一失败率多一份分母，还会抢走竞速窗口。
 
+## 5.6 判否候选复核（2026-11-16）
+
+`candidate-status.md` 由 `scripts/recheck-candidates.js` 每日探测，命中「已恢复」即提示启动重评。本轮 hyw 被报 🟢，复核结论**维持判否**，并修正了探测判据本身。
+
+| 候选 | 复核证据（2026-11-16 实测） | 裁决 |
+|---|---|---|
+| `hyw`（HYWmusic v1.2.0） | 首页 `https://103.79.184.97/` HTTP 200，页面含「卡密总数 / 登录控制台」；业务 `GET /api/music/url?platform=tx&songmid=0039MnYb0qxYhV&quality=320k` → **HTTP 401**，`{"code":401,"message":"需要卡密才能访问…","received":{…,"hasKey":false,"cardKeyRequired":true}}` | ❌ **维持判否（付费门）** |
+| `huanyin`（幻音 v3） | DNS `music-dl.sayqz.com` 仍 `ENOTFOUND`；`api.xcvts.cn` 咪咕 HTTP 200 / 业务码 400（参数疑变），且该上游已由 `suyinMigu` 覆盖 | 🟡 维持观察，无新增量 |
+
+**判据修正（探测工具自身缺陷）**：旧逻辑「首页 HTTP ≠ 502 → `recovered`」把付费门误报成恢复，会让触发式待办被反复空转。现改为：
+
+- hyw 增加业务接口探测项 `type:'biz'`（不带 key 直取 `/api/music/url`）；
+- `candidateState()` 优先级：`paid`（401/403 且自述需卡密）> `recovered`（DNS 通 / 业务 code 0·200）> `review`（业务 400 或仅首页活着）> `dead`；
+- 新增状态 `paid` → 输出「⚪ 付费门-维持判否」，不再提示重评；
+- 脚本内建自检 `RC1~RC4`（`node scripts/recheck-candidates.js` 先跑自检，失败 rc=1），其中 RC2 守的正是今天的误报形状：**仅首页 200、无业务证据必须判 `review`**。
+
 ## 6. 禁止事项
 
 - 不得因为“旧代码里有”就保留死源。

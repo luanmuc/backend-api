@@ -21,7 +21,7 @@
 | `health-daily.js` (354) | 健康日报：变化检测 + 分级 + 动作出口，产出 `docs/health-daily/<日期>.md/.json`（90 天清理） | CI 每日 | 新增当日日报文件；不碰 README |
 | `source-audit.js` (176) | 全源全接口深度巡检（比 probe 更细，逐源逐档真实取链 + Range 校验），`--include-probation` / `--strict` | 手动 | 只打日志 |
 | `candidate-audit.js` (342) | 新候选源实证半自动化：mock 加载 + 静态提取 + 报告草案 | 手动 | 产出报告草案（不写仓库文件） |
-| `recheck-candidates.js` (148) | 判否候选恢复探测，**改** `docs/candidate-status.md` | CI 每日 | 覆写 candidate-status |
+| `recheck-candidates.js` (190) | 判否候选恢复探测，**改** `docs/candidate-status.md` | CI 每日 | 覆写 candidate-status |
 | `ecosystem-scan.js` (165) | 抓 pdone 生态健康表，交叉验证本仓源状态（源列表由产物导出面读取，v8.15.1 起不再依赖正则） | CI 每周 | 只打日志 |
 | `health-alert.js` (73) | 读当日 `<date>.json` 生成 GitHub Issue 正文 | 被 health-daily 调用 | 无 |
 | `verify-real-platforms.js` (76) | 真实 HTTP 宿主加载 `lx-source.js`，逐平台调 `musicUrl`，输出 `sourcePlatform/subSource/host`；`--all` / `--without-suyin` 用于区分兜底链 | 手动 | 只打日志，不写仓库文件 |
