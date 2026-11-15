@@ -18,7 +18,7 @@
  * sources：对应 lx-source.js 的 SOURCE_HANDLERS 键；多源共用端点时给数组（任一启用即参与判定）。
  */
 const ENDPOINTS = [
-  // ---- 上链源：10 个 ----
+  // ---- 源端点：13 条（对应 12 个登记源；helloworldKw 占通道①/②两条 + 3 条工具端点 = 全表 16 条）----
   { url: 'https://oiapi.net/api/QQ_Music', sources: ['suyinQQ'], kind: 'payload', note: '观察源：2026-11-11 HTTP 403，默认关闭、只探测' },
   { url: 'https://oiapi.net/api/Music_163', sources: ['suyin163'], kind: 'payload', note: '' },
   { url: 'https://oiapi.net/api/Kuwo', sources: ['suyinKuwo'], kind: 'payload', note: 'v8.5 实锤：端点 100% 可用但源曾返回 CDN 410 死链' },
@@ -42,12 +42,6 @@ const ENDPOINTS = [
 //   https://music-dl.sayqz.com/api/      —— xinghaiBackup，v8.13 已退役
 //   https://api.lingchuan.com/v1         —— lingchuan，v8.13 已退役
 //   https://music-api.gdstudio.xyz       —— gdWy，v8.13 已退役
-//   https://img2.kuwo.cn/                —— 封面 URL 模板，非源端点
-//   https://github.com/luanmuc/backend-api/releases —— 文档链接，非源端点
-
-// 明确不登记（保留说明，避免后人以为是漏项）：
-//   https://music-dl.sayqz.com/api/      —— xinghaiBackup，域名不可解析且源默认关闭，无需监控
-//   https://api.lingchuan.com/v1         —— lingchuan，需配置且默认关闭
 //   https://img2.kuwo.cn/                —— 封面 URL 模板，非源端点
 //   https://github.com/luanmuc/backend-api/releases —— 文档链接，非源端点
 

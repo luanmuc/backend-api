@@ -68,7 +68,7 @@ const run = async platform => {
   }
 }
 
-;(async () => {
+if (require.main === module) (async () => {
   for (const p of ['kw', 'wy', 'tx', 'mg', 'kg']) {
     console.log(JSON.stringify(await run(p)))
   }

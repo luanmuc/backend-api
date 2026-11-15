@@ -88,7 +88,7 @@ const run = async (platform, ids, only) => {
   }
 }
 
-;(async () => {
+if (require.main === module) (async () => {
   const results = []
   try {
     const wy = await getWy()

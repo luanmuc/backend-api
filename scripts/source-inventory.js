@@ -107,4 +107,6 @@ function main() {
   process.exit(0);
 }
 
-main();
+// 只有直接运行才扫描产物并决定退出码；被 require 时必须保持沉默。
+if (require.main === module) main();
+module.exports = { load, inventory, check, BUDGET, RETIRED };

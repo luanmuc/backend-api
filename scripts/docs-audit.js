@@ -152,9 +152,12 @@ function ruleSmokeWide() {
 function ruleLinesAndSegments() {
   try {
     const n = execSync('wc -l < lx-source.js', { encoding: 'utf8', cwd: ROOT }).trim();
-    const start = execSync('grep -n "// 第八部分" lx-source.js | head -1 | cut -d: -f1', { encoding: 'utf8', cwd: ROOT }).trim();
+    // 构建产物会剥掉源码里的“第八部分”注释，末段边界以产物中真实存在的
+    // PROVIDER_CONTRACT 初始化行为锚点，避免 start 为空导致 EOF 段永不校验。
+    const start = execSync('grep -n "var PROVIDER_CONTRACT" lx-source.js | head -1 | cut -d: -f1', { encoding: 'utf8', cwd: ROOT }).trim();
     align('docs/DEV_GUIDE.md', /共 (\d+) 行/, () => `共 ${n} 行`, '音源总行数');
-    if (start) align('docs/DEV_GUIDE.md', /(\d+)~(\d+)（EOF）/, () => `${start}~${n}（EOF）`, '行段表末段边界');
+    if (!start) report.push('🔴 规则7：产物中找不到 `var PROVIDER_CONTRACT`，末段边界校验失效');
+    else align('docs/DEV_GUIDE.md', /(\d+)~(\d+)（EOF）/, () => `${start}~${n}（EOF）`, '行段表末段边界');
   } catch (e) { report.push(`⚠️ 规则7 异常：${e.message}`); }
 }
 
@@ -166,7 +169,7 @@ function ruleHostApi() {
 
 // ── 规则 9：登记源数 ↔ 行段表与 README ─────────────────────────────────
 function ruleSourceCount() {
-  const n = (handlerBlock().match(/^\s+\w+: \{/gm) || []).length;
+  const n = (handlerBlock().match(/^\s+\w+: provider\(/gm) || []).length;
   align('docs/DEV_GUIDE.md', /(\d+) 个子源/, () => `${n} 个子源`, '子源数');
 }
 
@@ -216,8 +219,11 @@ function ruleRoadmapVersion() {
 
 // ── 规则 14：SOURCE_AUDIT 的「N 个登记源」「N 个 verified 源」↔ 真值 ────
 function ruleSourceAuditFacts() {
+  // v8.15.1（R13）：原用 `^\s+\w+: \{` 数 handler 块，但登记写法自 v8.8 起是
+  // `id: provider(...)`，只剩 1 个左花括号 → 本规则把 SOURCE_AUDIT 的「12 个登记源」
+  // 自动改写成「1 个登记源」（审计程序写坏文档）。改与规则 9 同口径。
   const blk = handlerBlock();
-  const n = (blk.match(/^\s+\w+: \{/gm) || []).length;
+  const n = (blk.match(/^\s+\w+: provider\(/gm) || []).length;
   align('docs/SOURCE_AUDIT.md', /(\d+) 个登记源/, () => `${n} 个登记源`, 'SOURCE_AUDIT 登记源数');
   const ve = (blk.match(/verified/g) || []).length;
   align('docs/SOURCE_AUDIT.md', /(\d+) 个 `verified` 源/, () => `${ve} 个 \`verified\` 源`, 'SOURCE_AUDIT verified 源数');
@@ -368,8 +374,38 @@ function ruleDefectIdCeiling() {
   align('docs/AUDIT_PLAN_v10.md', /缺陷总账已补齐 D-01~D-(\d+)/, () => `缺陷总账已补齐 D-01~D-${String(max).padStart(2, '0')}`, 'v10 缺陷编号上界');
 }
 
+// ── 规则 22：docs/SCRIPTS.md ↔ scripts/ 实测（脚本数 / 每个脚本行数 / 无幽灵条目）──
+// v8.15.1（R19）：SCRIPTS.md 长期写「16 个脚本」，实 19 个，且 build-source / source-inventory /
+// verify-bundle / dump-chain 四个脚本从未登记；行数、(20 条端点)、导出名(getToggles/today) 也各自漂。
+// 旧审计规则一条都不管这个文件 → 漂了没人喊。本规则把它纳入门禁（能自动对齐的自动改，语义项报红）。
+function ruleScriptsDoc() {
+  const dir = path.join(ROOT, 'scripts');
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js'));
+  const p = 'docs/SCRIPTS.md';
+  let s = read(p);
+  let n2 = 0;
+  for (const f of files) {
+    const n = Number(execSync(`wc -l < ${JSON.stringify('scripts/' + f)}`, { encoding: 'utf8', cwd: ROOT }).trim());
+    const m = s.match(new RegExp('`' + f.replace(/\./g, '\\.') + '`\\s*\\((\\d+)\\)'));
+    if (!m) { report.push(`🔴 [${p}] scripts/${f} 未登记（新增脚本必须补条目：职责/触发/副作用）`); continue; }
+    if (Number(m[1]) !== n) {
+      const want = m[0].replace(`(${m[1]})`, `(${n})`);
+      if (DRY) report.push(`🟡 [${p}] ${f} 行数 ${m[1]}→${n}`);
+      else { s = s.replace(m[0], want); n2++; }
+    }
+  }
+  const stale = [...s.matchAll(/^\| `([\w.-]+\.js)`\s*\(\d+\) \|/gm)].map((m) => m[1]).filter((f) => !files.includes(f));
+  if (stale.length) report.push(`🔴 [${p}] 登记了不存在的脚本：${stale.join(', ')}`);
+  if (n2) { write(p, s); fixed++; report.push(`✅ [${p}] 同步 ${n2} 个脚本行数`); }
+  else report.push(`🟢 [${p}] 已登记 ${files.length} 个脚本，行数一致`);
+  align(p, /(\d+) 个脚本/, () => `${files.length} 个脚本`, '脚本总数');
+}
+
 // ── 执行 ────────────────────────────────────────────────────────────────
-ruleSmokeCount();
+// v8.15.1（R20）：规则原先在模块顶层无条件执行——被 require（如 g-meta M9b require-safety）
+// 时会真的跑 22 条规则并**改文档**。现整体收进 CLI 分支：require 只导出规则表，不产生副作用。
+function runAll() {
+  ruleSmokeCount();
 ruleVersion();
 rulePdoneUrl();
 ruleHealthFresh();
@@ -389,10 +425,17 @@ ruleMatrixCoverage();
 ruleReadThroughLedger();
 ruleDocIndex();
 ruleTestEntryCount();
-ruleDefectIdCeiling();
+  ruleDefectIdCeiling();
+  ruleScriptsDoc();
 
-console.log(`\n[L4 文档巡检] ${DRY ? 'DRY-RUN（不修改）' : '自动修复'} — ${new Date().toISOString().slice(0, 10)}\n`);
-for (const r of report) console.log(r);
-console.log(`\n汇总：${DRY ? '待处理' : '已修复'} ${fixed} 项 · 报告 ${report.length - fixed} 项\n`);
-if (require.main === module) process.exit(0);
-// 恒成功：修复/报告已落盘，workflow 以 git diff 判断是否有提交
+  console.log(`\n[L4 文档巡检] ${DRY ? 'DRY-RUN（不修改）' : '自动修复'} — ${new Date().toISOString().slice(0, 10)}\n`);
+  for (const r of report) console.log(r);
+  console.log(`\n汇总：${DRY ? '待处理' : '已修复'} ${fixed} 项 · 报告 ${report.length - fixed} 项\n`);
+  // 恒成功：修复/报告已落盘，workflow 以 git diff 判断是否有提交
+}
+
+if (require.main === module) {
+  runAll();
+  process.exit(0);
+}
+module.exports = { runAll, RULES: { ruleScriptsDoc, ruleSourceAuditFacts } };

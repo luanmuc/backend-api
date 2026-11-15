@@ -10,7 +10,7 @@
 
 ## 〇、v8.13.0 当前口径（12 登记 / 10 上链 / 2 观察）
 
-- 登记源：**1 个登记源**；上链源：**10**；观察源：**2**（`suyinQQ` / `suyinMigu`，默认关闭、只探测、不进链）。
+- 登记源：**12 个登记源**；上链源：**10**；观察源：**2**（`suyinQQ` / `suyinMigu`，默认关闭、只探测、不进链）。
 - 巡检默认只跑 10 个上链源；观察源用 `node scripts/source-audit.js --include-probation` 单独取证。
 - 平台结构：kw 7 源 / wy 5 源 / tx 2 源 / mg 1 源（高风险单源） / kg 1 源（高风险单源）。
 - 单源缺口与复核日期见 `docs/SOURCE_REGISTRY.md` 与 `KNOWN_COVERAGE_GAPS`；本文件下方的 21/35 是 v8.4 历史时点基线，不代表 v8.13 源表。

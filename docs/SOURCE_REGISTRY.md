@@ -1,4 +1,4 @@
-# 源登记表（v8.13.0）
+# 源登记表（v8.15.1）
 
 > 单一真相：运行时 `PROVIDER_CONTRACT` / `SOURCE_HANDLERS`。本表由 `scripts/source-inventory.js` 校验；任何增删源先改契约，再同步本表。
 
@@ -25,7 +25,7 @@
 | 5 | `xinghaiBackend` | 星海后端 | active | kw | kw2 | xinghai-backend | none | flac | kw 高音质主力 |
 | 6 | `helloworldKw` | helloworld(kw) | active | kw | kw4 | kuwo-convert | none | flac | 可能只给片段，靠验真闸门 |
 | 7 | `changqingVip` | 长青kw | active | kw | kw6 | changqing-kw | none | 128k | 与已砍 `nianxinVip` 同质 |
-| 8 | `huibq` | Huibq | active | kw/wy | kw8, wy8 | huibq | none | 320k | 唯一 `coldStart`，timeout 8s |
+| 8 | `huibq` | Huibq | active | kw/wy | kw8, wy8 | huibq | none | 320k | 唯一 `coldStart`；取链超时由 `resolveColdStartTimeout(coldStartTimeoutMs, raceBudgetMs)` 决定，无独立 provider timeout |
 | 9 | `juheTx` | Juhe聚合(tx) | active | tx | tx2 | juhe | none | flac | 7 天复核 `2026-11-19` |
 | 10 | `ikun` | ikun | active | kw/wy | kw7, wy5 | ikun | optional | flac | 公益版免卡密，卡密可选 |
 | 11 | `suyinQQ` | 溯音QQ | probation | tx | 无 | oiapi-qq | none | flac | 2026-11-11 实测 403；复核 `2026-11-19` |

@@ -54,6 +54,7 @@ check('P1 v2 导出：controls 与健康元数据同包但字段独立', () => {
   assert(st.sources && st.sources.suyinKuwo, '缺少 health sources')
   assert(typeof st.controls.suyinQQ.enabled === 'boolean', 'control.enabled 非法')
   assert(st.controls.suyinQQ.successUrl === undefined, 'controls 不得带 URL')
+  assert(st.sourceVersion === '8.15.1', `sourceVersion 应为 8.15.1，实际 ${st.sourceVersion}`)
 })
 
 check('P2 v1 完整态必须拒绝', () => {
@@ -116,6 +117,9 @@ check('P7 版本/未知源跳过/超容量/禁止字段', () => {
   assert(m.restoreHealthState(Object.assign({}, base, { controls: { suyinQQ: { enabled: true, successUrl: 'https://x' } } })).ok === false, '禁止字段应拒绝')
   const big = Object.assign({}, base, { controls: { suyinQQ: { enabled: true, note: 'x'.repeat(300000) } } })
   assert(m.restoreHealthState(big).ok === false, '超容量应拒绝')
+  const oldFull = m.exportHealthState()
+  oldFull.sourceVersion = '8.14.1'
+  assert(fresh().restoreHealthState(oldFull).ok === true, '完整健康态必须兼容 8.14.1 旧包')
 })
 
 check('P9 controls-only 不受 7 天 TTL 限制，完整健康仍受 TTL 限制', () => {

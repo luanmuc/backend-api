@@ -349,4 +349,6 @@ function main() {
   if (oldFiles.length) console.log(`   清理 ${oldFiles.length} 个 ${RETENTION_DAYS} 天前旧日报`);
 }
 
-main();
+// 只有直接运行才生成日报；被 require 时不得写文件、不得 exit（否则会静默杀掉调用方）。
+if (require.main === module) main();
+module.exports = { main, windowStats, prevDataDate, render };

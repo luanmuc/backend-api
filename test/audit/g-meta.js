@@ -219,6 +219,29 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
     bad.length ? bad.join(', ') : `${scriptJs.length + auditFiles.length} 个脚本全部安全`);
 }
 
+// ---------- M9b require 安全（行为级，补 M9 只看"行首无缩进 exit"的漏检）----------
+// v8.15.1：M9 的静态正则只认「行首无缩进」的 process.exit，缩进 exit 与顶层 main() 全部漏检
+// （build-source/health-daily/source-inventory 顶层 main()、probe/source-audit/verify-real-* 顶层 IIFE
+// 都在被 require 时直接写文件/打网络/exit）。改为行为验证：把每个脚本 require 一遍，
+// 断言 ① 加载后仍能继续执行（打印出 AFTER_REQUIRE ⇒ 没被 process.exit 截断）② 不因自身副作用报错。
+// 注：子进程末尾自带 process.exit(0)——部分脚本会 require 产物 lx-source.js 并挂健康定时器，
+// 不主动退出会让 require 永久挂起（这是定时器特性，不算脚本缺陷）。
+{
+  const bad = [];
+  for (const f of scriptJs) {
+    const base = path.basename(f);
+    const r = child.spawnSync(process.execPath, ['-e',
+      `require(${JSON.stringify(f)});console.log('AFTER_REQUIRE');process.exit(0)`],
+      { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
+    const stdout = String(r.stdout || '');
+    const okRc = r.status === 0;
+    const reached = stdout.includes('AFTER_REQUIRE');
+    if (!okRc || !reached) bad.push(`${base}(rc=${r.status}${reached ? '' : ',exit-before-return'})`);
+  }
+  rec('M9b', 'scripts/*.js 被 require 时不写文件/不打网络/不退出（require 安全）', bad.length === 0,
+    bad.length ? bad.join(', ') : `${scriptJs.length} 个脚本 require 后均正常返回`);
+}
+
 // ---------- M10 开关计数口径统一走 parseToggles ----------
 {
   const fRepo = read(path.join(AUDIT, 'f-repo.js'));

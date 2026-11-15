@@ -143,4 +143,6 @@ async function main() {
   console.log(`\n状态已写入 docs/candidate-status.md`);
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+// 只有直接运行才探测并覆写 candidate-status；被 require 时保持沉默。
+if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
+module.exports = { candidateState, CANDIDATES };

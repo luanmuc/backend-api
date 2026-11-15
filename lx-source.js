@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.15.0 预算边界与归因版（12 登记源 / 10 上链 / 2 观察；BUDGET_EXHAUSTED 独立归因且不摘源；总预算+末档保底硬顶 16s；冷启动超时不得超过总预算；单链预算到期不再白给 1s；跨平台 grace/search 3s）
- * @version 8.15.0
+ * @description v8.15.1 契约与死配置收口版（12 登记源 / 10 上链 / 2 观察；健康态导出源版本升 8.15.1 且兼容 8.14.1；删除 2 个未登记配置键、长青 4 个死模板与 provider 未消费 timeoutMs；限流退避统一由 rateLimitBackoffMs 决定）
+ * @version 8.15.1
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -357,13 +357,7 @@ var __lxSourceBundle = (() => {
       }
       var CROSS_PLATFORM_NAMES = { tx: "QQ\u97F3\u4E50", wy: "\u7F51\u6613\u4E91\u97F3\u4E50", kw: "\u9177\u6211\u97F3\u4E50" };
       var IKUN_API = "https://c.wwwweb.top";
-      var CHANGQING_URL_TEMPLATES = {
-        tx: "http://175.27.166.236/kgqq/qq.php?type=mp3&id={id}&level={level}",
-        wy: "http://175.27.166.236/wy/wy.php?type=mp3&id={id}&level={level}",
-        kw: "https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}",
-        kg: "https://music.haitangw.cc/kgqq/kg.php?type=mp3&id={id}&level={level}",
-        mg: "https://music.haitangw.cc/musicapi/mg.php?type=mp3&id={id}&level={level}"
-      };
+      var CHANGQING_KW_URL_TEMPLATE = "https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}";
       var HELLOWORLD_KW_CONVERT_API = "http://nmobi.kuwo.cn/mobi.s";
       var HELLOWORLD_HTW_API = "https://musicserver.haitangw.cc/v1/music/resolve-url";
       var SOURCE_TOGGLES = {
@@ -1159,7 +1153,7 @@ var __lxSourceBundle = (() => {
       function isResolveDead(sourceId, quality, consume) {
         const streak = resolveDeadStreak.get(sourceId) || 0;
         if (streak < PLAY_DEAD_STREAK) return false;
-        const reviveMs = cfg("resolveDeadReviveMs", cfg("playDeadReviveMs", 5 * 60 * 1e3));
+        const reviveMs = cfg("playDeadReviveMs", 5 * 60 * 1e3);
         const age = Date.now() - (resolveDeadDeadline.get(sourceId) || 0);
         if (age < reviveMs) return true;
         const trialKey = sourceId;
@@ -1176,7 +1170,7 @@ var __lxSourceBundle = (() => {
           resolveDeadDeadline.set(sourceId, Date.now());
           clearResolveDeadTrials(sourceId);
         }
-        if (isResolveDead(sourceId)) logWarn(`\u53D6\u94FE\u6458\u9664: [${sourceId}] \u8FDE\u7EED${PLAY_DEAD_STREAK}\u6B21\u53D6\u94FE/\u51C6\u5165\u5931\u8D25\uFF0C\u5DF2\u4ECE\u7ADE\u901F\u94FE\u6458\u9664(${Math.round(cfg("resolveDeadReviveMs", cfg("playDeadReviveMs", 5 * 60 * 1e3)) / 6e4)}\u5206\u949F\u540E\u534A\u5F00\u8BD5\u63A2\u81EA\u52A8\u590D\u6D3B)`);
+        if (isResolveDead(sourceId)) logWarn(`\u53D6\u94FE\u6458\u9664: [${sourceId}] \u8FDE\u7EED${PLAY_DEAD_STREAK}\u6B21\u53D6\u94FE/\u51C6\u5165\u5931\u8D25\uFF0C\u5DF2\u4ECE\u7ADE\u901F\u94FE\u6458\u9664(${Math.round(cfg("playDeadReviveMs", 5 * 60 * 1e3) / 6e4)}\u5206\u949F\u540E\u534A\u5F00\u8BD5\u63A2\u81EA\u52A8\u590D\u6D3B)`);
       }
       function isPlayDead(sourceId, quality, consume) {
         const streak = playDeadStreak.get(sourceId) || 0;
@@ -1244,12 +1238,12 @@ var __lxSourceBundle = (() => {
           b.state = "closed";
         }
       }
-      function recordRateLimit(sourceId, quality) {
+      function recordRateLimit(sourceId, quality, cooldownMs) {
         const b = getBreaker(sourceId);
         const wasSourceHalfOpen = b.state === "half-open";
         const wasSourceOpen = b.state === "open";
         const q = qualityLedger(b, quality);
-        const backoff = cfg("rateLimitBackoffMs", RATE_LIMIT_BACKOFF_MS);
+        const backoff = Number(cooldownMs) > 0 ? cooldownMs : cfg("rateLimitBackoffMs", RATE_LIMIT_BACKOFF_MS);
         b.rateLimitCount = (b.rateLimitCount || 0) + 1;
         b.rateLimitUntil = Date.now() + backoff;
         if (b.rateLimitCount >= RATE_LIMIT_TRIP) b.rateLimited = true;
@@ -2150,7 +2144,7 @@ var __lxSourceBundle = (() => {
         PASS: { deliverable: true, ttlMs: 0, health: "success", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
         FRAGMENT: { deliverable: true, ttlMs: 3e4, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
         NOT_AUDIO: { deliverable: false, ttlMs: 6e4, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
-        RATE_LIMITED: { deliverable: false, ttlMs: 0, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 45e3 },
+        RATE_LIMITED: { deliverable: false, ttlMs: 0, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
         BUSINESS: { deliverable: false, ttlMs: 36e5, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
         TRANSIENT: { deliverable: false, ttlMs: 0, health: "hardFail", playDead: false, resolveDead: true, sourceCooldownMs: 0 },
         BROKEN: { deliverable: false, ttlMs: 6e4, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
@@ -2508,7 +2502,7 @@ var __lxSourceBundle = (() => {
           recordSuccess(id, Number(ctx.elapsed) || 0, q);
           return adm;
         }
-        if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q);
+        if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q, L.sourceCooldownMs);
         else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true, code: adm.code });
         else recordBusinessFail(id, q, { code: adm.code });
         const err = ctx.error || {};
@@ -2841,7 +2835,7 @@ var __lxSourceBundle = (() => {
         const entry = failCache.get(failKey);
         if (!entry) return null;
         const ttl = entry.ttl !== void 0 ? entry.ttl : entry.code === ERROR_CODES.NOT_FOUND ? cfg("failCacheNotFoundMs", 36e5) : entry.code === ERROR_CODES.LINK_EXPIRED ? cfg("failCacheExpiredMs", 6e4) : FAIL_CACHE_TTL_BY_CODE[entry.code];
-        const effTtl = ttl === void 0 ? cfg("failCacheDefaultMs", 5 * 60 * 1e3) : ttl;
+        const effTtl = ttl === void 0 ? FAIL_CACHE_TTL_MS : ttl;
         if (effTtl === void 0) return entry;
         if (effTtl === 0) return null;
         return Date.now() - entry.ts < effTtl ? entry : null;
@@ -3349,7 +3343,7 @@ var __lxSourceBundle = (() => {
         }
         throw new Error(`${ERROR_CODES.NOT_FOUND}: Juhe\u54CD\u5E94\u5F02\u5E38(${(d == null ? void 0 : d.msg) || "\u672A\u77E5"})`);
       }
-      var changqingGetUrl = createTemplateVipSource(CHANGQING_URL_TEMPLATES.kw, /kw\.php/, "\u957F\u9752");
+      var changqingGetUrl = createTemplateVipSource(CHANGQING_KW_URL_TEMPLATE, /kw\.php/, "\u957F\u9752");
       function getPlatformSongId(platform, songInfo) {
         if (platform === "kg") return (songInfo == null ? void 0 : songInfo.hash) || (songInfo == null ? void 0 : songInfo.songmid) || (songInfo == null ? void 0 : songInfo.id) || (songInfo == null ? void 0 : songInfo.rid) || (songInfo == null ? void 0 : songInfo.mid) || null;
         if (platform === "tx") {
@@ -3516,7 +3510,8 @@ var __lxSourceBundle = (() => {
       }
       var HEALTH_STATE_VERSION = 2;
       var HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-      var HEALTH_STATE_SOURCE_VERSION = "8.14.1";
+      var HEALTH_STATE_SOURCE_VERSION = "8.15.1";
+      var HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1"];
       var HEALTH_STATE_MAX_BYTES = 256 * 1024;
       var HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1e3;
       var HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1e3;
@@ -3647,7 +3642,7 @@ var __lxSourceBundle = (() => {
           if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state \u8D85\u8FC7 256KB" };
           const forbidden = checkHealthForbiddenKeys(state, "state");
           if (forbidden) return { ok: false, reason: `\u7981\u6B62\u5B57\u6BB5 ${forbidden}` };
-          if (!controlsOnly && state.sourceVersion !== HEALTH_STATE_SOURCE_VERSION) return { ok: false, reason: "sourceVersion \u4E0D\u7B26" };
+          if (!controlsOnly && !HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS.includes(state.sourceVersion)) return { ok: false, reason: "sourceVersion \u4E0D\u7B26" };
           if (!isHealthPlainObject(state.sources)) {
             if (!controlsOnly) return { ok: false, reason: "sources \u5FC5\u987B\u662F\u5BF9\u8C61" };
           }
@@ -3770,7 +3765,6 @@ var __lxSourceBundle = (() => {
           maxQuality,
           qualitys: providerQualitys(maxQuality),
           platforms,
-          timeoutMs: opts.timeoutMs || 5e3,
           anchors: opts.anchors || ["songmid", "id"],
           chain: lifecycle === PROVIDER_LIFECYCLE.ACTIVE ? Object.freeze(Object.assign({}, opts.chain || {})) : Object.freeze({}),
           upstreamGroup: opts.upstreamGroup || id,
@@ -3838,7 +3832,6 @@ var __lxSourceBundle = (() => {
           chain: { kw: 8, wy: 8 },
           upstreamGroup: "huibq",
           coldStart: true,
-          timeoutMs: 8e3,
           note: "onrender \u51B7\u542F\u52A8\uFF1B\u4EC5 kw/wy \u5B9E\u6D4B\u53EF\u7528"
         }),
         juheTx: provider("juheTx", "Juhe\u805A\u5408(tx)", juheGetUrl, "flac", {
@@ -5222,7 +5215,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.15.0 \u5DF2\u52A0\u8F7D\uFF0812 \u767B\u8BB0 / 10 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.15.1 \u5DF2\u52A0\u8F7D\uFF0812 \u767B\u8BB0 / 10 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {

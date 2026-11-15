@@ -10,6 +10,13 @@
 const fs = require('fs');
 const path = require('path');
 
+// v8.15.1（R15）：发布自检是纯 CLI 门（按自己的 argv 判死）。被 require 时必须立刻返回，
+// 否则 require 它的一方（g-meta M9b 等）会被这里 exit 1 静默杀掉。
+if (require.main !== module) {
+  module.exports = {};
+  return;
+}
+
 let failed = false;
 const fail = (msg) => { failed = true; console.error('[自检失败] ' + msg); };
 

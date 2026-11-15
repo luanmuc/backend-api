@@ -3,9 +3,9 @@
 > **重构说明**：本文件由 v10.0 重构而来，文件名保留 `AUDIT_PLAN_v10.md` 以兼容既有引用。历史 round1~5 分册、v9.0、以及各轮审计报告全部归档，不再叠加进本文件；「当前要审什么、缺口在哪」只以本文件为准。
 >
 > **基线（唯一真值，2026-11-15）**：
-> - 源仓：`luanmuc/backend-api` @ `master`（v8.14.0 已发布，tag `v8.14.0` @ `f3a3e75`），`lx-source.js` **v8.14.0**，5707 行 / 297753 bytes
-> - App 仓：`luanmuc/mobile-app` @ `59ab63bd`（已推送），v1.9.2-b126 / versionCode 285（Build `43619278134` success）
-> - 本文件对应变更：v8.14.0「音质优先与 CI 编排」= 音质优先播放 + 真实交付档 + K07/K08 + 第 14 个 action `forceQualityProbe` 声明 + CI 并行/缓存
+> - 源仓：`luanmuc/backend-api` @ `master`（v8.15.0 已发布并打 tag；v8.15.1 本地待发布），`lx-source.js` **v8.15.1**，5733 行 / 299939 bytes
+> - App 仓：`luanmuc/mobile-app` @ `e5e648e3`（已推送），v1.9.2-b134 / versionCode 293（Build `43696182537` success）
+> - 本文件对应变更：v8.15.1「契约与死配置收口」= 健康态源版本 8.15.1（兼容恢复 8.14.1）+ 删 2 个未登记键 / 4 个死模板 / 未消费 timeoutMs + 429 退避统一到 `rateLimitBackoffMs`；同批修 `docs-audit` 规则 14 自伤、`ecosystem-scan` 自 v8.13 起失效、9 个脚本 require 安全
 
 ---
 

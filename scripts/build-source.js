@@ -47,4 +47,6 @@ function main() {
   console.log(`built ${path.relative(ROOT, TARGET)} (${size} bytes)`);
 }
 
-main();
+// 只有直接 `node scripts/build-source.js` 才构建；被 require（如 require-safety 门禁）时不得写文件。
+if (require.main === module) main();
+module.exports = { build, main };

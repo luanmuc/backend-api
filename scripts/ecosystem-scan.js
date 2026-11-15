@@ -24,31 +24,44 @@ const PDONE_HEALTH_URL =
   'https://raw.githubusercontent.com/pdone/lx-music-source/health-status/health-state.json';
 
 // pdone 源名 → 本仓库 SOURCE_HANDLERS id 映射（按源族对应；无映射 = 本仓库未接入）
+// v8.15.1（R17）：juhe 族在本仓只剩 `juheTx`（`juheKw/Wy/Kg/Mg` 已于 v8.13 退役），
+// 旧映射仍指 `juheKw`，会让交叉项恒显「本仓没有」并掩盖 juheTx 的真实状态；
+// yuningxi 对应源 `nianxinVip` 已退役（同质冗余，2026-11-12），改入判否/退役留档。
 const PDONE_TO_LOCAL = {
   changqing: 'changqingVip',
   huibq: 'huibq',
   ikun: 'ikun',
-  juhe: 'juheKw',
+  juhe: 'juheTx',
   xinghai: 'xinghaiBackend',
-  yuningxi: 'nianxinVip',
   helloworld: 'helloworldKw', // 2026-11-05 审计修复：已接入源误报为候选（映射缺失）
-  // fish/flower/grass/huanyin/hyw/jiexiang/lx/qdy → 无对应（见 DECIDED_NEW 判否名单）
+  // fish/flower/grass/huanyin/hyw/jiexiang/lx/qdy/yuningxi → 无对应（见 DECIDED_CANDIDATES 判否/退役名单）
 };
 
-// v7.0 (S5)：本仓库源列表改为从 lx-source.js SOURCE_HANDLERS 动态提取——旧实现手工维护此表
-// 且 self-check 不校验，源增删会漂移导致报告交叉项失真。动态提取后增删源自动同步、永不漂移；
-// 若 lx-source.js 结构变更导致提取失败，明确报错退出（不静默产出错误报告）。
+// v7.0 (S5)：本仓库源列表改为从 lx-source.js 动态提取——旧实现手工维护此表且 self-check 不校验，
+// 源增删会漂移导致报告交叉项失真。
+// v8.15.1（R16）：旧实现用正则从**产物**里抠 `const SOURCE_HANDLERS = {`——单文件构建后产物是
+// `var SOURCE_HANDLERS = {` 且缩进/换行与源码不同，该正则恒不命中，脚本自 v8.13 起一启动就抛
+// 「未找到 SOURCE_HANDLERS 定义块」（生态扫描这道"制度化"门禁实际从未跑通，CI 里也没有它）。
+// 改为最小宿主加载产物、直接读导出面：结构怎么变都不会再因正则失配而静默失效。
 const SRC_PATH = path.join(__dirname, '..', 'lx-source.js');
 const LOCAL_SOURCES = (() => {
-  const src = fs.readFileSync(SRC_PATH, 'utf8');
-  const block = src.match(/const SOURCE_HANDLERS = \{([\s\S]*?)\n\};/);
-  if (!block) throw new Error('lx-source.js 中未找到 SOURCE_HANDLERS 定义块，请检查源码结构');
-  const ids = [];
-  const re = /^\s+(\w+):\s*\{\s*id:\s*"([^"]+)"/gm;
-  let m;
-  while ((m = re.exec(block[1]))) ids.push(m[2]);
-  if (!ids.length) throw new Error('SOURCE_HANDLERS 块未提取到任何源 id，请检查条目格式');
-  return ids;
+  if (!globalThis.lx) {
+    globalThis.lx = {
+      EVENT_NAMES: { inited: 'inited', request: 'request', updateAlert: 'updateAlert' },
+      version: '1.2.0', env: {},
+      utils: { buffer: { from: (d, e) => Buffer.from(d, e), bufToString: (b, e) => b.toString(e) } },
+      request: (u, o, cb) => setTimeout(() => cb(new Error('mock-no-network'), null), 1),
+      on: () => {}, send: () => {},
+    };
+  }
+  const savedLog = console.log;
+  console.log = () => {};
+  try {
+    const mod = require(SRC_PATH);
+    const ids = Object.keys((mod && mod.SOURCE_HANDLERS) || {});
+    if (!ids.length) throw new Error('lx-source.js 产物未导出 SOURCE_HANDLERS，请检查导出面');
+    return ids;
+  } finally { console.log = savedLog; }
 })();
 
 function fetchJson(url, timeoutMs = 15000) {
@@ -87,6 +100,7 @@ async function main() {
     lx: '❌ 判否（2026-10-30：防搬运 403 不可复用）',
     qdy: '❌ 判否（2026-10-30：410 死链）',
     huanyin: '❌ 判否（2026-11-08 重评：主域名 DNS 失效，业务接口 api.xcvts.cn 已接入 suyinMigu）',
+    yuningxi: '⛔ 已退役（`nianxinVip` 同质冗余，2026-11-12 清退，见 SOURCE_RETIREMENT）',
   };
 
   for (const [pdoneName, status] of Object.entries(pdoneSources)) {
@@ -141,7 +155,11 @@ async function main() {
   console.log(`💡 v8.1 已支持自动生成实证草案：node scripts/candidate-audit.js <脚本URL>`);
 }
 
-main().catch((e) => {
-  process.stderr.write(`生态扫描失败: ${e && e.message ? e.message : String(e)}\n`);
-  process.exit(1);
-});
+// 只有直接运行才联网抓 pdone；被 require 时保持沉默（模块加载只读导出面）。
+if (require.main === module) {
+  main().catch((e) => {
+    process.stderr.write(`生态扫描失败: ${e && e.message ? e.message : String(e)}\n`);
+    process.exit(1);
+  });
+}
+module.exports = { LOCAL_SOURCES, PDONE_TO_LOCAL, fetchJson, main };

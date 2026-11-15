@@ -9,6 +9,13 @@
  */
 const fs = require('fs');
 
+// v8.15.1（R15）：本脚本是纯 CLI（读 argv、多处 process.exit）。被 require 时必须立刻返回，
+// 否则 require 它的一方会被这里按自己的 argv 判死（D-16 同类：脚本静默杀掉调用方）。
+if (require.main !== module) {
+  module.exports = { clean };
+  return;
+}
+
 const p = process.argv[2];
 // v8.10.5：缺参数/文件不存在**不是"无需告警"**，而是异常（当日日报没生成）。
 // 旧实现 exit 0 静默，叠加 CI 的 `|| true` 会让"日报没生成"整条链路无任何信号（V5/V23）。

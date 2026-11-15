@@ -113,7 +113,8 @@ function rangeCheck(url) {
   });
 }
 
-(async () => {
+// 只有直接运行才巡检；被 require 时不得打网络、不得 exit。
+if (require.main === module) (async () => {
   const rows = [];
   const platforms = ONLY ? [ONLY] : ['kw', 'wy', 'tx', 'mg', 'kg'];
   for (const plat of platforms) {

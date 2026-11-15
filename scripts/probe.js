@@ -474,7 +474,7 @@ function probeUrl(url, timeoutMs = 4000, retry = true) {
 
 // v8.11：时长解析自检（不发网络，CI 必跑）——用构造的真实字节锁住解析器，
 // 防止以后有人"顺手简化"成只判状态码，让片段重新伪装成健康
-if (process.argv.includes('--selftest-duration')) {
+if (process.argv.includes('--selftest-duration') && require.main === module) {
   const mp3 = (sec) => {
     const frames = Math.max(1, Math.round((sec * 44100) / 1152));
     const b = Buffer.alloc(48);
@@ -506,7 +506,8 @@ if (process.argv.includes('--selftest-duration')) {
   process.exit(pass === cases.length ? 0 : 1);
 }
 
-(async () => {
+// 只有直接运行才巡检并写回 README/README_HEALTH；被 require 时不得打网络、不得改文件。
+if (require.main === module) (async () => {
   const src = fs.readFileSync(SRC, 'utf8');
   // v8.10.5：端点清单改由 scripts/endpoint-registry.js 单一维护；
   // 源码正则抽取降级为"漂移校验"——源码里有、登记表没有的 URL 打印告警，

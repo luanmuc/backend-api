@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.15.0 预算边界与归因版（2026-11-15：BUDGET_EXHAUSTED 独立归因且不摘源；总预算+末档保底硬顶 16s；冷启动超时不得超过总预算；单链预算到期不再白给 1s；跨平台 grace/search 3s）。历史版本见 docs/CHANGELOG.md。
- * @version 8.15.0 预算边界与归因（16s 硬顶 / 冷启动钳制 / BUDGET 不摘源）
+ * @description v8.15.1 契约与死配置收口版（2026-11-15：健康态导出源版本升 8.15.1 且兼容 8.14.1 旧包；删除 failCacheDefaultMs/resolveDeadReviveMs 两个未登记键、长青 4 个死模板与 provider 未消费 timeoutMs；限流退避统一由 rateLimitBackoffMs 决定）。历史版本见 docs/CHANGELOG.md。
+ * @version 8.15.1 契约与死配置收口（健康态源版本兼容 / 死配置清零）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -305,14 +305,8 @@ const CROSS_PLATFORM_NAMES = { tx: "QQ音乐", wy: "网易云音乐", kw: "酷�
 // ikun 服务器源（v8.1：域名迁移 api.ikunshare.com→c.wwwweb.top；公益版免卡密（X-Api-Key 留空），付费版填 USER_CONFIG.ikunApiKey；2026-11-06 实测 rid=228908 晴天出真实128k链）
 const IKUN_API = "https://c.wwwweb.top";
 
-// 长青SVIP（实测：IP白名单/无链接/需付费level，已失效，默认关闭）
-const CHANGQING_URL_TEMPLATES = {
-  tx: "http://175.27.166.236/kgqq/qq.php?type=mp3&id={id}&level={level}",
-  wy: "http://175.27.166.236/wy/wy.php?type=mp3&id={id}&level={level}",
-  kw: "https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}",
-  kg: "https://music.haitangw.cc/kgqq/kg.php?type=mp3&id={id}&level={level}",
-  mg: "https://music.haitangw.cc/musicapi/mg.php?type=mp3&id={id}&level={level}"
-};
+// 长青SVIP（实测：仅 kw 上游有历史可用通道；tx/wy/kg/mg 无稳定上游，已失效，默认关闭）
+const CHANGQING_KW_URL_TEMPLATE = "https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}";
 
 // v7.0：helloworld 源（生态候选，2026-10-29 实证：kw 全链端到端可用——flac/320k 直链 Range206+魔数校验通过）
 // 通道①：酷我官方 convert_url_with_sign（rid 直取，与 kuwoOfficial 同链路族但独立子源计数；flac24bit 被服务器降级 128k，按实际交付）
@@ -1164,7 +1158,7 @@ function clearResolveDead(sourceId) {
 function isResolveDead(sourceId, quality, consume) {
   const streak = resolveDeadStreak.get(sourceId) || 0;
   if (streak < PLAY_DEAD_STREAK) return false;
-  const reviveMs = cfg('resolveDeadReviveMs', cfg('playDeadReviveMs', 5 * 60 * 1000));
+  const reviveMs = cfg('playDeadReviveMs', 5 * 60 * 1000);
   const age = Date.now() - (resolveDeadDeadline.get(sourceId) || 0);
   if (age < reviveMs) return true;
   const trialKey = sourceId;
@@ -1183,7 +1177,7 @@ function bumpResolveDead(sourceId) {
     resolveDeadDeadline.set(sourceId, Date.now());
     clearResolveDeadTrials(sourceId);
   }
-  if (isResolveDead(sourceId)) logWarn(`取链摘除: [${sourceId}] 连续${PLAY_DEAD_STREAK}次取链/准入失败，已从竞速链摘除(${Math.round(cfg('resolveDeadReviveMs', cfg('playDeadReviveMs', 5 * 60 * 1000)) / 60000)}分钟后半开试探自动复活)`);
+  if (isResolveDead(sourceId)) logWarn(`取链摘除: [${sourceId}] 连续${PLAY_DEAD_STREAK}次取链/准入失败，已从竞速链摘除(${Math.round(cfg('playDeadReviveMs', 5 * 60 * 1000) / 60000)}分钟后半开试探自动复活)`);
 }
 function isPlayDead(sourceId, quality, consume) {
   const streak = playDeadStreak.get(sourceId) || 0;
@@ -1247,8 +1241,9 @@ function syncSourceBreaker(b) {
     b.state = 'closed'
   }
 }
-// v4.0：429 限流单独处理——短退避(30s)后自动恢复，不计入熔断阈值；连续≥3 次标记"被限"
-function recordRateLimit(sourceId, quality) {
+// v4.0：429 限流单独处理——退避时长由 rateLimitBackoffMs 统一决定（默认 30s），不计入熔断阈值；连续≥3 次标记"被限"
+// cooldownMs 只在策略显式给出正数时覆盖配置；0 = 使用配置值。
+function recordRateLimit(sourceId, quality, cooldownMs) {
   const b = getBreaker(sourceId);
   const wasSourceHalfOpen = b.state === 'half-open';
   const wasSourceOpen = b.state === 'open';
@@ -1256,7 +1251,7 @@ function recordRateLimit(sourceId, quality) {
   // v8.10.3：429 不再计入请求/失败分子分母——限流是"源没坏、只是过载"，旧实现记进
   // byQuality.fail/totalRequests 后会被 isQualityHopeless(fail+linkExpired>=3) 当成
   // "该档 3 次全失败"直接短路 1 小时，同时把面板成功率拉低。
-  const backoff = cfg('rateLimitBackoffMs', RATE_LIMIT_BACKOFF_MS);
+  const backoff = Number(cooldownMs) > 0 ? cooldownMs : cfg('rateLimitBackoffMs', RATE_LIMIT_BACKOFF_MS);
   b.rateLimitCount = (b.rateLimitCount || 0) + 1;
   b.rateLimitUntil = Date.now() + backoff;
   if (b.rateLimitCount >= RATE_LIMIT_TRIP) b.rateLimited = true;
@@ -2266,7 +2261,7 @@ const ADMISSION_POLICY = {
   PASS:         { deliverable: true,  ttlMs: 0,       health: "success",      playDead: false, resolveDead: false, sourceCooldownMs: 0 },
   FRAGMENT:     { deliverable: true,  ttlMs: 30000,   health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
   NOT_AUDIO:    { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
-  RATE_LIMITED: { deliverable: false, ttlMs: 0,       health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 45000 },
+  RATE_LIMITED: { deliverable: false, ttlMs: 0,       health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
   BUSINESS:     { deliverable: false, ttlMs: 3600000, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
   TRANSIENT:    { deliverable: false, ttlMs: 0,       health: "hardFail",     playDead: false, resolveDead: true,  sourceCooldownMs: 0 },
   BROKEN:       { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
@@ -2630,7 +2625,7 @@ function applyAdmission(adm, ctx) {
     recordSuccess(id, Number(ctx.elapsed) || 0, q);
     return adm;
   }
-  if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q);
+  if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q, L.sourceCooldownMs);
   else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true, code: adm.code });
   else recordBusinessFail(id, q, { code: adm.code });
   const err = ctx.error || {};
@@ -3055,7 +3050,7 @@ function getFailCachedEntry(failKey) {
         : FAIL_CACHE_TTL_BY_CODE[entry.code];
   // v8.11.2（N4 实测）：CONFIG_ERROR 等未登记 TTL 的码原来直接 return entry——注释写 5min，
   // 实际永不超时（ikun 403 / huibq 未配置 / lingchuan 未配置三处都抛此码，配好也救不回来）。
-  const effTtl = ttl === undefined ? cfg("failCacheDefaultMs", 5 * 60 * 1000) : ttl;
+  const effTtl = ttl === undefined ? FAIL_CACHE_TTL_MS : ttl;
   if (effTtl === undefined) return entry;
   if (effTtl === 0) return null;        // 网络错误/限流 → 不缓存
   return (Date.now() - entry.ts) < effTtl ? entry : null;
@@ -3706,7 +3701,7 @@ async function juheGetUrl(platform, songId, quality, songInfo, cancelToken = nul
   throw new Error(`${ERROR_CODES.NOT_FOUND}: Juhe响应异常(${d?.msg || "未知"})`);
 }
 
-const changqingGetUrl = createTemplateVipSource(CHANGQING_URL_TEMPLATES.kw, /kw\.php/, "长青");
+const changqingGetUrl = createTemplateVipSource(CHANGQING_KW_URL_TEMPLATE, /kw\.php/, "长青");
 
 function getPlatformSongId(platform, songInfo) {
   if (platform === "kg") return songInfo?.hash || songInfo?.songmid || songInfo?.id || songInfo?.rid || songInfo?.mid || null;
@@ -3897,7 +3892,9 @@ function getHealthSnapshot() {
 // ============================================================
 const HEALTH_STATE_VERSION = 2; // 单一路径：只导出/恢复 v2
 const HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-const HEALTH_STATE_SOURCE_VERSION = "8.14.1";
+// 导出时写当前源版本；恢复时同时接受上一版，避免一次版本升级把用户已存健康态整包丢掉。
+const HEALTH_STATE_SOURCE_VERSION = "8.15.1";
+const HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1"];
 const HEALTH_STATE_MAX_BYTES = 256 * 1024;
 const HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1000;
 const HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1000;
@@ -4025,7 +4022,7 @@ function restoreHealthState(state) {
     if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state 超过 256KB" };
     const forbidden = checkHealthForbiddenKeys(state, "state");
     if (forbidden) return { ok: false, reason: `禁止字段 ${forbidden}` };
-    if (!controlsOnly && state.sourceVersion !== HEALTH_STATE_SOURCE_VERSION) return { ok: false, reason: "sourceVersion 不符" };
+    if (!controlsOnly && !HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS.includes(state.sourceVersion)) return { ok: false, reason: "sourceVersion 不符" };
     if (!isHealthPlainObject(state.sources)) {
       if (!controlsOnly) return { ok: false, reason: "sources 必须是对象" };
     }
@@ -4168,7 +4165,6 @@ function provider(id, name, fn, maxQuality, opts = {}) {
     maxQuality,
     qualitys: providerQualitys(maxQuality),
     platforms,
-    timeoutMs: opts.timeoutMs || 5000,
     anchors: opts.anchors || ["songmid", "id"],
     chain: lifecycle === PROVIDER_LIFECYCLE.ACTIVE ? Object.freeze(Object.assign({}, opts.chain || {})) : Object.freeze({}),
     upstreamGroup: opts.upstreamGroup || id,
@@ -4215,7 +4211,7 @@ const SOURCE_HANDLERS = {
   }),
   huibq: provider("huibq", "Huibq", huibqGetUrl, "320k", {
     platforms: ["kw", "wy"], anchors: ["rid", "songmid", "id"], chain: { kw: 8, wy: 8 }, upstreamGroup: "huibq",
-    coldStart: true, timeoutMs: 8000, note: "onrender 冷启动；仅 kw/wy 实测可用",
+    coldStart: true, note: "onrender 冷启动；仅 kw/wy 实测可用",
   }),
   juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "flac", {
     platforms: ["tx"], anchors: ["songmid", "musicId", "id"], chain: { tx: 2 }, upstreamGroup: "juhe",
@@ -5738,7 +5734,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.15.0 已加载（12 登记 / 10 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v8.15.1 已加载（12 登记 / 10 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
