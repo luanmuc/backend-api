@@ -32,7 +32,7 @@
       "url": "https://api.music.lerd.dpdns.org",
       "kind": "payload",
       "rate": 0,
-      "total": 9,
+      "total": 10,
       "consecutiveFail": 7,
       "reason": "HTTP 429"
     }
@@ -41,20 +41,8 @@
     {
       "label": "suyinKuwo",
       "url": "https://oiapi.net/api/Kuwo",
-      "rate": 66.7,
-      "total": 9
-    },
-    {
-      "label": "kuwoOfficial",
-      "url": "http://antiserver.kuwo.cn/anti.s",
-      "rate": 77.8,
-      "total": 9
-    },
-    {
-      "label": "kuwoSearch 酷我搜索接口",
-      "url": "http://search.kuwo.cn/r.s",
-      "rate": 77.8,
-      "total": 9
+      "rate": 70,
+      "total": 10
     }
   ],
   "fragment": [],
