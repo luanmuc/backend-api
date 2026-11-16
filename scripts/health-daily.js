@@ -31,6 +31,9 @@ const GEO_BLOCK_ESCALATE_DAYS = 5; // 403 类连续失败满 5 天 → 回升「
 const GEO_BLOCK_MIN_RATE = 20;     // 成功率 < 20%（样本 ≥ SMALL_SAMPLE）→ 回升「需处理」
 const isGeoBlocked = st => st.lastStatus === 403 || st.lastStatus === 429;
 const SMALL_SAMPLE = 20; // 样本 <20 时成功率仅作趋势参考
+// v8.17：Wilson 95% 下限——点估计在 n≈10 时没有判别力（70% 的区间约 40%~90%）。
+// 「正常」必须由下限支撑：下限 <60% 只能算观察，不能算正常。
+const WILSON_OK_MIN = 60;
 const CHANGE_PP_THRESHOLD = 30; // 窗口成功率变化超过 30 个百分点算突变
 
 // ---------- 启用状态：统一由 scripts/source-toggles.js 解析（v8.10.5） ----------
@@ -45,6 +48,16 @@ function loadHistory() {
 }
 
 /** 取某端点在某日为基准、往前 WINDOW_DAYS 天的窗口统计；无数据返回 null */
+// v8.17：二项比例的 Wilson 95% 置信下限（z=1.96），返回 0~1
+function wilsonLower(k, n, z = 1.96) {
+  if (!n) return 0;
+  const p = k / n;
+  const denom = 1 + (z * z) / n;
+  const centre = p + (z * z) / (2 * n);
+  const margin = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+  return Math.max(0, (centre - margin) / denom);
+}
+
 function windowStats(entries, url, baseDate) {
   // v8.10.7（T6）：窗口改**日历日**（目标日往前 WINDOW_DAYS 天），不再取「最近 N 个有数据日」。
   // 旧口径在断档时会把窗口偷偷拉长到两周前，用陈旧数据充当下"最近 7 天健康度"；
@@ -61,6 +74,8 @@ function windowStats(entries, url, baseDate) {
   const total = recs.length;
   const success = recs.filter(r => r.ok).length;
   const rate = Math.round((success / total) * 1000) / 10;
+  const rateRaw = rate; // v8.17：保留点估计（历史对比用），判定看 wilsonLow
+  const wilsonLow = total ? Math.round(wilsonLower(success, total) * 1000) / 10 : 0;
 
   const byDate = {};
   for (const r of recs) {
@@ -77,7 +92,7 @@ function windowStats(entries, url, baseDate) {
   const latest = entries.filter(e => e.url === url && e.date === baseDate).sort((a, b) => a.date.localeCompare(b.date));
   const winDates = [...new Set(recs.map(r => r.date))].sort();
   return {
-    total, success, rate, consecutiveFail,
+    total, success, rate, rateRaw, wilsonLow, consecutiveFail,
     todayCount: latest.length,          // v8.10.5：当天样本数——0 表示今日未探测，不得拿窗口数据冒充今日判定
     lastDate: winDates.length ? winDates[winDates.length - 1] : null,
     
@@ -116,7 +131,7 @@ function clean(s) {
 }
 
 // ---------- 渲染 ----------
-function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dataThrough, gapDays }) {
+function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dataThrough, gapDays, chainSample, deviceDigest }) {
   const L = [];
   L.push(`# 健康日报 ${targetDate}`);
   L.push('');
@@ -151,14 +166,14 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
   if (!handle.length) {
     L.push('无。启用中的源没有达到告警阈值。');
   } else {
-    L.push('| 源 | 端点 | 样本 | 成功率 | 连续失败 | 最近原因 | 动作 |');
-    L.push('|---|---|---|---|---|---|---|');
+    L.push('| 源 | 端点 | 样本 | 成功率 | 95%下限 | 连续失败 | 最近原因 | 动作 |');
+    L.push('|---|---|---|---|---|---|---|---|');
     for (const r of handle) {
       const ids = r.sources.join('/');
       const act = r.kind === 'payload'
         ? `先跑 \`node scripts/source-audit.js\` 确认取链，再决定 \`SOURCE_TOGGLES.${r.sources[0]}: true → false\`（lx-source.js:${lineNo[r.sources[0]] || '?'}）`
         : `改 \`SOURCE_TOGGLES.${r.sources[0]}: true → false\`（lx-source.js:${lineNo[r.sources[0]] || '?'}）`;
-      L.push(`| ${clean(ids)} | \`${clean(r.url).slice(0, 46)}\` | ${r.total} | ${r.rate}% | ${r.consecutiveFail} 天 | ${clean(r.lastReason) || '-'} | ${act} |`);
+      L.push(`| ${clean(ids)} | \`${clean(r.url).slice(0, 46)}\` | ${r.total} | ${r.rate}% | ${r.wilsonLow}% | ${r.consecutiveFail} 天 | ${clean(r.lastReason) || '-'} | ${act} |`);
     }
   }
   L.push('');
@@ -170,13 +185,13 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
   if (!watch.length) {
     L.push('无。');
   } else {
-    L.push('| 源 | 端点 | 样本 | 成功率 | 连续失败 | 备注 |');
-    L.push('|---|---|---|---|---|---|');
+    L.push('| 源 | 端点 | 样本 | 成功率 | 95%下限 | 连续失败 | 备注 |');
+    L.push('|---|---|---|---|---|---|---|');
     for (const r of watch) {
       const note = r.lastStatus === 403 || r.lastStatus === 429
         ? `疑似出口 IP/风控拦截（${r.lastStatus}），非必然用户不可用；连续失败满 ${GEO_BLOCK_ESCALATE_DAYS} 天或成功率 <${GEO_BLOCK_MIN_RATE}% 会自动升级`
         : (r.total < SMALL_SAMPLE ? '样本偏小，需继续累计' : '未达告警阈值');
-      L.push(`| ${clean(r.label)} | \`${clean(r.url).slice(0, 46)}\` | ${r.total} | ${r.rate}% | ${r.consecutiveFail} 天 | ${note} |`);
+      L.push(`| ${clean(r.label)} | \`${clean(r.url).slice(0, 46)}\` | ${r.total} | ${r.rate}% | ${r.wilsonLow}% | ${r.consecutiveFail} 天 | ${note} |`);
     }
   }
   L.push('');
@@ -186,8 +201,51 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
   L.push('## 正常');
   L.push('');
   L.push(okRows.length
-    ? okRows.map(r => `\`${clean(r.url).slice(0, 42)}\`（${clean(r.label)} ${r.rate}%，${r.total} 样本）`).join('、')
+    ? okRows.map(r => `\`${clean(r.url).slice(0, 42)}\`（${clean(r.label)} ${r.rate}%，下限 ${r.wilsonLow}%，${r.total} 样本）`).join('、')
     : '无。');
+  L.push('');
+
+  // v8.17：出链抽样（真实取链）——补「端点活着 ≠ 能出链」的缺口
+  L.push('## 出链抽样（真实取链，启用源各 1 首）');
+  L.push('');
+  if (!chainSample) {
+    L.push('今日无抽样记录（`node scripts/chain-sample.js` 未运行或失败）。');
+  } else {
+    L.push(`> ${chainSample.date}：${chainSample.ok}/${chainSample.total} 个启用源能出链。失败项先跑 \`node scripts/source-audit.js --only=<平台>\` 复核。`);
+    L.push('');
+    L.push('| 源 | 平台 | 结果 | 码 | 可播校验 | 耗时 |');
+    L.push('|---|---|---|---|---|---|');
+    for (const r of chainSample.rows) {
+      L.push(`| ${clean(r.src)} | ${clean(r.plat)} | ${r.ok ? '✅' : '❌'} | ${clean(r.code)} | ${clean(r.playable || '-')} | ${r.ms}ms |`);
+    }
+  }
+  L.push('');
+
+  // v8.17 阶段 4：真机上报 vs CI 探测对照（两端口径不同，只做差值提示，不做判定）
+  L.push('## 真机对照（设备上报）');
+  L.push('');
+  if (!deviceDigest) {
+    L.push('今日无真机摘要（App 未上报或拉取失败）。');
+  } else {
+    L.push(`> ${deviceDigest.devices} 台设备上报；探测 ${deviceDigest.probe.ok}/${deviceDigest.probe.total}，播放 ${deviceDigest.play.ok}/${deviceDigest.play.total}。`);
+    L.push('');
+    const diffs = [];
+    for (const r of rows) {
+      if (!r.sources || !r.sources.length) continue;
+      const src = r.sources[0];
+      const dv = deviceDigest.bySource[src];
+      if (!dv || !dv.total) continue;
+      const diff = Math.round((dv.rate - r.rate) * 10) / 10;
+      if (Math.abs(diff) >= 10) diffs.push(`| ${clean(src)} | ${r.rate}% | ${dv.rate}% | ${diff > 0 ? '+' : ''}${diff} |`);
+    }
+    if (diffs.length) {
+      L.push('| 源 | CI 7 日 | 真机 24h | 差 |');
+      L.push('|---|---|---|---|');
+      L.push(...diffs);
+    } else {
+      L.push('CI 与真机成功率差均在 ±10 个百分点内（或无可对齐的源）。');
+    }
+  }
   L.push('');
 
   // 未参与判定
@@ -219,6 +277,59 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
 }
 
 // ---------- 主流程 ----------
+// v8.17：读取当日出链抽样（chain-sample.js 产物）
+function loadChainSample(date) {
+  const p = path.join(__dirname, '..', 'docs', 'chain-sample.jsonl');
+  if (!fs.existsSync(p)) return null;
+  const rows = [];
+  for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    try { const r = JSON.parse(line); if (r.date === date) rows.push(r); } catch {}
+  }
+  if (!rows.length) return null;
+  return { date, total: rows.length, ok: rows.filter(r => r.ok).length, rows };
+}
+
+// v8.17：读取真机摘要（pull-device-digests.js 产物），按目标日聚合
+function loadDeviceDigests(date) {
+  const p = path.join(__dirname, '..', 'docs', 'device-digests.jsonl');
+  if (!fs.existsSync(p)) return null;
+  const byDevice = [];
+  for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const r = JSON.parse(line);
+      if (r.date === date) byDevice.push(r);
+    } catch {}
+  }
+  if (!byDevice.length) return null;
+  const agg = {};
+  let probeTotal = 0, probeOk = 0, playTotal = 0, playOk = 0;
+  for (const r of byDevice) {
+    const d = r.digest || {};
+    probeTotal += (d.probe && d.probe.total) || 0;
+    probeOk += (d.probe && d.probe.ok) || 0;
+    playTotal += (d.play && d.play.total) || 0;
+    playOk += (d.play && d.play.ok) || 0;
+    for (const [src, v] of Object.entries((d.probe && d.probe.by_source) || {})) {
+      agg[src] = agg[src] || { total: 0, ok: 0 };
+      agg[src].total += v.total || 0;
+      agg[src].ok += v.ok || 0;
+    }
+  }
+  return {
+    date,
+    devices: [...new Set(byDevice.map(r => r.device))].length,
+    probe: { total: probeTotal, ok: probeOk },
+    play: { total: playTotal, ok: playOk },
+    bySource: Object.fromEntries(Object.entries(agg).map(([k, v]) => [k, {
+      total: v.total,
+      ok: v.ok,
+      rate: v.total ? Math.round((v.ok / v.total) * 1000) / 10 : 0,
+    }])),
+  };
+}
+
 function main() {
   const args = process.argv.slice(2);
   const dateIdx = args.indexOf('--date');
@@ -289,7 +400,7 @@ function main() {
     else if (cur.todayCount === 0) { bucket = 'skip'; skipReason = 'no-today'; }
     // ② 小样本不得进 handle，除非已连续 3 天全失败（那说明真坏，不是抖动）（V18）
     else if (cur.total < SMALL_SAMPLE && cur.consecutiveFail < CONSECUTIVE_FAIL_DAYS)
-      bucket = cur.rate < OBSERVE_MAX_RATE ? 'watch' : 'ok';
+      bucket = (cur.rate < OBSERVE_MAX_RATE || cur.wilsonLow < WILSON_OK_MIN) ? 'watch' : 'ok';
     // ②.5 403/429 先归「观察」——可能是巡检出口被拦，不是用户手机不可用（v8.10.10）。
     // 但连续失败满 GEO_BLOCK_ESCALATE_DAYS 天、或成功率低于 GEO_BLOCK_MIN_RATE（样本充足），仍回升「需处理」。
     else if (isGeoBlocked(cur)
@@ -298,13 +409,16 @@ function main() {
       bucket = 'watch';
     // ③ 正式阈值：连续 3 天全失败，或故障率超上限
     else if (cur.consecutiveFail >= CONSECUTIVE_FAIL_DAYS || cur.rate < (100 - MAX_FAIL_RATE)) bucket = 'handle';
-    else if (cur.rate < OBSERVE_MAX_RATE) bucket = 'watch';
+    // v8.17：点估计达标但置信下限不足 → 只能算观察（n≈10 时 80% 的下限约 49%）
+    else if (cur.rate < OBSERVE_MAX_RATE || cur.wilsonLow < WILSON_OK_MIN) bucket = 'watch';
     else bucket = 'ok';
 
     rows.push({ url: ep.url, sources: ep.sources, kind: ep.kind, label, bucket, skipReason, ...cur });
   }
 
-  const report = render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dataThrough, gapDays });
+  const chainSample = loadChainSample(targetDate);
+  const deviceDigest = loadDeviceDigests(targetDate);
+  const report = render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dataThrough, gapDays, chainSample, deviceDigest });
 
   if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(outPath, report);
@@ -313,6 +427,8 @@ function main() {
   const summaryPath = outPath.replace(/\.md$/i, '') + '.json';
   const summary = {
     date: targetDate,
+    chainSample, // v8.17：真实取链抽样（null = 今日未跑）
+    deviceDigest, // v8.17：真机摘要聚合（null = 今日无）
     // v8.10.6（T7）：基准日按端点各算；全局字段保留兼容（各端点一致时给该日期，否则 null）
     prevDate: prevSet.length === 1 ? prevSet[0] : null,
     prevDateMode: prevSet.length <= 1 ? 'uniform' : 'per-endpoint',

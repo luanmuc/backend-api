@@ -83,6 +83,11 @@ const PLATFORM_MAP = [
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
 const quick = args.includes('--quick');
+// v8.17：每次巡检对每个端点跑 REPS 次（默认 3），每次结果都进历史——
+// 单日 2 次探测撑不起"70%/80% 正常"的结论，样本必须够。
+const REPS = Math.max(1, Math.min(10, Number((args.find(a => a.startsWith('--reps=')) || '').split('=')[1]) || 3));
+// v8.17：空跑守卫——当天写入历史的行数 < 2×端点数 说明脚本本身没跑起来，判红。
+const ASSERT_SAMPLES = args.includes('--assert-samples');
 
 // v4.0：追加本次巡检结果到历史记录（CI 每日跑，历史随 commit 保留）
 // v8.0：30 天滚动清理——只保留近 30 天数据，防止文件无限增长
@@ -92,10 +97,18 @@ function appendHistory(results) {
   // v8.10.8：把 payload 校验结果一并写进历史（有则写、无则略）。
   // 否则「这个端点这次是真带参取链校验过，还是只看了状态码」在历史里无法区分——
   // 将来若某个 payload 校验被改回去，没人能立刻从数据里看出来（T2 的可追溯性补口）。
-  const lines = results.map(r => JSON.stringify({
-    date, url: r.url, ok: r.ok, status: r.status, time: r.time, reason: r.reason,
-    ...(r.payload === undefined ? {} : { payload: r.payload }),
-  }));
+  // v8.17：一个端点的 REPS 次探测各写一行（attempts 缺失时退回单行），
+  // 让成功率按"探测次数"统计而不是按"端点×天"统计。
+  const lines = [];
+  for (const r of results) {
+    const attempts = Array.isArray(r.attempts) && r.attempts.length ? r.attempts : [{ ok: r.ok, status: r.status, time: r.time, reason: r.reason }];
+    for (const a of attempts) {
+      lines.push(JSON.stringify({
+        date, url: r.url, ok: a.ok, status: a.status, time: a.time, reason: a.reason,
+        ...(r.payload === undefined ? {} : { payload: a.ok ? r.payload : false }),
+      }));
+    }
+  }
   if (!fs.existsSync(HIST_DIR)) fs.mkdirSync(HIST_DIR, { recursive: true });
   // v8.10.5：改为**原子写**——先合并+清理，写临时文件再 rename。
   // 旧实现是「append 到正式文件 → 再全量重写」，两步之间崩溃会留下半截文件（V29）。
@@ -546,12 +559,19 @@ if (require.main === module) (async () => {
   // v8.0：用并发池替代 Promise.all——限制同时最多 CONCURRENCY 个请求
   // v8.5：端点探活 + 取链型端点二次校验（真实取链 + Range 可播）
   const results = await poolRun(endpoints.map(u => async () => {
-    const base = await probeUrl(u);
-    if (!base.ok) return base;
+    const attempts = [];
+    for (let i = 0; i < REPS; i++) attempts.push(await probeUrl(u));
+    const okN = attempts.filter(a => a.ok).length;
+    const rep = { ...(attempts.find(a => a.ok) || attempts[attempts.length - 1]) };
+    rep.attempts = attempts;
+    rep.okAttempts = okN;
+    // 端点级结论取多数：3 次里 ≥2 次成功算端点可用（避免单次抖动直接判死）
+    rep.ok = okN >= Math.ceil(REPS / 2);
+    if (!rep.ok) return rep;
     const p = await runPayloadCheck(u);
-    if (!p) return base;
-    if (!p.ok) return { ...base, ok: false, reason: p.reason, payload: false };
-    return { ...base, payload: true };
+    if (!p) return rep;
+    if (!p.ok) return { ...rep, ok: false, reason: p.reason, payload: false };
+    return { ...rep, payload: true };
   }), CONCURRENCY);
   const okCount = results.filter(r => r.ok).length;
 
@@ -731,5 +751,24 @@ ${tableRows}
   }
   if (okCount < results.length) {
     console.log(`⚠️ 有 ${results.length - okCount} 个端点失败（非全挂，不阻断 CI）`);
+  }
+
+  // v8.17：空跑守卫——历史当天行数不足说明巡检没真正执行（脚本坏了/端点表空了），
+  // 不能以 exit 0 静默通过。阈值取 endpoints×2，低于它直接红。
+  if (ASSERT_SAMPLES) {
+    const today = todayCN();
+    let todayRows = 0;
+    if (fs.existsSync(HIST_FILE)) {
+      for (const line of fs.readFileSync(HIST_FILE, 'utf8').split('\n')) {
+        if (!line.trim()) continue;
+        try { if (JSON.parse(line).date === today) todayRows++; } catch {}
+      }
+    }
+    const need = results.length * 2;
+    if (todayRows < need) {
+      console.error(`❌ [samples] 当日样本 ${todayRows} < 期望 ${need}（端点 ${results.length} × 2）——巡检未真正执行`);
+      process.exit(3);
+    }
+    console.log(`✅ [samples] 当日样本 ${todayRows}（端点 ${results.length}，每次 ${REPS} 次探测）`);
   }
 })();

@@ -67,7 +67,7 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | `stress-round3` | 14/0 |
 | `stress-round4` | 133/0 |
 | **压测合计** | **159/0** |
-| `npm test`（42 脚本，含 CI 审计清单） | rc0 / 564 条审计断言 |
+| `npm test`（42 脚本，含 CI 审计清单） | rc0 / 567 条审计断言 |
 | `f-repo`（文档 H1/死链门禁） | 56/0 |
 | `verify:bundle`（产物与新 `lx-source.js` 一致） | 8/0 |
 | 变异 | 22 killed / 0 survived |
@@ -93,7 +93,7 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | P3 | `stress-round4.js` | 故障谱系、预热 TTL、探针双歌、档位 breaker、短路、排序、快照 | 133/0；TTL 内新增预热 0；半开只放一枪 |
 | P4 | 变异 `mutation/run.js --full --strict` | 22 个锚点 | 22 killed / 0 survived；`--strict` 下 skipped 即失败 |
 | P5 | 冒烟 `lx-source-smoke-test.js` | 67 组插件加载/导出/配置/取链 | 67/0 |
-| P6 | 审计 `npm test` | **42 脚本 / 564 条断言**（含 e-extra 90/0、f-repo 56/0、tg-truth 7 规则） | 42 脚本 rc0 |
+| P6 | 审计 `npm test` | **42 脚本 / 567 条断言**（含 e-extra 90/0、f-repo 56/0、tg-truth 10 规则） | 42 脚本 rc0 |
 
 **执行顺序**：P5 → P6 → P1 → P2 → P3 → P4；任一红先修实现或明确夹具漂移，再全量复跑。
 

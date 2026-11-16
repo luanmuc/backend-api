@@ -371,7 +371,7 @@ console.log('\n[Z] 资源与启动');
       body.push(l.slice(10));
     }
     const script = body.join('\n');
-    rec('Z6', 'ci.yml 巡检告警 run 块可抽取且含去重判据', script.includes('gh issue list') && script.includes('已存在，跳过'), script.split('\n').length + ' 行');
+    rec('Z6', 'ci.yml 巡检告警 run 块可抽取且含去重判据', script.includes('gh issue list') && script.includes('gh issue close'), script.split('\n').length + ' 行');
 
     // Z8：健康表写回的 push 失败必须让 job 红（S-01）。旧实现只写 warning，
     // run 仍绿，健康表没写进仓库也无人发现。
@@ -419,43 +419,50 @@ console.log('\n[Z] 资源与启动');
       `exit=${pushCode} out=${pushOut.includes('::error') ? '有' : '无'} summary=${summary.includes('巡检产物 push 失败') ? '有' : '无'}`);
 
 
-    const runCi = (listOut, createOk) => {
+    // v8.17：告警已改「滚动 Issue」。假 gh 记录被调用的子命令，断言实际走到的分支。
+    const runCi = ({ listOut, createOk = true, empty = false }) => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-alert-'));
       fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
       fs.mkdirSync(path.join(dir, 'docs/health-daily'), { recursive: true });
       fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
       fs.copyFileSync(abs('scripts/health-alert.js'), path.join(dir, 'scripts/health-alert.js'));
-      // 造一份「需处理 1 条」的日报汇总，保证脚本会产出正文（否则走的是"无告警"分支）
       const day = execFileSync('date', ['+%F'], { env: { ...process.env, TZ: 'Asia/Shanghai' }, encoding: 'utf8' }).trim();
       fs.writeFileSync(path.join(dir, `docs/health-daily/${day}.json`), JSON.stringify({
-        date: day, handle: [{ label: 'gdstudio', url: 'https://x.test/a', rate: 0, total: 5, consecutiveFail: 3, reason: 'HTTP 500', kind: 'payload', sources: ['gdWy'] }], changes: [],
+        date: day, handle: empty ? [] : [{ label: 'gdstudio', url: 'https://x.test/a', rate: 0, total: 5, consecutiveFail: 3, reason: 'HTTP 500', kind: 'payload', sources: ['gdWy'] }], changes: [],
       }));
-      // 假 gh：list 是否命中、create 是否成功都由参数决定
+      const logPath = path.join(dir, 'gh.log');
       fs.writeFileSync(path.join(dir, 'bin/gh'), [
         '#!/bin/sh',
+        'echo "$@" >> "' + logPath + '"',
         'for a in "$@"; do case "$a" in',
         '  list) ' + (listOut ? 'echo 123; exit 0' : 'exit 0') + ';;',
         '  create) ' + (createOk ? 'echo created; exit 0' : 'echo "repository has disabled issues" >&2; exit 1') + ';;',
         'esac; done', 'exit 0',
       ].join('\n'), { mode: 0o755 });
       fs.writeFileSync(path.join(dir, 'run.sh'), script, { mode: 0o755 });
-      let out = '';
+      let out = '', code = 0;
       try {
         out = execFileSync('bash', ['run.sh'], {
           cwd: dir, encoding: 'utf8', timeout: 20000,
           env: { ...process.env, PATH: path.join(dir, 'bin') + ':' + process.env.PATH, GITHUB_STEP_SUMMARY: path.join(dir, 'summary.md') },
         });
-      } catch (e) { out = String(e.stdout || '') + String(e.stderr || ''); }
+      } catch (e) { code = Number(e.status || 0); out = String(e.stdout || '') + String(e.stderr || ''); }
+      const log = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '';
       fs.rmSync(dir, { recursive: true, force: true });
-      return out;
+      return { out, code, log };
     };
 
-    const dup = runCi(true, true);
-    const fresh = runCi(false, true);
-    const disabled = runCi(false, false);
-    rec('Z7', 'T10 已有同日 Issue → 跳过；无 → 创建；Issue 通道不可用 → 有意失败',
-      /已存在，跳过/.test(dup) && /已创建告警 Issue/.test(fresh) && /降级为失败通知/.test(disabled),
-      `重复=${/已存在，跳过/.test(dup) ? '跳过' : '未跳过'} 新建=${/已创建告警 Issue/.test(fresh) ? '创建' : '未创建'} 降级=${/降级为失败通知/.test(disabled) ? '触发' : '未触发'}`);
+    const dup = runCi({ listOut: true });
+    const fresh = runCi({ listOut: false, createOk: true });
+    const disabled = runCi({ listOut: false, createOk: false });
+    const recovered = runCi({ listOut: true, empty: true });
+    const ok = /已更新告警 Issue #123/.test(dup.out) && /issue edit 123/.test(dup.log)
+      && /已创建滚动告警 Issue/.test(fresh.out) && /issue create/.test(fresh.log)
+      && disabled.code === 1 && /降级为失败通知/.test(disabled.out)
+      && /自动关闭/.test(recovered.out) && /issue close 123/.test(recovered.log);
+    rec('Z7', '滚动 Issue：已存在→edit、无→create、禁用通道→有意失败、恢复→自动关闭',
+      ok,
+      `重复=${/issue edit 123/.test(dup.log) ? 'edit' : '未edit'} 新建=${/issue create/.test(fresh.log) ? 'create' : '未create'} 降级=${disabled.code === 1 ? 'exit1' : '未触发'} 恢复=${/issue close 123/.test(recovered.log) ? 'close' : '未close'}`);
   }
 }
 

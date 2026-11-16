@@ -104,6 +104,31 @@ try {
   else F('G14', `活跃计划不唯一：审计 [${plans.join(', ') || '无'}] 压力 [${stress.join(', ') || '无'}]${strayDirs ? '；docs/audit-plans/ 目录仍在' : ''}`)
 } catch (e) { S('G14', '无法枚举 docs/：' + e.message) }
 
+// G15 巡检统计双口径：健康日报必须同时输出 rateRaw 与 wilsonLow（只留一个 = 历史对比断档/无置信下限）
+try {
+  const hd = rd('scripts/health-daily.js')
+  const hasBoth = /rateRaw/.test(hd) && /wilsonLow/.test(hd)
+  const bucketUses = /wilsonLow < WILSON_OK_MIN/.test(hd)
+  if (hasBoth && bucketUses) P('G15', '健康日报同时保留 rateRaw/wilsonLow，且分级使用置信下限')
+  else F('G15', `双口径缺失（rateRaw=${/rateRaw/.test(hd)} wilsonLow=${/wilsonLow/.test(hd)} 分级=${bucketUses}）`)
+} catch (e) { S('G15', '跳过：' + e.message) }
+
+// G17 空跑守卫：probe 必须支持 --assert-samples，且 CI 的 probe step 真的带上它
+try {
+  const probe = rd('scripts/probe.js')
+  const ci = rd('.github/workflows/ci.yml')
+  if (/--assert-samples/.test(probe) && /probe\.js --reps=3 --assert-samples/.test(ci)) P('G17', '空跑守卫已接入 CI（--assert-samples）')
+  else F('G17', `空跑守卫未接入（probe=${/--assert-samples/.test(probe)} ci=${/--assert-samples/.test(ci)}）`)
+} catch (e) { S('G17', '跳过：' + e.message) }
+
+// G18 真机摘要链路：拉取脚本 + CI 步骤必须同时存在（只留脚本等于没人跑）
+try {
+  const pull = rd('scripts/pull-device-digests.js')
+  const ci = rd('.github/workflows/ci.yml')
+  if (/device-digests\.jsonl/.test(pull) && /pull-device-digests\.js/.test(ci)) P('G18', '真机摘要拉取已接入 CI（docs/device-digests.jsonl）')
+  else F('G18', `真机链路缺失（脚本=${/device-digests/.test(pull)} ci=${/pull-device-digests/.test(ci)}）`)
+} catch (e) { S('G18', '跳过：' + e.message) }
+
 console.log(red ? `\n❌ tg-truth：${red} 条口径不一致` : '\n✅ tg-truth：口径全部一致')
 
 if (require.main === module) process.exit(red ? 1 : 0)

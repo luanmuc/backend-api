@@ -16,7 +16,7 @@ README_HEALTH.md       # 端点级健康日报（probe.js 每日刷新）
 docs/DEV_GUIDE.md      # 开发者视角：代码地图 + 协议合规 + 路线图 + 发布 SOP（改代码前先读）
 docs/AGENTS.md         # 本文件：协作规范
 docs/*.md              # 审计计划/报告/路线图/接口变更手册/源级基线
-scripts/               # probe / endpoint-registry（端点+常量单一真相）/ source-toggles（开关解析单一真相）/ health-daily / health-alert / source-audit / self-check / docs-audit / ecosystem-scan 等
+scripts/               # probe / endpoint-registry（端点+常量单一真相）/ source-toggles（开关解析单一真相）/ health-daily / health-alert / chain-sample（真实出链抽样）/ source-audit / self-check / docs-audit / ecosystem-scan 等
 test/                  # 冒烟用例
 ```
 

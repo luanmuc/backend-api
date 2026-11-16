@@ -6,7 +6,7 @@
 > - 源仓：`luanmuc/backend-api` @ `master`，v8.16.1（tag `v8.16.1` + Release），`lx-source.js` **v8.16.1**，**5881 行 / 307085 bytes**（`node scripts/build-source.js` 实跑）
 > - App 仓：`luanmuc/mobile-app` @ `54249f8b`（已推送），v1.9.2-**b143** / versionCode **302**（Build `43849852397` success，5 APK）；`npm run preflight` 36/36 绿（202s）
 > - track-player：`88b062b`（v2 分支）
-> - 硬数字：`test/` 下 **48 个 `.js` 入口**；`npm test` **42 个脚本**（CI 的 L3/L4 审计清单已全量并入，2026-11-16 之前只 26 个）；审计断言 **564 条**（健康域 102 + 其余 455 + 口径 7）；冒烟 67 组；压测 159 条；变异 22 killed / 0 survived
+> - 硬数字：`test/` 下 **48 个 `.js` 入口**；`npm test` **42 个脚本**（CI 的 L3/L4 审计清单已全量并入，2026-11-16 之前只 26 个）；审计断言 **567 条**（健康域 102 + 其余 455 + 口径 10）；冒烟 67 组；压测 159 条；变异 22 killed / 0 survived
 > - 本文件对应变更：v8.16.1「旧版本健康快照按数值比较接受」= `compareSourceVersion` 数值比较 + `ACCEPTED_SOURCE_VERSIONS` 白名单 `[8.14.1, 8.15.1, 8.16.0, 8.16.1]`；同批 `chain-golden.json` 按 `dump-chain.js --json` 重建（含 `version`/`sourceHead`）；App 新增 `check_cross_repo_health_roundtrip`（X1~X3）与 `preflight`
 
 ---
@@ -70,7 +70,7 @@
 | **健康域（14 脚本）** | 探测分批/资格判定/断路器/快照 ETA/事件/状态机/持久化/版本兼容 | `health-*.js` | **102** | A |
 | **计划唯一性** | 每仓审计 1 份 + 压测 1 份；归档合并为一份 | `tg-truth` G14 + `docs-audit` | 1 | A |
 
-**当前总数**：冒烟 **67 组** + 审计 **564 条**（健康域 102 + 其余 455 + 口径 7）+ 压测 **159 条** + 变异 **22 killed / 0 survived**。计数真值以 `docs/TESTING.md` 与 `docs/AUDIT_MATRIX.md` 为准；`npm test` rc=0 覆盖 42 个脚本。
+**当前总数**：冒烟 **67 组** + 审计 **567 条**（健康域 102 + 其余 455 + 口径 10）+ 压测 **159 条** + 变异 **22 killed / 0 survived**。计数真值以 `docs/TESTING.md` 与 `docs/AUDIT_MATRIX.md` 为准；`npm test` rc=0 覆盖 42 个脚本。
 
 ---
 
@@ -141,7 +141,7 @@
 
 
 ```bash
-npm test                                   # 42 脚本 / 564 条审计断言（= CI 的 L3+L4 全量清单）
+npm test                                   # 42 脚本 / 567 条审计断言（= CI 的 L3+L4 全量清单）
 node --expose-gc test/stress-test.js        # S 12
 node --expose-gc test/stress-round3.js      # T 14
 node --expose-gc test/stress-round4.js      # V 133
@@ -164,7 +164,7 @@ npm run verify:bundle                       # 产物 lx-source.js 8/0
 | `y-provider-contract` / `s-source-lifecycle` / `z-cancel` | 15 / 14 / 11 | Provider/生命周期/取消 |
 | `quality-truth` / `quality-policy-v2` | 9 / 12 | 音质真实标签/音质政策 |
 | `budget-admission` / `aa-p3-persist` / `v-eligibility` | 7 / 10 / 7 | 预算裁决/P3 持久化/资格 |
-| `tg-truth` | 7 规则 | 口径门禁（含 G14 计划唯一） |
+| `tg-truth` | 9 规则 | 口径门禁（含 G14 计划唯一、G15 双口径、G17 空跑守卫） |
 | `health-*.js`（14 个） | 102 | 健康域（探测/资格/断路器/快照/事件/版本） |
 | `candidate-audit-test.js` | 6 | 候选源接入 |
 | `q-quickjs-real.js` | 3 | **按需**：需 `npm i quickjs-emscripten`（CI L5.2 单独装） |
@@ -255,4 +255,5 @@ npm run verify:bundle                       # 产物 lx-source.js 8/0
 
 | 日期 | 变更 | 实跑证据 |
 |---|---|---|
+| 2026-11-17 | 巡检升级第一阶段：probe 每次 3 次探测 + `--assert-samples` 空跑守卫；日报加 Wilson 95% 下限与出链抽样段；告警改滚动 Issue；`tg-truth` 加 G15/G17（口径 7→9） | `npm test` rc0 42 脚本 / 567 条；`probe --reps=3 --assert-samples` 当日 51 样本；`source-audit --quick` 8/11 出链 |
 | 2026-11-16 | 基线升到 v8.16.1 / App b143；`npm test` 26→42 脚本（并入 CI 审计清单）；计划唯一性收口（`tg-truth` G14） | `npm test` rc0 42 脚本 / 564 条；`f-repo` 56/0；`docs-audit --dry-run` 0 红；`verify:bundle` 8/0；`npm test` rc0 |

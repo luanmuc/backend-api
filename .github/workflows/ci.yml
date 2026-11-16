@@ -157,22 +157,51 @@ jobs:
       - name: 端点巡检（Range 判定）
         # v8.10.5：只放行 exit 2（= **所有**平台主路同时全挂，真紧急；仍需写回健康表留档）；其它非 0 说明脚本自己坏了，必须红（V23）
         run: |
-          node scripts/probe.js; rc=$?
+          node scripts/probe.js --reps=3 --assert-samples; rc=$?
           if [ "$rc" -eq 2 ]; then
             echo "::warning::所有平台主路同时不可用（exit 2）——紧急，但仍写回健康表留档"
             echo "## ❌ 所有平台主路同时不可用" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$rc" -ne 0 ]; then echo "::error::probe 异常退出码 $rc"; exit "$rc"; fi
+      - name: 拉取真机摘要（公开仓 lx-telemetry，只读）
+        # v8.17 阶段 4：匿名 API 60 次/小时容易 403，这里用本 job 的 GITHUB_TOKEN 提额；
+        # 失败不阻断（脚本自身已降级为 0 行 + warning，日报标注「今日无真机数据」）。
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/pull-device-digests.js --days=14
+
+      - name: 每日出链抽样（启用源各 1 首真实取链）
+        # v8.17：补「端点活着 ≠ 能出链」。抽样失败不阻断巡检产物（只告警），因为
+        # source-audit 本身可能受平台风控影响；但失败必须写进摘要，不能静默。
+        run: |
+          node scripts/chain-sample.js || {
+            echo "::warning::出链抽样失败（不影响 probe 产物）";
+            echo "## ⚠️ 出链抽样失败" >> "$GITHUB_STEP_SUMMARY";
+          }
+
       - name: v8.0 健康日报生成（基于 probe-history 聚合）
         # v8.10.4：显式传北京日期。health-daily.js 默认用 new Date().toISOString()（恒 UTC），
         # runner 在 UTC 20:00 之后跑会跨日，导致日报文件名与用户所在日期差一天
         # v8.10.5：去掉 || true —— 日报生成失败必须让 job 变红（此前被吞，整条链路无任何信号，V1/V5）
         run: node scripts/health-daily.js --date $(TZ=Asia/Shanghai date +%F)
+      - name: 仓库体积守卫（轻量：只告警，到阈值再归档）
+        # v8.17：巡检产物是纯 JSONL，先设软阈值。probe-history 超 1MB 或单日增量 >200 行时告警，
+        # 由维护者决定归档（不自动删，避免丢唯一证据）。
+        run: |
+          SZ=$(stat -c%s docs/probe-history.jsonl 2>/dev/null || echo 0)
+          echo "probe-history: ${SZ} bytes"
+          if [ "$SZ" -gt 1048576 ]; then
+            echo "::warning::docs/probe-history.jsonl 已超 1MB（${SZ}B），按计划归档到 docs/archive/"
+            echo "## ⚠️ 巡检历史超 1MB" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f docs/chain-sample.jsonl ]; then echo "chain-sample: $(stat -c%s docs/chain-sample.jsonl) bytes"; fi
+          if [ -f docs/device-digests.jsonl ]; then echo "device-digests: $(stat -c%s docs/device-digests.jsonl) bytes"; fi
+
       - name: 健康表写回（自动提交）
         run: |
           git config user.name 'luanmuc[bot]'
           git config user.email 'luanmuc@users.noreply.github.com'
           # v8.10.5：补 README.md —— probe 每天整段重写其中「音源可用性」表格，此前不在 add 清单里等于白写（V14/V15）
-          git add README_HEALTH.md README.md docs/probe-history.jsonl docs/health-daily/ docs/candidate-status.md
+          git add README_HEALTH.md README.md docs/probe-history.jsonl docs/health-daily/ docs/candidate-status.md docs/chain-sample.jsonl docs/device-digests.jsonl
           git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录+v8.0健康日报 [自动]" -q || echo "健康表无变化，跳过提交"
           # v8.13.2（S-01）：巡检产物是发布/健康判定的依据，push 失败必须让 job 红。
           # 此前只写 warning + step summary，run 仍绿，等于静默丢失健康表。
@@ -191,35 +220,51 @@ jobs:
             exit 1
           fi
 
-      - name: 巡检告警（需处理项非空才开 Issue，避免刷屏）
-        # v8.10.5：日报此前只写入仓库、无任何通知，等于档案。这里把"需处理"变成一条 GitHub Issue，
-        # 由 GitHub 通知 owner。限定：仅 schedule/dispatch；同一日期已有未关闭 Issue 则跳过。
+      - name: 巡检告警（滚动 Issue：需处理非空则更新，全部恢复则自动关闭）
+        # v8.17：原实现按天开新 Issue，恢复后不关，通知会越积越多。
+        # 改为单一「巡检告警·持续跟踪」：非空→edit（无则 create）；为空→评论已恢复并 close。
+        # Issues 不可用时仍降级为 step 失败（GitHub 邮件是唯一兜底通道）。
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           DAY=$(TZ=Asia/Shanghai date +%F)
+          TITLE='巡检告警·持续跟踪'
           F="docs/health-daily/${DAY}.json"
           [ -f "$F" ] || { echo "ℹ️ 无汇总文件，跳过告警"; exit 0; }
-          node scripts/health-alert.js "$F" > /tmp/alert.md
-          if [ ! -s /tmp/alert.md ]; then echo "✅ 需处理 0 条，不告警"; exit 0; fi
-          # 1) 先写进本次 run 的摘要页（Actions 页面直接可见，不依赖仓库功能开关）
-          { echo "## 巡检告警"; cat /tmp/alert.md; } >> "$GITHUB_STEP_SUMMARY"
+          node scripts/health-alert.js "$F" > /tmp/alert.body
+          NUM=$(gh issue list --state open --search "${TITLE} in:title" --json number,title \
+                 --jq ".[] | select(.title == \"${TITLE}\") | .number" 2>/dev/null | head -1)
 
-          # 2) Issues 通道：本仓实测 Issues 功能是关闭的（gh 报 "repository has disabled issues"），
-          #    所以这里做两级降级——Issues 可用则开 Issue（可讨论、可关闭、有邮件）；
-          #    不可用则**有意让本 step 失败**，靠 GitHub 的 job 失败邮件把告警推给 owner。
-          #    注意：失败发生在本 job 末尾，此前的巡检产物提交已完成，不影响数据落库。
-          if gh issue list --state open --search "巡检告警 ${DAY} in:title" --json number -q '.[].number' 2>/dev/null | grep -q .; then
-            echo "ℹ️ 今日告警 Issue 已存在，跳过（不重复刷）"; exit 0
+          if [ ! -s /tmp/alert.body ]; then
+            echo "✅ 需处理 0 条"
+            if [ -n "$NUM" ]; then
+              gh issue comment "$NUM" --body "✅ ${DAY}：需处理已清零，自动关闭。"
+              gh issue close "$NUM" >/dev/null && echo "已自动关闭告警 Issue #$NUM"
+            fi
+            exit 0
           fi
-          if gh issue create --title "[巡检告警] ${DAY}" --body-file /tmp/alert.md 2>/tmp/gh.err; then
-            echo "✅ 已创建告警 Issue"
+
+          { echo "## ${DAY} 更新"; cat /tmp/alert.body; } > /tmp/alert.md
+          { echo "## 巡检告警（${DAY}）"; cat /tmp/alert.md; } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$NUM" ]; then
+            gh issue edit "$NUM" --body-file /tmp/alert.md >/dev/null && echo "✅ 已更新告警 Issue #$NUM"
           else
-            echo "⚠️ Issue 通道不可用："; cat /tmp/gh.err
-            echo "→ 降级为失败通知（这是有意失败，用于触发 GitHub 邮件告警）"
-            cat /tmp/alert.md
-            exit 1
+            gh issue create --title "$TITLE" --body-file /tmp/alert.md >/dev/null 2>/tmp/gh.err || {
+              echo "⚠️ Issue 通道不可用："; cat /tmp/gh.err
+              echo "→ 降级为失败通知（有意失败，用于触发 GitHub 邮件告警）"
+              cat /tmp/alert.md
+              exit 1
+            }
+            echo "✅ 已创建滚动告警 Issue"
+          fi
+
+          # 连续失败 ≥7 天 → 打 escalated 标签（标签不存在则先创建；失败不阻断）
+          if DAY="${DAY}" node -e 'const s=require("./docs/health-daily/"+process.env.DAY+".json");process.exit((s.rows||[]).some(r=>r.bucket==="handle"&&r.consecutiveFail>=7)?0:1)' 2>/dev/null; then
+            gh label create escalated --color B60205 --description "连续 7 天未恢复" >/dev/null 2>&1 || true
+            [ -n "$NUM" ] && gh issue edit "$NUM" --add-label escalated >/dev/null 2>&1 || true
+            echo "⚠️ 存在连续 ≥7 天未恢复项，已打 escalated 标签"
           fi
 
   # ---------- v7.0：每周生态扫描（pdone 健康表交叉，产出新候选/失效清单）----------

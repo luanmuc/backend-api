@@ -1,4 +1,5 @@
 # 版本历史（CHANGELOG）
+| **每日巡检第一阶段升级（2026-11-17，本地未推送）** | `probe.js` 每端点每次 3 次探测（历史样本 2/日→6/日）+ `--assert-samples`（当日样本 <2×端点判红）；`health-daily.js` 加 Wilson 95% 下限（正常需下限 ≥60%）与「出链抽样」段；新增 `scripts/chain-sample.js` + `source-audit --quick`（启用源各 1 首真实取链，实测 8/11）；告警改滚动 Issue（恢复自动关、连续 7 天打 escalated）；新增 `pull-device-digests.js`（只读公开仓 `lx-telemetry`）+ 日报「真机对照」段；CI 加仓体积软阈值守卫；`tg-truth` 加 G15/G17/G18 |
 | **App v1.9.2-b146 内置本仓 `ff97a10`（2026-11-16）** | App Build `43908153668` success，全程 4m26s（Lint 68s ∥ Checks 77s ∥ Android 3m57s → Release 25s），5 APK / vc305；本仓同次 CI 2.6min（`stress-long` 按变更面跳过） |
 | **CI 提速：L1.3 压力测试按变更面触发（2026-11-16）** | 新增 `changes` job：`lx-source.js` / `src/**` 未变时（只改 test/scripts/docs）跳过体积最大的 `stress-long`（云端 8m36），schedule/dispatch/release 仍全跑；`purge-cdn` 改 `always()` + 依赖结果判定，避免因跳过的 job 连带不执行 |
 | **App v1.9.2-b145 内置本仓 `cae74df`（2026-11-16，已推送）** | App Build `43896413859` success（Checks 50s / Lint 58s / Android 6m58s / Release 49s），5 APK / versionCode 304；该次 Android job 同时是 App `compileSdk 35` 的编译证据。本仓本次只改 `package.json`+docs，`ci.yml` 路径未命中→源仓 CI 不触发 |

@@ -22,6 +22,8 @@ const SRC = path.resolve(__dirname, '..', 'lx-source.js');
 const ONLY = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[1] || '';
 const JSON_OUT = process.argv.includes('--json');
 const INCLUDE_PROBATION = process.argv.includes('--include-probation');
+// v8.17：--quick = 只测「启用中的源」各 1 首固定样例，供每日巡检抽样用（不做全量）
+const QUICK = process.argv.includes('--quick');
 const TIMEOUT = 9000;
 const FOLLOW_MAX = 5;
 
@@ -71,7 +73,8 @@ const mod = require(SRC);
 console.log = realLog;
 
 // 全开开关：默认关闭的源也要纳入巡检（结论用于判断"开启值不值"）
-for (const k of Object.keys(mod.runtimeToggles)) mod.runtimeToggles[k] = true;
+// --quick 例外：每日抽样只测真实启用的源，否则等于给用户不用的源发请求。
+if (!QUICK) for (const k of Object.keys(mod.runtimeToggles)) mod.runtimeToggles[k] = true;
 
 // 固定探测歌（各平台真实 ID，与 lx-source.js 探针池保持同一首歌便于对照）
 const SONGS = {
@@ -116,6 +119,39 @@ function rangeCheck(url) {
 // 只有直接运行才巡检；被 require 时不得打网络、不得 exit。
 if (require.main === module) (async () => {
   const rows = [];
+  // v8.17 quick 模式：每个启用源 1 首，不做全量、不测未启用源
+  if (QUICK) {
+    for (const h of Object.values(mod.SOURCE_HANDLERS || {})) {
+      if (h.lifecycle === 'probation') continue;
+      if (mod.runtimeToggles[h.id] !== true) continue;
+      if (ONLY && !(h.platforms || []).includes(ONLY)) continue;
+      const plat = ONLY || (h.platforms || [])[0];
+      const song = SONGS[plat];
+      if (!song) continue;
+      const idVal = song.hash || song.songmid || song.id;
+      const t0 = Date.now();
+      try {
+        const url = await h.fn(plat, idVal, '128k', song);
+        const host = (String(url).match(/^(https?:\/\/[^/]+)/) || [, ''])[1];
+        let playable = '';
+        if (/^https?:\/\//.test(String(url)) && !/\.php|kwplay/.test(String(url))) playable = await rangeCheck(String(url));
+        rows.push({ src: h.id, plat, ok: true, code: 'OK', host, playable, ms: Date.now() - t0 });
+      } catch (e) {
+        const msg = String((e && e.message) || e);
+        const code = (msg.match(/^([A-Z_]+):/) || [, 'ERR'])[1];
+        rows.push({ src: h.id, plat, ok: false, code, msg: msg.slice(0, 100), ms: Date.now() - t0 });
+      }
+    }
+    if (JSON_OUT) realLog(JSON.stringify({ checkedAt: new Date().toISOString(), total: rows.length, ok: rows.filter(r => r.ok).length, rows }, null, 2));
+    else {
+      realLog('\n=== 每日出链抽样（每启用源 1 首 128k）===');
+      for (const r of rows) realLog(`${r.src.padEnd(16)} | ${r.plat} | ${r.ok ? '✅' : '❌'} | ${String(r.code).padEnd(14)} | ${(r.ok ? (r.host || '') : r.msg).slice(0, 48)} | ${r.ms}ms`);
+      realLog(`\n统计：${rows.filter(r => r.ok).length}/${rows.length} 可用`);
+    }
+    const strict = process.argv.includes('--strict');
+    process.exit(strict && rows.some(r => !r.ok) ? 1 : 0);
+    return;
+  }
   const platforms = ONLY ? [ONLY] : ['kw', 'wy', 'tx', 'mg', 'kg'];
   for (const plat of platforms) {
     const chain = mod.buildSourceChain(plat, '128k');
