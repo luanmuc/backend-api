@@ -1,4 +1,5 @@
 # 版本历史（CHANGELOG）
+| **App v1.9.2-b146 内置本仓 `ff97a10`（2026-11-16）** | App Build `43908153668` success，全程 4m26s（Lint 68s ∥ Checks 77s ∥ Android 3m57s → Release 25s），5 APK / vc305；本仓同次 CI 2.6min（`stress-long` 按变更面跳过） |
 | **CI 提速：L1.3 压力测试按变更面触发（2026-11-16）** | 新增 `changes` job：`lx-source.js` / `src/**` 未变时（只改 test/scripts/docs）跳过体积最大的 `stress-long`（云端 8m36），schedule/dispatch/release 仍全跑；`purge-cdn` 改 `always()` + 依赖结果判定，避免因跳过的 job 连带不执行 |
 | **App v1.9.2-b145 内置本仓 `cae74df`（2026-11-16，已推送）** | App Build `43896413859` success（Checks 50s / Lint 58s / Android 6m58s / Release 49s），5 APK / versionCode 304；该次 Android job 同时是 App `compileSdk 35` 的编译证据。本仓本次只改 `package.json`+docs，`ci.yml` 路径未命中→源仓 CI 不触发 |
 | **补 `engines.node`（N-1166，2026-11-16，本地未推送）** | `package.json` 加 `"engines": { "node": ">= 18" }`（纯声明，零运行时影响）；与 `ci.yml` 钉 node 20 一致，避免协作者环境漂移。实跑：`npm test` rc0（42 脚本）、`docs-audit --dry-run` 0 红、`tg-truth` 7/7 |
