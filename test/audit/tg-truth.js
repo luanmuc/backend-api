@@ -90,6 +90,20 @@ try {
   else F('G13', 'ci.yml 的 push.paths 未覆盖 src/**（改 src/ 不会触发 CI）')
 } catch (e) { S('G13', '跳过：' + e.message) }
 
+// G14 活跃计划唯一：一个仓库只允许一份审计计划 + 一份压测计划
+// 由来：2026-11-16 用户要求「这两个计划每个仓库都得保持唯一」。实际盘点发现压测计划藏在
+// docs/audit-plans/stress-round5.md（目录名还叫 audit-plans），而 archive 里还躺着 v9 与
+// round1~5 共 7 份历史计划。计划分叉后，「审什么」和「怎么压」会各改各的，缺口永远对不上。
+// 归档已合并成 docs/archive/AUDIT_HISTORY.md 一份，所以这里只锁活跃面：docs/ 根目录各 1 份。
+try {
+  const docs = fs.readdirSync(path.join(root, 'docs'))
+  const plans = docs.filter(f => /^AUDIT_PLAN.*\.md$/.test(f))
+  const stress = docs.filter(f => /^STRESS_PLAN.*\.md$/.test(f))
+  const strayDirs = fs.existsSync(path.join(root, 'docs', 'audit-plans'))
+  if (plans.length === 1 && stress.length === 1 && !strayDirs) P('G14', `活跃计划唯一：${plans[0]} / ${stress[0]}`)
+  else F('G14', `活跃计划不唯一：审计 [${plans.join(', ') || '无'}] 压力 [${stress.join(', ') || '无'}]${strayDirs ? '；docs/audit-plans/ 目录仍在' : ''}`)
+} catch (e) { S('G14', '无法枚举 docs/：' + e.message) }
+
 console.log(red ? `\n❌ tg-truth：${red} 条口径不一致` : '\n✅ tg-truth：口径全部一致')
 
 if (require.main === module) process.exit(red ? 1 : 0)

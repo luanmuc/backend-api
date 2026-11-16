@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **48 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **26 个脚本**（冒烟 1 + 审计 25，含 `e-extra`、`quality-policy-v2`、`budget-admission`、`aa-p3-persist`、`v-eligibility`），其余 22 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
+> **48 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集已全部并进 `npm test` 的 **42 个脚本**（冒烟 1 + 审计 41；2026-11-16 把 CI 的 L3/L4 审计清单全量并入，此前本地只跑 26 个，`f-repo` 这类文档死链门禁本地根本不跑），其余 6 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
 > 断言实测（2026-11-13 当前工作树）：冒烟 **67 组** + 压测 **159 条**（12/14/**133**）+ 审计断言按各脚本输出汇总（本轮新增 health-snapshot **11/0**、health-probe-batch2 **9/0**、health-eligibility-batch3 **9/0**）；历史 429/655 是旧口径，不再作为当前总数。逐入口明细见下方「入口总表」。变异体 **22 个**（`--full --strict` 全量 **22 killed / 0 survived**，2026-11-13 实测）。

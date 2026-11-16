@@ -21,7 +21,6 @@
 | `docs/ARCHITECTURE.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/AUDIT_MATRIX.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
-| `docs/archive/AUDIT_PLAN-v9.0.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/AUDIT_PLAN_v10.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/AUDIT_RESULTS.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/CHANGELOG.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
@@ -41,16 +40,11 @@
 | `docs/SOURCE_AUDIT.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/TESTING.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/音源架构执行全过程-2026-11-12.md` | 当前态（专题纪要） | 人 | 架构阶段收口/版本发布后 | 规则19 登记 |
+| `docs/archive/AUDIT_HISTORY.md` | 归档 | 人 | 只读，不再更新（v9~第五轮计划合集） | — |
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 归档 | 人 | 只读，不再更新 | — |
-| `docs/archive/audit-plans/round1.md` | 归档 | 人 | 只读，不再更新 | — |
-| `docs/archive/audit-plans/round2.md` | 归档 | 人 | 只读，不再更新 | — |
-| `docs/archive/audit-plans/round3.md` | 归档 | 人 | 只读，不再更新 | — |
-| `docs/archive/audit-plans/round4.md` | 归档 | 人 | 只读，不再更新 | — |
-| `docs/archive/audit-plans/round5.md` | 归档 | 人 | 只读，不再更新 | — |
-| `docs/archive/audit-plans/stress-round4.md` | 归档 | 人 | 只读，不再更新 | — |
-| `docs/audit-plans/stress-round5.md` | 当前态 | 人 | 每次压测变更后 | — |
+| `docs/STRESS_PLAN.md` | 当前态 | 人 | 每次压测变更后 | — |
 | `docs/candidate-status.md` | 自动生成 | scripts/recheck-candidates.js | 每次候选复检覆盖 | 规则5 新鲜度 |
 | `docs/health-daily/` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | 整目录登记（逐文件豁免；90 天滚动清理） |
 | `docs/probe-history.jsonl` | 自动追加 | scripts/probe.js | 每次巡检追加一行 | — |

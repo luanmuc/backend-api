@@ -2,7 +2,7 @@
 
 > **重构说明**：原文件是第五轮压测的「覆盖率盲区清零」分册，标题与内容已不符。本文件重构为音源仓压测的**唯一入口**，覆盖三代压测脚本 + 本轮音质政策变更的压测关注点。
 >
-> **基线（唯一真值，2026-11-14）**：源仓 `fb94fcf`（v8.13.1，已推送）；App `3cecdd02`（b125）。
+> **基线（唯一真值，2026-11-16）**：源仓 `master` **v8.16.1**（`lx-source.js` 5881 行 / 307085 bytes）；App `54249f8b`（v1.9.2-b143 / versionCode 302，Build `43849852397`）。
 >
 > **目标**：用可重复的纯 Node 压测，证明大并发、档位矩阵、跨平台、缓存上限、故障注入、边界输入下「不崩、不越界、不串歌、不假交付」。
 
@@ -14,6 +14,8 @@
 | 二代 T | `stress-round3.js` | 14 | 跨歌冷却、冷却时长、缓冲撞车、片段率 | 14/0 |
 | 三代 V | `stress-round4.js` | 133 | 跨平台 13 组 + 故障谱系 + 不变量 + 阈值边界 + 配置面 + 兜底档实证 | 133/0 |
 | **合计** | — | **159** | — | **159/0** |
+
+> 三组压测之外，CI 另有 `stress-long` job（长跑档，约 11 分钟）；本地按需执行，不并入 `npm test`（计时类断言与审计同跑会假红）。
 
 > 音质真实标签（`quality-truth` 9 条）与音质政策优化（`quality-policy-v2` 12 条）属**审计**，不重复计入压测；其边界见 `AUDIT_PLAN_v10.md` §3。
 
@@ -54,8 +56,10 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | 短路只算确定性失败 | 3 次超时不短路（走 breaker）、3 次 410 才短路 | `quality-policy-v2` QP4~QP5 |
 | 唯一源探路窗口 | 平台内唯一高质源短路后 10min 放行一次 | `quality-policy-v2` QP9~QP10 |
 | 旧快照兼容 | 缺 `definitiveFail` 的旧快照恢复回退旧 `fail` | `quality-policy-v2` QP8 |
+| **健康快照版本兼容（v8.16.1）** | 旧版本快照按**数值比较**接受（`8.16` < `8.16.1` 仍拒），白名单 `[8.14.1, 8.15.1, 8.16.0, 8.16.1]`；不得因放宽而收下任意结构 | `health-persistence-v2` 10/0、`aa-p3-persist` 10/0 |
+| **产物一致（v8.16.1）** | `lx-source.js` 5881 行 / 307085 bytes / `@version 8.16.1`；`chain-golden.json` 含 `version`/`sourceHead` | `verify:bundle` 8/0、`y-provider-contract` Y9 |
 
-## 4. 本轮实测结果（2026-11-14）
+## 4. 本轮实测结果（2026-11-16）
 
 | 项 | 结果 |
 |---|---|
@@ -63,6 +67,9 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | `stress-round3` | 14/0 |
 | `stress-round4` | 133/0 |
 | **压测合计** | **159/0** |
+| `npm test`（42 脚本，含 CI 审计清单） | rc0 / 564 条审计断言 |
+| `f-repo`（文档 H1/死链门禁） | 56/0 |
+| `verify:bundle`（产物与新 `lx-source.js` 一致） | 8/0 |
 | 变异 | 22 killed / 0 survived |
 
 ## 5. 失败处置与外部阻塞
@@ -84,15 +91,17 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | P3 | `stress-round4.js` | 故障谱系、预热 TTL、探针双歌、档位 breaker、短路、排序、快照 | 133/0；TTL 内新增预热 0；半开只放一枪 |
 | P4 | 变异 `mutation/run.js --full --strict` | 22 个锚点 | 22 killed / 0 survived；`--strict` 下 skipped 即失败 |
 | P5 | 冒烟 `lx-source-smoke-test.js` | 67 组插件加载/导出/配置/取链 | 67/0 |
-| P6 | 审计 `npm test` | 19 脚本（含 e-extra 90/0） | 19 脚本 rc0 |
+| P6 | 审计 `npm test` | **42 脚本 / 564 条断言**（含 e-extra 90/0、f-repo 56/0、tg-truth 7 规则） | 42 脚本 rc0 |
 
 **执行顺序**：P5 → P6 → P1 → P2 → P3 → P4；任一红先修实现或明确夹具漂移，再全量复跑。
+
+> 2026-11-16 起 P6 与 CI 判据同源：`npm test` 已并入 CI 的 L3/L4 全部审计脚本（42 个），本地绿不再等于「云端可能还有红」。
 
 ---
 
 ## 7. 压测方法论承接（原 stress-round4 §1/§3）
 
-> `stress-round4.md` 的「五条不变量」与「四条压测自身翻过车」是方法论资产，随其归档后在此保留要点，避免以后重新踩坑。原文见 `docs/archive/audit-plans/stress-round4.md`。
+> `stress-round4.md` 的「五条不变量」与「四条压测自身翻过车」是方法论资产，随其归档后在此保留要点，避免以后重新踩坑。原文见 `docs/archive/AUDIT_HISTORY.md`「历史原文：`stress-round4.md`」一节。
 
 ### 7.1 五条不变量（任何压测组都要过）
 

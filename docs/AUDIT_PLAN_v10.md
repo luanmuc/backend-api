@@ -2,10 +2,12 @@
 
 > **重构说明**：本文件由 v10.0 重构而来，文件名保留 `AUDIT_PLAN_v10.md` 以兼容既有引用。历史 round1~5 分册、v9.0、以及各轮审计报告全部归档，不再叠加进本文件；「当前要审什么、缺口在哪」只以本文件为准。
 >
-> **基线（唯一真值，2026-11-15）**：
-> - 源仓：`luanmuc/backend-api` @ `master`（v8.15.1 已推送 master 并建 tag `v8.15.1`；v8.15.0 亦有 tag），`lx-source.js` **v8.15.1**，5733 行 / 299939 bytes
-> - App 仓：`luanmuc/mobile-app` @ `078ba7c1`（已推送，CI 回写版本信息），v1.9.2-b135 / versionCode 294（Build `43775350921` success，5 APK）；发布前置：源仓 `lx-source CI` 转绿于 `cd43810`
-> - 本文件对应变更：v8.15.1「契约与死配置收口」= 健康态源版本 8.15.1（兼容恢复 8.14.1）+ 删 2 个未登记键 / 4 个死模板 / 未消费 timeoutMs + 429 退避统一到 `rateLimitBackoffMs`；同批修 `docs-audit` 规则 14 自伤、`ecosystem-scan` 自 v8.13 起失效、9 个脚本 require 安全
+> **基线（唯一真值，2026-11-16）**：
+> - 源仓：`luanmuc/backend-api` @ `master`，v8.16.1（tag `v8.16.1` + Release），`lx-source.js` **v8.16.1**，**5881 行 / 307085 bytes**（`node scripts/build-source.js` 实跑）
+> - App 仓：`luanmuc/mobile-app` @ `54249f8b`（已推送），v1.9.2-**b143** / versionCode **302**（Build `43849852397` success，5 APK）；`npm run preflight` 36/36 绿（202s）
+> - track-player：`88b062b`（v2 分支）
+> - 硬数字：`test/` 下 **48 个 `.js` 入口**；`npm test` **42 个脚本**（CI 的 L3/L4 审计清单已全量并入，2026-11-16 之前只 26 个）；审计断言 **564 条**（健康域 102 + 其余 455 + 口径 7）；冒烟 67 组；压测 159 条；变异 22 killed / 0 survived
+> - 本文件对应变更：v8.16.1「旧版本健康快照按数值比较接受」= `compareSourceVersion` 数值比较 + `ACCEPTED_SOURCE_VERSIONS` 白名单 `[8.14.1, 8.15.1, 8.16.0, 8.16.1]`；同批 `chain-golden.json` 按 `dump-chain.js --json` 重建（含 `version`/`sourceHead`）；App 新增 `check_cross_repo_health_roundtrip`（X1~X3）与 `preflight`
 
 ---
 
@@ -65,7 +67,10 @@
 | **音质真实标签** | `qualityFromDelivery`、`sniffAudioBytes` 总字节、`qualityConfidence`、片段语义 | `quality-truth.js` | 9 | A |
 | **音质政策优化** | 能力备档不续期、`definitiveFail` 分类、短路改判据、唯一源探路、强制探路、旧快照兼容 | `quality-policy-v2.js` | 12 | A |
 
-**当前总数**：冒烟 **67 组** + 审计 **416 条**（旧 395 + 音质真实标签 9 + 音质政策 12）+ 压测 **159 条** + 变异 **22 killed / 0 survived**。计数真值以 `docs/TESTING.md` 与 `docs/AUDIT_MATRIX.md` 为准。
+| **健康域（14 脚本）** | 探测分批/资格判定/断路器/快照 ETA/事件/状态机/持久化/版本兼容 | `health-*.js` | **102** | A |
+| **计划唯一性** | 每仓审计 1 份 + 压测 1 份；归档合并为一份 | `tg-truth` G14 + `docs-audit` | 1 | A |
+
+**当前总数**：冒烟 **67 组** + 审计 **564 条**（健康域 102 + 其余 455 + 口径 7）+ 压测 **159 条** + 变异 **22 killed / 0 survived**。计数真值以 `docs/TESTING.md` 与 `docs/AUDIT_MATRIX.md` 为准；`npm test` rc=0 覆盖 42 个脚本。
 
 ---
 
@@ -121,7 +126,7 @@
 
 | 编号 | 联动点 | 现状 | 性质 |
 |---|---|---|---|
-| QP-L1 | **第 14 个 action `forceQualityProbe` 未进 App 契约** | 音源 `actions` 已声明 14（v8.14.0 补齐 `forceQualityProbe`）；App `SOURCE_ACTIONS` 仍 13、`check_source_contract` 硬断言 `length===13`、`SYNC_POINTS.md` 写「13 action」 | 契约漂移（源侧已齐，App 侧仍 P2） |
+| QP-L1 | **第 14 个 action `forceQualityProbe`** | **已闭合（2026-11-16）**：App `SOURCE_ACTIONS` 14、`check_source_contract` 14/0 对齐、`SYNC_POINTS.md` 已写 14；源侧实现完整 + `quality-policy-v2` QP6 覆盖。App 无 UI 调用方属「源能力声明」，不删 | 已闭合 |
 | QP-L2 | **能力备档压制起跑档无 App 可见解释** | 音源 `getQualityCeiling` 把「这首歌只有 128k」记 6h/10min，请求 flac 被直接 128k 起跑；App `onQuality` 回填 128k 但 UI 无「因源能力备档跳过」提示 | 体验缺口 |
 | QP-L3 | **`definitiveFail`/`linkExpired` App 不消费** | 音源 byQuality 快照新增两字段；App `Health.tsx` 类型仍 `req/success/fail/businessFail/rate/avgTime/state` | 源有数据、App 不展示（无害） |
 | QP-L4 | **`qualityConfidence` 三值跨仓一致** | 音源返回 `exact/estimated/unknown`；App 消费时 `default='exact'` 仅作旧源兼容 | 已对齐，回归面继续守 |
@@ -132,39 +137,39 @@
 
 ## 5. 执行清单（本轮必跑，不接受「上次绿过」）
 
+> 2026-11-16 起：**`npm test` 就是 CI 判据**（42 脚本），不再先跑 19 个本地子集再看云端。压测与变异单独串行（计时类断言不能被抢占）。
+
+
 ```bash
-node test/lx-source-smoke-test.js          # 冒烟 67 组
-node test/audit/a-static.js                # 10
-node test/audit/b-logic.js                 # 30
-node test/audit/d-func.js                  # 30
-node test/audit/e-extra.js                 # 90
-node test/audit/f-repo.js                  # 52
-node test/audit/g-meta.js                  # 14
-node test/audit/h-toggles.js               # 8
-node test/audit/n-fixes.js                 # 4
-node test/audit/p-gaps.js                  # 4
-node test/audit/q-dfix.js                  # 5
-node test/audit/q2-dseries.js              # 3
-node test/audit/r-admission.js             # 24
-node test/audit/s-health-events.js         # 27
-node test/audit/t-health-events-stress.js  # 12
-node test/audit/u-cross-platform.js        # 12
-node test/audit/v-cross-platform-stress.js # 13
-node test/audit/w-fallback-owner.js        # 2
-node test/audit/x-media-envelope.js        # 12
-node test/audit/y-provider-contract.js     # 15
-node test/audit/s-source-lifecycle.js      # 14
-node test/audit/z-cancel.js                # 11
-node test/audit/quality-truth.js           # 9  （音质真实标签）
-node test/audit/quality-policy-v2.js       # 12 （音质政策优化）
-node test/candidate-audit-test.js          # 6
-node test/stress-test.js                   # 12
-node test/stress-round3.js                 # 14
-node --expose-gc test/stress-round4.js     # 133
-node test/mutation/run.js --full --strict  # 22 killed / 0 survived
-node scripts/self-check.js                 # 版本串同步
-node scripts/docs-audit.js                 # 文档镜像
+npm test                                   # 42 脚本 / 564 条审计断言（= CI 的 L3+L4 全量清单）
+node --expose-gc test/stress-test.js        # S 12
+node --expose-gc test/stress-round3.js      # T 14
+node --expose-gc test/stress-round4.js      # V 133
+node test/mutation/run.js --full --strict   # 变异 22 killed / 0 survived（不可与压测同跑）
+node scripts/self-check.js                  # 版本串三处一致
+node scripts/docs-audit.js --dry-run        # 文档镜像 0 红
+npm run verify:bundle                       # 产物 lx-source.js 8/0
 ```
+
+### 5b. 全量脚本台账（48 入口 = 42 进 `npm test` + 6 按需）
+
+| 脚本 | 条数 | 归属 |
+|---|---:|---|
+| `test/lx-source-smoke-test.js` | 67 组 | 冒烟（进 npm test） |
+| `a-static` / `b-logic` / `d-func` / `e-extra` | 10 / 30 / 30 / 90 | 静态/逻辑/功能/扩展 |
+| `f-repo` / `g-meta` / `h-toggles` | 56 / 16 / 8 | 仓库/元审计/开关 |
+| `n-fixes` / `p-gaps` / `q-dfix` / `q2-dseries` | 4 / 4 / 5 / 3 | 缺陷回归/零覆盖补测/D 系列 |
+| `r-admission` / `s-health-events` / `t-health-events-stress` | 24 / 27 / 12 | 裁决层/健康事件/压力 |
+| `u-cross-platform` / `v-cross-platform-stress` / `w-fallback-owner` / `x-media-envelope` | 15 / 13 / 2 / 12 | 跨平台/降级所有权/媒体信封 |
+| `y-provider-contract` / `s-source-lifecycle` / `z-cancel` | 15 / 14 / 11 | Provider/生命周期/取消 |
+| `quality-truth` / `quality-policy-v2` | 9 / 12 | 音质真实标签/音质政策 |
+| `budget-admission` / `aa-p3-persist` / `v-eligibility` | 7 / 10 / 7 | 预算裁决/P3 持久化/资格 |
+| `tg-truth` | 7 规则 | 口径门禁（含 G14 计划唯一） |
+| `health-*.js`（14 个） | 102 | 健康域（探测/资格/断路器/快照/事件/版本） |
+| `candidate-audit-test.js` | 6 | 候选源接入 |
+| `q-quickjs-real.js` | 3 | **按需**：需 `npm i quickjs-emscripten`（CI L5.2 单独装） |
+| `test/stress-test.js` / `stress-round3` / `stress-round4` | 12 / 14 / 133 | **按需**：压测，见 `STRESS_PLAN.md` |
+| `test/mutation/run.js` | 22 | **按需**：变异，不可与压测同跑 |
 
 通过标准：全部 rc0；变异 killed 率 100%。
 
@@ -174,6 +179,7 @@ node scripts/docs-audit.js                 # 文档镜像
 
 | ID | 缺口 | 验证方法 | 验收 |
 |---|---|---|---|
+| ~~G10~~ **已闭合** | 原记「`f-repo` 不在 `npm test` 里，文档死链/H1 门禁本地从不跑」 | **2026-11-16 实锤**：合并归档后 `f-repo` 报 2 红（`AUDIT_HISTORY.md` 多个 H1、README/AUDIT_RESULTS 指向已删分册、归档原文相对链接全死），云端 CI 会红而本地 `npm test` 全绿 | 已把 CI 的 L3/L4 清单全量并入 `npm test`（26→42），死链与 H1 全部修好，`f-repo` 56/0 |
 | G2 | 平台覆盖只有 kw 全链；wy/tx/mg/kg 无真实取歌断言 | 各构造一次取链 | 至少 wy、tx 各一条真实取链，或记录「结构同 kw」依据 |
 | G5 | 长时运行成功路径未覆盖 | 200 次不同歌，记 RSS | 各表 ≤ 上限，RSS 有上界 |
 | G6 | 安全面只有静态 grep | 构造 `javascript:`/`file://`/超长参数 | 非法 URL 拒、超长截或拒 |
@@ -208,7 +214,7 @@ node scripts/docs-audit.js                 # 文档镜像
 
 ## 9. 细粒度检查矩阵与 2026-11-13 实测（原 v9.0 独有，归档前承接）
 
-> v9.0（原 `docs/AUDIT_PLAN.md`，600 行）已归档至 `docs/archive/AUDIT_PLAN-v9.0.md`。归档前甄别出**两项未进本文件**的独有信息，在此承接：带行号的 13 项细粒度矩阵、2026-11-13 实测的 5 条缺陷。其余历轮结论见 `docs/AUDIT_RESULTS.md`。
+> v9.0（原 `docs/AUDIT_PLAN.md`，600 行）已归档至 `docs/archive/AUDIT_HISTORY.md`（与 round1~5、stress-round4 合并成一份历史合集）。归档前甄别出**两项未进本文件**的独有信息，在此承接：带行号的 13 项细粒度矩阵、2026-11-13 实测的 5 条缺陷。其余历轮结论见 `docs/AUDIT_RESULTS.md`。
 
 ### 9.1 细粒度审计矩阵（S-A01~S-A13）
 
@@ -241,3 +247,11 @@ node scripts/docs-audit.js                 # 文档镜像
 | S-F05 | 文档计数漂移：CHANGELOG 写 286797、TESTING 写 429/655 | 低 | 实际 288771；入口 44 / npm test 19 | 已同步 |
 
 > S-F01/S-F02 是**已修复并加断言**的真实缺陷，不是待办；本节保留其证据链，供后续回退验证（反向改实现必须变红）。
+
+---
+
+## 10. 维护记录（本文件只记基线变更，不堆历史）
+
+| 日期 | 变更 | 实跑证据 |
+|---|---|---|
+| 2026-11-16 | 基线升到 v8.16.1 / App b143；`npm test` 26→42 脚本（并入 CI 审计清单）；计划唯一性收口（`tg-truth` G14） | `npm test` rc0 42 脚本 / 564 条；`f-repo` 56/0；`docs-audit --dry-run` 0 红；`verify:bundle` 8/0；`npm test` rc0 |
