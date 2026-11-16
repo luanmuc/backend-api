@@ -20,6 +20,26 @@ on:
     types: [published]
 
 jobs:
+  # 变更面判定：L1.3 压力测试（S1~S10，云端 8m36）只在「音源代码真变了」时才跑。
+  # 只改 test/ scripts/ docs 时，被压的对象（lx-source.js / src）没变，跑一遍结论必然相同——跳过不丢覆盖。
+  # schedule / workflow_dispatch / release 事件一律照跑（那是定期体检与发版验收）。
+  changes:
+    name: 变更面
+    runs-on: ubuntu-latest
+    outputs:
+      src: ${{ steps.diff.outputs.src }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        name: 判定 lx-source.js / src 是否变化
+        run: |
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then BASE="HEAD~1"; fi
+          FILES=$(git diff --name-only "$BASE" "${{ github.sha }}" || git diff --name-only HEAD~1)
+          echo "变更文件："; echo "$FILES" | sed 's/^/  /'
+          if echo "$FILES" | grep -qE '^(lx-source.js|src/)'; then echo "src=true" >> "$GITHUB_OUTPUT"; else echo "src=false" >> "$GITHUB_OUTPUT"; fi
   # ---------- v2.0：语法 + 冒烟 + 审计（并行 job 1） ----------
   test-fast:
     runs-on: ubuntu-latest
@@ -77,6 +97,9 @@ jobs:
   # ---------- v8.11.1：长跑压力测试（并行 job 2，约 11 分钟，真实超时等待） ----------
   stress-long:
     runs-on: ubuntu-latest
+    needs: [changes]
+    # 音源代码没变时不为同一条结论重复烧 8 分钟；schedule/dispatch/release 永远跑
+    if: needs.changes.outputs.src == 'true' || github.event_name != 'push'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -222,7 +245,9 @@ jobs:
   # push master 或发版后立刻刷新 CDN 缓存，App 端检查更新马上能拉到最新版
   purge-cdn:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' || github.event_name == 'release' }}
+    # always()：stress-long 在「只改 test/scripts/docs」时会被跳过，不能因此连带跳过 purge。
+    # 真正的门槛写成 needs 结果判定——test-fast 与已跑的 stress 都必须 success。
+    if: ${{ always() && (github.event_name == 'push' || github.event_name == 'release') && needs.test-fast.result == 'success' && (needs.stress-long.result == 'success' || needs.stress-long.result == 'skipped') && needs.stress-short.result == 'success' }}
     needs: [test-fast, stress-long, stress-short]   # 测试通过才 purge，避免坏版本污染 CDN
     steps:
       - uses: actions/checkout@v4
