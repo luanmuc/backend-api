@@ -180,6 +180,7 @@ npm run verify:bundle                       # 产物 lx-source.js 8/0
 | ID | 缺口 | 验证方法 | 验收 |
 |---|---|---|---|
 | ~~G10~~ **已闭合** | 原记「`f-repo` 不在 `npm test` 里，文档死链/H1 门禁本地从不跑」 | **2026-11-16 实锤**：合并归档后 `f-repo` 报 2 红（`AUDIT_HISTORY.md` 多个 H1、README/AUDIT_RESULTS 指向已删分册、归档原文相对链接全死），云端 CI 会红而本地 `npm test` 全绿 | 已把 CI 的 L3/L4 清单全量并入 `npm test`（26→42），死链与 H1 全部修好，`f-repo` 56/0 |
+| ~~G11~~ **已闭合** | 原记「`package.json` 无 `engines.node`，CI 钉 20 与本地/协作者无约束」 | 2026-11-16 加 `"engines": { "node": ">= 18" }`；纯声明、零运行时影响 |
 | G2 | 平台覆盖只有 kw 全链；wy/tx/mg/kg 无真实取歌断言 | 各构造一次取链 | 至少 wy、tx 各一条真实取链，或记录「结构同 kw」依据 |
 | G5 | 长时运行成功路径未覆盖 | 200 次不同歌，记 RSS | 各表 ≤ 上限，RSS 有上界 |
 | G6 | 安全面只有静态 grep | 构造 `javascript:`/`file://`/超长参数 | 非法 URL 拒、超长截或拒 |
