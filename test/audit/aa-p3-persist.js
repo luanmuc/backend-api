@@ -119,10 +119,16 @@ check('A3 含 successUrl 的 payload 必须拒绝', () => {
 check('A4 版本不符/过期/超容量全部拒绝', () => {
   const m = fresh()
   const good = m.exportHealthState()
+  // HC：旧版本快照（8.12.0 < 当前 8.16.0）结构合法时应恢复，不得整包拒绝
+  const olderVer = JSON.parse(JSON.stringify(good))
+  olderVer.sourceVersion = '8.12.0'
+  const r1o = m.restoreHealthState(olderVer)
+  assert(r1o.ok === true, `旧版本应恢复，实际 ${r1o.ok} / ${r1o.reason}`)
+  // HC：未来版本快照（9.9.9 > 当前）仍必须拒绝
   const badVer = JSON.parse(JSON.stringify(good))
-  badVer.sourceVersion = '8.12.0'
+  badVer.sourceVersion = '9.9.9'
   const r1 = m.restoreHealthState(badVer)
-  assert(r1.ok === false, '版本不符应拒绝')
+  assert(r1.ok === false, '未来版本应拒绝')
   assert(/sourceVersion/i.test(r1.reason || ''), `拒绝原因应是 sourceVersion 不符，实际 ${r1.reason}`)
   const old = JSON.parse(JSON.stringify(good))
   old.savedAt = Date.now() - 8 * 24 * 3600 * 1000

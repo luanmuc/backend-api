@@ -114,6 +114,9 @@ rec('S14', '产物版本头与 package.json 一致', () => {
   const src = fs.readFileSync(SRC, 'utf8');
   assert.match(src, new RegExp('@version ' + ver));
   assert.match(src, new RegExp('v' + ver));
+  // 补一条：lock 版本必须跟 package 一致（升版时 lock 漏改会让 CI 装出旧版本串）。
+  // 注意横幅不能改成 `v${常量}` 派生——`scripts/self-check.js` 的开包升级正则依赖字面量版本号。
+  assert.equal(require(path.join(ROOT, 'package-lock.json')).version, require(path.join(ROOT, 'package.json')).version);
 });
 
 console.log(`\nSource lifecycle: ${pass} passed, ${fail} failed`);

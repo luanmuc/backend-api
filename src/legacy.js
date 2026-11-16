@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.16.0 新增 tx 源版（2026-11-15：接入 qingliangTx（晴亮 tx 线路，第三方单点）作为 tx 第二源，登记源 12→13、上链源 10→11；juheTx 连续 7 天 0% 降为 tx 第三源；晴亮取链必带 Referer，超时/竞速/取消全交本仓框架，不自带内层 3s 超时）。历史版本见 docs/CHANGELOG.md。
- * @version 8.16.0 接入晴亮 tx 源（第三方单点 / tx 三源）
+ * @description v8.16.1 健康态跨版本恢复版（2026-11-16：健康快照版本判定由“严格白名单”改为“数值 ≤ 当前源版本即接受”，旧版本账本（熔断/档位短路/播放摘除）不再随音源升版被整包丢弃；未来版本与非法结构仍拒绝）。上一版 v8.16.0 为接入晴亮 tx 源版。历史版本见 docs/CHANGELOG.md。
+ * @version 8.16.1 健康态跨版本恢复（旧版本账本可恢复 / 未来版本拒绝）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -3996,8 +3996,29 @@ function getHealthSnapshot() {
 const HEALTH_STATE_VERSION = 2; // 单一路径：只导出/恢复 v2
 const HEALTH_STATE_ACCEPTED_VERSIONS = [2];
 // 导出时写当前源版本；恢复时同时接受上一版，避免一次版本升级把用户已存健康态整包丢掉。
-const HEALTH_STATE_SOURCE_VERSION = "8.16.0";
-const HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0"];
+const HEALTH_STATE_SOURCE_VERSION = "8.16.1";
+// HC：旧版本快照应可恢复（结构校验兜底），未来版本仍拒绝。
+// 原来只放行固定白名单，导致音源每升一个版本、用户熔断/短路记录就被整包拒绝丢失；
+// 白名单同时随版本漂移（漏加一条即丢数据）。改为按版本号数值比较。
+const HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1"];
+function parseHealthSourceVersion(v) {
+  const parts = String(v || "").trim().split(".");
+  if (parts.length !== 3) return null;
+  const nums = parts.map(n => Number(n));
+  if (nums.some(n => !Number.isInteger(n) || n < 0)) return null;
+  return nums;
+}
+function isAcceptedSourceVersion(stateVersion) {
+  if (typeof stateVersion !== "string" || !stateVersion) return false;
+  if (HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS.includes(stateVersion)) return true;
+  const a = parseHealthSourceVersion(stateVersion);
+  const b = parseHealthSourceVersion(HEALTH_STATE_SOURCE_VERSION);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i];
+  }
+  return true;
+}
 const HEALTH_STATE_MAX_BYTES = 256 * 1024;
 const HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1000;
 const HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1000;
@@ -4125,7 +4146,7 @@ function restoreHealthState(state) {
     if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state 超过 256KB" };
     const forbidden = checkHealthForbiddenKeys(state, "state");
     if (forbidden) return { ok: false, reason: `禁止字段 ${forbidden}` };
-    if (!controlsOnly && !HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS.includes(state.sourceVersion)) return { ok: false, reason: "sourceVersion 不符" };
+    if (!controlsOnly && !isAcceptedSourceVersion(state.sourceVersion)) return { ok: false, reason: "sourceVersion 不符" };
     if (!isHealthPlainObject(state.sources)) {
       if (!controlsOnly) return { ok: false, reason: "sources 必须是对象" };
     }
@@ -5841,7 +5862,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.16.0 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v8.16.1 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

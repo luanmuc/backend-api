@@ -6,10 +6,10 @@
 >
 > **时效说明**：以下逐文件结论是 2026-11-10 通读时的历史快照，保留作为审计证据；当前版本号、断言数、行数以 `README.md`、`docs/TESTING.md` 与 `scripts/docs-audit.js` 的实测为准。
 
-历史快照 HEAD `3ba3702`（v8.16.0）；当前工作区 **v8.15.1** 契约与死配置收口版
+历史快照 HEAD `e9a2259`（v8.16.1）；当前工作区 **v8.15.1** 契约与死配置收口版
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `eb2ce1c`。
-文件数：**139**　总行数：**39858**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**139**　总行数：**39909**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -55,15 +55,15 @@
 | `.gitignore` | 2 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
 | `README.md` | 130 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 43 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
-| `lx-source.js` | 5863 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
-| `docs/AGENTS.md` | 197 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
+| `lx-source.js` | 5881 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / 16 错误码；12 处可疑点见 F07~F22（4 条待实证） |
+| `docs/AGENTS.md` | 199 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 93 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突）→ **2026-11-12 已修：4509 行** |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
 | `docs/AUDIT_MATRIX.md` | 179 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/archive/AUDIT_PLAN-v9.0.md` | 600 | 全文 | T 组 5 通过/3 部分/5 未通过；V 组 36 项 7✅/10⚠️/19❌；15 条修复全落地；端点 20/79 文件 20309 行已于 2026-11-10 校正 |
 | `docs/AUDIT_PLAN_v10.md` | 243 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 1999 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 130 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 131 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 552 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -132,7 +132,7 @@
 | `test/audit/health-scoped-reset.js` | 74 | 断言 | 2 条（authority 保留质量历史只复位执行门 / all 完整归零）；实跑 2/0 |
 | `test/audit/health-scheduler-fake-clock.js` | 65 | 断言 | 2 条（±10% jitter 边界 / 播放取链在途暂停判定）；实跑 2/0 |
 | `test/audit/q-quickjs-real.js` | 141 | 断言 | 3 条；三级依赖查找（仓内→vendor→$QUICKJS_EMSCRIPTEN→npm i），缺依赖 exit 3 |
-| `test/audit/aa-p3-persist.js` | 233 | 断言 | P3 A1~A10 宿主持久化协议：导出结构/往返/URL 拒绝/版本 TTL/恢复边界/v1 拒绝/controls-only/无回滚开关；实跑 11/0 |
+| `test/audit/aa-p3-persist.js` | 239 | 断言 | P3 A1~A10 宿主持久化协议：导出结构/往返/URL 拒绝/版本 TTL/恢复边界/v1 拒绝/controls-only/无回滚开关；实跑 11/0 |
 | `test/audit/health-persistence-v2.js` | 176 | 断言 | F36/F57 P1~P10 持久化 v2：v2 结构/v1 拒绝/controls-only/autoOff 6h/无回滚开关/拒绝非法；实跑 10/0 |
 | `test/audit/health-probe-outcome.js` | 143 | 断言 | F20/F22 O1~O9 探测三值：PASS/FAIL/UNKNOWN 聚合、UNKNOWN 不累计失败、PASS 不清 playDead/resolveDead、事件无 URL；实跑 11/0 |
 | `test/audit/health-probe-fidelity.js` | 171 | 断言 | F20/F22 F1~F10 探测保真：逐目标三值、全 FAIL、超时 UNKNOWN、POST 透传、check/可播校验、单源隔离、不写质量账、不清摘除、事件无 URL；实跑 11/0 |
@@ -203,7 +203,7 @@
 | `scripts/verify-real-platform-chains.js` | 103 | 全文 | G7 先搜平台 ID 再隔离取链；公网不可用时如实保留上游失败码 |
 | `src/00-header.js` | 6 | 全文 | 单文件 banner |
 | `src/80-entry.js` | 10 | 全文 | 导出面 + 非枚举 PROVIDER_SPECS |
-| `src/legacy.js` | 5974 | 全文 | v8.13 实现源（契约/生命周期/取消） |
+| `src/legacy.js` | 5995 | 全文 | v8.13 实现源（契约/生命周期/取消） |
 | `src/providers/55-probation.js` | 41 | 全文 | 两个观察源规格 |
 | `src/providers/changqingVip.js` | 20 | 全文 | 12 源契约规格 |
 | `src/providers/helloworldKw.js` | 22 | 全文 | 12 源契约规格 |
@@ -217,7 +217,7 @@
 | `src/providers/suyinKuwo.js` | 30 | 全文 | 12 源契约规格 |
 | `src/providers/wyOuter.js` | 20 | 全文 | 12 源契约规格 |
 | `src/providers/xinghaiBackend.js` | 22 | 全文 | 12 源契约规格 |
-| `test/audit/s-source-lifecycle.js` | 122 | 全文 | v8.13 审计入口 |
+| `test/audit/s-source-lifecycle.js` | 125 | 全文 | v8.13 审计入口 |
 | `test/audit/y-provider-contract.js` | 145 | 全文 | v8.13 审计入口 |
 | `test/audit/z-cancel.js` | 170 | 全文 | v8.13 审计入口 |
 

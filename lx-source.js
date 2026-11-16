@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
  * @description v8.15.1 契约与死配置收口版（12 登记源 / 10 上链 / 2 观察；健康态导出源版本升 8.15.1 且兼容 8.14.1；删除 2 个未登记配置键、长青 4 个死模板与 provider 未消费 timeoutMs；限流退避统一由 rateLimitBackoffMs 决定）
- * @version 8.16.0
+ * @version 8.16.1
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -3597,8 +3597,26 @@ var __lxSourceBundle = (() => {
       }
       var HEALTH_STATE_VERSION = 2;
       var HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-      var HEALTH_STATE_SOURCE_VERSION = "8.16.0";
-      var HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0"];
+      var HEALTH_STATE_SOURCE_VERSION = "8.16.1";
+      var HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1"];
+      function parseHealthSourceVersion(v) {
+        const parts = String(v || "").trim().split(".");
+        if (parts.length !== 3) return null;
+        const nums = parts.map((n) => Number(n));
+        if (nums.some((n) => !Number.isInteger(n) || n < 0)) return null;
+        return nums;
+      }
+      function isAcceptedSourceVersion(stateVersion) {
+        if (typeof stateVersion !== "string" || !stateVersion) return false;
+        if (HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS.includes(stateVersion)) return true;
+        const a = parseHealthSourceVersion(stateVersion);
+        const b = parseHealthSourceVersion(HEALTH_STATE_SOURCE_VERSION);
+        if (!a || !b) return false;
+        for (let i = 0; i < 3; i++) {
+          if (a[i] !== b[i]) return a[i] < b[i];
+        }
+        return true;
+      }
       var HEALTH_STATE_MAX_BYTES = 256 * 1024;
       var HEALTH_STATE_TTL_MS = 7 * 24 * 3600 * 1e3;
       var HEALTH_STATE_FUTURE_TOLERANCE_MS = 3600 * 1e3;
@@ -3729,7 +3747,7 @@ var __lxSourceBundle = (() => {
           if (JSON.stringify(state).length > HEALTH_STATE_MAX_BYTES) return { ok: false, reason: "state \u8D85\u8FC7 256KB" };
           const forbidden = checkHealthForbiddenKeys(state, "state");
           if (forbidden) return { ok: false, reason: `\u7981\u6B62\u5B57\u6BB5 ${forbidden}` };
-          if (!controlsOnly && !HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS.includes(state.sourceVersion)) return { ok: false, reason: "sourceVersion \u4E0D\u7B26" };
+          if (!controlsOnly && !isAcceptedSourceVersion(state.sourceVersion)) return { ok: false, reason: "sourceVersion \u4E0D\u7B26" };
           if (!isHealthPlainObject(state.sources)) {
             if (!controlsOnly) return { ok: false, reason: "sources \u5FC5\u987B\u662F\u5BF9\u8C61" };
           }
@@ -5310,7 +5328,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.16.0 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.16.1 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {
