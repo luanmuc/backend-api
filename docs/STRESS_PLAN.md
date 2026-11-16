@@ -71,6 +71,7 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | `f-repo`（文档 H1/死链门禁） | 56/0 |
 | `verify:bundle`（产物与新 `lx-source.js` 一致） | 8/0 |
 | 变异 | 22 killed / 0 survived |
+| App b145 云端（采用本仓 `cae74df`） | Build `43896413859` success；5 APK / vc304；Android 6m58s 绿 |
 | App b144 云端（采用本仓 `e529ad7`） | Build #43864636348 success；5 APK / vc303 |
 
 ## 5. 失败处置与外部阻塞

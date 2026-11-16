@@ -91,7 +91,7 @@
 | `docs/README.md` | 71 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 74 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/TESTING.md` | 167 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/CHANGELOG.md` | 134 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/CHANGELOG.md` | 135 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/archive/AUDIT_HISTORY.md` | 1441 | .md | ✓ | ✓ | — | — | — | — | — | 归档合集 |
 | `docs/AUDIT_MATRIX.md` | 173 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 466 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
@@ -103,7 +103,7 @@
 | `.gitignore` | 2 | 其他 | ✓ | — | — | — | — | — | — | U13 编码扫描（本轮登记） |
 | `docs/AUDIT_PLAN_v10.md` | 258 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
 | `docs/PROGRESS_round5.md` | 58 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1~V8（本轮登记） |
-| `docs/STRESS_PLAN.md` | 124 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
+| `docs/STRESS_PLAN.md` | 125 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1（本轮登记） |
 | `docs/reports/候选接入评审-2026-11-15.md` | 97 | .md | ✓ | ✓ | — | — | — | — | — | R40 生态候选（qingliang tx 5/5 全曲） |
 | `test/audit/q-quickjs-real.js` | 141 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/QR1~QR3 |
@@ -125,7 +125,7 @@
 ## 汇总
 
 - 文件总数：**133**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**39978**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 总行数：**39980**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_LIFECYCLE.md` | 76 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
