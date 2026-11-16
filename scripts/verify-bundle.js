@@ -27,6 +27,14 @@ function rec(id, name, fn) {
 function main() {
   // 产物加载必须放进 main：dist/ 是未入库的构建产物，顶层 require(DIST) 会让
   // 「被 require 的模块」在干净检出（CI 无 dist/）直接抛错——M9b require 安全会红。
+  //
+  // 干净检出（新 clone / CI）上 dist/ 不存在：不能直接判定失败，否则「唯一产物校验器」
+  // 反而要求人先手工 build。这里缺产物就就地重建一次，再校验——校验对象仍是刚构建的产物。
+  if (!fs.existsSync(DIST)) {
+    console.log(`… dist/ 不存在，先重建产物：node scripts/build-source.js`);
+    // eslint-disable-next-line global-require
+    require('child_process').execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-source.js')], { stdio: 'inherit' });
+  }
   globalThis.lx = HOST;
   globalThis.__lxSourceConfig = { healthCheckIntervalMs: 3600000 };
   // eslint-disable-next-line global-require

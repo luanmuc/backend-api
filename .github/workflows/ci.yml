@@ -7,6 +7,7 @@ on:
       - 'lx-source.js'
       - 'test/**'
       - 'scripts/**'
+      - 'src/**'
       - '.github/workflows/**'
   schedule:
     # v8.10.4：改到 UTC 20:00（北京次日 04:00）。GitHub schedule 排队实测延迟 6–8 小时

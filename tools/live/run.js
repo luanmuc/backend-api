@@ -1,7 +1,7 @@
 // 云端分层真实测试：L1 协议 / L2 缓存 / L3 调度 / L4 验真 / L5 单源 / L6 状态 / L7 巡检
 const path = require('path');
 const { createHost } = require('./host');
-const REPO = '/home/user/Doubao/chats/38450522296699906/repos/lx-music-source';
+const REPO = path.resolve(__dirname, '..', '..');
 const SRC = path.join(REPO, 'lx-source.js');
 
 const res = [];
@@ -40,7 +40,7 @@ async function musicUrl(song, quality, source = 'kw') {
     const ids = Object.keys(snap || {});
     const real = ids.filter(k => !k.startsWith('_'));
     const meta = ids.filter(k => k.startsWith('_'));
-    rec('L1-2', 'health 返回 20 源 + 3 元信息键', real.length === 20 && meta.length === 3,
+    rec('L1-2', 'health 返回 13 源 + 3 元信息键', real.length === 13 && meta.length === 3,
       `源=${real.length} 元=${meta.join('/')} 源字段=${Object.keys(snap[real[0]] || {}).slice(0,6).join(',')}`);
 
     const cfgOut = await call({ action: 'config', source: 'kw', info: {} });

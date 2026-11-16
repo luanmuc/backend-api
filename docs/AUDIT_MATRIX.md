@@ -21,11 +21,11 @@
 | 文件 | 行 | 类型 | U | V | W | X | Y | Z | H | 证据 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `docs/音源架构执行全过程-2026-11-12.md` | 143 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `.github/workflows/ci.yml` | 238 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
+| `.github/workflows/ci.yml` | 239 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `.github/workflows/docs-audit.yml` | 48 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
-| `README.md` | 129 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `README.md` | 130 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `README_HEALTH.md` | 43 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AGENTS.md` | 196 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AGENTS.md` | 197 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/archive/AUDIT_PLAN-v9.0.md` | 600 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/AUDIT_RESULTS.md` | 1999 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -38,8 +38,8 @@
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 146 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 295 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/candidate-status.md` | 8 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/health-daily/` | 1169 | .md+.json | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8/U10 |
-| `docs/probe-history.jsonl` | 849 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
+| `docs/health-daily/` | 1155 | .md+.json | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8/U10 |
+| `docs/probe-history.jsonl` | 866 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
 | `lx-source.js` | 5863 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
 | `scripts/candidate-audit.js` | 342 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/cn-date.js` | 17 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
@@ -91,12 +91,13 @@
 | `docs/ARCHITECTURE.md` | 93 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/README.md` | 71 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 74 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/TESTING.md` | 166 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/TESTING.md` | 167 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/CHANGELOG.md` | 130 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/AUDIT_MATRIX.md` | 178 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 179 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 466 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
 | `test/stress-round3.js` | 363 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
 | `test/audit/g-meta.js` | 444 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14/M9b/M9c |
+| `test/audit/tg-truth.js` | 95 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/Y1/G1~G13 |
 | `docs/archive/audit-plans/round1.md` | 90 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/archive/audit-plans/round2.md` | 186 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
 | `docs/archive/audit-plans/round3.md` | 78 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1 |
@@ -123,14 +124,14 @@
 | `test/stress-round4.js` | 1333 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 272 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
-| `docs/READTHROUGH.md` | 232 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
+| `docs/READTHROUGH.md` | 233 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
 | `docs/DOC_INDEX.md` | 80 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
 | `docs/KNOWN_ISSUES.md` | 65 | .md | ✓ | ✓ | — | — | — | — | — | 已知问题/技术债台账（K01~K20） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | .md | ✓ | ✓ | — | — | — | — | — | 音质策略优化方案（含复现证据） |
 ## 汇总
 
-- 文件总数：**138**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**39746**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**139**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**39858**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_LIFECYCLE.md` | 76 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
@@ -140,7 +141,7 @@
 | `package.json` | 17 | .json | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `scripts/build-source.js` | 55 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `scripts/source-inventory.js` | 112 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `scripts/verify-bundle.js` | 97 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `scripts/verify-bundle.js` | 105 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `scripts/verify-real-platforms.js` | 76 | .js | ✓ | — | — | — | ✓ | ✓ | — | 真实 HTTP 宿主五平台取链证据 |
 | `scripts/verify-real-platform-chains.js` | 103 | .js | ✓ | — | — | — | ✓ | ✓ | — | G7 平台 ID 链真实证据 |
 | `src/00-header.js` | 6 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |

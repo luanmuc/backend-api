@@ -179,7 +179,7 @@ function await0(p) { p.catch(() => {}); }
 
 // ---------- B4 App 跨仓字段比对 ----------
 {
-  const appUtils = '/home/user/Doubao/chats/38450522296699906/repos/lx-music-mobile/src/core/music/utils.ts';
+  const appUtils = path.resolve(__dirname, '..', '..', '..', 'lx-music-mobile', 'src', 'core', 'music', 'utils.ts');
   let appFields = '', appChecked = false;
   if (fs.existsSync(appUtils)) {
     const t = fs.readFileSync(appUtils, 'utf8');

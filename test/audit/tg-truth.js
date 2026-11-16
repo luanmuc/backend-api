@@ -1,0 +1,95 @@
+#!/usr/bin/env node
+/**
+ * 口径门禁（源仓侧）· tg-truth
+ * 接进 npm test 后，每次跑测试都会核对"仓库里各个数字和现实是否一致"。
+ * 只读仓库内文件，无网络、无 SDK，单次 < 1s。
+ */
+const fs = require('fs')
+const path = require('path')
+
+const root = path.resolve(__dirname, '..', '..')
+const LEGACY_SESSION = '38450522296' + '699906' // 拼出以规避本文件自指
+const rd = (p) => fs.readFileSync(path.join(root, p), 'utf8')
+
+let red = 0
+const P = (id, msg) => console.log('  ✅ ' + '[' + id + '] ' + msg)
+const F = (id, msg) => { red++; console.log('  ❌ ' + '[' + id + '] ' + msg) }
+const S = (id, msg) => { red++; console.log('  ❌  ' + '[' + id + '] ' + msg + '（读不到=判据失效，按红处理）') }
+
+// G1 源数：provider 定义数 vs run.js 断言值
+try {
+  const provs = [...rd('src/legacy.js').matchAll(/\n\s+([A-Za-z0-9_]+):\s+provider\(/g)].map(m => m[1])
+  const m = rd('tools/live/run.js').match(/real\.length === (\d+)/)
+  if (!m) F('G1 run.js 找不到 real.length 断言')
+  else if (Number(m[1]) === provs.length) P('G1', `源数 ${m[1]} = 实际 provider ${provs.length}`)
+  else F('G1', `run.js 断言 ${m[1]} ≠ 实际 provider ${provs.length}（${provs.join(',')}）`)
+} catch (e) { S('G1', '跳过：' + e.message) }
+
+// G2/G3 测试入口数与 npm test 脚本数
+try {
+  const doc = rd('docs/TESTING.md')
+  const all = []
+  const walk = (d) => { for (const f of fs.readdirSync(path.join(root, d))) {
+    const rel = path.join(d, f); const st = fs.statSync(path.join(root, rel))
+    if (st.isDirectory()) walk(rel); else if (f.endsWith('.js')) all.push(rel)
+  } }
+  walk('test')
+  const ent = doc.match(/\*\*(\d+) 个入口\*\*/)
+  if (!ent) S('G2', 'TESTING.md 无"N 个入口"')
+  else if (Number(ent[1]) === all.length) P('G2', `入口 ${ent[1]} = 实际 ${all.length}`)
+  else F('G2', `入口声明 ${ent[1]} ≠ 实际 ${all.length} 个 test/**/*.js`)
+  const scr = doc.match(/`npm test` 的 \*\*(\d+) 个脚本\*\*/)
+  const cmds = (JSON.parse(rd('package.json')).scripts.test.match(/(?:^|&&)\s*node\s/g) || []).length
+  if (!scr) S('G3', 'TESTING.md 无"M 个脚本"')
+  else if (Number(scr[1]) === cmds) P('G3', `脚本 ${scr[1]} = 实际 ${cmds}`)
+  else F('G3', `脚本声明 ${scr[1]} ≠ 实际 ${cmds}`)
+} catch (e) { S('G2/G3', '跳过：' + e.message) }
+
+// G4 旧会话绝对路径必须为 0
+try {
+  const skip = new Set(['node_modules', '.git', 'dist'])
+  const hits = []
+  const walk = (d) => {
+    for (const f of fs.readdirSync(path.join(root, d))) {
+      if (skip.has(f)) continue
+      const rel = path.join(d, f); const st = fs.statSync(path.join(root, rel))
+      if (st.isDirectory()) walk(rel)
+      else if (st.size < 2_000_000 && /\.(js|json|md|ts|tsx|yml|yaml|gradle|java|txt)$/.test(f)) {
+        try { if (path.basename(f) !== 'tg-truth.js' && rd(rel).includes(LEGACY_SESSION)) hits.push(rel) } catch (_) {}
+      }
+    }
+  }
+  walk('.')
+  if (!hits.length) P('G4', '硬编码旧会话路径 0 处')
+  else F('G4', `硬编码旧会话路径 ${hits.length} 处：${hits.join(', ')}`)
+} catch (e) { S('G4', '跳过：' + e.message) }
+
+// G9 版本串一致：lx-source.js 的 @version vs package.json version
+try {
+  const av = (rd('lx-source.js').match(/@version\s+([0-9a-z.\-]+)/) || [])[1]
+  const pv = JSON.parse(rd('package.json')).version
+  if (!av) S('G9', 'lx-source.js 找不到 @version')
+  else if (av === pv) P('G9', `版本串 ${av} = package.json ${pv}`)
+  else F('G9', `lx-source.js @version ${av} ≠ package.json ${pv}`)
+} catch (e) { S('G9', '跳过：' + e.message) }
+
+
+// G13 CI paths 必须覆盖 src/**（改源实现不触发 CI 是真实事故源）
+try {
+  const lines = rd('.github/workflows/ci.yml').split(/\n/)
+  const at = lines.findIndex(l => /^\s{2}push:\s*$/.test(l))
+  let pushLines = []
+  if (at >= 0) {
+    for (let i = at + 1; i < lines.length; i++) {
+      if (/^\s{2}[a-z_]+:\s*$/.test(lines[i])) break
+      pushLines.push(lines[i])
+    }
+  }
+  const covered = pushLines.some(l => /-\s*'?"?\s*src\/\*\*/.test(l))
+  if (covered) P('G13', 'ci.yml 的 push.paths 覆盖 src/**')
+  else F('G13', 'ci.yml 的 push.paths 未覆盖 src/**（改 src/ 不会触发 CI）')
+} catch (e) { S('G13', '跳过：' + e.message) }
+
+console.log(red ? `\n❌ tg-truth：${red} 条口径不一致` : '\n✅ tg-truth：口径全部一致')
+
+if (require.main === module) process.exit(red ? 1 : 0)

@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **47 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **25 个脚本**（冒烟 1 + 审计 24，含 `e-extra`、`quality-policy-v2`、`budget-admission`、`aa-p3-persist`、`v-eligibility`），其余 22 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
+> **48 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集是 `npm test` 的 **26 个脚本**（冒烟 1 + 审计 25，含 `e-extra`、`quality-policy-v2`、`budget-admission`、`aa-p3-persist`、`v-eligibility`），其余 22 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
 > 断言实测（2026-11-13 当前工作树）：冒烟 **67 组** + 压测 **159 条**（12/14/**133**）+ 审计断言按各脚本输出汇总（本轮新增 health-snapshot **11/0**、health-probe-batch2 **9/0**、health-eligibility-batch3 **9/0**）；历史 429/655 是旧口径，不再作为当前总数。逐入口明细见下方「入口总表」。变异体 **22 个**（`--full --strict` 全量 **22 killed / 0 survived**，2026-11-13 实测）。
@@ -42,6 +42,7 @@
 | `test/audit/h-toggles.js` | 8 | v8.13 口径：helloworldKw / 星海后端 / 酷我官方 / Juhe(tx) / changqingVip 开启后最小可用性；两个观察源手动开启仍不进链但探测可见；酷我封面透出 | mock 宿主 | `node test/audit/h-toggles.js` |
 | `test/audit/f-repo.js` | 54 | 三轮新增：全仓 **72** 文件静态合规 + 交叉引用 + 脚本自洽 + 功能联动 + 残留死码 + 资源启动（详见下方「f-repo 六组」） | 读文件 + 子进程 | `node test/audit/f-repo.js` |
 | `test/audit/g-meta.js` | 16 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/顶层环境侧依赖/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
+| `test/audit/tg-truth.js` | 6 | 口径门禁：源数断言 vs provider 实数 / 入口数 / 脚本数 / 旧会话绝对路径 / 版本串 / ci.yml 是否覆盖 `src/**`（读不到按红处理） | 读文件 | `node test/audit/tg-truth.js` |
 | `test/stress-test.js` | 12 | 压测 S 组压「量」：并发/预算/配额/熔断/缓存容量/长跑/极端参数/闸门对照/定时器 | `--expose-gc` | `node --expose-gc test/stress-test.js` |
 | `test/stress-round3.js` | 14 | 压测 T 组压「态」：跨档总预算、源级冷却与本地限速分离、片段翻转、闸门 8 组合矩阵、config 热更新、错误码注入、probe 并发、写满容量堆增长、档位串槽、熔断跨源污染 | `--expose-gc` | `node --expose-gc test/stress-round3.js` |
 | `test/stress-round4.js` | **133** | 压测 V 组压「判据」（第四轮新增）：故障谱系 10 类 × 5 平台 × 3 档 = 150 组零假成功 / 同歌同档 100 并发只外呼 1 次 / 220 首并发无违约 / 缓存 400 首内命中·700 首后 LRU 淘汰 / 熔断全周期 / 限流滑窗 / 降档预算与末档保底 / 随机 2000 次 4 条不变量 / soak 4000 次堆收敛与句柄不累积 / 20 次重载缓存不跨实例 / MISMATCH 拒错歌 / 验真时长三阈值边界 / CONFIG_ERROR / 配置脱敏与写白名单 / logEnabled 静音 / raceBatchSize 串并行 / 音质短路拦停 / 冷启动预热开关与 TTL（预热计数按 URL+timeout 双键，隔离同 URL 健康探针） | 纯 mock 宿主 | `node --expose-gc test/stress-round4.js` |

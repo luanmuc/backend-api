@@ -4,7 +4,7 @@
 
 ## 0. 基本信息
 
-- 仓库：`/home/user/Doubao/chats/38450522296699906/lx-music-source/`
+- 仓库：`<会话根>/lx-music-source/`
 - 基线：`f8b4789`（v8.10.2），`lx-source.js` 2545 行 / `test/lx-source-smoke-test.js` 1155 行（49 用例）
 - 旧审计：`docs/AUDIT_PLAN.md` v8.1（40 维 40 ✅）、`docs/SOURCE_AUDIT.md`（源级取链基线 21/35）
 - 本轮产物：`docs/AUDIT_PLAN.md` **v9.0（96 维：保留 40 + 新增 56）**、`docs/AUDIT_REPORT-2026-11-07.md`（F-01…F-14）
