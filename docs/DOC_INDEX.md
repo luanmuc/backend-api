@@ -33,6 +33,7 @@
 | `docs/PROGRESS_round5.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
 | `docs/README.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/READTHROUGH_v8.16.1.md` | 历史快照（单轮通读结论） | 人 | 冻结：只记录 2026-11-17 这轮对 `lx-source.js` 的逐行结论 | 规则19 |
+| `docs/READTHROUGH_v8.16.2.md` | 当前态（本轮通读结论） | 人 | 每次 8.16.x 产物变更/新增缺陷后 | 规则19 |
 | `docs/DOC_INDEX.md` | 当前态（本表自身） | 人 | 新增/删除任何 docs 文件时 | 规则19 自校验 |
 | `docs/SOURCE_REGISTRY.md` | 当前态 | 人 | 增删源/版本变更时 | 规则19 |
 | `docs/SOURCE_LIFECYCLE.md` | 当前态 | 人 | 生命周期规则变更时 | 规则19 |

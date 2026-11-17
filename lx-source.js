@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.16.2 通读缺陷全修版（13 登记源 / 11 上链 / 2 观察；健康态源版本升 8.16.2 且兼容 8.14.1~8.16.1；修 R-01 档位熔断持久化 / R-02 真实音质入账 / R-03 播放与取链分账 / R-04 快照运行期资格 / R-05 试探键清理 / R-06 半开名额后置消费 / R-07 gateErr 带码带源 / R-09 跨平台可取消 / R-10 兜底结构化判据 / R-11 失败缓存死分支 / R-12 七项静态确认）
- * @version 8.16.2
+ * @description v8.16.4 播放摘除档位归因版（13 登记源 / 11 上链 / 2 观察；健康态源版本升 8.16.4 且兼容 8.14.1~8.16.3；修疑-31——真实播放失败按触发档归因，一档播放死不连坐同源其他档（含 128k 保底），跨档失败仍按源级摘除，归因档随健康快照持久化。上一版 v8.16.3 为本地拦截码收口：R-13 / PLAYBACK_FAILED 一等码 / PROVIDER_SPECS 逐字段交叉断言）
+ * @version 8.16.4
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -209,6 +209,9 @@ var __lxSourceBundle = (() => {
         // P2：桥信封长度或 base64 结构不符
         CONTRACT_ERROR: "CONTRACT_ERROR",
         // v8.13：Provider Contract 校验失败
+        // v8.16.3（R-13）：本地拦截码——源/档位正在摘除期，或半开名额已被占用。
+        // 它不是上游失败（请求根本没发出去），因此禁止记账、禁止写失败缓存、禁止触发跨平台重搜惩罚。
+        PLAYBACK_FAILED: "PLAYBACK_FAILED",
         CANCELED: "CANCELED"
         // v8.13：竞速输家/预算耗尽后的协作式取消
       };
@@ -300,7 +303,8 @@ var __lxSourceBundle = (() => {
         [ERROR_CODES.STREAM_PLAYLIST]: "\u63A5\u53E3\u8FD4\u56DE\u7684\u662F\u6D41\u64AD\u653E\u5217\u8868\uFF0C\u64AD\u653E\u5668\u4E0D\u652F\u6301",
         [ERROR_CODES.TRUNCATED_MEDIA]: "\u6865\u5A92\u4F53\u4FE1\u5C01\u5206\u7247\u7F3A\u5931\u6216\u88AB\u622A\u65AD",
         [ERROR_CODES.BAD_ENVELOPE]: "\u6865\u5A92\u4F53\u4FE1\u5C01\u7ED3\u6784\u6216\u957F\u5EA6\u4E0D\u7B26",
-        [ERROR_CODES.BUDGET_EXHAUSTED]: "\u672C\u5730\u53D6\u94FE\u9884\u7B97\u8017\u5C3D\uFF08\u4E0D\u662F\u4E0A\u6E38\u8D85\u65F6\uFF09"
+        [ERROR_CODES.BUDGET_EXHAUSTED]: "\u672C\u5730\u53D6\u94FE\u9884\u7B97\u8017\u5C3D\uFF08\u4E0D\u662F\u4E0A\u6E38\u8D85\u65F6\uFF09",
+        [ERROR_CODES.PLAYBACK_FAILED]: "\u8BE5\u97F3\u6E90\u6B63\u5728\u6458\u9664\u671F\u6216\u534A\u5F00\u540D\u989D\u5DF2\u88AB\u5360\u7528\uFF08\u672C\u5730\u62E6\u622A\uFF0C\u672A\u8BF7\u6C42\u4E0A\u6E38\uFF09"
       };
       var FAIL_CACHE_TTL_BY_CODE = {
         [ERROR_CODES.NOT_FOUND]: 60 * 60 * 1e3,
@@ -330,8 +334,10 @@ var __lxSourceBundle = (() => {
         // 本地预算耗尽 → 不缓存
         [ERROR_CODES.NETWORK_ERROR]: 0,
         // 网络错误 → 不缓存(瞬时)
-        [ERROR_CODES.SERVER_ERROR]: 0
+        [ERROR_CODES.SERVER_ERROR]: 0,
         // 5xx → 不缓存(服务端会恢复)
+        [ERROR_CODES.PLAYBACK_FAILED]: 0
+        // v8.16.3：本地拦截，请求没发出去 → 不缓存
       };
       var TIMEOUT_CONFIG = { search: 3e3, parse: 5e3, default: 5e3 };
       var SUYIN_QQ_API = "https://oiapi.net/api/QQ_Music";
@@ -1182,6 +1188,7 @@ var __lxSourceBundle = (() => {
       var FRAGMENT_URL_TTL_MS = 6e5;
       var PLAY_DEAD_STREAK = 3;
       var playDeadStreak = /* @__PURE__ */ new Map();
+      var playDeadQuality = /* @__PURE__ */ new Map();
       var playDeadDeadline = /* @__PURE__ */ new Map();
       var playDeadTrialAt = /* @__PURE__ */ new Map();
       var PLAY_DEAD_TRIAL_TTL_MS = 60 * 1e3;
@@ -1229,6 +1236,12 @@ var __lxSourceBundle = (() => {
       function isPlayDead(sourceId, quality, consume) {
         const streak = playDeadStreak.get(sourceId) || 0;
         if (streak < PLAY_DEAD_STREAK) return false;
+        const deadQ = playDeadQuality.get(sourceId);
+        const reqQ = String(quality || "").toLowerCase();
+        if (deadQ && deadQ !== "*" && reqQ && reqQ !== deadQ) {
+          const slot = getBreaker(sourceId).byQuality[reqQ];
+          if (slot && Number(slot.success || 0) > 0) return false;
+        }
         const reviveMs = cfg("playDeadReviveMs", 5 * 60 * 1e3);
         const age = Date.now() - (playDeadDeadline.get(sourceId) || 0);
         if (age < reviveMs) return true;
@@ -1417,6 +1430,7 @@ var __lxSourceBundle = (() => {
         if (opts.playback === true && (playDeadStreak.get(sourceId) || 0) > 0) {
           playDeadStreak.set(sourceId, 0);
           playDeadDeadline.delete(sourceId);
+          playDeadQuality.delete(sourceId);
           clearPlayDeadTrials(sourceId);
           logWarn(`\u64AD\u653E\u6458\u9664: [${sourceId}] \u771F\u5B9E\u64AD\u653E\u6210\u529F\uFF0C\u89E3\u9664\u6458\u9664`);
         }
@@ -1432,7 +1446,12 @@ var __lxSourceBundle = (() => {
         logInfo(`[${sourceId}] \u97F3\u8D28\u964D\u7EA7\u6837\u672C: \u8BF7\u6C42[${reqQ}] \u5B9E\u4EA4\u4ED8[${realQ}]\uFF0C\u8BE5\u6863\u786E\u5B9A\u6027\u964D\u7EA7\u7B2C ${q.definitiveFail} \u6B21`);
         return true;
       }
-      function bumpPlayDead(sourceId) {
+      function bumpPlayDead(sourceId, quality) {
+        const q = String(quality || "").toLowerCase();
+        const first = playDeadQuality.get(sourceId);
+        if (!first) {
+          if (q) playDeadQuality.set(sourceId, q);
+        } else if (q && first !== q) playDeadQuality.set(sourceId, "*");
         playDeadStreak.set(sourceId, (playDeadStreak.get(sourceId) || 0) + 1);
         if (playDeadStreak.get(sourceId) >= PLAY_DEAD_STREAK) {
           playDeadDeadline.set(sourceId, Date.now());
@@ -1443,7 +1462,7 @@ var __lxSourceBundle = (() => {
       function recordFailure(sourceId, quality, opts = {}) {
         const b = getBreaker(sourceId);
         if (opts.playbackOnly === true) {
-          bumpPlayDead(sourceId);
+          bumpPlayDead(sourceId, quality);
           return;
         }
         const wasSourceHalfOpen = b.state === "half-open";
@@ -1458,7 +1477,7 @@ var __lxSourceBundle = (() => {
         q.breaker.failureCount++;
         q.breaker.lastFailureTime = Date.now();
         if (opts.resolveDead === true) bumpResolveDead(sourceId);
-        if (opts.playDead !== false) bumpPlayDead(sourceId);
+        if (opts.playDead !== false) bumpPlayDead(sourceId, quality);
         const thr = cfg("breakerThreshold", BREAKER_THRESHOLD);
         if (q.breaker.state === "half-open" || b.state === "half-open") {
           q.breaker.state = "open";
@@ -2264,7 +2283,9 @@ var __lxSourceBundle = (() => {
         TRANSIENT: { deliverable: false, ttlMs: 0, health: "hardFail", playDead: false, resolveDead: true, sourceCooldownMs: 0 },
         BROKEN: { deliverable: false, ttlMs: 6e4, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
         // 本地预算耗尽：不交付，但绝不能当“网络失败”摘除源；TTL 0 由全失败短缓存收口。
-        BUDGET: { deliverable: false, ttlMs: 0, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 }
+        BUDGET: { deliverable: false, ttlMs: 0, health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+        // v8.16.3（R-13）：本地拦截（摘除期/半开名额占用）——不交付、不记任何账、不写失败缓存。
+        PLAYBACK_DEAD: { deliverable: false, ttlMs: 0, health: "skip", playDead: false, resolveDead: false, sourceCooldownMs: 0 }
       };
       var CODE_RANK = {
         [ERROR_CODES.NOT_AUDIO]: 3,
@@ -2280,7 +2301,9 @@ var __lxSourceBundle = (() => {
         [ERROR_CODES.BUDGET_EXHAUSTED]: 2,
         [ERROR_CODES.NETWORK_TIMEOUT]: 1,
         [ERROR_CODES.NETWORK_ERROR]: 1,
-        [ERROR_CODES.SERVER_ERROR]: 1
+        [ERROR_CODES.SERVER_ERROR]: 1,
+        // v8.16.3：本地拦截与网络类同档——它不代表「平台没这首歌」，不能被聚合抬成业务/交付类。
+        [ERROR_CODES.PLAYBACK_FAILED]: 1
       };
       var codeRank = (c) => CODE_RANK[c] || 1;
       function verdictOfCode(code) {
@@ -2301,6 +2324,10 @@ var __lxSourceBundle = (() => {
             return "BROKEN";
           case ERROR_CODES.BUDGET_EXHAUSTED:
             return "BUDGET";
+          // v8.16.3（R-13）：本地拦截必须走独立 verdict——落到 TRANSIENT 会 bumpResolveDead，
+          // 等于「因为源在摘除期而惩罚源」，自伤闭环。
+          case ERROR_CODES.PLAYBACK_FAILED:
+            return "PLAYBACK_DEAD";
           default:
             return "TRANSIENT";
         }
@@ -2502,8 +2529,8 @@ var __lxSourceBundle = (() => {
         if (autoOff[id]) return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: autoOffAt[id] ? autoOffAt[id] + cfg("playDeadReviveMs", 5 * 60 * 1e3) : null };
         if (probeState.sleeping[id]) return { eligible: false, reason: "sleeping", code: "SOURCE_SLEEPING", untilMs: null };
         if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "PLATFORM_UNSUPPORTED", untilMs: null };
-        if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
-        if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
+        if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: ERROR_CODES.PLAYBACK_FAILED, untilMs: resolveDeadDeadline.get(id) || null };
+        if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: ERROR_CODES.PLAYBACK_FAILED, untilMs: playDeadDeadline.get(id) || null };
         if (o.runtime && o.peekRuntime) {
           const br = getBreaker(id);
           const qSlot = br.byQuality[q];
@@ -2537,7 +2564,7 @@ var __lxSourceBundle = (() => {
         return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
       }
       function skipReason(source, ctx) {
-        const e = computeEligibility(source, ctx && ctx.platform, ctx && ctx.quality, { runtime: true, consumePlayDeadTrial: false });
+        const e = computeEligibility(source, ctx && ctx.platform, ctx && ctx.quality, { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
         if (e.eligible) return null;
         return { reason: e.reason, code: e.code, untilMs: e.untilMs };
       }
@@ -2571,6 +2598,7 @@ var __lxSourceBundle = (() => {
         }
         playDeadStreak.delete(source);
         playDeadDeadline.delete(source);
+        playDeadQuality.delete(source);
         clearResolveDead(source);
         clearPlayDeadTrials(source);
         delete probeState.sleeping[source];
@@ -2618,6 +2646,7 @@ var __lxSourceBundle = (() => {
           return adm;
         }
         if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q, L.sourceCooldownMs);
+        else if (L.health === "skip") return adm;
         else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true, code: adm.code });
         else recordBusinessFail(id, q, { code: adm.code });
         const err = ctx.error || {};
@@ -3669,8 +3698,8 @@ var __lxSourceBundle = (() => {
       }
       var HEALTH_STATE_VERSION = 2;
       var HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-      var HEALTH_STATE_SOURCE_VERSION = "8.16.2";
-      var HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1", "8.16.2"];
+      var HEALTH_STATE_SOURCE_VERSION = "8.16.4";
+      var HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1", "8.16.2", "8.16.3", "8.16.4"];
       function parseHealthSourceVersion(v) {
         const parts = String(v || "").trim().split(".");
         if (parts.length !== 3) return null;
@@ -3798,7 +3827,10 @@ var __lxSourceBundle = (() => {
             byQuality,
             playDead: {
               streak: Number(playDeadStreak.get(id) || 0),
-              deadline: Number(playDeadDeadline.get(id) || 0)
+              deadline: Number(playDeadDeadline.get(id) || 0),
+              // v8.16.4（疑-31）：触发档随快照走——不持久化的话重启后豁免面直接回退成「源级」，
+              // 表现为「重启后高档失败又把整源摘掉」。
+              quality: playDeadQuality.get(id) || null
             },
             // v8.16.2（R-12⑤）：取链摘除必须与播放摘除对称持久化——旧实现只导 playDead，
             // 重启后「取链摘除」立即复活，而「播放摘除」保留，两种摘除的保护强度不一致。
@@ -3947,6 +3979,9 @@ var __lxSourceBundle = (() => {
             else playDeadStreak.delete(id);
             if (item.playDead.deadline > 0) playDeadDeadline.set(id, item.playDead.deadline);
             else playDeadDeadline.delete(id);
+            const dq = String(item.playDead.quality || "").toLowerCase();
+            if (dq) playDeadQuality.set(id, dq);
+            else playDeadQuality.delete(id);
             if (item.resolveDead.streak > 0) resolveDeadStreak.set(id, item.resolveDead.streak);
             else resolveDeadStreak.delete(id);
             if (item.resolveDead.deadline > 0) resolveDeadDeadline.set(id, item.resolveDead.deadline);
@@ -4373,8 +4408,8 @@ var __lxSourceBundle = (() => {
           const deadReason = isResolveDead(handler.id, quality, true) ? "resolve-dead" : isPlayDead(handler.id, quality, true) ? "play-dead" : null;
           if (deadReason) {
             recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: deadReason });
-            const deadErr = new Error(`PLAYBACK_FAILED: \u97F3\u6E90[${handler.name}]\u534A\u5F00\u540D\u989D\u5DF2\u88AB\u5360\u7528\uFF08${deadReason}\uFF09\uFF0C\u672C\u8F6E\u8DF3\u8FC7`);
-            deadErr.code = "PLAYBACK_FAILED";
+            const deadErr = new Error(`${ERROR_CODES.PLAYBACK_FAILED}: \u97F3\u6E90[${handler.name}]\u534A\u5F00\u540D\u989D\u5DF2\u88AB\u5360\u7528\uFF08${deadReason}\uFF09\uFF0C\u672C\u8F6E\u8DF3\u8FC7`);
+            deadErr.code = ERROR_CODES.PLAYBACK_FAILED;
             deadErr.sourceId = handler.id;
             deadErr.isThrottleSkip = true;
             throw deadErr;
@@ -5480,7 +5515,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.16.2 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.16.4 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {
@@ -5613,10 +5648,13 @@ var __lxSourceBundle = (() => {
             recordRateLimit,
             // D-04 回归：半开态遇 429 必须收口回 open（否则永久卡死）
             playDeadStreak,
+            playDeadQuality,
             resolveDeadStreak,
             isPlayDead,
             isResolveDead,
             bumpResolveDead,
+            bumpPlayDead,
+            // v8.16.4：按档位归因回归（RF21）
             toggleSource,
             get playDeadDeadline() {
               return playDeadDeadline;

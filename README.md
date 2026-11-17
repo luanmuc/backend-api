@@ -12,7 +12,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v8.16.2** 通读缺陷全修版：按 `docs/READTHROUGH_v8.16.1.md` 第六节顺序修完逐行通读确认的 12 条缺陷（R-01~R-12），`lx-source.js` 内 `@version 8.16.2`，产物 **6045 行 / 317403 bytes**。要点：档位熔断随快照持久化（R-01）、按**真实交付音质**入账并记降级样本（R-02）、播放失败与取链账本分账（R-03）、快照 `eligible` 走运行期资格（R-04）、半开试探键清理命中（R-05）、半开名额后置消费（R-06）、`gateErr` 带 `code`/`sourceId`（R-07）、跨平台兜底可取消（R-09）、兜底判据结构化（R-10）、失败缓存 `ttl=0` 死分支删除（R-11）、provider 不再回写调用方对象等 7 项（R-12）。上一版 **v8.16.1** 为健康态跨版本恢复版（旧版本健康快照按数值比较接受，音源升版不再清空用户账本） |
+| 当前版本 | **v8.16.4** 播放摘除档位归因版：修疑-31——真实播放失败按「触发档」归因（`playDeadQuality`），三次失败都落在同一档时不摘整源，其他「有真实成功史」的档（含 128k 保底）继续可用；失败跨档即判定源级问题并清空归因，照旧整源摘除。归因档随健康快照 `playDead.quality` 持久化（旧快照无该字段按源级处理）。上一版 v8.16.3 为本地拦截码收口（R-13 / `PLAYBACK_FAILED` 一等码 / `PROVIDER_SPECS` 交叉断言）。`lx-source.js` 内 `@version 8.16.4`，产物 **6083 行 / 320161 bytes** |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
@@ -57,6 +57,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
+| **v8.16.4**（当前，2026-11-17） | **播放摘除档位归因（疑-31）**：`playDeadStreak` 原只按 `sourceId` 累计，一档播不了（典型是高档解码失败/大文件分片失败）三次就把整源连 128k 保底一起摘 5 分钟，而"播放成功才解除"的路径又被摘除挡住 → 半开试错死等。修法：`bumpPlayDead(sourceId, quality)` 记录触发档 `playDeadQuality`；`isPlayDead()` 在「请求档 ≠ 触发档 且该档 `success>0`」时放行且不消费 trial；失败跨档置哨兵 `"*"` 表示源级、永久不豁免（直到真实播放成功清零）；快照导出 `playDead.quality` 并回填（旧快照为 null = 源级，保守）。门禁：`readthrough-fixes` **21/0**（新增 RF21）、`y-provider-contract` 16/0、`verify:bundle` 8/0。`@version 8.16.4`，产物 6083 行 / 320161 bytes |
+| **v8.16.3**（2026-11-17） | **本地拦截码收口**：①R-13 `skipReason` 改走 `peekRuntime:true` 只读分支——旧实现会落到 `canExecute` 的可写分支，把冷却已满的 open 档推进 half-open 并置 `trialInFlight`，等于问一句「为什么跳过」就把该档 60s 内唯一的试探名额烧掉；②`PLAYBACK_FAILED` 升一等码：补 `ERROR_CODES`/`CODE_HINT`/TTL=0/`CODE_RANK=1`，新增 `verdictOfCode → PLAYBACK_DEAD` 与 `ADMISSION_POLICY.PLAYBACK_DEAD`（`health:skip`，`applyAdmission` 直接返回不记账），`computeEligibility` 与 `wrapExecute` 改引用常量，日志里「本地拦截」不再被兜底显示成 `NETWORK_ERROR`；③`y-provider-contract` 增 Y16：`PROVIDER_SPECS.all` 与 `SOURCE_HANDLERS` 逐 id 比对 `lifecycle/platforms/chain/upstreamGroup/auth/maxQuality/qualitys/coldStart/reviewAt/name` 并双向覆盖。门禁：`readthrough-fixes` 20/0（RF1~RF20）、`y-provider-contract` 16/0、`verify:bundle` 8/0、`source-inventory --check` 通过。`@version 8.16.3`，产物 6060 行 / 318733 bytes |
 | **v8.16.0 审计包落地（口径门禁 + 干净检出可验）**（2026-11-16，本地） | 新增 `test/audit/tg-truth.js`（源数/入口数/脚本数/绝对路径/版本串/CI 覆盖 `src/**`）并接入 `npm test`；`tools/live/run.js` 断言 20→13、与 `a-static.js` 一起去掉会话根硬编码；`ci.yml` push.paths 增 `src/**`；`verify-bundle` 在 dist 缺失时就地重建（新 clone 不再必红） | 2026-11-16 |
 | **v8.16.0 修 CI 红（require 安全环境侧依赖）+ M9c**（2026-11-16，已含在 v8.16.0 发布范围内） | 源仓 CI 三次 push 全红但本地全绿：`build-source` 顶层 require esbuild（CI `npm ci --ignore-scripts` 无二进制）、`verify-bundle` 顶层断言 + 顶层 require 未入库 `dist/`。改为惰性 require / 断言收进 `main()`；新增 M9c 静态判据（顶层外部包必须惰性、未入库产物必须进 main） | 2026-11-16 |
 | **v8.16.0 判否候选复核 R43**（2026-11-16，已含在 v8.16.0 发布范围内） | hyw 复测：首页 200 但业务 `/api/music/url` 返回 401「需要卡密」+ `cardKeyRequired:true` → **维持判否（付费门）**；`recheck-candidates.js` 修误报（首页 200 不再算恢复，新增业务探测与 `paid` 状态，内建自检 RC1~RC4） | 2026-11-16 |

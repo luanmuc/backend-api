@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.16.2 通读缺陷全修版（2026-11-17：按 docs/READTHROUGH_v8.16.1.md 第六节顺序修完 R-01~R-12——档位熔断持久化、真实交付音质入账、播放与取链分账、快照运行期资格、试探键清理、半开名额后置消费、gateErr 带码带源、跨平台可取消、兜底结构化判据、失败缓存死分支、provider 不再回写调用方对象；健康态源版本升 8.16.2 且兼容 8.14.1~8.16.1）。上一版 v8.16.1 为健康态跨版本恢复版。历史版本见 docs/CHANGELOG.md。
- * @version 8.16.2 通读缺陷全修（R-01~R-12；旧版本账本可恢复 / 未来版本拒绝）
+ * @description v8.16.4 播放摘除档位归因版（2026-11-17：在 v8.16.3 本地拦截码收口之上修疑-31——真实播放失败按「触发档」归因，一档播不了（如高档解码失败）不再把同源其他有成功史的档（含 128k 保底）一起摘掉；跨档失败仍按源级摘除；归因档随健康快照持久化。上一版 v8.16.3 为本地拦截码收口版（R-13 / PLAYBACK_FAILED 一等码 / PROVIDER_SPECS 交叉断言）。历史版本见 docs/CHANGELOG.md。
+ * @version 8.16.4 播放摘除档位归因（疑-31；旧版本账本可恢复 / 未来版本拒绝）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -146,6 +146,9 @@ const ERROR_CODES = {
   TRUNCATED_MEDIA: 'TRUNCATED_MEDIA',     // P2：桥信封分片缺失/截断
   BAD_ENVELOPE: 'BAD_ENVELOPE',           // P2：桥信封长度或 base64 结构不符
   CONTRACT_ERROR: 'CONTRACT_ERROR',       // v8.13：Provider Contract 校验失败
+  // v8.16.3（R-13）：本地拦截码——源/档位正在摘除期，或半开名额已被占用。
+  // 它不是上游失败（请求根本没发出去），因此禁止记账、禁止写失败缓存、禁止触发跨平台重搜惩罚。
+  PLAYBACK_FAILED: 'PLAYBACK_FAILED',
   CANCELED: 'CANCELED'                    // v8.13：竞速输家/预算耗尽后的协作式取消
 };
 
@@ -238,6 +241,7 @@ const CODE_HINT = {
   [ERROR_CODES.TRUNCATED_MEDIA]: "桥媒体信封分片缺失或被截断",
   [ERROR_CODES.BAD_ENVELOPE]: "桥媒体信封结构或长度不符",
   [ERROR_CODES.BUDGET_EXHAUSTED]: "本地取链预算耗尽（不是上游超时）",
+  [ERROR_CODES.PLAYBACK_FAILED]: "该音源正在摘除期或半开名额已被占用（本地拦截，未请求上游）",
 };
 
 
@@ -258,6 +262,7 @@ const FAIL_CACHE_TTL_BY_CODE = {
   [ERROR_CODES.BUDGET_EXHAUSTED]: 0,               // 本地预算耗尽 → 不缓存
   [ERROR_CODES.NETWORK_ERROR]: 0,                  // 网络错误 → 不缓存(瞬时)
   [ERROR_CODES.SERVER_ERROR]: 0,                   // 5xx → 不缓存(服务端会恢复)
+  [ERROR_CODES.PLAYBACK_FAILED]: 0,                // v8.16.3：本地拦截，请求没发出去 → 不缓存
 };
 
 const TIMEOUT_CONFIG = { search: 3000, parse: 5000, default: 5000 }; // v1.0: parse 8000→5000
@@ -1191,6 +1196,10 @@ const FRAGMENT_URL_TTL_MS = 600000;      // 片段直链是临时签名，10 分
 // 与 manualOff 用户锁定分层：手动关闭永不复活
 const PLAY_DEAD_STREAK = 3;
 const playDeadStreak = new Map();
+// v8.16.4（疑-31）：播放摘除的「归因档」。真实播放失败带 quality 回传，若三次失败都落在同一档，
+// 说明很可能是该档本身播不了（大文件/该档链接/CDN 分片），不该把同一源其他还能播的档一起摘掉；
+// 一旦失败跨档，说明是源/链路级问题，清空归因 → 退回源级摘除（保守）。
+const playDeadQuality = new Map();
 const playDeadDeadline = new Map(); // 摘除计时起点（半开试探冷却）
 const playDeadTrialAt = new Map(); // 半开试探：sourceId → 已放行试探的时间（半开只放一个请求/源）
 const PLAY_DEAD_TRIAL_TTL_MS = 60 * 1000;
@@ -1245,6 +1254,15 @@ function bumpResolveDead(sourceId) {
 function isPlayDead(sourceId, quality, consume) {
   const streak = playDeadStreak.get(sourceId) || 0;
   if (streak < PLAY_DEAD_STREAK) return false;
+  // v8.16.4（疑-31）：档位归因豁免——摘除由某一档触发、且请求的是另一档、且该档有真实成功史时放行。
+  // 判据要求「该档至少成功交付并播放过 1 次」（success>0），证据不足一律照旧拦。
+  // 这里只放行、不消费 trial：半开唯一试探仍归触发档，避免整条链同时涌入。
+  const deadQ = playDeadQuality.get(sourceId);
+  const reqQ = String(quality || "").toLowerCase();
+  if (deadQ && deadQ !== "*" && reqQ && reqQ !== deadQ) {
+    const slot = getBreaker(sourceId).byQuality[reqQ];
+    if (slot && Number(slot.success || 0) > 0) return false;
+  }
   const reviveMs = cfg('playDeadReviveMs', 5 * 60 * 1000);
   const age = Date.now() - (playDeadDeadline.get(sourceId) || 0);
   if (age < reviveMs) return true;
@@ -1443,6 +1461,7 @@ function recordSuccess(sourceId, duration, quality, opts = {}) {
   if (opts.playback === true && (playDeadStreak.get(sourceId) || 0) > 0) {
     playDeadStreak.set(sourceId, 0);
     playDeadDeadline.delete(sourceId);
+    playDeadQuality.delete(sourceId);
     clearPlayDeadTrials(sourceId);
     logWarn(`播放摘除: [${sourceId}] 真实播放成功，解除摘除`);
   }
@@ -1465,7 +1484,12 @@ function noteQualityDowngrade(sourceId, requestedQuality, deliveredQuality) {
 
 // v8.10.3：播放失败累计抽成单点——半开试探失败同样算一次真实播放失败（旧实现 return 跳过累加，
 // 与"真实播放失败累计"的注释语义不符，导致反复半开失败的源永远凑不够摘除阈值）
-function bumpPlayDead(sourceId) {
+function bumpPlayDead(sourceId, quality) {
+  // v8.16.4（疑-31）：记录触发档；跨档即清空归因（视为源级问题，不豁免任何档）。
+  const q = String(quality || "").toLowerCase();
+  const first = playDeadQuality.get(sourceId);
+  if (!first) { if (q) playDeadQuality.set(sourceId, q); }
+  else if (q && first !== q) playDeadQuality.set(sourceId, "*"); // "*" = 已跨档 → 源级，永久不豁免（直到成功清零）
   playDeadStreak.set(sourceId, (playDeadStreak.get(sourceId) || 0) + 1);
   if (playDeadStreak.get(sourceId) >= PLAY_DEAD_STREAK) {
     playDeadDeadline.set(sourceId, Date.now()); // 摘除/续计时（半开试探冷却）
@@ -1473,13 +1497,14 @@ function bumpPlayDead(sourceId) {
   }
   if (isPlayDead(sourceId)) logWarn(`播放摘除: [${sourceId}] 连续${PLAY_DEAD_STREAK}次播放失败，已从竞速链摘除(${Math.round(cfg('playDeadReviveMs', 5 * 60 * 1000) / 60000)}分钟后半开试探自动复活)`);
 }
-function recordFailure(sourceId, quality, opts = {}) {
-  const b = getBreaker(sourceId);
+function recordFailure(sourceId, quality, opts = {}) {  const b = getBreaker(sourceId);
   // v8.16.2（R-03）：真实播放失败只累计 playDead，不再进取链账本（req/fail/definitiveFail/成功率）。
   // 播放失败是「这次播放环境/CDN 出问题」的证据，不是「该源该档取链不可用」的证据；
   // 旧实现把它记进 byQuality 后，一次播放失败就能把 qualityShortCircuit 推高一格。
   if (opts.playbackOnly === true) {
-    bumpPlayDead(sourceId);
+    // v8.16.4（疑-31）：播放失败必须带档位归因——旧实现只按 sourceId 累计，
+    // 一档播不了（如高档解码失败）三次就把整源连 128k 保底一起摘掉。
+    bumpPlayDead(sourceId, quality);
     return;
   }
   const wasSourceHalfOpen = b.state === 'half-open';
@@ -1496,7 +1521,7 @@ function recordFailure(sourceId, quality, opts = {}) {
   q.breaker.lastFailureTime = Date.now();
   // F42：取链/准入失败只累计 resolveDead；playDead 只由 reportPlayback 的真实播放失败累计。
   if (opts.resolveDead === true) bumpResolveDead(sourceId);
-  if (opts.playDead !== false) bumpPlayDead(sourceId);
+  if (opts.playDead !== false) bumpPlayDead(sourceId, quality);
   const thr = cfg('breakerThreshold', BREAKER_THRESHOLD);
   if (q.breaker.state === 'half-open' || b.state === 'half-open') {
     q.breaker.state = 'open';
@@ -2427,6 +2452,8 @@ const ADMISSION_POLICY = {
   BROKEN:       { deliverable: false, ttlMs: 60000,   health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
   // 本地预算耗尽：不交付，但绝不能当“网络失败”摘除源；TTL 0 由全失败短缓存收口。
   BUDGET:       { deliverable: false, ttlMs: 0,       health: "businessFail", playDead: false, resolveDead: false, sourceCooldownMs: 0 },
+  // v8.16.3（R-13）：本地拦截（摘除期/半开名额占用）——不交付、不记任何账、不写失败缓存。
+  PLAYBACK_DEAD:{ deliverable: false, ttlMs: 0,       health: "skip",         playDead: false, resolveDead: false, sourceCooldownMs: 0 },
 };
 
 // 代表码优先级：确定性业务码(1) < 交付类码(2) < 网络类码(3)。高优先不被低覆盖。
@@ -2448,6 +2475,8 @@ const CODE_RANK = {
   [ERROR_CODES.NETWORK_TIMEOUT]: 1,
   [ERROR_CODES.NETWORK_ERROR]: 1,
   [ERROR_CODES.SERVER_ERROR]: 1,
+  // v8.16.3：本地拦截与网络类同档——它不代表「平台没这首歌」，不能被聚合抬成业务/交付类。
+  [ERROR_CODES.PLAYBACK_FAILED]: 1,
 };
 const codeRank = (c) => CODE_RANK[c] || 1;
 
@@ -2463,6 +2492,9 @@ function verdictOfCode(code) {
     case ERROR_CODES.PARAM_ERROR:
     case ERROR_CODES.CONFIG_ERROR: return "BROKEN";
     case ERROR_CODES.BUDGET_EXHAUSTED: return "BUDGET";
+    // v8.16.3（R-13）：本地拦截必须走独立 verdict——落到 TRANSIENT 会 bumpResolveDead，
+    // 等于「因为源在摘除期而惩罚源」，自伤闭环。
+    case ERROR_CODES.PLAYBACK_FAILED: return "PLAYBACK_DEAD";
     default: return "TRANSIENT";
   }
 }
@@ -2661,8 +2693,8 @@ function computeEligibility(source, platform, quality, opts) {
   // v8.16.2（R-12③）：平台不支持 ≠ 质量档未开放。旧实现复用了 QUALITY_OPEN，诊断消费者
   // 会把「该源根本不支持这个平台」误读成「这一档还能恢复」，故改为专用码。
   if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "PLATFORM_UNSUPPORTED", untilMs: null };
-  if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
-  if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
+  if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: ERROR_CODES.PLAYBACK_FAILED, untilMs: resolveDeadDeadline.get(id) || null };
+  if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: ERROR_CODES.PLAYBACK_FAILED, untilMs: playDeadDeadline.get(id) || null };
   // Batch 3：链/快照的“运行期预览”只读，不推进 open→half-open、不消费 trial。
   if (o.runtime && o.peekRuntime) {
     const br = getBreaker(id);
@@ -2714,7 +2746,10 @@ function structuralSkipReason(source, quality, consumePlayDeadTrial) {
 }
 
 function skipReason(source, ctx) {
-  const e = computeEligibility(source, ctx && ctx.platform, ctx && ctx.quality, { runtime: true, consumePlayDeadTrial: false });
+  // v8.16.3（R-13）：这是只读查询入口，必须走 peek 分支——
+  // 旧实现未传 peekRuntime，会落到 canExecute 的可写分支，把冷却已满的 open 档推进成
+  // half-open 并置 trialInFlight，等于「问一句跳过原因就把该档唯一的半开名额烧掉」，之后 60s 全拒。
+  const e = computeEligibility(source, ctx && ctx.platform, ctx && ctx.quality, { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
   if (e.eligible) return null;
   return { reason: e.reason, code: e.code, untilMs: e.untilMs };
 }
@@ -2754,6 +2789,7 @@ function clearSourceLedger(source, opts = {}) {
   }
   playDeadStreak.delete(source);
   playDeadDeadline.delete(source);
+  playDeadQuality.delete(source);
   clearResolveDead(source);
   clearPlayDeadTrials(source);
   delete probeState.sleeping[source];
@@ -2788,6 +2824,7 @@ function applyAdmission(adm, ctx) {
     return adm;
   }
   if (adm.verdict === "RATE_LIMITED") recordRateLimit(id, q, L.sourceCooldownMs);
+  else if (L.health === "skip") return adm;   // v8.16.3（R-13）：本地拦截不记任何账（请求未发出）
   else if (L.health === "hardFail") recordFailure(id, q, { playDead: L.playDead === true, resolveDead: L.resolveDead === true, code: adm.code });
   else recordBusinessFail(id, q, { code: adm.code });
   const err = ctx.error || {};
@@ -4116,11 +4153,11 @@ function getHealthSnapshot() {
 const HEALTH_STATE_VERSION = 2; // 单一路径：只导出/恢复 v2
 const HEALTH_STATE_ACCEPTED_VERSIONS = [2];
 // 导出时写当前源版本；恢复时同时接受上一版，避免一次版本升级把用户已存健康态整包丢掉。
-const HEALTH_STATE_SOURCE_VERSION = "8.16.2";
+const HEALTH_STATE_SOURCE_VERSION = "8.16.4";
 // HC：旧版本快照应可恢复（结构校验兜底），未来版本仍拒绝。
 // 原来只放行固定白名单，导致音源每升一个版本、用户熔断/短路记录就被整包拒绝丢失；
 // 白名单同时随版本漂移（漏加一条即丢数据）。改为按版本号数值比较。
-const HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1", "8.16.2"];
+const HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1", "8.16.2", "8.16.3", "8.16.4"];
 function parseHealthSourceVersion(v) {
   const parts = String(v || "").trim().split(".");
   if (parts.length !== 3) return null;
@@ -4245,7 +4282,10 @@ function exportHealthState() {
       byQuality,
       playDead: {
         streak: Number(playDeadStreak.get(id) || 0),
-        deadline: Number(playDeadDeadline.get(id) || 0)
+        deadline: Number(playDeadDeadline.get(id) || 0),
+        // v8.16.4（疑-31）：触发档随快照走——不持久化的话重启后豁免面直接回退成「源级」，
+        // 表现为「重启后高档失败又把整源摘掉」。
+        quality: playDeadQuality.get(id) || null
       },
       // v8.16.2（R-12⑤）：取链摘除必须与播放摘除对称持久化——旧实现只导 playDead，
       // 重启后「取链摘除」立即复活，而「播放摘除」保留，两种摘除的保护强度不一致。
@@ -4408,6 +4448,9 @@ function restoreHealthState(state) {
       else playDeadStreak.delete(id);
       if (item.playDead.deadline > 0) playDeadDeadline.set(id, item.playDead.deadline);
       else playDeadDeadline.delete(id);
+      const dq = String(item.playDead.quality || "").toLowerCase();
+      if (dq) playDeadQuality.set(id, dq);
+      else playDeadQuality.delete(id);
       // v8.16.2（R-12⑤）：取链摘除同步恢复
       if (item.resolveDead.streak > 0) resolveDeadStreak.set(id, item.resolveDead.streak);
       else resolveDeadStreak.delete(id);
@@ -4835,8 +4878,8 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
       : (isPlayDead(handler.id, quality, true) ? "play-dead" : null);
     if (deadReason) {
       recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: deadReason });
-      const deadErr = new Error(`PLAYBACK_FAILED: 音源[${handler.name}]半开名额已被占用（${deadReason}），本轮跳过`);
-      deadErr.code = "PLAYBACK_FAILED"; // 与 computeEligibility 的 eligibilityCode 同口径（非 12 个上游码之一）
+      const deadErr = new Error(`${ERROR_CODES.PLAYBACK_FAILED}: 音源[${handler.name}]半开名额已被占用（${deadReason}），本轮跳过`);
+      deadErr.code = ERROR_CODES.PLAYBACK_FAILED; // v8.16.3：本地拦截已是一等码，不再裸写字面量
       deadErr.sourceId = handler.id;
       deadErr.isThrottleSkip = true;
       throw deadErr;
@@ -6087,7 +6130,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.16.2 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v8.16.4 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
@@ -6199,10 +6242,12 @@ if (typeof module !== "undefined" && module.exports) {
       breakerMap,
       recordRateLimit,   // D-04 回归：半开态遇 429 必须收口回 open（否则永久卡死）
       playDeadStreak,
+      playDeadQuality,
       resolveDeadStreak,
       isPlayDead,
       isResolveDead,
       bumpResolveDead,
+      bumpPlayDead,   // v8.16.4：按档位归因回归（RF21）
       toggleSource,
       get playDeadDeadline() { return playDeadDeadline; },
       qualityShortCircuitKey,

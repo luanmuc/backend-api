@@ -3,7 +3,7 @@
 > **重构说明**：本文件由 v10.0 重构而来，文件名保留 `AUDIT_PLAN_v10.md` 以兼容既有引用。历史 round1~5 分册、v9.0、以及各轮审计报告全部归档，不再叠加进本文件；「当前要审什么、缺口在哪」只以本文件为准。
 >
 > **基线（唯一真值，2026-11-16）**：
-> - 源仓：`luanmuc/backend-api` @ `master`，v8.16.2（通读缺陷全修，本地单提交待推送；v8.16.1 已有 tag + Release），`lx-source.js` **v8.16.2**，**6045 行 / 317403 bytes**（`node scripts/build-source.js` 实跑）
+> - 源仓：`luanmuc/backend-api` @ `master`，v8.16.4（播放摘除档位归因，本地单提交待推送；v8.16.2 已有 tag + Release），`lx-source.js` **v8.16.4**，**6083 行 / 320161 bytes**（`node scripts/build-source.js` 实跑）
 > - App 仓：`luanmuc/mobile-app` @ `54249f8b`（已推送），v1.9.2-**b143** / versionCode **302**（Build `43849852397` success，5 APK）；`npm run preflight` 36/36 绿（202s）
 > - track-player：`88b062b`（v2 分支）
 > - 硬数字：`test/` 下 **49 个 `.js` 入口**；`npm test` **43 个脚本**（CI 的 L3/L4 审计清单已全量并入，2026-11-16 之前只 26 个）；审计断言 **567 条**（健康域 102 + 其余 455 + 口径 10）；冒烟 67 组；压测 162 条；变异 22 killed / 0 survived

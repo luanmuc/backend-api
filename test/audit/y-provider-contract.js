@@ -139,6 +139,25 @@ rec('Y15', '契约非法：qualitys 与 maxQuality 不一致必须拒绝', () =>
   finally { H.huibq.qualitys = backup; }
 });
 
+// v8.16.3（R-13 配套）：源规格存在两份（legacy SOURCE_HANDLERS 与 src/providers/PROVIDER_SPECS），
+// 只校验数量与登记无法发现「chain 位次/qualitys/coldStart 漂移」，这里补逐字段交叉断言。
+rec('Y16', 'PROVIDER_SPECS 与 SOURCE_HANDLERS 逐字段一致', () => {
+  const specs = mod.PROVIDER_SPECS;
+  assert(specs && Array.isArray(specs.all), 'PROVIDER_SPECS 未导出');
+  const FIELDS = ['lifecycle', 'platforms', 'chain', 'upstreamGroup', 'auth', 'maxQuality', 'qualitys', 'coldStart', 'reviewAt'];
+  for (const spec of specs.all) {
+    const h = H[spec.id];
+    assert(h, `PROVIDER_SPECS 里的 ${spec.id} 在 SOURCE_HANDLERS 中不存在`);
+    for (const f of FIELDS) {
+      assert.deepStrictEqual(h[f], spec[f], `${spec.id}.${f} 两份规格不一致：legacy=${JSON.stringify(h[f])} providers=${JSON.stringify(spec[f])}`);
+    }
+    assert(h.name === spec.name, `${spec.id}.name 不一致`);
+  }
+  for (const id of ids) {
+    assert(specs.all.some((s) => s.id === id), `SOURCE_HANDLERS 的 ${id} 未进 PROVIDER_SPECS`);
+  }
+});
+
 console.log(`\nProvider Contract: ${pass} passed, ${fail} failed`);
 // R34：原来只有 `if (require.main) process.exit(...)`——被 require 时失败既不退出也不置退出码。
 if (fail) process.exitCode = 1;

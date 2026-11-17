@@ -291,13 +291,70 @@ const killPlayDead = (m) => {
 
   await check('RF18 版本/口径一致（R-08，静态）', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-    assert(pkg.version === '8.16.2', `package.json version=${pkg.version}`)
+    assert(pkg.version === '8.16.4', `package.json version=${pkg.version}`)
     assert(/13 登记源 \/ 11 上链 \/ 2 观察/.test(pkg.description), `package description 口径陈旧: ${pkg.description}`)
     const header = fs.readFileSync(path.join(ROOT, 'src/00-header.js'), 'utf8')
-    assert(/@version 8\.16\.2/.test(header), '头模板版本未升')
+    assert(/@version 8\.16\.4/.test(header), '头模板版本未升')
     assert(/13 登记源 \/ 11 上链 \/ 2 观察/.test(header), '头模板口径陈旧')
-    assert(CODE.includes('@version 8.16.2'), '产物版本头未升')
+    assert(CODE.includes('@version 8.16.4'), '产物版本头未升')
     assert(!/12 登记源 \/ 10 上链/.test(CODE), '产物仍写旧口径 12/10')
+  })
+
+  await check('RF19 skipReason 只读：不得消费档位半开名额（R-13）', () => {
+    const m = fresh({}, (url, opts, cb) => setImmediate(() => cb(new Error('mock-no-network'), null)))
+    const cooldown = 18 * 60 * 1000
+    const slot = m.getBreaker('suyinKuwo').byQuality.flac
+      || (m.getBreaker('suyinKuwo').byQuality.flac = { req: 3, success: 0, time: 0, fail: 3, businessFail: 0, definitiveFail: 0 })
+    slot.breaker = { state: 'open', failureCount: 3, lastFailureTime: Date.now() - cooldown - 1000, trialInFlight: false }
+    const before = JSON.stringify(slot.breaker)
+    // 冷却已满的 open 档：peek 语义应为「资格通过」，且绝不推进 open→half-open
+    const r = m.__debug.skipReason('suyinKuwo', { platform: 'kw', quality: 'flac' })
+    assert(r === null, `只读查询应判可用，实际返回 ${JSON.stringify(r)}`)
+    assert(slot.breaker.state === 'open', `只读查询把档位推进成了 ${slot.breaker.state}`)
+    assert(slot.breaker.trialInFlight === false, '只读查询占用了 trialInFlight')
+    assert(JSON.stringify(slot.breaker) === before, '只读查询改写了档位熔断状态')
+    // 名额没被烧：真正可取链时第一发必须能放行
+    assert(m.__debug.canExecute('suyinKuwo', 'flac') === true, '半开名额已被只读查询烧掉')
+  })
+
+  await check('RF20 PLAYBACK_FAILED 必须是一等错误码（R-13 配套）', () => {
+    const m = fresh({}, (url, opts, cb) => setImmediate(() => cb(new Error('mock-no-network'), null)))
+    assert(m.ERROR_CODES.PLAYBACK_FAILED === 'PLAYBACK_FAILED',
+      `ERROR_CODES 缺 PLAYBACK_FAILED（实际 ${String(m.ERROR_CODES.PLAYBACK_FAILED)}）`)
+    const adm = m.__debug.admit({ error: { code: 'PLAYBACK_FAILED' } })
+    assert(adm.verdict === 'PLAYBACK_DEAD', `admit 判成 ${adm.verdict}，本地拦截会被误当上游失败`)
+    assert(adm.ledger && adm.ledger.ttlMs === 0, `PLAYBACK_DEAD 不得写失败缓存，ttl=${adm.ledger && adm.ledger.ttlMs}`)
+    assert(adm.ledger && adm.ledger.health === 'skip', `PLAYBACK_DEAD 不得记任何账，health=${adm.ledger && adm.ledger.health}`)
+    // 静态：资格判定不得再裸写字符串码
+    assert(!TEXT.includes('code: "PLAYBACK_FAILED"'), 'computeEligibility 仍裸写字面量码')
+  })
+
+  await check('RF21 播放摘除按档位归因：一档播放死不得连坐其他档（疑-31）', () => {
+    const m = fresh({}, (url, opts, cb) => setImmediate(() => cb(new Error('mock-no-network'), null)))
+    const br = m.getBreaker('suyinKuwo')
+    br.byQuality['128k'] = { req: 5, success: 5, time: 0, fail: 0, businessFail: 0, definitiveFail: 0,
+      breaker: { state: 'closed', failureCount: 0, lastFailureTime: 0, trialInFlight: false } }
+    m.__debug.playDeadStreak.set('suyinKuwo', 3)
+    m.__debug.playDeadDeadline.set('suyinKuwo', Date.now())
+    m.__debug.playDeadQuality.set('suyinKuwo', 'flac24bit')
+    // 触发档仍必须拦
+    assert(m.__debug.isPlayDead('suyinKuwo', 'flac24bit', false) === true, '触发档竟被放行')
+    // 其他档有真实成功史 → 不连坐（高档解码失败不该把能播的保底档一起摘掉）
+    assert(m.__debug.isPlayDead('suyinKuwo', '128k', false) === false, '高档播放死连坐了 128k 保底档')
+    // 无成功史的档不豁免（保守：证据不足就照旧拦）
+    br.byQuality['320k'] = { req: 2, success: 0, time: 0, fail: 2, businessFail: 0, definitiveFail: 0,
+      breaker: { state: 'closed', failureCount: 0, lastFailureTime: 0, trialInFlight: false } }
+    assert(m.__debug.isPlayDead('suyinKuwo', '320k', false) === true, '无成功史的档被误豁免')
+    // 跨档连续失败 = 源级问题，不豁免
+    m.__debug.bumpPlayDead('suyinKuwo', 'flac24bit')
+    m.__debug.bumpPlayDead('suyinKuwo', '320k')
+    m.__debug.bumpPlayDead('suyinKuwo', 'flac')
+    assert(m.__debug.isPlayDead('suyinKuwo', '128k', false) === true, '跨档失败被当成档位问题放行了')
+    // 持久化：触发档必须随快照带走，否则重启后豁免面回退成「源级」
+    const st = m.exportHealthState()
+    const item = st && st.sources && st.sources.suyinKuwo
+    assert(item && typeof item.playDead === 'object', '快照缺 playDead')
+    assert('quality' in item.playDead, '快照 playDead 未带触发档 quality')
   })
 
   console.log(`\n${passed} passed, ${failures.length} failed`)
