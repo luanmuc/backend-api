@@ -31,7 +31,7 @@
 | `docs/DEV_GUIDE.md` | 手写 | 逐段职责、机制细节、子源实测总表、已知缺陷 |
 | `docs/KNOWN_ISSUES.md` | 手写（**活文档**） | 已知问题/技术债/外部阻塞/设计取舍，K01~K20；判断是否重构先看这里 |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 手写（方案） | 音质能力备档与档位短路的优化方案、验证证据、P0/P1 + K08/K07、P2 |
-| `docs/TESTING.md` | 手写 | 48 个测试入口、mock 四件事、隔离与新增断言流程 |
+| `docs/TESTING.md` | 手写 | 49 个测试入口、mock 四件事、隔离与新增断言流程 |
 | `docs/SCRIPTS.md` | 手写 | 14 脚本 + 3 hook 的职责/触发/副作用 |
 | `docs/archive/AUDIT_HISTORY.md` | 归档合集 | v9.0（96 维矩阵）到第五轮的历史计划原文合并成一份，只读；当前入口见 `AUDIT_PLAN_v10.md` |
 | `docs/AUDIT_PLAN_v10.md` | 手写（**六轮整合活文档**） | 以它为准：维度总表、G1~G12 缺口、待修清单、销项记录、门禁 14 项口径、已知取舍 |
@@ -40,7 +40,8 @@
 | `docs/reports/*.md` | 手写（每轮一份） | 分轮审计报告：`v8.11.1-全面审计报告.md`、`-第五轮审计结算.md`、`-第六轮缺口审计.md` |
 | `docs/AUDIT_RESULTS.md` | 手写 | 三代审计总账 + **D-01~D-39** 缺陷编号 + 结论性事实 + 历轮过程 |
 | `docs/READTHROUGH.md` | 手写（**活文档·每版本必刷**） | 全仓通读台账：2026-11-10 快照 75 文件逐条结论；当前 99 文件覆盖见 `AUDIT_MATRIX.md`；规则18 校验 |
-| `docs/SOURCE_REGISTRY.md` | 活文档（人工维护 + `source-inventory --check` 机器闸门，**12/10/2 唯一登记表**） | 登记源、上链/观察、平台拓扑、质量、复核日期 |
+| `docs/READTHROUGH_v8.16.1.md` | 手写（单轮结论·冻结） | 2026-11-17 对 `lx-source.js`（5881 行）逐行通读的结论文档：缺陷 R-01~R-12、证伪记录、无缺陷模块清单、复现骨架 |
+| `docs/SOURCE_REGISTRY.md` | 活文档（人工维护 + `source-inventory --check` 机器闸门，**13/11/2 唯一登记表**） | 登记源、上链/观察、平台拓扑、质量、复核日期 |
 | `docs/SOURCE_LIFECYCLE.md` | 手写 | 增源七步准入、减源五条退出线、一进一出、复核节奏 |
 | `docs/SOURCE_RETIREMENT.md` | 归档（退役台账） | v8.13.0 退役 8 源的原因与取证，只追加 |
 | `docs/DOC_INDEX.md` | 手写（**活文档·新增文档必登**） | docs 下逐文件登记（性质/生成者/刷新时机/机器校验）；规则19 校验，漏登即红 |

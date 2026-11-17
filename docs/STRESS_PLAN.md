@@ -58,7 +58,8 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | 唯一源探路窗口 | 平台内唯一高质源短路后 10min 放行一次 | `quality-policy-v2` QP9~QP10 |
 | 旧快照兼容 | 缺 `definitiveFail` 的旧快照恢复回退旧 `fail` | `quality-policy-v2` QP8 |
 | **健康快照版本兼容（v8.16.1）** | 旧版本快照按**数值比较**接受（`8.16` < `8.16.1` 仍拒），白名单 `[8.14.1, 8.15.1, 8.16.0, 8.16.1]`；不得因放宽而收下任意结构 | `health-persistence-v2` 10/0、`aa-p3-persist` 10/0 |
-| **产物一致（v8.16.1）** | `lx-source.js` 5881 行 / 307085 bytes / `@version 8.16.1`；`chain-golden.json` 含 `version`/`sourceHead` | `verify:bundle` 8/0、`y-provider-contract` Y9 |
+| **产物一致（v8.16.2）** | `lx-source.js` 6013 行 / 315585 bytes / `@version 8.16.2`；`chain-golden.json` 含 `version`/`sourceHead`（8.16.2） | `verify:bundle` 8/0、`y-provider-contract` Y9 |
+| **通读缺陷回归（v8.16.2）** | R-01~R-12 逐条有可用断言：档位熔断跨重启保留、真实音质入账、播放分账、快照运行期资格、试探键清理、半开名额后置、gateErr 带码、跨平台可取消、兜底结构化、ttl 死分支、7 项静态确认 | `readthrough-fixes` 18/0 |
 
 ## 4. 本轮实测结果（2026-11-16）
 

@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.16.1 健康态跨版本恢复版（2026-11-16：健康快照版本判定由“严格白名单”改为“数值 ≤ 当前源版本即接受”，旧版本账本（熔断/档位短路/播放摘除）不再随音源升版被整包丢弃；未来版本与非法结构仍拒绝）。上一版 v8.16.0 为接入晴亮 tx 源版。历史版本见 docs/CHANGELOG.md。
- * @version 8.16.1 健康态跨版本恢复（旧版本账本可恢复 / 未来版本拒绝）
+ * @description v8.16.2 通读缺陷全修版（2026-11-17：按 docs/READTHROUGH_v8.16.1.md 第六节顺序修完 R-01~R-12——档位熔断持久化、真实交付音质入账、播放与取链分账、快照运行期资格、试探键清理、半开名额后置消费、gateErr 带码带源、跨平台可取消、兜底结构化判据、失败缓存死分支、provider 不再回写调用方对象；健康态源版本升 8.16.2 且兼容 8.14.1~8.16.1）。上一版 v8.16.1 为健康态跨版本恢复版。历史版本见 docs/CHANGELOG.md。
+ * @version 8.16.2 通读缺陷全修（R-01~R-12；旧版本账本可恢复 / 未来版本拒绝）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -1113,13 +1113,16 @@ function logDebug(...args) { if (LOG_ENABLED && LOG_DEBUG) safeConsole.log("[聚
 // v1.0：直接用原字符串作 Map 键（Map 支持字符串键），省掉32位哈希与碰撞覆盖
 function createLRUCache(maxSize, ttl) {
   const map = new Map();
+  // v8.16.2（R-12⑥）：ttl 支持函数——旧实现构造时就把 ttl 值捕获成常量，`config` 热更新
+  // 调大 cacheTtlMs 在进程内永远不生效（只能靠 clear 让调小生效，调大无解）。
+  const ttlNow = () => (typeof ttl === "function" ? Number(ttl()) || 0 : Number(ttl) || 0);
   return {
     get(key) {
       const entry = map.get(key);
       if (!entry) return null;
       // v8.11.2（D-32）：过期只报 null、不删除——否则下层 hasExpired() 永远查不到，
       // 「全部源失败 → 过期缓存兜底」成死代码（V22 实测）。
-      if (Date.now() - entry.timestamp >= ttl) { return null; }
+      if (Date.now() - entry.timestamp >= ttlNow()) { return null; }
       map.delete(key);
       map.set(key, entry);
       return entry.value;
@@ -1137,7 +1140,7 @@ function createLRUCache(maxSize, ttl) {
     hasExpired(key) {
       const entry = map.get(key);
       if (!entry) return false;
-      return Date.now() - entry.timestamp >= ttl;
+      return Date.now() - entry.timestamp >= ttlNow();
     },
     getExpired(key) {
       const entry = map.get(key);
@@ -1165,7 +1168,7 @@ function boundedMapSet(map, key, value) {
     if (oldest !== undefined) map.delete(oldest);
   }
 }
-const successCache = createLRUCache(CACHE_MAX_SIZE, cfg('cacheTtlMs', CACHE_TTL_MS));
+const successCache = createLRUCache(CACHE_MAX_SIZE, () => cfg('cacheTtlMs', CACHE_TTL_MS));
 // v1.0：失败缓存 LRU 不再用固定5min TTL——过期由 getFailCachedEntry 按失败类型差异化判断(404→1h/410→1min/网络错误不缓存)
 const failCache = createLRUCache(FAIL_CACHE_MAX_SIZE, Number.MAX_SAFE_INTEGER);
 
@@ -1189,10 +1192,17 @@ const FRAGMENT_URL_TTL_MS = 600000;      // 片段直链是临时签名，10 分
 const PLAY_DEAD_STREAK = 3;
 const playDeadStreak = new Map();
 const playDeadDeadline = new Map(); // 摘除计时起点（半开试探冷却）
-const playDeadTrialAt = new Map(); // v8.14 半开试探：source|quality → 已放行试探的时间（防整链同时涌入）
+const playDeadTrialAt = new Map(); // 半开试探：sourceId → 已放行试探的时间（半开只放一个请求/源）
 const PLAY_DEAD_TRIAL_TTL_MS = 60 * 1000;
+// v8.16.2（R-05）：写入侧用裸 sourceId、清理侧却按 `sourceId|` 前缀匹配 → 永远删不掉，
+// 一轮摘除后 60s 内再也放不出半开试探（默认 300s 冷却把症状掩盖成“能自愈”）。
+// 清理必须同时删裸键与历史前缀键，兼容旧版本写入的 `sourceId|quality` 形态。
+function clearTrialKeys(map, sourceId) {
+  map.delete(sourceId);
+  for (const k of map.keys()) if (String(k).startsWith(sourceId + "|")) map.delete(k);
+}
 function clearPlayDeadTrials(sourceId) {
-  for (const k of playDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) playDeadTrialAt.delete(k);
+  clearTrialKeys(playDeadTrialAt, sourceId);
 }
 // F42：取链失败与真实播放失败分层。resolveDead 只由“取链/准入失败”累计，
 // playDead 只由 App reportPlayback 的真实播放失败累计；二者都阻塞执行，但解除路径不同。
@@ -1201,7 +1211,7 @@ const resolveDeadDeadline = new Map();
 const resolveDeadTrialAt = new Map();
 const RESOLVE_DEAD_TRIAL_TTL_MS = 60 * 1000;
 function clearResolveDeadTrials(sourceId) {
-  for (const k of resolveDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) resolveDeadTrialAt.delete(k);
+  clearTrialKeys(resolveDeadTrialAt, sourceId);
 }
 function clearResolveDead(sourceId) {
   resolveDeadStreak.delete(sourceId);
@@ -1400,12 +1410,19 @@ function canExecute(sourceId, quality) {
 }
 function recordSuccess(sourceId, duration, quality, opts = {}) {
   const b = getBreaker(sourceId);
-  b.totalRequests++;
-  b.totalSuccess++;
-  b.totalTime += duration;
+  // v8.16.2（R-03）：真实播放回传不是取链请求。旧实现无条件 totalRequests++/totalSuccess++/
+  // byQuality req++/success++，一次「取链失败 + 播放成功」会被算成 reqCount=2、成功率 50%——
+  // App 面板的 24h 取链数字与 byQuality 全被播放事件污染。播放成功只做熔断复位与摘除解除。
+  const playback = opts.playback === true;
+  if (!playback) {
+    b.totalRequests++;
+    b.totalSuccess++;
+    b.totalTime += duration;
+    const q = qualityLedger(b, quality);
+    q.req++; q.success++; q.time += duration;
+  }
   b.lastQuality = String(quality || "128k"); // v6.0：记录实际交付音质
   const q = qualityLedger(b, quality);
-  q.req++; q.success++; q.time += duration;
   // F40：半开试探成功只关闭命中的档位；源级聚合再看其他档是否仍不可达。
   if (q.breaker.state === 'half-open' || q.breaker.state === 'open') {
     q.breaker.state = 'closed';
@@ -1430,6 +1447,22 @@ function recordSuccess(sourceId, duration, quality, opts = {}) {
     logWarn(`播放摘除: [${sourceId}] 真实播放成功，解除摘除`);
   }
 }
+// v8.16.2（R-02）：请求高档、实交付低档 = 该档「确定性交付降级」样本。
+// 只累计 definitiveFail，不进 req/success（这不是一次该档的成功请求）；
+// isQualityHopeless 以 definitiveFail>=N && success===0 判短路，连续 3 次降级即短路该档。
+// 反过来只要该档真交付过一次（success>0），短路判据立刻失效——不会误封能出高质的源。
+function noteQualityDowngrade(sourceId, requestedQuality, deliveredQuality) {
+  const reqQ = String(requestedQuality || "").toLowerCase();
+  const realQ = String(deliveredQuality || "").toLowerCase();
+  if (!reqQ || !realQ || reqQ === realQ) return false;
+  if (qualityRank(realQ) >= qualityRank(reqQ)) return false;
+  const b = getBreaker(sourceId);
+  const q = qualityLedger(b, reqQ);
+  q.definitiveFail = (q.definitiveFail || 0) + 1;
+  logInfo(`[${sourceId}] 音质降级样本: 请求[${reqQ}] 实交付[${realQ}]，该档确定性降级第 ${q.definitiveFail} 次`);
+  return true;
+}
+
 // v8.10.3：播放失败累计抽成单点——半开试探失败同样算一次真实播放失败（旧实现 return 跳过累加，
 // 与"真实播放失败累计"的注释语义不符，导致反复半开失败的源永远凑不够摘除阈值）
 function bumpPlayDead(sourceId) {
@@ -1442,6 +1475,13 @@ function bumpPlayDead(sourceId) {
 }
 function recordFailure(sourceId, quality, opts = {}) {
   const b = getBreaker(sourceId);
+  // v8.16.2（R-03）：真实播放失败只累计 playDead，不再进取链账本（req/fail/definitiveFail/成功率）。
+  // 播放失败是「这次播放环境/CDN 出问题」的证据，不是「该源该档取链不可用」的证据；
+  // 旧实现把它记进 byQuality 后，一次播放失败就能把 qualityShortCircuit 推高一格。
+  if (opts.playbackOnly === true) {
+    bumpPlayDead(sourceId);
+    return;
+  }
   const wasSourceHalfOpen = b.state === 'half-open';
   b.totalRequests++;
   b.failureCount++;
@@ -1699,7 +1739,11 @@ async function isAudioPlayable(audioUrl, timeoutMs = 3000, cancelToken = null) {
       cancelToken
     });
     const ct = String(res.headers?.["content-type"] || "");
-    if (res.statusCode === 206) return true;
+    // v8.16.2（R-12⑦）：旧实现 206 一律放行——Range 请求几乎都是 206，于是 content-type
+    // 是 text/html / application/json 的「假音频」也被判可播。这里 206/200 同口径：
+    // 有 content-type 就必须像音频；缺失时仍放行（不少 CDN 不返回该头，保持原宽容度）。
+    const looksAudio = /audio|octet|mpeg|mp3|flac|ogg|aac|mp4|m4a/i.test(ct);
+    if (res.statusCode === 206) return ct ? looksAudio : true;
     if (res.statusCode === 200 && /audio|octet|mpeg|mp3|flac|ogg|aac/i.test(ct)) return true;
     return false;
   } catch (e) {
@@ -1914,8 +1958,23 @@ function qualityConfidenceOf(info, durationSec) {
 }
 
 // 原曲时长（秒）：兼容 ms / 秒 / "mm:ss"
+// v8.16.2（R-12②）：子源解析出的时长走「旁路提示」，不再回写调用方对象。
+// 旧实现 `songInfo.duration = parsed.duration` 直接改 App 通过桥传进来的 musicInfo（跨桥副作用，
+// 同一首歌后续请求会带上被改过的字段）；但 D-39 的时长校验又确实需要这个值，
+// 所以改为按对象记在内部表里，由 originalDurationSec 读取，调用方对象保持只读。
+const durationHints = new Map();
+function setDurationHint(songInfo, sec) {
+  if (!songInfo || typeof songInfo !== "object") return;
+  const n = Number(sec);
+  if (!Number.isFinite(n) || n <= 0) return;
+  boundedMapSet(durationHints, songInfo, Math.round(n));
+}
+
 function originalDurationSec(songInfo) {
   const raw = songInfo?.duration ?? songInfo?.dt ?? songInfo?.interval ?? songInfo?.songDuration;
+  // 调用方没给时长时，用子源解析出的旁路提示（D-39 修复的等价实现，无跨桥副作用）
+  const hinted = (songInfo && typeof songInfo === "object") ? durationHints.get(songInfo) : 0;
+  if ((raw === undefined || raw === null || raw === "") && hinted) return hinted;
   if (typeof raw === "string" && raw.includes(":")) {
     const parts = raw.split(":").map(x => parseInt(x, 10)).filter(x => Number.isFinite(x));
     if (parts.length === 2) return parts[0] * 60 + parts[1];
@@ -2551,7 +2610,9 @@ function computeEligibility(source, platform, quality, opts) {
   if (!isUserEnabled(id)) return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
   if (autoOff[id]) return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: autoOffAt[id] ? autoOffAt[id] + cfg("playDeadReviveMs", 5 * 60 * 1000) : null };
   if (probeState.sleeping[id]) return { eligible: false, reason: "sleeping", code: "SOURCE_SLEEPING", untilMs: null };
-  if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
+  // v8.16.2（R-12③）：平台不支持 ≠ 质量档未开放。旧实现复用了 QUALITY_OPEN，诊断消费者
+  // 会把「该源根本不支持这个平台」误读成「这一档还能恢复」，故改为专用码。
+  if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "PLATFORM_UNSUPPORTED", untilMs: null };
   if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
   if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
   // Batch 3：链/快照的“运行期预览”只读，不推进 open→half-open、不消费 trial。
@@ -3263,12 +3324,9 @@ async function kuwoOfficialConvert(rid, cancelToken = null) {
 async function kuwoOfficialGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
   if (platform !== "kw") throw new Error(`${ERROR_CODES.PARAM_ERROR}: 酷我官方仅支持kw平台`);
   if (!songInfo?.name) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 酷我官方需要歌曲名`);
-  const cacheKey = buildCacheKey("kwoff", songInfo, "128k");
-  const cached = getCachedUrl(cacheKey);
-  // v7.0 (S1)：内部缓存命中必须返回裸 URL 字符串——wrapExecute 的 validateUrl 只接受字符串，
-  // 旧实现返回 {url,type,subSource} 包装对象导致缓存后取链被 validateUrl 拦截(实测0ms秒失败 NOT_FOUND)。
-  // subSource 透出由 getUrlWithFallback 按实际交付源统一组装，此处无需携带。
-  if (cached && cached.url) return cached.url;
+  // v8.16.2（R-12①）：这里原本读 `buildCacheKey("kwoff", …)`，但全仓 setCachedUrl 只有一个写入口
+  // 且写的是 `buildCacheKey(platform, …)`（platform="kw"），kwoff 键**从来没有被写过**——永远 miss 的死读。
+  // 外层 getUrlWithFallback 的成功缓存已覆盖同语义，故直接删除，避免"看起来有缓存其实没有"的误导。
   const targetName = normalizeKeyword(songInfo.name);
   const items = await kuwoOfficialSearch(`${songInfo.name} ${songInfo.singer || ""}`.trim(), 10, cancelToken);
   if (!items.length) throw new Error(`${ERROR_CODES.NOT_FOUND}: 酷我官方搜索无结果`);
@@ -3571,7 +3629,8 @@ async function suyinKuwoSearch(keyword, br, songInfo = null, cancelToken = null)
         // D-39：message 里的时长必须回填。旧实现只拿 parsed 做歌名校验，duration 就地丢弃，
         // 而外层 verifyDelivery 的 originalDurationSec 只读 ctx.songInfo —— 调用方没传 duration 时，
         // 整条时长校验静默失效（实测：声称 1:05:00、实际给 60 秒，直接放行且标 flac24bit）。
-        if (parsed && parsed.duration && !songInfo.duration) songInfo.duration = parsed.duration;
+        // v8.16.2（R-12②）：改用 setDurationHint 旁路回填，不再写调用方对象（跨桥副作用）。
+        if (parsed && parsed.duration) setDurationHint(songInfo, parsed.duration);
       }
       return match[1];
     }
@@ -3833,10 +3892,20 @@ function getHealthSnapshot() {
     const stats = getSourceStats(id);
     const score = computeHealthScore(id);
     // 方案 6.2 I1：快照必须给只读裁决，链/跳过/执行门/面板不再各自解释状态。
-    // 用首个上链平台 + 128k 取源级结构资格；qualityShortCircuit 关闭，避免把单档短路
-    // 误当成整源不可用（单档信息由 qualityShortCircuit 四档布尔单独下发）。
-    const gatePlatform = (h.platforms || []).find(p => h.chain && h.chain[p] != null) || (h.platforms || [])[0] || null;
-    const gate = computeEligibility(id, gatePlatform, "128k", { runtime: false, qualityShortCircuit: false });
+    // v8.16.2（R-04）：快照必须与链同源——旧实现用 runtime:false，computeEligibility 直接提前
+    // return eligible=true，把熔断/限流/半开/预览冷却/档位短路全部跳过；同一份快照里
+    // _platformSummary 却由 buildSourceChain(runtime:true) 算出，两口径互相打脸（App 面板显示
+    // 「可用」而实际一次都不发请求）。改为 runtime:true + peekRuntime:true：只读运行态，不推进
+    // open→half-open、不消费半开 trial。
+    const gatePlatforms = (h.platforms || []).filter(p => h.chain && h.chain[p] != null);
+    const gatePlatform = gatePlatforms[0] || (h.platforms || [])[0] || null;
+    const gate = computeEligibility(id, gatePlatform, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
+    // R-12④：多平台源只测首个有链平台 → 逐平台只读资格另发一份，面板不再把「kw 可用」当成全平台可用。
+    const platformEligibility = {};
+    for (const p of gatePlatforms) {
+      const pe = p === gatePlatform ? gate : computeEligibility(id, p, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
+      platformEligibility[p] = { eligible: pe.eligible, reason: pe.reason, code: pe.code };
+    }
     const offState = getHealthOffState(id, h);
     snapshot[id] = {
       name: h.name,
@@ -3858,6 +3927,8 @@ function getHealthSnapshot() {
       eligibilityReason: gate.reason,
       eligibilityCode: gate.code,
       eligibilityUntilMs: gate.untilMs,
+      // R-12④：多平台源的逐平台只读资格（键=该源真正有链的平台）
+      platformEligibility,
       autoOffReason: autoOffReason[id] || null,
       autoOffAt: autoOffAt[id] || 0,
       probeTargets: ((probeState.lastTargets && probeState.lastTargets[id]) || []).map(t => ({ ...t, at: Number(probeState.lastProbeAt[id] || 0) })),
@@ -3894,7 +3965,8 @@ function getHealthSnapshot() {
       // v4.0：按音质分档统计（面板后续版本可消费）
       byQuality: Object.fromEntries(Object.entries(stats.byQuality || {}).map(([q, v]) => [q, Object.assign({}, v, { lastProbeAt: Number(qualityLastProbeAt.get(`${id}|${q}`) || 0) })])),
       // v8.14（F43）：质量档短路必须可见，不再只存在于链构建内部判断
-      qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map(q => [q, isQualityHopeless(id, q, (SOURCE_HANDLERS[id].platforms || [])[0], { setProbe: false })])),
+      // R-12④：用与 gate 同一平台（旧实现固定 platforms[0]，多平台源测的平台与 gate 不是同一个）
+      qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map(q => [q, isQualityHopeless(id, q, gatePlatform, { setProbe: false })])),
       // v7.0：播放实时摘除状态（连续播放失败被摘除；App 可显示"已摘除"）
       playDead: isPlayDead(id),
       resolveDead: isResolveDead(id),
@@ -3996,11 +4068,11 @@ function getHealthSnapshot() {
 const HEALTH_STATE_VERSION = 2; // 单一路径：只导出/恢复 v2
 const HEALTH_STATE_ACCEPTED_VERSIONS = [2];
 // 导出时写当前源版本；恢复时同时接受上一版，避免一次版本升级把用户已存健康态整包丢掉。
-const HEALTH_STATE_SOURCE_VERSION = "8.16.1";
+const HEALTH_STATE_SOURCE_VERSION = "8.16.2";
 // HC：旧版本快照应可恢复（结构校验兜底），未来版本仍拒绝。
 // 原来只放行固定白名单，导致音源每升一个版本、用户熔断/短路记录就被整包拒绝丢失；
 // 白名单同时随版本漂移（漏加一条即丢数据）。改为按版本号数值比较。
-const HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1"];
+const HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1", "8.16.2"];
 function parseHealthSourceVersion(v) {
   const parts = String(v || "").trim().split(".");
   if (parts.length !== 3) return null;
@@ -4094,6 +4166,16 @@ function exportHealthState() {
       if (!HEALTH_QUALITIES.includes(quality)) continue;
       byQuality[quality] = {};
       for (const field of HEALTH_QUALITY_NUMBER_FIELDS) byQuality[quality][field] = Number(q[field] || 0);
+      // v8.16.2（R-01）：档位熔断器必须随档位一起落盘。旧实现只写 7 个数字字段，
+      // 恢复后 byQuality 条目没有 breaker，qualityLedger 会补一个默认 closed，
+      // canExecute 于是直接放行——熔断在 App 每次冷启动 restore 后 100% 失效。
+      const qbOld = q.breaker || {};
+      byQuality[quality].breaker = {
+        state: HEALTH_STATES.includes(qbOld.state) ? qbOld.state : "closed",
+        failureCount: Number(qbOld.failureCount || 0),
+        lastFailureTime: Number(qbOld.lastFailureTime || 0),
+        trialInFlight: qbOld.trialInFlight === true
+      };
     }
     sources[id] = {
       breaker: {
@@ -4116,6 +4198,12 @@ function exportHealthState() {
       playDead: {
         streak: Number(playDeadStreak.get(id) || 0),
         deadline: Number(playDeadDeadline.get(id) || 0)
+      },
+      // v8.16.2（R-12⑤）：取链摘除必须与播放摘除对称持久化——旧实现只导 playDead，
+      // 重启后「取链摘除」立即复活，而「播放摘除」保留，两种摘除的保护强度不一致。
+      resolveDead: {
+        streak: Number(resolveDeadStreak.get(id) || 0),
+        deadline: Number(resolveDeadDeadline.get(id) || 0)
       }
     };
   }
@@ -4180,10 +4268,36 @@ function restoreHealthState(state) {
           if (!healthNumber(raw, true)) return { ok: false, reason: `${id}.${quality}.${field} 非法` };
           byQuality[quality][field] = raw;
         }
+        // v8.16.2（R-01）：恢复档位熔断器；旧快照没有该字段时按 closed 补齐（向后兼容）。
+        const qbRaw = q.breaker === undefined ? null : q.breaker;
+        if (qbRaw !== null) {
+          if (!isHealthPlainObject(qbRaw)) return { ok: false, reason: `${id}.${quality}.breaker 非法` };
+          if (!HEALTH_STATES.includes(qbRaw.state)) return { ok: false, reason: `${id}.${quality}.breaker.state 非法` };
+          for (const field of ["failureCount", "lastFailureTime"]) {
+            if (!healthNumber(qbRaw[field], true)) return { ok: false, reason: `${id}.${quality}.breaker.${field} 非法` };
+          }
+          if (qbRaw.trialInFlight !== undefined && typeof qbRaw.trialInFlight !== "boolean") {
+            return { ok: false, reason: `${id}.${quality}.breaker.trialInFlight 非法` };
+          }
+        }
+        // 半开在飞态不能跨进程复活：新进程没有那个请求，恢复成 half-open 只会让该档永久拒绝，
+        // 因此统一收敛为 open（重新走冷却→半开），保留熔断事实但不带 in-flight 幽灵。
+        byQuality[quality].breaker = qbRaw === null
+          ? { state: "closed", failureCount: 0, lastFailureTime: 0, trialInFlight: false }
+          : {
+            state: qbRaw.state === "half-open" ? "open" : qbRaw.state,
+            failureCount: Number(qbRaw.failureCount || 0),
+            lastFailureTime: Number(qbRaw.lastFailureTime || 0),
+            trialInFlight: false
+          };
       }
       const pd = item.playDead || {};
       if (!isHealthPlainObject(pd)) return { ok: false, reason: `${id}.playDead 非法` };
       if (!healthNumber(pd.streak || 0, true) || !healthNumber(pd.deadline || 0, true)) return { ok: false, reason: `${id}.playDead 非法` };
+      // v8.16.2（R-12⑤）：resolveDead 与 playDead 同校验；旧快照没有该字段时按 0 兼容。
+      const rd = item.resolveDead || { streak: 0, deadline: 0 };
+      if (!isHealthPlainObject(rd)) return { ok: false, reason: `${id}.resolveDead 非法` };
+      if (!healthNumber(rd.streak || 0, true) || !healthNumber(rd.deadline || 0, true)) return { ok: false, reason: `${id}.resolveDead 非法` };
       sanitized[id] = {
         breaker: {
           state: b.state,
@@ -4202,7 +4316,8 @@ function restoreHealthState(state) {
           lastQuality: b.lastQuality === null ? null : String(b.lastQuality).toLowerCase()
         },
         byQuality,
-        playDead: { streak: Number(pd.streak || 0), deadline: Number(pd.deadline || 0) }
+        playDead: { streak: Number(pd.streak || 0), deadline: Number(pd.deadline || 0) },
+        resolveDead: { streak: Number(rd.streak || 0), deadline: Number(rd.deadline || 0) }
       };
     }
     const qsc = state.qualityShortCircuit === undefined ? {} : state.qualityShortCircuit;
@@ -4245,6 +4360,11 @@ function restoreHealthState(state) {
       else playDeadStreak.delete(id);
       if (item.playDead.deadline > 0) playDeadDeadline.set(id, item.playDead.deadline);
       else playDeadDeadline.delete(id);
+      // v8.16.2（R-12⑤）：取链摘除同步恢复
+      if (item.resolveDead.streak > 0) resolveDeadStreak.set(id, item.resolveDead.streak);
+      else resolveDeadStreak.delete(id);
+      if (item.resolveDead.deadline > 0) resolveDeadDeadline.set(id, item.resolveDead.deadline);
+      else resolveDeadDeadline.delete(id);
       restored++;
     }
     applyHealthControls(controls);
@@ -4613,23 +4733,26 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
   // 在发请求前重取一次结构资格，避免拿旧链继续打已失效源；运行期 breaker/限流仍由下面 canExecute 复核。
   // 合成 handler（测试哨兵/外部临时源）不在注册表里，不参与本仓的资格门禁。
   const preGate = SOURCE_HANDLERS[handler.id]
-    ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: true })
+    ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: false })
     : { eligible: true, code: 'ELIGIBLE', reason: null };
   if (!preGate.eligible) {
     recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: preGate.reason || "eligibility" });
+    // v8.16.2（R-07）：gateErr 必须在 throw 前带齐 code/sourceId——旧实现 code 为空、sourceId 只在
+    // 外层 catch 里补，而这三处 skip 抛在 try 之前，catch 根本到不了，失败明细就落成 "race"/"chain"。
     const gateErr = new Error(`${preGate.code || ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]发请求前资格失效（${preGate.reason || "eligibility"}）`);
+    gateErr.code = preGate.code || ERROR_CODES.RATE_LIMIT;
+    gateErr.sourceId = handler.id;
     gateErr.isThrottleSkip = true;
     throw gateErr;
   }
-  // v8.11：源级限流冷却——同一源对同一首歌三档都只给片段时判定为源被限流，
-  // 冷却期内直接跳过（实测密集请求时整个源会统一返回同一个 84972 字节片段，跑三档纯属白等）
-  // v8.11.1（二轮压测 S9 实测）：冷却期若整源跳过，新歌会连片段都拿不到（与「整站只有片段时给片段」冲突）。
-  // 修法：冷却期只放行 128k 这一档（既有 128k 保底思路）——单档不会累积「三档全片段」证据，冷却不会被无限延长。
+  // v8.11：源级限流冷却……（同上）
   const previewCoolUntil = previewCooldownMap.get(handler.id);
   const is128k = String(quality || "").toLowerCase() === "128k";
   if (previewCoolUntil && previewCoolUntil > Date.now() && !is128k) {
     recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "preview_cooldown" });
     const coolErr = new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]判定为源级限流，冷却中（128k 保底档除外）`);
+    coolErr.code = ERROR_CODES.RATE_LIMIT;
+    coolErr.sourceId = handler.id;
     coolErr.isThrottleSkip = true;
     throw coolErr;
   }
@@ -4640,6 +4763,8 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
     //（旧实现熔断期每轮跳过都虚增 rateLimitCount，App 面板限流计数被污染）
     revertHalfOpenOnSkip(handler.id, quality); // D-34：half-open 恒 false，必须退回 open 否则永久卡死
     const breakerSkip = new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]已熔断`);
+    breakerSkip.code = ERROR_CODES.RATE_LIMIT;
+    breakerSkip.sourceId = handler.id;
     breakerSkip.isThrottleSkip = true;
     throw breakerSkip;
   }
@@ -4649,8 +4774,25 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
     // 不触发 30s 退避（旧实现误记 recordRateLimit，流量高峰会把源冤枉成"被限"）
     revertHalfOpenOnSkip(handler.id, quality); // D-34：同上，节流也在 try 之外抛
     const skipErr = new Error(`${ERROR_CODES.RATE_LIMIT}: 音源[${handler.name}]触发并发/限速保护，本轮跳过`);
+    skipErr.code = ERROR_CODES.RATE_LIMIT;
+    skipErr.sourceId = handler.id;
     skipErr.isThrottleSkip = true;
     throw skipErr;
+  }
+  // v8.16.2（R-06）：半开名额只在这里消费——preGate / canExecute / throttleCheck 任一拦截都不会
+  // 提前吃掉它（旧实现 preGate 用 consumePlayDeadTrial:true，放行后被后面任一门拦下，名额就白烧了，
+  // 请求没发出、60s 内该源再也放不出半开试探）。此处是「确定要打上游」的最后一步，独占消费。
+  if (SOURCE_HANDLERS[handler.id]) {
+    const deadReason = isResolveDead(handler.id, quality, true) ? "resolve-dead"
+      : (isPlayDead(handler.id, quality, true) ? "play-dead" : null);
+    if (deadReason) {
+      recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: deadReason });
+      const deadErr = new Error(`PLAYBACK_FAILED: 音源[${handler.name}]半开名额已被占用（${deadReason}），本轮跳过`);
+      deadErr.code = "PLAYBACK_FAILED"; // 与 computeEligibility 的 eligibilityCode 同口径（非 12 个上游码之一）
+      deadErr.sourceId = handler.id;
+      deadErr.isThrottleSkip = true;
+      throw deadErr;
+    }
   }
   inflightCount.set(handler.id, (inflightCount.get(handler.id) || 0) + 1);
   // v8.0：防御性初始化——不依赖 throttleCheck 先调用，直接确保数组存在
@@ -4702,7 +4844,16 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
         boundedMapSet(deliveryConfidenceMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realConfidence);
       }
     }
-    recordSuccess(handler.id, Date.now() - startTime, quality);
+    // v8.16.2（R-02）：按真实交付音质入账。旧实现用请求档 quality 记账——请求 flac 实得 128k 时
+    // byQuality 只增 flac.success，128k 档永远没有样本，isQualityHopeless(flac) 因 success>0 恒为 false，
+    // 「质量档短路」在最该生效的降级场景 100% 失效。改为：成功记在实交付档，
+    // 同时给请求档记一条「交付不出该档」的确定性样本（不占请求分母）。
+    const deliveredQuality = realQuality || String(quality || "128k").toLowerCase();
+    recordSuccess(handler.id, Date.now() - startTime, deliveredQuality);
+    const reqQuality = String(quality || "128k").toLowerCase();
+    if (deliveredQuality !== reqQuality && qualityRank(deliveredQuality) < qualityRank(reqQuality)) {
+      noteQualityDowngrade(handler.id, reqQuality, deliveredQuality);
+    }
     recordHealthEvent({ event: "source_result", traceId, sourceId: handler.id, platform, quality, ok: true, code: "", latencyMs: Date.now() - startTime });
     logInfo(`[${handler.name}] 解析成功: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
     return finalUrl;
@@ -4947,10 +5098,11 @@ function buildInflightKey(platform, songInfo, quality) {
   return `${platform}|${quality}|${id}|${m.name || ""}|${m.singer || ""}|${m.duration || 0}`;
 }
 
-async function getUrlWithFallback(platform, songInfo, quality) {
+async function getUrlWithFallback(platform, songInfo, quality, cancelToken = null) {
   if (!platform || typeof platform !== "string" || !PLATFORM_QUALITIES[platform]) {
     throw new Error(`${ERROR_CODES.PARAM_ERROR}: 无效的平台参数`);
   }
+  throwIfCanceled(cancelToken);
   if (!songInfo || typeof songInfo !== "object") {
     throw new Error(`${ERROR_CODES.PARAM_ERROR}: 无效的歌曲信息`);
   }
@@ -5026,8 +5178,13 @@ async function getUrlWithFallback(platform, songInfo, quality) {
     // v8.10.3：命中路径补 code —— 旧实现只抛文案，err.code 为 undefined，App 无法区分
     // "网络全挂的 30s 短缓存"与"真的没版权"；这里按缓存里的代表性失败码还原
     const cachedCode = failEntry.code || ERROR_CODES.NOT_FOUND;
-    const hitErr = new Error(`${cachedCode}: 该请求已知失败(${failEntry.ttl === 0 ? "不缓存" : "缓存中"})，跳过重复请求`);
+    // v8.16.2（R-10/R-11）：失败缓存命中改用结构化标记表达（旧实现由上层正则匹配中文文案，
+    // 文案一改判断即失效）；另：ttl=0 的条目根本进不了这里（getFailCachedEntry 直接返回 null），
+    // 「不缓存」是死分支，统一显示「缓存中」。
+    const hitErr = new Error(`${cachedCode}: 该请求已知失败(缓存中)，跳过重复请求`);
     hitErr.code = cachedCode;
+    hitErr.fromFailCache = true;
+    hitErr.failCode = cachedCode;
     throw hitErr;
   }
 
@@ -5409,13 +5566,15 @@ function isDefinitiveNoMatch(err) {
   return code === ERROR_CODES.NOT_FOUND || code === ERROR_CODES.MISMATCH || code === ERROR_CODES.PARAM_ERROR;
 }
 
-async function tryCrossPlatformFallback(primaryPlatform, songInfo, quality, primaryErr, traceId) {
+async function tryCrossPlatformFallback(primaryPlatform, songInfo, quality, primaryErr, traceId, cancelToken = null) {
+  throwIfCanceled(cancelToken);
   const targets = CROSS_PLATFORM_ORDER.filter(p => p !== primaryPlatform && PLATFORM_QUALITIES[p]);
   if (!targets.length) throw primaryErr || new Error(`${ERROR_CODES.NOT_FOUND}: 无跨平台目标`);
   let lastErr = null;
   let noCandidateCount = 0;
   let hadUncertain = false;
   for (const target of targets) {
+    throwIfCanceled(cancelToken);
     let candidate = null;
     try {
       candidate = await resolveCrossPlatformCandidate(target, songInfo);
@@ -5433,7 +5592,7 @@ async function tryCrossPlatformFallback(primaryPlatform, songInfo, quality, prim
     const targetInfo = buildCrossTargetInfo(candidate, songInfo, target);
     logInfo(`[跨平台] ${primaryPlatform}→${target} 命中: ${candidate.name} / ${candidate.singer} / ${candidate.duration || "?"}s (${candidate.id})`);
     try {
-      const r = await getUrlWithFallback(target, targetInfo, quality);
+      const r = await getUrlWithFallback(target, targetInfo, quality, cancelToken);
       return {
         ...r,
         sourcePlatform: r.sourcePlatform || target,
@@ -5460,6 +5619,39 @@ async function tryCrossPlatformFallback(primaryPlatform, songInfo, quality, prim
   throw primaryErr || lastErr || new Error(`${ERROR_CODES.NOT_FOUND}: 跨平台均失败`);
 }
 
+// v8.16.2（R-10）：跨平台兜底策略——**结构化判据**，禁止再按中文文案做控制流。
+// 旧实现用 `/该请求已知失败/`、`/预算耗尽/`、`/源级限流|冷却中|已熔断/` 四个正则判分支，
+// 任何文案改动都会静默改变兜底行为，且单测无法覆盖。这里改为读 err.code / 布尔标记。
+// 语义：只有「本地保护态」「网络类整体不可用」「预算耗尽」「失败缓存里已是内容类结论」才不兜底，
+// 其余（曲库无匹配/错歌/非音频/试听片段/流列表/链接过期/5xx）都值得换平台再试一次。
+const CROSS_NO_FALLBACK_CODES = new Set([
+  ERROR_CODES.NETWORK_ERROR,
+  ERROR_CODES.NETWORK_TIMEOUT,
+  ERROR_CODES.BUDGET_EXHAUSTED,
+  ERROR_CODES.PARAM_ERROR,
+  ERROR_CODES.CONFIG_ERROR,
+  ERROR_CODES.CANCELED,
+]);
+function crossFallbackPolicy(err) {
+  if (!err) return { fallback: true, reason: "UNKNOWN" };
+  const code = String(extractErrorCode(err) || "");
+  if (err.canceled === true || code === ERROR_CODES.CANCELED) return { fallback: false, reason: "canceled" };
+  // 1) 失败缓存命中：内容类结论意味着「上一次跨平台也没兜住」（兜住时该条会被删除），
+  //    重搜只会重复外呼；但本地限流（RATE_LIMIT）不是内容结论，允许换平台兜底。
+  if (err.fromFailCache === true) {
+    const failCode = String(err.failCode || code);
+    if (failCode === ERROR_CODES.RATE_LIMIT) return { fallback: true, reason: "fail-cache-rate-limit" };
+    return { fallback: false, reason: `fail-cache:${failCode}` };
+  }
+  // 2) 本地保护态（熔断/摘除/冷却/并发保护/半开名额）：跨平台不得绕过（C9a/L1 实测）
+  if (err.isThrottleSkip === true || err.localProtect === true) return { fallback: false, reason: "local-protect" };
+  // 3) 网络类/预算类：上游整体不可用或内部性能保护，再搜只会突破预算（E4 14s→22s、I3 1.5s→6.4s）。
+  //    NETWORK_ERROR 与 NETWORK_TIMEOUT 同类同待遇（旧实现一个兜一个不兜）。
+  //    慢主平台仍有 grace 定时器先行兜底，超时场景不会丢救援。
+  if (CROSS_NO_FALLBACK_CODES.has(code)) return { fallback: false, reason: code || "budget" };
+  return { fallback: true, reason: code || "FAILED" };
+}
+
 async function getUrlWithCrossPlatformFallback(platform, songInfo, quality, traceId) {
   if (!cfg("crossPlatformEnabled", true) || !songInfo?.name) {
     return getUrlWithFallback(platform, songInfo, quality);
@@ -5476,18 +5668,23 @@ async function getUrlWithCrossPlatformFallback(platform, songInfo, quality, trac
     let fallbackErr = null;
     let primaryErr = null;
     let timer = null;
+    /* v8.16.2（R-09）：兜底必须有可取消句柄——旧实现 settleOk 只 clearTimeout + resolve，
+     * 已发出的 fallback 继续打上游并记账，主平台晚于 grace 成功时等于白打一轮 + 污染健康账本。 */
+    const crossToken = createCancelToken();
     const failKey = buildCacheKey(`fail_${platform}`, songInfo, quality);
 
     const settleOk = (r) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      crossToken.cancel("primary_settled");
       resolve(r);
     };
     const settleErr = (e) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      crossToken.cancel("primary_failed");
       reject(e);
     };
     const startFallback = (reason) => {
@@ -5497,7 +5694,7 @@ async function getUrlWithCrossPlatformFallback(platform, songInfo, quality, trac
         event: "cross_platform", traceId, platform: "multi", quality,
         ok: false, code: "START", reason: clipText(reason || "FAILED", 40),
       });
-      tryCrossPlatformFallback(platform, songInfo, quality, primaryErr, traceId).then(r => {
+      tryCrossPlatformFallback(platform, songInfo, quality, primaryErr, traceId, crossToken).then(r => {
         if (settled) return;
         // 主平台失败缓存立刻清掉：跨平台已经证明这首歌可交付，不能让 1h/30s 的
         // 「已知失败」把下一次播放继续挡在主平台失败分支里。
@@ -5530,42 +5727,19 @@ async function getUrlWithCrossPlatformFallback(platform, songInfo, quality, trac
       settleOk({ ...r, sourcePlatform: r.sourcePlatform || actualDeliveryPlatform(r.subSource, platform) });
     }).catch(e => {
       primaryErr = e;
-      // 失败缓存命中：这首歌刚刚已经被判定失败（可能正是上一次跨平台也失败后写的），
-      // 不能再搜一次跨平台，否则失败缓存等于没缓存（实测 T6 会多打 2~4 次外呼）。
-      if (/该请求已知失败/.test(String(e && e.message || ""))) {
-        settleErr(e);
-        return;
-      }
-      // 本地保护态（熔断/摘除/限流退避/并发保护）：跨平台不能绕过。链空时错误码可能
-      // 被升级成 RATE_LIMIT，光靠下面的中文正则不再够，直接认标记。
-      if (e && e.isThrottleSkip) {
-        settleErr(e);
-        return;
-      }
-      // 预算耗尽（竞速总预算/单档预算）是内部性能保护，不是「平台没这首歌」；
-      // 再起跨平台搜索只会把总时长拖长（实测 T43 会从 2s 级拖到 16s）。直接保留原码。
-      if (/预算耗尽|超出预算/.test(String(e && e.message || ""))) {
-        settleErr(e);
-        return;
-      }
-      // 本地保护态：源级限流冷却、熔断中、并发/限速跳过——这些不是「平台没歌」，
-      // 跨平台会绕过本地保护（实测 C9a 冷却被绕过、L1/L4 熔断期仍外呼）。
-      if (/源级限流|冷却中|已熔断|并发\/限速保护/.test(String(e && e.message || ""))) {
-        settleErr(e);
-        return;
-      }
-      // 所有源都网络失败（ENOTFOUND/ECONNREFUSED/ETIMEDOUT/ECONNRESET 汇总成 NETWORK_ERROR）
-      // 时，再搜跨平台只会把已有的预算上界突破（实测 E4 14s→22s、I3 1.5s→6.4s、L1 熔断被绕过）。
-      const code = extractErrorCode(e);
-      if (code === ERROR_CODES.NETWORK_ERROR ||
-        /ECONNRESET|ENOTFOUND|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN/i.test(String(code || "") + " " + String(e && e.message || ""))) {
+      // v8.16.2（R-10）：兜底判据全部走 crossFallbackPolicy（err.code / 布尔标记），文案只做展示。
+      // 旧实现四条中文正则 → 文案改动即静默改变兜底行为；且 NETWORK_ERROR 兜底、NETWORK_TIMEOUT
+      // 不兜底，同类失败两种待遇（现已统一）。
+      const policy = crossFallbackPolicy(e);
+      if (!policy.fallback) {
+        logDebug(`[跨平台] 不兜底: ${policy.reason}（code=${extractErrorCode(e) || "?"}）`);
         settleErr(e);
         return;
       }
       // 只有「超时/主链尚未返回」才等 grace；其余确定性结论立即跨平台。
       // 尤其 NOT_AUDIO / 片段：上游已明确给出不可用内容，再等 6s 只会白等
       // （实测 V1e/V12a 会因等待期间跨平台抢跑而把原错误码改写成 NOT_FOUND）。
-      startFallback(code);
+      startFallback(policy.reason);
       // 跨平台已经先失败、现在主平台也失败 → 此时才允许整体失败。
       if (fallbackDone && fallbackErr) settleErr(fallbackErr);
     });
@@ -5653,7 +5827,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       recordSuccess(id, Number(info && info.latencyMs) || 0, quality, { playback: true });
       return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id), resolveDead: isResolveDead(id) });
     }
-    recordFailure(id, quality, { playDead: true, code: (info && info.code) || ERROR_CODES.NETWORK_ERROR });
+    recordFailure(id, quality, { playDead: true, playbackOnly: true, code: (info && info.code) || ERROR_CODES.NETWORK_ERROR });
     return Promise.resolve({ ok: false, id, state: getBreaker(id).state, playDead: isPlayDead(id), code: (info && info.code) || ERROR_CODES.NETWORK_ERROR });
   }
   // v4.0：健康快照 action（聚合查询，与请求的 source 无关）
@@ -5712,7 +5886,9 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       "raceBatchSize", "raceBatchStaggerMs", "coldStartTimeoutMs", "coldStartProbeTimeoutMs",
       "coldStartWarmTtlMs", "qualityShortCircuitSamples", "qualityShortCircuitProbeMs", "qualityShortCircuitUniqueProbeMs",
       "verifyTimeoutMs", "verifyMinOriginalSec", "verifyDurRatio", "verifyDurGapSec",
-      "allFailShortTtlMs", "playDeadReviveMs", "memoryMapMax"];
+      "allFailShortTtlMs", "playDeadReviveMs", "memoryMapMax",
+      // v8.16.2（R-09）：跨平台 grace 窗口此前不在白名单，面板/巡检无法调整
+      "crossPlatformGraceMs"];
     const ALLOWED_BOOL_KEYS = ["verifyDelivery", "truthfulQuality", "qualityFloor", "verifyOnCacheHit",
       "previewUrlPreFilter", "fragmentFallback", "qualityShortCircuit", "coldStartWarmEnabled",
       "crossPlatformEnabled"];
@@ -5754,6 +5930,7 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
       memoryMapMax: { min: 1, max: 20000 },              // 五轮 MEM：记忆表条数上限（默认 2000）
       allFailShortTtlMs: { max: 10 * 60 * 1000 },       // 最大 10 分钟
       playDeadReviveMs: { max: 2 * 3600 * 1000 },       // 最大 2 小时
+      crossPlatformGraceMs: { max: 30 * 1000 },         // v8.16.2（R-09）：grace 窗口上限 30s
     };
     const ALLOWED_ARRAY_KEYS = ["probeSongPool"];
     const updated = {};
@@ -5862,7 +6039,7 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v8.16.1 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v8.16.2 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
@@ -5989,6 +6166,13 @@ if (typeof module !== "undefined" && module.exports) {
       setFailCached,              // N4（F10）：构造失败缓存条目
       getFailCachedEntry,         // N4（F10）：读取时按 TTL 判过期
       get failCache() { return failCache; },   // N4：只用于把 ts 往前挪，模拟 5 分钟流逝
+      // v8.16.2：通读修复的只读/直调钩子
+      noteQualityDowngrade,       // R-02：质量档降级样本入账（纯策略，供断言短路生效）
+      isAudioPlayable,            // R-12⑦：206 也必须核对 content-type
+      tryCrossPlatformFallback,   // R-09：跨平台可取消（传入 token 断言 settle 后不再打上游）
+      crossFallbackPolicy,        // R-10：兜底结构化判据（纯函数，断言文案不再决定行为）
+      durationHints,              // R-12②：子源时长旁路回填（断言不再写调用方对象）
+      setDurationHint,
     }),
     enumerable: false,
   });

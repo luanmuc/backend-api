@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v8.15.1 契约与死配置收口版（12 登记源 / 10 上链 / 2 观察；健康态导出源版本升 8.15.1 且兼容 8.14.1；删除 2 个未登记配置键、长青 4 个死模板与 provider 未消费 timeoutMs；限流退避统一由 rateLimitBackoffMs 决定）
- * @version 8.16.1
+ * @description v8.16.2 通读缺陷全修版（13 登记源 / 11 上链 / 2 观察；健康态源版本升 8.16.2 且兼容 8.14.1~8.16.1；修 R-01 档位熔断持久化 / R-02 真实音质入账 / R-03 播放与取链分账 / R-04 快照运行期资格 / R-05 试探键清理 / R-06 半开名额后置消费 / R-07 gateErr 带码带源 / R-09 跨平台可取消 / R-10 兜底结构化判据 / R-11 失败缓存死分支 / R-12 七项静态确认）
+ * @version 8.16.2
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -1111,11 +1111,12 @@ var __lxSourceBundle = (() => {
       }
       function createLRUCache(maxSize, ttl) {
         const map = /* @__PURE__ */ new Map();
+        const ttlNow = () => typeof ttl === "function" ? Number(ttl()) || 0 : Number(ttl) || 0;
         return {
           get(key) {
             const entry = map.get(key);
             if (!entry) return null;
-            if (Date.now() - entry.timestamp >= ttl) {
+            if (Date.now() - entry.timestamp >= ttlNow()) {
               return null;
             }
             map.delete(key);
@@ -1137,7 +1138,7 @@ var __lxSourceBundle = (() => {
           hasExpired(key) {
             const entry = map.get(key);
             if (!entry) return false;
-            return Date.now() - entry.timestamp >= ttl;
+            return Date.now() - entry.timestamp >= ttlNow();
           },
           getExpired(key) {
             const entry = map.get(key);
@@ -1166,7 +1167,7 @@ var __lxSourceBundle = (() => {
           if (oldest !== void 0) map.delete(oldest);
         }
       }
-      var successCache = createLRUCache(CACHE_MAX_SIZE, cfg("cacheTtlMs", CACHE_TTL_MS));
+      var successCache = createLRUCache(CACHE_MAX_SIZE, () => cfg("cacheTtlMs", CACHE_TTL_MS));
       var failCache = createLRUCache(FAIL_CACHE_MAX_SIZE, Number.MAX_SAFE_INTEGER);
       var breakerMap = /* @__PURE__ */ new Map();
       var deliveryQualityMap = /* @__PURE__ */ new Map();
@@ -1184,15 +1185,19 @@ var __lxSourceBundle = (() => {
       var playDeadDeadline = /* @__PURE__ */ new Map();
       var playDeadTrialAt = /* @__PURE__ */ new Map();
       var PLAY_DEAD_TRIAL_TTL_MS = 60 * 1e3;
+      function clearTrialKeys(map, sourceId) {
+        map.delete(sourceId);
+        for (const k of map.keys()) if (String(k).startsWith(sourceId + "|")) map.delete(k);
+      }
       function clearPlayDeadTrials(sourceId) {
-        for (const k of playDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) playDeadTrialAt.delete(k);
+        clearTrialKeys(playDeadTrialAt, sourceId);
       }
       var resolveDeadStreak = /* @__PURE__ */ new Map();
       var resolveDeadDeadline = /* @__PURE__ */ new Map();
       var resolveDeadTrialAt = /* @__PURE__ */ new Map();
       var RESOLVE_DEAD_TRIAL_TTL_MS = 60 * 1e3;
       function clearResolveDeadTrials(sourceId) {
-        for (const k of resolveDeadTrialAt.keys()) if (k.startsWith(sourceId + "|")) resolveDeadTrialAt.delete(k);
+        clearTrialKeys(resolveDeadTrialAt, sourceId);
       }
       function clearResolveDead(sourceId) {
         resolveDeadStreak.delete(sourceId);
@@ -1378,14 +1383,18 @@ var __lxSourceBundle = (() => {
       }
       function recordSuccess(sourceId, duration, quality, opts = {}) {
         const b = getBreaker(sourceId);
-        b.totalRequests++;
-        b.totalSuccess++;
-        b.totalTime += duration;
+        const playback = opts.playback === true;
+        if (!playback) {
+          b.totalRequests++;
+          b.totalSuccess++;
+          b.totalTime += duration;
+          const q2 = qualityLedger(b, quality);
+          q2.req++;
+          q2.success++;
+          q2.time += duration;
+        }
         b.lastQuality = String(quality || "128k");
         const q = qualityLedger(b, quality);
-        q.req++;
-        q.success++;
-        q.time += duration;
         if (q.breaker.state === "half-open" || q.breaker.state === "open") {
           q.breaker.state = "closed";
           q.breaker.failureCount = 0;
@@ -1412,6 +1421,17 @@ var __lxSourceBundle = (() => {
           logWarn(`\u64AD\u653E\u6458\u9664: [${sourceId}] \u771F\u5B9E\u64AD\u653E\u6210\u529F\uFF0C\u89E3\u9664\u6458\u9664`);
         }
       }
+      function noteQualityDowngrade(sourceId, requestedQuality, deliveredQuality) {
+        const reqQ = String(requestedQuality || "").toLowerCase();
+        const realQ = String(deliveredQuality || "").toLowerCase();
+        if (!reqQ || !realQ || reqQ === realQ) return false;
+        if (qualityRank(realQ) >= qualityRank(reqQ)) return false;
+        const b = getBreaker(sourceId);
+        const q = qualityLedger(b, reqQ);
+        q.definitiveFail = (q.definitiveFail || 0) + 1;
+        logInfo(`[${sourceId}] \u97F3\u8D28\u964D\u7EA7\u6837\u672C: \u8BF7\u6C42[${reqQ}] \u5B9E\u4EA4\u4ED8[${realQ}]\uFF0C\u8BE5\u6863\u786E\u5B9A\u6027\u964D\u7EA7\u7B2C ${q.definitiveFail} \u6B21`);
+        return true;
+      }
       function bumpPlayDead(sourceId) {
         playDeadStreak.set(sourceId, (playDeadStreak.get(sourceId) || 0) + 1);
         if (playDeadStreak.get(sourceId) >= PLAY_DEAD_STREAK) {
@@ -1422,6 +1442,10 @@ var __lxSourceBundle = (() => {
       }
       function recordFailure(sourceId, quality, opts = {}) {
         const b = getBreaker(sourceId);
+        if (opts.playbackOnly === true) {
+          bumpPlayDead(sourceId);
+          return;
+        }
         const wasSourceHalfOpen = b.state === "half-open";
         b.totalRequests++;
         b.failureCount++;
@@ -1654,7 +1678,8 @@ var __lxSourceBundle = (() => {
             cancelToken
           });
           const ct = String(((_a2 = res.headers) == null ? void 0 : _a2["content-type"]) || "");
-          if (res.statusCode === 206) return true;
+          const looksAudio = /audio|octet|mpeg|mp3|flac|ogg|aac|mp4|m4a/i.test(ct);
+          if (res.statusCode === 206) return ct ? looksAudio : true;
           if (res.statusCode === 200 && /audio|octet|mpeg|mp3|flac|ogg|aac/i.test(ct)) return true;
           return false;
         } catch (e) {
@@ -1840,9 +1865,18 @@ var __lxSourceBundle = (() => {
         const dur = Number(durationSec) || 0;
         return bytes && dur ? "estimated" : "unknown";
       }
+      var durationHints = /* @__PURE__ */ new Map();
+      function setDurationHint(songInfo, sec) {
+        if (!songInfo || typeof songInfo !== "object") return;
+        const n = Number(sec);
+        if (!Number.isFinite(n) || n <= 0) return;
+        boundedMapSet(durationHints, songInfo, Math.round(n));
+      }
       function originalDurationSec(songInfo) {
         var _a2, _b2, _c2;
         const raw = (_c2 = (_b2 = (_a2 = songInfo == null ? void 0 : songInfo.duration) != null ? _a2 : songInfo == null ? void 0 : songInfo.dt) != null ? _b2 : songInfo == null ? void 0 : songInfo.interval) != null ? _c2 : songInfo == null ? void 0 : songInfo.songDuration;
+        const hinted = songInfo && typeof songInfo === "object" ? durationHints.get(songInfo) : 0;
+        if ((raw === void 0 || raw === null || raw === "") && hinted) return hinted;
         if (typeof raw === "string" && raw.includes(":")) {
           const parts = raw.split(":").map((x) => parseInt(x, 10)).filter((x) => Number.isFinite(x));
           if (parts.length === 2) return parts[0] * 60 + parts[1];
@@ -2435,7 +2469,7 @@ var __lxSourceBundle = (() => {
         if (!isUserEnabled(id)) return { eligible: false, reason: "default-off", code: "DEFAULT_OFF", untilMs: null };
         if (autoOff[id]) return { eligible: false, reason: "auto-off", code: "AUTO_OFF_PROBE", untilMs: autoOffAt[id] ? autoOffAt[id] + cfg("playDeadReviveMs", 5 * 60 * 1e3) : null };
         if (probeState.sleeping[id]) return { eligible: false, reason: "sleeping", code: "SOURCE_SLEEPING", untilMs: null };
-        if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "QUALITY_OPEN", untilMs: null };
+        if (platform && h.platforms && !h.platforms.includes(platform)) return { eligible: false, reason: "platform-unsupported", code: "PLATFORM_UNSUPPORTED", untilMs: null };
         if (isResolveDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "resolve-dead", code: "PLAYBACK_FAILED", untilMs: resolveDeadDeadline.get(id) || null };
         if (isPlayDead(id, q, o.consumePlayDeadTrial === true)) return { eligible: false, reason: "play-dead", code: "PLAYBACK_FAILED", untilMs: playDeadDeadline.get(id) || null };
         if (o.runtime && o.peekRuntime) {
@@ -3017,9 +3051,6 @@ var __lxSourceBundle = (() => {
       async function kuwoOfficialGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
         if (platform !== "kw") throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u9177\u6211\u5B98\u65B9\u4EC5\u652F\u6301kw\u5E73\u53F0`);
         if (!(songInfo == null ? void 0 : songInfo.name)) throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u9177\u6211\u5B98\u65B9\u9700\u8981\u6B4C\u66F2\u540D`);
-        const cacheKey = buildCacheKey("kwoff", songInfo, "128k");
-        const cached = getCachedUrl(cacheKey);
-        if (cached && cached.url) return cached.url;
         const targetName = normalizeKeyword(songInfo.name);
         const items = await kuwoOfficialSearch(`${songInfo.name} ${songInfo.singer || ""}`.trim(), 10, cancelToken);
         if (!items.length) throw new Error(`${ERROR_CODES.NOT_FOUND}: \u9177\u6211\u5B98\u65B9\u641C\u7D22\u65E0\u7ED3\u679C`);
@@ -3243,7 +3274,7 @@ var __lxSourceBundle = (() => {
             if (songInfo) {
               const parsed = parseMessageSongInfo(res.message);
               if (parsed && !songInfoMatch(parsed, songInfo)) throw new Error(`${ERROR_CODES.MISMATCH}: \u6EAF\u97F3\u9177\u6211\u6B4C\u66F2\u4FE1\u606F\u4E0D\u5339\u914D`);
-              if (parsed && parsed.duration && !songInfo.duration) songInfo.duration = parsed.duration;
+              if (parsed && parsed.duration) setDurationHint(songInfo, parsed.duration);
             }
             return match[1];
           }
@@ -3454,8 +3485,14 @@ var __lxSourceBundle = (() => {
           const h = SOURCE_HANDLERS[id];
           const stats = getSourceStats(id);
           const score = computeHealthScore(id);
-          const gatePlatform = (h.platforms || []).find((p) => h.chain && h.chain[p] != null) || (h.platforms || [])[0] || null;
-          const gate = computeEligibility(id, gatePlatform, "128k", { runtime: false, qualityShortCircuit: false });
+          const gatePlatforms = (h.platforms || []).filter((p) => h.chain && h.chain[p] != null);
+          const gatePlatform = gatePlatforms[0] || (h.platforms || [])[0] || null;
+          const gate = computeEligibility(id, gatePlatform, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
+          const platformEligibility = {};
+          for (const p of gatePlatforms) {
+            const pe = p === gatePlatform ? gate : computeEligibility(id, p, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
+            platformEligibility[p] = { eligible: pe.eligible, reason: pe.reason, code: pe.code };
+          }
           const offState = getHealthOffState(id, h);
           snapshot[id] = {
             name: h.name,
@@ -3477,6 +3514,8 @@ var __lxSourceBundle = (() => {
             eligibilityReason: gate.reason,
             eligibilityCode: gate.code,
             eligibilityUntilMs: gate.untilMs,
+            // R-12④：多平台源的逐平台只读资格（键=该源真正有链的平台）
+            platformEligibility,
             autoOffReason: autoOffReason[id] || null,
             autoOffAt: autoOffAt[id] || 0,
             probeTargets: (probeState.lastTargets && probeState.lastTargets[id] || []).map((t) => __spreadProps(__spreadValues({}, t), { at: Number(probeState.lastProbeAt[id] || 0) })),
@@ -3513,7 +3552,8 @@ var __lxSourceBundle = (() => {
             // v4.0：按音质分档统计（面板后续版本可消费）
             byQuality: Object.fromEntries(Object.entries(stats.byQuality || {}).map(([q, v]) => [q, Object.assign({}, v, { lastProbeAt: Number(qualityLastProbeAt.get(`${id}|${q}`) || 0) })])),
             // v8.14（F43）：质量档短路必须可见，不再只存在于链构建内部判断
-            qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map((q) => [q, isQualityHopeless(id, q, (SOURCE_HANDLERS[id].platforms || [])[0], { setProbe: false })])),
+            // R-12④：用与 gate 同一平台（旧实现固定 platforms[0]，多平台源测的平台与 gate 不是同一个）
+            qualityShortCircuit: Object.fromEntries(["128k", "320k", "flac", "flac24bit"].map((q) => [q, isQualityHopeless(id, q, gatePlatform, { setProbe: false })])),
             // v7.0：播放实时摘除状态（连续播放失败被摘除；App 可显示"已摘除"）
             playDead: isPlayDead(id),
             resolveDead: isResolveDead(id),
@@ -3597,8 +3637,8 @@ var __lxSourceBundle = (() => {
       }
       var HEALTH_STATE_VERSION = 2;
       var HEALTH_STATE_ACCEPTED_VERSIONS = [2];
-      var HEALTH_STATE_SOURCE_VERSION = "8.16.1";
-      var HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1"];
+      var HEALTH_STATE_SOURCE_VERSION = "8.16.2";
+      var HEALTH_STATE_ACCEPTED_SOURCE_VERSIONS = ["8.14.1", "8.15.1", "8.16.0", "8.16.1", "8.16.2"];
       function parseHealthSourceVersion(v) {
         const parts = String(v || "").trim().split(".");
         if (parts.length !== 3) return null;
@@ -3698,6 +3738,13 @@ var __lxSourceBundle = (() => {
             if (!HEALTH_QUALITIES.includes(quality)) continue;
             byQuality[quality] = {};
             for (const field of HEALTH_QUALITY_NUMBER_FIELDS) byQuality[quality][field] = Number(q[field] || 0);
+            const qbOld = q.breaker || {};
+            byQuality[quality].breaker = {
+              state: HEALTH_STATES.includes(qbOld.state) ? qbOld.state : "closed",
+              failureCount: Number(qbOld.failureCount || 0),
+              lastFailureTime: Number(qbOld.lastFailureTime || 0),
+              trialInFlight: qbOld.trialInFlight === true
+            };
           }
           sources[id] = {
             breaker: {
@@ -3720,6 +3767,12 @@ var __lxSourceBundle = (() => {
             playDead: {
               streak: Number(playDeadStreak.get(id) || 0),
               deadline: Number(playDeadDeadline.get(id) || 0)
+            },
+            // v8.16.2（R-12⑤）：取链摘除必须与播放摘除对称持久化——旧实现只导 playDead，
+            // 重启后「取链摘除」立即复活，而「播放摘除」保留，两种摘除的保护强度不一致。
+            resolveDead: {
+              streak: Number(resolveDeadStreak.get(id) || 0),
+              deadline: Number(resolveDeadDeadline.get(id) || 0)
             }
           };
         }
@@ -3780,10 +3833,30 @@ var __lxSourceBundle = (() => {
                 if (!healthNumber(raw, true)) return { ok: false, reason: `${id}.${quality}.${field} \u975E\u6CD5` };
                 byQuality[quality][field] = raw;
               }
+              const qbRaw = q.breaker === void 0 ? null : q.breaker;
+              if (qbRaw !== null) {
+                if (!isHealthPlainObject(qbRaw)) return { ok: false, reason: `${id}.${quality}.breaker \u975E\u6CD5` };
+                if (!HEALTH_STATES.includes(qbRaw.state)) return { ok: false, reason: `${id}.${quality}.breaker.state \u975E\u6CD5` };
+                for (const field of ["failureCount", "lastFailureTime"]) {
+                  if (!healthNumber(qbRaw[field], true)) return { ok: false, reason: `${id}.${quality}.breaker.${field} \u975E\u6CD5` };
+                }
+                if (qbRaw.trialInFlight !== void 0 && typeof qbRaw.trialInFlight !== "boolean") {
+                  return { ok: false, reason: `${id}.${quality}.breaker.trialInFlight \u975E\u6CD5` };
+                }
+              }
+              byQuality[quality].breaker = qbRaw === null ? { state: "closed", failureCount: 0, lastFailureTime: 0, trialInFlight: false } : {
+                state: qbRaw.state === "half-open" ? "open" : qbRaw.state,
+                failureCount: Number(qbRaw.failureCount || 0),
+                lastFailureTime: Number(qbRaw.lastFailureTime || 0),
+                trialInFlight: false
+              };
             }
             const pd = item.playDead || {};
             if (!isHealthPlainObject(pd)) return { ok: false, reason: `${id}.playDead \u975E\u6CD5` };
             if (!healthNumber(pd.streak || 0, true) || !healthNumber(pd.deadline || 0, true)) return { ok: false, reason: `${id}.playDead \u975E\u6CD5` };
+            const rd = item.resolveDead || { streak: 0, deadline: 0 };
+            if (!isHealthPlainObject(rd)) return { ok: false, reason: `${id}.resolveDead \u975E\u6CD5` };
+            if (!healthNumber(rd.streak || 0, true) || !healthNumber(rd.deadline || 0, true)) return { ok: false, reason: `${id}.resolveDead \u975E\u6CD5` };
             sanitized[id] = {
               breaker: {
                 state: b.state,
@@ -3802,7 +3875,8 @@ var __lxSourceBundle = (() => {
                 lastQuality: b.lastQuality === null ? null : String(b.lastQuality).toLowerCase()
               },
               byQuality,
-              playDead: { streak: Number(pd.streak || 0), deadline: Number(pd.deadline || 0) }
+              playDead: { streak: Number(pd.streak || 0), deadline: Number(pd.deadline || 0) },
+              resolveDead: { streak: Number(rd.streak || 0), deadline: Number(rd.deadline || 0) }
             };
           }
           const qsc = state.qualityShortCircuit === void 0 ? {} : state.qualityShortCircuit;
@@ -3841,6 +3915,10 @@ var __lxSourceBundle = (() => {
             else playDeadStreak.delete(id);
             if (item.playDead.deadline > 0) playDeadDeadline.set(id, item.playDead.deadline);
             else playDeadDeadline.delete(id);
+            if (item.resolveDead.streak > 0) resolveDeadStreak.set(id, item.resolveDead.streak);
+            else resolveDeadStreak.delete(id);
+            if (item.resolveDead.deadline > 0) resolveDeadDeadline.set(id, item.resolveDead.deadline);
+            else resolveDeadDeadline.delete(id);
             restored++;
           }
           applyHealthControls(controls);
@@ -4221,10 +4299,12 @@ var __lxSourceBundle = (() => {
         var _a2;
         throwIfCanceled(cancelToken);
         const traceId = healthTraceOf(songInfo);
-        const preGate = SOURCE_HANDLERS[handler.id] ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: true }) : { eligible: true, code: "ELIGIBLE", reason: null };
+        const preGate = SOURCE_HANDLERS[handler.id] ? computeEligibility(handler.id, platform, quality, { runtime: false, consumePlayDeadTrial: false }) : { eligible: true, code: "ELIGIBLE", reason: null };
         if (!preGate.eligible) {
           recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: preGate.reason || "eligibility" });
           const gateErr = new Error(`${preGate.code || ERROR_CODES.RATE_LIMIT}: \u97F3\u6E90[${handler.name}]\u53D1\u8BF7\u6C42\u524D\u8D44\u683C\u5931\u6548\uFF08${preGate.reason || "eligibility"}\uFF09`);
+          gateErr.code = preGate.code || ERROR_CODES.RATE_LIMIT;
+          gateErr.sourceId = handler.id;
           gateErr.isThrottleSkip = true;
           throw gateErr;
         }
@@ -4233,6 +4313,8 @@ var __lxSourceBundle = (() => {
         if (previewCoolUntil && previewCoolUntil > Date.now() && !is128k) {
           recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "preview_cooldown" });
           const coolErr = new Error(`${ERROR_CODES.RATE_LIMIT}: \u97F3\u6E90[${handler.name}]\u5224\u5B9A\u4E3A\u6E90\u7EA7\u9650\u6D41\uFF0C\u51B7\u5374\u4E2D\uFF08128k \u4FDD\u5E95\u6863\u9664\u5916\uFF09`);
+          coolErr.code = ERROR_CODES.RATE_LIMIT;
+          coolErr.sourceId = handler.id;
           coolErr.isThrottleSkip = true;
           throw coolErr;
         }
@@ -4241,6 +4323,8 @@ var __lxSourceBundle = (() => {
           logDebug(`[\u65AD\u8DEF\u5668] ${handler.id} ${quality || "128k"} \u5904\u4E8E${((_a2 = (getBreaker(handler.id).byQuality[String(quality || "default")] || {}).breaker) == null ? void 0 : _a2.state) || getBreaker(handler.id).state}\u72B6\u6001\uFF0C\u8DF3\u8FC7`);
           revertHalfOpenOnSkip(handler.id, quality);
           const breakerSkip = new Error(`${ERROR_CODES.RATE_LIMIT}: \u97F3\u6E90[${handler.name}]\u5DF2\u7194\u65AD`);
+          breakerSkip.code = ERROR_CODES.RATE_LIMIT;
+          breakerSkip.sourceId = handler.id;
           breakerSkip.isThrottleSkip = true;
           throw breakerSkip;
         }
@@ -4248,8 +4332,21 @@ var __lxSourceBundle = (() => {
           recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: "local_throttle" });
           revertHalfOpenOnSkip(handler.id, quality);
           const skipErr = new Error(`${ERROR_CODES.RATE_LIMIT}: \u97F3\u6E90[${handler.name}]\u89E6\u53D1\u5E76\u53D1/\u9650\u901F\u4FDD\u62A4\uFF0C\u672C\u8F6E\u8DF3\u8FC7`);
+          skipErr.code = ERROR_CODES.RATE_LIMIT;
+          skipErr.sourceId = handler.id;
           skipErr.isThrottleSkip = true;
           throw skipErr;
+        }
+        if (SOURCE_HANDLERS[handler.id]) {
+          const deadReason = isResolveDead(handler.id, quality, true) ? "resolve-dead" : isPlayDead(handler.id, quality, true) ? "play-dead" : null;
+          if (deadReason) {
+            recordHealthEvent({ event: "source_skip", traceId, sourceId: handler.id, platform, quality, reason: deadReason });
+            const deadErr = new Error(`PLAYBACK_FAILED: \u97F3\u6E90[${handler.name}]\u534A\u5F00\u540D\u989D\u5DF2\u88AB\u5360\u7528\uFF08${deadReason}\uFF09\uFF0C\u672C\u8F6E\u8DF3\u8FC7`);
+            deadErr.code = "PLAYBACK_FAILED";
+            deadErr.sourceId = handler.id;
+            deadErr.isThrottleSkip = true;
+            throw deadErr;
+          }
         }
         inflightCount.set(handler.id, (inflightCount.get(handler.id) || 0) + 1);
         if (!reqTimestamps.has(handler.id)) reqTimestamps.set(handler.id, []);
@@ -4289,7 +4386,12 @@ var __lxSourceBundle = (() => {
               boundedMapSet(deliveryConfidenceMap, `${handler.id}|${platform}|${mid}|${reqQ}`, realConfidence);
             }
           }
-          recordSuccess(handler.id, Date.now() - startTime, quality);
+          const deliveredQuality = realQuality || String(quality || "128k").toLowerCase();
+          recordSuccess(handler.id, Date.now() - startTime, deliveredQuality);
+          const reqQuality = String(quality || "128k").toLowerCase();
+          if (deliveredQuality !== reqQuality && qualityRank(deliveredQuality) < qualityRank(reqQuality)) {
+            noteQualityDowngrade(handler.id, reqQuality, deliveredQuality);
+          }
           recordHealthEvent({ event: "source_result", traceId, sourceId: handler.id, platform, quality, ok: true, code: "", latencyMs: Date.now() - startTime });
           logInfo(`[${handler.name}] \u89E3\u6790\u6210\u529F: ${(songInfo == null ? void 0 : songInfo.name) || ""} \u97F3\u8D28[${quality || "128k"}]`);
           return finalUrl;
@@ -4476,11 +4578,12 @@ var __lxSourceBundle = (() => {
         const id = m.songmid || m.hash || m.musicId || m.copyrightId || m.id || "";
         return `${platform}|${quality}|${id}|${m.name || ""}|${m.singer || ""}|${m.duration || 0}`;
       }
-      async function getUrlWithFallback(platform, songInfo, quality) {
+      async function getUrlWithFallback(platform, songInfo, quality, cancelToken = null) {
         var _a2, _b2, _c2;
         if (!platform || typeof platform !== "string" || !PLATFORM_QUALITIES[platform]) {
           throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u65E0\u6548\u7684\u5E73\u53F0\u53C2\u6570`);
         }
+        throwIfCanceled(cancelToken);
         if (!songInfo || typeof songInfo !== "object") {
           throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u65E0\u6548\u7684\u6B4C\u66F2\u4FE1\u606F`);
         }
@@ -4537,8 +4640,10 @@ var __lxSourceBundle = (() => {
         if (failEntry) {
           logDebug(`\u5931\u8D25\u7F13\u5B58\u547D\u4E2D[${platform}] ${(songInfo == null ? void 0 : songInfo.name) || ""} \u97F3\u8D28${quality || "128k"}\uFF0C\u8DF3\u8FC7\u91CD\u590D\u8BF7\u6C42`);
           const cachedCode = failEntry.code || ERROR_CODES.NOT_FOUND;
-          const hitErr = new Error(`${cachedCode}: \u8BE5\u8BF7\u6C42\u5DF2\u77E5\u5931\u8D25(${failEntry.ttl === 0 ? "\u4E0D\u7F13\u5B58" : "\u7F13\u5B58\u4E2D"})\uFF0C\u8DF3\u8FC7\u91CD\u590D\u8BF7\u6C42`);
+          const hitErr = new Error(`${cachedCode}: \u8BE5\u8BF7\u6C42\u5DF2\u77E5\u5931\u8D25(\u7F13\u5B58\u4E2D)\uFF0C\u8DF3\u8FC7\u91CD\u590D\u8BF7\u6C42`);
           hitErr.code = cachedCode;
+          hitErr.fromFailCache = true;
+          hitErr.failCode = cachedCode;
           throw hitErr;
         }
         if (cfg("coldStartWarmEnabled", true)) warmUpColdStartSources(platform);
@@ -4851,13 +4956,15 @@ var __lxSourceBundle = (() => {
         const code = extractErrorCode(err);
         return code === ERROR_CODES.NOT_FOUND || code === ERROR_CODES.MISMATCH || code === ERROR_CODES.PARAM_ERROR;
       }
-      async function tryCrossPlatformFallback(primaryPlatform, songInfo, quality, primaryErr, traceId) {
+      async function tryCrossPlatformFallback(primaryPlatform, songInfo, quality, primaryErr, traceId, cancelToken = null) {
+        throwIfCanceled(cancelToken);
         const targets = CROSS_PLATFORM_ORDER.filter((p) => p !== primaryPlatform && PLATFORM_QUALITIES[p]);
         if (!targets.length) throw primaryErr || new Error(`${ERROR_CODES.NOT_FOUND}: \u65E0\u8DE8\u5E73\u53F0\u76EE\u6807`);
         let lastErr = null;
         let noCandidateCount = 0;
         let hadUncertain = false;
         for (const target of targets) {
+          throwIfCanceled(cancelToken);
           let candidate = null;
           try {
             candidate = await resolveCrossPlatformCandidate(target, songInfo);
@@ -4875,7 +4982,7 @@ var __lxSourceBundle = (() => {
           const targetInfo = buildCrossTargetInfo(candidate, songInfo, target);
           logInfo(`[\u8DE8\u5E73\u53F0] ${primaryPlatform}\u2192${target} \u547D\u4E2D: ${candidate.name} / ${candidate.singer} / ${candidate.duration || "?"}s (${candidate.id})`);
           try {
-            const r = await getUrlWithFallback(target, targetInfo, quality);
+            const r = await getUrlWithFallback(target, targetInfo, quality, cancelToken);
             return __spreadProps(__spreadValues({}, r), {
               sourcePlatform: r.sourcePlatform || target,
               fallback: { from: primaryPlatform, reason: extractErrorCode(primaryErr) || "FAILED", matched: candidate.id }
@@ -4897,6 +5004,27 @@ var __lxSourceBundle = (() => {
         }
         throw primaryErr || lastErr || new Error(`${ERROR_CODES.NOT_FOUND}: \u8DE8\u5E73\u53F0\u5747\u5931\u8D25`);
       }
+      var CROSS_NO_FALLBACK_CODES = /* @__PURE__ */ new Set([
+        ERROR_CODES.NETWORK_ERROR,
+        ERROR_CODES.NETWORK_TIMEOUT,
+        ERROR_CODES.BUDGET_EXHAUSTED,
+        ERROR_CODES.PARAM_ERROR,
+        ERROR_CODES.CONFIG_ERROR,
+        ERROR_CODES.CANCELED
+      ]);
+      function crossFallbackPolicy(err) {
+        if (!err) return { fallback: true, reason: "UNKNOWN" };
+        const code = String(extractErrorCode(err) || "");
+        if (err.canceled === true || code === ERROR_CODES.CANCELED) return { fallback: false, reason: "canceled" };
+        if (err.fromFailCache === true) {
+          const failCode = String(err.failCode || code);
+          if (failCode === ERROR_CODES.RATE_LIMIT) return { fallback: true, reason: "fail-cache-rate-limit" };
+          return { fallback: false, reason: `fail-cache:${failCode}` };
+        }
+        if (err.isThrottleSkip === true || err.localProtect === true) return { fallback: false, reason: "local-protect" };
+        if (CROSS_NO_FALLBACK_CODES.has(code)) return { fallback: false, reason: code || "budget" };
+        return { fallback: true, reason: code || "FAILED" };
+      }
       async function getUrlWithCrossPlatformFallback(platform, songInfo, quality, traceId) {
         if (!cfg("crossPlatformEnabled", true) || !(songInfo == null ? void 0 : songInfo.name)) {
           return getUrlWithFallback(platform, songInfo, quality);
@@ -4913,17 +5041,20 @@ var __lxSourceBundle = (() => {
           let fallbackErr = null;
           let primaryErr = null;
           let timer = null;
+          const crossToken = createCancelToken();
           const failKey = buildCacheKey(`fail_${platform}`, songInfo, quality);
           const settleOk = (r) => {
             if (settled) return;
             settled = true;
             if (timer) clearTimeout(timer);
+            crossToken.cancel("primary_settled");
             resolve(r);
           };
           const settleErr = (e) => {
             if (settled) return;
             settled = true;
             if (timer) clearTimeout(timer);
+            crossToken.cancel("primary_failed");
             reject(e);
           };
           const startFallback = (reason) => {
@@ -4938,7 +5069,7 @@ var __lxSourceBundle = (() => {
               code: "START",
               reason: clipText(reason || "FAILED", 40)
             });
-            tryCrossPlatformFallback(platform, songInfo, quality, primaryErr, traceId).then((r) => {
+            tryCrossPlatformFallback(platform, songInfo, quality, primaryErr, traceId, crossToken).then((r) => {
               if (settled) return;
               failCache.delete(failKey);
               setCrossFallbackCached(platform, songInfo, quality, r);
@@ -4977,28 +5108,13 @@ var __lxSourceBundle = (() => {
             settleOk(__spreadProps(__spreadValues({}, r), { sourcePlatform: r.sourcePlatform || actualDeliveryPlatform(r.subSource, platform) }));
           }).catch((e) => {
             primaryErr = e;
-            if (/该请求已知失败/.test(String(e && e.message || ""))) {
+            const policy = crossFallbackPolicy(e);
+            if (!policy.fallback) {
+              logDebug(`[\u8DE8\u5E73\u53F0] \u4E0D\u515C\u5E95: ${policy.reason}\uFF08code=${extractErrorCode(e) || "?"}\uFF09`);
               settleErr(e);
               return;
             }
-            if (e && e.isThrottleSkip) {
-              settleErr(e);
-              return;
-            }
-            if (/预算耗尽|超出预算/.test(String(e && e.message || ""))) {
-              settleErr(e);
-              return;
-            }
-            if (/源级限流|冷却中|已熔断|并发\/限速保护/.test(String(e && e.message || ""))) {
-              settleErr(e);
-              return;
-            }
-            const code = extractErrorCode(e);
-            if (code === ERROR_CODES.NETWORK_ERROR || /ECONNRESET|ENOTFOUND|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN/i.test(String(code || "") + " " + String(e && e.message || ""))) {
-              settleErr(e);
-              return;
-            }
-            startFallback(code);
+            startFallback(policy.reason);
             if (fallbackDone && fallbackErr) settleErr(fallbackErr);
           });
           const graceMs = Math.max(0, Number(cfg("crossPlatformGraceMs", 3e3)) || 0);
@@ -5075,7 +5191,7 @@ var __lxSourceBundle = (() => {
             recordSuccess(id, Number(info && info.latencyMs) || 0, quality2, { playback: true });
             return Promise.resolve({ ok: true, id, state: getBreaker(id).state, playDead: isPlayDead(id), resolveDead: isResolveDead(id) });
           }
-          recordFailure(id, quality2, { playDead: true, code: info && info.code || ERROR_CODES.NETWORK_ERROR });
+          recordFailure(id, quality2, { playDead: true, playbackOnly: true, code: info && info.code || ERROR_CODES.NETWORK_ERROR });
           return Promise.resolve({ ok: false, id, state: getBreaker(id).state, playDead: isPlayDead(id), code: info && info.code || ERROR_CODES.NETWORK_ERROR });
         }
         if (action === "health") {
@@ -5149,7 +5265,9 @@ var __lxSourceBundle = (() => {
             "verifyDurGapSec",
             "allFailShortTtlMs",
             "playDeadReviveMs",
-            "memoryMapMax"
+            "memoryMapMax",
+            // v8.16.2（R-09）：跨平台 grace 窗口此前不在白名单，面板/巡检无法调整
+            "crossPlatformGraceMs"
           ];
           const ALLOWED_BOOL_KEYS = [
             "verifyDelivery",
@@ -5230,8 +5348,10 @@ var __lxSourceBundle = (() => {
             // 五轮 MEM：记忆表条数上限（默认 2000）
             allFailShortTtlMs: { max: 10 * 60 * 1e3 },
             // 最大 10 分钟
-            playDeadReviveMs: { max: 2 * 3600 * 1e3 }
+            playDeadReviveMs: { max: 2 * 3600 * 1e3 },
             // 最大 2 小时
+            crossPlatformGraceMs: { max: 30 * 1e3 }
+            // v8.16.2（R-09）：grace 窗口上限 30s
           };
           const ALLOWED_ARRAY_KEYS = ["probeSongPool"];
           const updated = {};
@@ -5328,7 +5448,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.16.1 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v8.16.2 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {
@@ -5486,8 +5606,20 @@ var __lxSourceBundle = (() => {
             // N4（F10）：读取时按 TTL 判过期
             get failCache() {
               return failCache;
-            }
+            },
             // N4：只用于把 ts 往前挪，模拟 5 分钟流逝
+            // v8.16.2：通读修复的只读/直调钩子
+            noteQualityDowngrade,
+            // R-02：质量档降级样本入账（纯策略，供断言短路生效）
+            isAudioPlayable,
+            // R-12⑦：206 也必须核对 content-type
+            tryCrossPlatformFallback,
+            // R-09：跨平台可取消（传入 token 断言 settle 后不再打上游）
+            crossFallbackPolicy,
+            // R-10：兜底结构化判据（纯函数，断言文案不再决定行为）
+            durationHints,
+            // R-12②：子源时长旁路回填（断言不再写调用方对象）
+            setDurationHint
           }),
           enumerable: false
         });

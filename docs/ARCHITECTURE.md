@@ -22,7 +22,7 @@
 | ③ 日志/缓存/断路器 | `logInfo/logWarn`、`createLRUCache`（成功 500 / 失败 300）、源级+音质档级双层 `getBreaker`、限流退避、健康事件环形缓冲 500 |
 | ④ HTTP/判据/L0/L4 | `httpRequest` 自动 JSON、cancelToken、5xx→`SERVER_ERROR`、429→`RATE_LIMIT`、410→`LINK_EXPIRED`、4xx→`NETWORK_ERROR`，仅超时/网络/5xx 重试 1 次；1KB Range 字节嗅探（FLAC/MP3/OGG/M4A/WAV/m3u8/HTML/JSON/空体）、真实时长解析、`probeAudioDelivery`、`verifyDelivery`、`ADMISSION_POLICY` / `admit` / `applyAdmission` / `clearSourceLedger` |
 | ⑤ 匹配工具 | `normalizeKeyword`、`getHashOrMid`、平台映射、跨平台候选严格匹配 |
-| ⑥ 源实现 | 12 个登记源 handler（10 上链 / 2 观察），各自 `getUrl` + 能力声明；`validateProviderContracts()` 启动强校验 |
+| ⑥ 源实现 | 13 个登记源 handler（11 上链 / 2 观察），各自 `getUrl` + 能力声明；`validateProviderContracts()` 启动强校验 |
 | ⑦ 注册表与调度 | `sourceConfig`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`raceFirst`、`wrapExecute`；`getUrlWithFallback` 负责缓存、跨档、预算、失败兜底与跨平台兜底；健康分与 `getHealthSnapshot` |
 | ⑧ 上报与事件 | `on(EVENT_NAMES.request)` 14 个 action 分发、`inited` 上报 `mediaEnvelope:2`、健康态导出/恢复 |
 

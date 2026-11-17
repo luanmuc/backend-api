@@ -5,7 +5,7 @@
 ## 1. 本轮裁决总览
 
 - 裁决日期：2026-11-12
-- 口径：20 源 → 12 登记（10 上链 + 2 观察）
+- 口径：20 源 → 12 登记（10 上链 + 2 观察）；**后续 v8.16.0 新增 `qingliangTx`，登记源升为 13 / 11 上链 / 2 观察**（本文件其余数字保留 v8.13.0 当时快照）
 - 退役 8 个：`xinghaiBackup` `lingchuan` `gdWy` `juheKw` `juheWy` `juheKg` `juheMg` `nianxinVip`
 - 保留观察 2 个：`suyinQQ`（tx）、`suyinMigu`（mg）
 

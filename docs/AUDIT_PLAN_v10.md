@@ -3,11 +3,11 @@
 > **重构说明**：本文件由 v10.0 重构而来，文件名保留 `AUDIT_PLAN_v10.md` 以兼容既有引用。历史 round1~5 分册、v9.0、以及各轮审计报告全部归档，不再叠加进本文件；「当前要审什么、缺口在哪」只以本文件为准。
 >
 > **基线（唯一真值，2026-11-16）**：
-> - 源仓：`luanmuc/backend-api` @ `master`，v8.16.1（tag `v8.16.1` + Release），`lx-source.js` **v8.16.1**，**5881 行 / 307085 bytes**（`node scripts/build-source.js` 实跑）
+> - 源仓：`luanmuc/backend-api` @ `master`，v8.16.2（通读缺陷全修，本地单提交待推送；v8.16.1 已有 tag + Release），`lx-source.js` **v8.16.2**，**6013 行 / 315585 bytes**（`node scripts/build-source.js` 实跑）
 > - App 仓：`luanmuc/mobile-app` @ `54249f8b`（已推送），v1.9.2-**b143** / versionCode **302**（Build `43849852397` success，5 APK）；`npm run preflight` 36/36 绿（202s）
 > - track-player：`88b062b`（v2 分支）
-> - 硬数字：`test/` 下 **48 个 `.js` 入口**；`npm test` **42 个脚本**（CI 的 L3/L4 审计清单已全量并入，2026-11-16 之前只 26 个）；审计断言 **567 条**（健康域 102 + 其余 455 + 口径 10）；冒烟 67 组；压测 162 条；变异 22 killed / 0 survived
-> - 本文件对应变更：v8.16.1「旧版本健康快照按数值比较接受」= `compareSourceVersion` 数值比较 + `ACCEPTED_SOURCE_VERSIONS` 白名单 `[8.14.1, 8.15.1, 8.16.0, 8.16.1]`；同批 `chain-golden.json` 按 `dump-chain.js --json` 重建（含 `version`/`sourceHead`）；App 新增 `check_cross_repo_health_roundtrip`（X1~X3）与 `preflight`
+> - 硬数字：`test/` 下 **49 个 `.js` 入口**；`npm test` **43 个脚本**（CI 的 L3/L4 审计清单已全量并入，2026-11-16 之前只 26 个）；审计断言 **567 条**（健康域 102 + 其余 455 + 口径 10）；冒烟 67 组；压测 162 条；变异 22 killed / 0 survived
+> - 本文件对应变更：v8.16.2「逐行通读 R-01~R-12 全修」= 档位熔断持久化 / 真实交付音质入账 / 播放与取链分账 / 快照运行期资格 / 试探键清理 / 半开名额后置消费 / `gateErr` 带码带源 / 跨平台可取消 / 兜底结构化判据 / 失败缓存死分支 / provider 不回写调用方对象；新增 `test/audit/readthrough-fixes.js`（RF1~RF18）；`chain-golden.json` 按 `dump-chain.js --json` 重建（`version` 8.16.2 / `sourceHead` 随 HEAD）；`ACCEPTED_SOURCE_VERSIONS` 扩到 `[8.14.1, 8.15.1, 8.16.0, 8.16.1, 8.16.2]`
 
 ---
 
@@ -57,7 +57,7 @@
 | 安全与密钥 | 明文 token、密钥、无 `/tmp` 硬编码 | `f-repo.js` | 2 | A |
 | 裁决层 admission | 证据分级、codeRank、admit 单入口、弱证据 TTL、关源清账 | `r-admission.js` | 24 | A |
 | 跨平台兜底 | 主平台失败识别、身份匹配、ID 隔离、grace、缓存失效 | `u-cross-platform.js` | 12 | A |
-| Provider Contract | 12/10/2、链位不重复、观察源无链位 | `y-provider-contract.js` | 15 | A |
+| Provider Contract | 13/11/2、链位不重复、观察源无链位 | `y-provider-contract.js` | 15 | A |
 | 取消语义 | 真取消、竞态、在途清理 | `z-cancel.js` | 11 | A |
 | 健康事件 | 事件白名单、去重、脱敏 | `s-health-events.js` | 27 | A |
 | 桥媒体信封 | `__lxMedia:2`、分片、解码 | `x-media-envelope.js` | 12 | A |
@@ -92,7 +92,7 @@
 | 降级所有权（fallbackOwner host/source） | `lx-source.js` | `w-fallback-owner` 2 | ✅ |
 | 媒体信封（`__lxMedia:2`/分片/解码） | `lx-source.js` | `x-media-envelope` 12 | ✅ |
 | 取消语义（真取消/在途清理） | `lx-source.js` | `z-cancel` 11 | ✅ |
-| Provider Contract（12/10/2/链位不重复） | `lx-source.js` | `y-provider-contract` 15 | ✅ |
+| Provider Contract（13/11/2/链位不重复） | `lx-source.js` | `y-provider-contract` 15 | ✅ |
 | 候选源接入（fish/helloworld/hyw/jiexiang/lx/qdy） | `lx-source.js` | `candidate-audit-test` 6 | ✅ |
 | 健康事件（白名单/去重/脱敏） | `lx-source.js` | `s-health-events` 27、`t-health-events-stress` 12 | ✅ |
 | QuickJS 真引擎（宿主无 Buffer） | `lx-source.js` | `q-quickjs-real` 3 | ✅ |

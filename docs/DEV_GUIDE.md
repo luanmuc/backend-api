@@ -23,11 +23,11 @@
 | ③ 日志 + LRU 双层缓存 + 断路器 | 1063~1467 | `logInfo`、`successCache`/`failCache`、熔断 + 半开试探 + 成功率/均时统计 |
 | ④ HTTP 封装 + 交付真实性判据层 + **L0 归一层 + L4 裁决层** | 1468~2632 | `httpRequest`、`httpRequestWithRetry`（指数退避，4xx/429 不重试）、`isAudioPlayable` Range 探测；`parseMpegFrameHeader`/`parseFlacDuration`/`parseMp3Info`/`sniffAudioBytes`/`probeAudioDelivery`/`verifyDelivery`（Range 0-1023 读真实字节，算真实时长与真实格式，未完成时放行 `ok:null`）；**v8.11.5 新增 L0**：`decodeBase64Ascii`/`toBytes`/`kindOf`/`headerEvidence`/`totalBytesOf`（认 `view`/数组/`{type:"Buffer",data}`/base64 串）；**v8.11.5 新增 L4**：`ADMISSION_POLICY`/`CODE_RANK`/`verdictOfCode`/`strongestEvidence`/`isFragmentInfo`/`admissionLedger`/`admit`/`skipReason`/`clearSourceLedger`/`trialMarkOf`/`applyAdmission`/`rememberFragmentSource`；**v8.11.6**：`structuralSkipReason`（建链纯结构判据）/`toggleSource`（开/关统一清账）/`probeByHeaders`（HEAD 补证）；**v8.11.7**：`config` 写模式布尔白名单（8 键）+ 数字白名单补齐 13 键，`verifyDurRatio`/`verifyDurGapSec` 允许 0 |
 | ⑤ 歌曲信息与匹配工具 | 2633~3780 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey`、`getHashOrMid` |
-| ⑥ 音源实现 | 3781~4365 | 13 个子源（10 上链 + 2 观察），每个源自带 `maxQuality`、`platforms`、`lifecycle` 与 `chain` 声明 |
+| ⑥ 音源实现 | 3781~4365 | 13 个子源（11 上链 + 2 观察），每个源自带 `maxQuality`、`platforms`、`lifecycle` 与 `chain` 声明 |
 | ⑦ 注册表 + 调度 + 健康分 | 4366~4896 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，3s grace，10min 缓存，`cross_platform` 事件） |
-| ⑧ 上报 + 事件监听 | 5010~5881（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ⑧ 上报 + 事件监听 | 5126~6013（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> **v8.16.1（健康态跨版本恢复）**：`lx-source.js` 共 5881 行 / 307085 bytes，`@version 8.16.1`；`restoreHealthState` 改为 `isAcceptedSourceVersion()`（数值 ≤ 当前即接受，未来版本拒绝），健康快照跨音源版本不再被整包丢弃。上一版 v8.16.0（已推送 master `c64a937` + tag `v8.16.0` + Release 资产）为接入晴亮 tx 版，5881 行 / 307075 bytes；构建脚本的版本头校验改为读 `package.json`，不再硬编码。
+> **v8.16.2（通读缺陷全修）**：`lx-source.js` 共 6013 行 / **315585 bytes**，`@version 8.16.2`；按 `docs/READTHROUGH_v8.16.1.md` 第六节顺序修完 R-01~R-12（档位熔断持久化 / 真实交付音质入账 / 播放与取链分账 / 快照运行期资格 / 试探键清理 / 半开名额后置消费 / `gateErr` 带码带源 / 跨平台可取消 / 兜底结构化判据 / 失败缓存死分支 / provider 不回写调用方对象），新增回归门禁 `test/audit/readthrough-fixes.js`（RF1~RF18，18/0）。上一版 v8.16.1 为健康态跨版本恢复版（5881 行 / 307085 bytes，`restoreHealthState` 改为 `isAcceptedSourceVersion()`：数值 ≤ 当前即接受、未来版本拒绝）。
 > 行段为 **v8.16.0 产物**实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 从 `var PROVIDER_CONTRACT` 校验末段边界 = EOF。
 > **v8.15.1 压测适配**：`stress-round4` 的 V18 预热计数按 `coldStartTimeoutMs` 双键隔离；冷启动超时被钳到总预算后，测试需同步抬高 `raceBudgetMs`，否则实际请求超时变成总预算、按 4321ms 计数会假红。
 

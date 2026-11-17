@@ -9,8 +9,8 @@
 | 脚本 | 职责 | 触发 | 副作用 |
 |---|---|---|---|
 | `build-source.js` (55) | 单文件产物构建：`src/*.js` → esbuild IIFE + CommonJS 桥，写 `lx-source.js`，并校验产物 IIFE 形态与 `@version` 一致性 | `npm run build` / 发布前 | **改** `lx-source.js`（唯一权威产物） |
-| `verify-bundle.js` (105) | 产物门禁 B1~B8：版本头、契约 12/10/2、逐源一致、五平台链可重建、取消 API、退役源不在产物、体积/行数上限；**dist/ 不存在时先就地重建再校验**（干净检出也能跑） | `npm run verify:bundle` / CI | 缺产物会写 dist/ |
-| `source-inventory.js` (112) | 源清单预算：12/10/2（登记/上链/观察）+ 退役 8 源不得回产物 + 观察源默认关闭、必须有 `reviewAt`、不得占链位 | `npm run inventory` / CI | 只读 + 报错退出 |
+| `verify-bundle.js` (105) | 产物门禁 B1~B8：版本头、契约 13/11/2、逐源一致、五平台链可重建、取消 API、退役源不在产物、体积/行数上限；**dist/ 不存在时先就地重建再校验**（干净检出也能跑） | `npm run verify:bundle` / CI | 缺产物会写 dist/ |
+| `source-inventory.js` (112) | 源清单预算：13/11/2（登记/上链/观察）+ 退役 8 源不得回产物 + 观察源默认关闭、必须有 `reviewAt`、不得占链位 | `npm run inventory` / CI | 只读 + 报错退出 |
 | `dump-chain.js` (75) | 链序 golden 生成：10 个 active 源 × 5 平台 × 4 音质，写 `test/fixtures/chain-golden.json`（`sourceHead` 读真实 HEAD，不写死） | 链序变更后手动 `--json` | **改** `test/fixtures/chain-golden.json` |
 
 ## 二、巡检与健康（会打网络）
@@ -65,7 +65,7 @@
 ```bash
 node scripts/build-source.js             # 重建 lx-source.js（改 src/ 后必跑）
 node scripts/verify-bundle.js            # 产物门禁 B1~B8
-node scripts/source-inventory.js         # 源预算 12/10/2 与退役源检查
+node scripts/source-inventory.js         # 源预算 13/11/2 与退役源检查
 node scripts/probe.js                    # 全端点探测（会改 README，pull 前先 git checkout -- 这三个文件）
 node scripts/probe.js --selftest-duration # 时长解析自检 4/4，不联网
 node scripts/health-daily.js             # 生成当日健康日报
