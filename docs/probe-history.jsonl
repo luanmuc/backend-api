@@ -864,3 +864,54 @@
 {"date":"2026-11-16","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":796,"reason":"OK"}
 {"date":"2026-11-16","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":736,"reason":"OK"}
 {"date":"2026-11-16","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":870,"reason":"OK"}
+{"date":"2026-11-17","url":"https://oiapi.net/api/QQ_Music","ok":false,"status":404,"time":1062,"reason":"HTTP 404"}
+{"date":"2026-11-17","url":"https://oiapi.net/api/QQ_Music","ok":false,"status":404,"time":273,"reason":"HTTP 404"}
+{"date":"2026-11-17","url":"https://oiapi.net/api/QQ_Music","ok":false,"status":404,"time":273,"reason":"HTTP 404"}
+{"date":"2026-11-17","url":"https://oiapi.net/api/Music_163","ok":true,"status":200,"time":1008,"reason":"OK","payload":false}
+{"date":"2026-11-17","url":"https://oiapi.net/api/Music_163","ok":true,"status":200,"time":265,"reason":"OK","payload":false}
+{"date":"2026-11-17","url":"https://oiapi.net/api/Music_163","ok":true,"status":200,"time":889,"reason":"OK","payload":false}
+{"date":"2026-11-17","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":1312,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":270,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"https://oiapi.net/api/Kuwo","ok":true,"status":200,"time":267,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"https://api.xcvts.cn/api/music/migu","ok":true,"status":206,"time":1845,"reason":"OK","payload":false}
+{"date":"2026-11-17","url":"https://api.xcvts.cn/api/music/migu","ok":true,"status":206,"time":958,"reason":"OK","payload":false}
+{"date":"2026-11-17","url":"https://api.xcvts.cn/api/music/migu","ok":true,"status":206,"time":334,"reason":"OK","payload":false}
+{"date":"2026-11-17","url":"https://lxmusicapi.onrender.com","ok":false,"status":503,"time":1316,"reason":"HTTP 503"}
+{"date":"2026-11-17","url":"https://lxmusicapi.onrender.com","ok":false,"status":503,"time":263,"reason":"HTTP 503"}
+{"date":"2026-11-17","url":"https://lxmusicapi.onrender.com","ok":false,"status":503,"time":261,"reason":"HTTP 503"}
+{"date":"2026-11-17","url":"https://api.music.lerd.dpdns.org","ok":true,"status":200,"time":292,"reason":"OK","payload":false}
+{"date":"2026-11-17","url":"https://api.music.lerd.dpdns.org","ok":true,"status":200,"time":272,"reason":"OK","payload":false}
+{"date":"2026-11-17","url":"https://api.music.lerd.dpdns.org","ok":true,"status":200,"time":71,"reason":"OK","payload":false}
+{"date":"2026-11-17","url":"https://music.lzmhhh.com/api/music/url","ok":false,"status":500,"time":1442,"reason":"HTTP 500"}
+{"date":"2026-11-17","url":"https://music.lzmhhh.com/api/music/url","ok":false,"status":500,"time":895,"reason":"HTTP 500"}
+{"date":"2026-11-17","url":"https://music.lzmhhh.com/api/music/url","ok":false,"status":500,"time":447,"reason":"HTTP 500"}
+{"date":"2026-11-17","url":"https://yy.zddyr.top/lx/api/","ok":true,"status":200,"time":715,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"https://yy.zddyr.top/lx/api/","ok":true,"status":200,"time":217,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"https://yy.zddyr.top/lx/api/","ok":true,"status":200,"time":221,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":528,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":235,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"http://antiserver.kuwo.cn/anti.s","ok":true,"status":206,"time":234,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"https://c.wwwweb.top","ok":true,"status":200,"time":1918,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"https://c.wwwweb.top","ok":true,"status":200,"time":801,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"https://c.wwwweb.top","ok":true,"status":200,"time":1750,"reason":"OK","payload":true}
+{"date":"2026-11-17","url":"http://nmobi.kuwo.cn/mobi.s","ok":false,"status":404,"time":758,"reason":"HTTP 404"}
+{"date":"2026-11-17","url":"http://nmobi.kuwo.cn/mobi.s","ok":false,"status":404,"time":241,"reason":"HTTP 404"}
+{"date":"2026-11-17","url":"http://nmobi.kuwo.cn/mobi.s","ok":false,"status":404,"time":239,"reason":"HTTP 404"}
+{"date":"2026-11-17","url":"https://musicserver.haitangw.cc/v1/music/resolve-url","ok":false,"status":404,"time":2939,"reason":"HTTP 404"}
+{"date":"2026-11-17","url":"https://musicserver.haitangw.cc/v1/music/resolve-url","ok":false,"status":404,"time":1509,"reason":"HTTP 404"}
+{"date":"2026-11-17","url":"https://musicserver.haitangw.cc/v1/music/resolve-url","ok":false,"status":404,"time":488,"reason":"HTTP 404"}
+{"date":"2026-11-17","url":"https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}","ok":true,"status":200,"time":922,"reason":"OK"}
+{"date":"2026-11-17","url":"https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}","ok":true,"status":200,"time":226,"reason":"OK"}
+{"date":"2026-11-17","url":"https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}","ok":true,"status":200,"time":225,"reason":"OK"}
+{"date":"2026-11-17","url":"https://music.163.com/song/media/outer/url?id={id}.mp3","ok":true,"status":302,"time":910,"reason":"OK"}
+{"date":"2026-11-17","url":"https://music.163.com/song/media/outer/url?id={id}.mp3","ok":true,"status":302,"time":274,"reason":"OK"}
+{"date":"2026-11-17","url":"https://music.163.com/song/media/outer/url?id={id}.mp3","ok":true,"status":302,"time":269,"reason":"OK"}
+{"date":"2026-11-17","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":752,"reason":"OK"}
+{"date":"2026-11-17","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":236,"reason":"OK"}
+{"date":"2026-11-17","url":"https://music.163.com/api/song/lyric","ok":true,"status":200,"time":233,"reason":"OK"}
+{"date":"2026-11-17","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":761,"reason":"OK"}
+{"date":"2026-11-17","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":233,"reason":"OK"}
+{"date":"2026-11-17","url":"https://music.163.com/api/song/detail","ok":true,"status":200,"time":232,"reason":"OK"}
+{"date":"2026-11-17","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":825,"reason":"OK"}
+{"date":"2026-11-17","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":232,"reason":"OK"}
+{"date":"2026-11-17","url":"http://search.kuwo.cn/r.s","ok":true,"status":206,"time":903,"reason":"OK"}
