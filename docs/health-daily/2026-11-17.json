@@ -12,7 +12,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1307
+        "ms": 1319
       },
       {
         "date": "2026-11-17",
@@ -21,7 +21,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 1566
+        "ms": 3902
       },
       {
         "date": "2026-11-17",
@@ -30,7 +30,7 @@
         "ok": false,
         "code": "SERVER_ERROR",
         "playable": "",
-        "ms": 735
+        "ms": 754
       },
       {
         "date": "2026-11-17",
@@ -39,7 +39,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1308
+        "ms": 1799
       },
       {
         "date": "2026-11-17",
@@ -48,7 +48,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 1048
+        "ms": 838
       },
       {
         "date": "2026-11-17",
@@ -57,7 +57,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 2194
+        "ms": 2831
       },
       {
         "date": "2026-11-17",
@@ -66,7 +66,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1660
+        "ms": 1919
       },
       {
         "date": "2026-11-17",
@@ -75,7 +75,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 240
+        "ms": 2514
       },
       {
         "date": "2026-11-17",
@@ -84,7 +84,7 @@
         "ok": true,
         "code": "OK",
         "playable": "",
-        "ms": 1278
+        "ms": 1127
       },
       {
         "date": "2026-11-17",
@@ -93,7 +93,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 2422
+        "ms": 2335
       },
       {
         "date": "2026-11-17",
@@ -102,7 +102,7 @@
         "ok": true,
         "code": "OK",
         "playable": "",
-        "ms": 1098
+        "ms": 826
       }
     ]
   },
@@ -166,28 +166,22 @@
   "handle": [],
   "watch": [
     {
-      "label": "suyinKuwo",
-      "url": "https://oiapi.net/api/Kuwo",
-      "rate": 80,
-      "total": 15
-    },
-    {
       "label": "huibq",
       "url": "https://lxmusicapi.onrender.com",
-      "rate": 46.7,
-      "total": 15
+      "rate": 38.9,
+      "total": 18
     },
     {
       "label": "juheTx",
       "url": "https://api.music.lerd.dpdns.org",
-      "rate": 40,
-      "total": 15
+      "rate": 50,
+      "total": 18
     }
   ],
   "fragment": [],
   "changes": [
     "🟢 **suyin163**：2026-11-16 失败 → 2026-11-17 **恢复**",
-    "🟡 **huibq**：窗口成功率 80% → 46.7%（-33.3pp，基准 2026-11-16）",
+    "🟡 **huibq**：窗口成功率 80% → 38.9%（-41.1pp，基准 2026-11-16）",
     "🟢 **juheTx**：2026-11-16 失败 → 2026-11-17 **恢复**"
   ]
 }
