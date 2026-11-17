@@ -6,7 +6,7 @@
 > - 源仓：`luanmuc/backend-api` @ `master`，v8.16.1（tag `v8.16.1` + Release），`lx-source.js` **v8.16.1**，**5881 行 / 307085 bytes**（`node scripts/build-source.js` 实跑）
 > - App 仓：`luanmuc/mobile-app` @ `54249f8b`（已推送），v1.9.2-**b143** / versionCode **302**（Build `43849852397` success，5 APK）；`npm run preflight` 36/36 绿（202s）
 > - track-player：`88b062b`（v2 分支）
-> - 硬数字：`test/` 下 **48 个 `.js` 入口**；`npm test` **42 个脚本**（CI 的 L3/L4 审计清单已全量并入，2026-11-16 之前只 26 个）；审计断言 **567 条**（健康域 102 + 其余 455 + 口径 10）；冒烟 67 组；压测 159 条；变异 22 killed / 0 survived
+> - 硬数字：`test/` 下 **48 个 `.js` 入口**；`npm test` **42 个脚本**（CI 的 L3/L4 审计清单已全量并入，2026-11-16 之前只 26 个）；审计断言 **567 条**（健康域 102 + 其余 455 + 口径 10）；冒烟 67 组；压测 162 条；变异 22 killed / 0 survived
 > - 本文件对应变更：v8.16.1「旧版本健康快照按数值比较接受」= `compareSourceVersion` 数值比较 + `ACCEPTED_SOURCE_VERSIONS` 白名单 `[8.14.1, 8.15.1, 8.16.0, 8.16.1]`；同批 `chain-golden.json` 按 `dump-chain.js --json` 重建（含 `version`/`sourceHead`）；App 新增 `check_cross_repo_health_roundtrip`（X1~X3）与 `preflight`
 
 ---
@@ -70,7 +70,7 @@
 | **健康域（14 脚本）** | 探测分批/资格判定/断路器/快照 ETA/事件/状态机/持久化/版本兼容 | `health-*.js` | **102** | A |
 | **计划唯一性** | 每仓审计 1 份 + 压测 1 份；归档合并为一份 | `tg-truth` G14 + `docs-audit` | 1 | A |
 
-**当前总数**：冒烟 **67 组** + 审计 **567 条**（健康域 102 + 其余 455 + 口径 10）+ 压测 **159 条** + 变异 **22 killed / 0 survived**。计数真值以 `docs/TESTING.md` 与 `docs/AUDIT_MATRIX.md` 为准；`npm test` rc=0 覆盖 42 个脚本。
+**当前总数**：冒烟 **67 组** + 审计 **567 条**（健康域 102 + 其余 455 + 口径 10）+ 压测 **162 条** + 变异 **22 killed / 0 survived**。计数真值以 `docs/TESTING.md` 与 `docs/AUDIT_MATRIX.md` 为准；`npm test` rc=0 覆盖 42 个脚本。
 
 ---
 
@@ -118,7 +118,7 @@
 | QP-G | 旧快照字段兼容 | `restoreHealthState()` | 缺 `definitiveFail` 回退旧 `fail` |
 | QP-H | 健康快照只读 | `HEALTH_QUALITY_NUMBER_FIELDS` | 探路不写 1h 快照 |
 
-**本轮实跑**：`quality-policy-v2` 12/0、`quality-truth` 9/0、`npm test` rc0、压测 159/0。
+**本轮实跑**：`quality-policy-v2` 12/0、`quality-truth` 9/0、`npm test` rc0、压测 162/0。
 
 ---
 

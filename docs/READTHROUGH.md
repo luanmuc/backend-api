@@ -9,7 +9,7 @@
 历史快照 `e9a2259`（v8.16.1 时期）；当前工作区 **v8.16.1** 健康态跨版本恢复版，记录 HEAD `e529ad7`（v8.16.1）（本地提交，未推送）
 
 > 复核说明（2026-11-14）：逐文件结论沿用 2026-11-10 全量通读快照；版本/入口/文件数已同步当前 HEAD `eb2ce1c`。
-文件数：**135**　总行数：**40434**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**135**　总行数：**40435**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -76,7 +76,7 @@
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 82 | 归档 | 96 维执行轨迹；F-08~F-14 待决策记录（部分已修） |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 146 | 归档 | 音源+App 五步审计 13 问题（2 中 11 低） |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 295 | 归档 | 15 项修复 + §10.2 仍未做（L4 真网络 / F-12 第二方案 / 面板 raceBudgetMs 说明） |
-| `docs/STRESS_PLAN.md` | 125 | 当前态 | 压测唯一入口（v2 重构版，§6 负载设计 + §7 方法论承接） |
+| `docs/STRESS_PLAN.md` | 126 | 当前态 | 压测唯一入口（v2 重构版，§6 负载设计 + §7 方法论承接） |
 | `docs/candidate-status.md` | 8 | 生成 | hyw 已恢复 / huanyin 需人工；依赖 recheck 是否真跑 |
 | `docs/health-daily/` | 1155 | 生成 | 整目录（每日 CI 自动生成，90 天滚动清理；当前 23 份已逐字读完） |
 | `docs/probe-history.jsonl` | 866 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
