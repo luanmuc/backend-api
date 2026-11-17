@@ -267,8 +267,11 @@ const killPlayDead = (m) => {
       }))
       return () => {}
     })
-    const ok = await m.__debug.isAudioPlayable('https://example.com/not-audio.html')
-    assert(ok === false, '206 + text/html 被当成可播')
+    // 206 + text/html 必须判「内容不是音频」：带 NOT_AUDIO 码抛出（不能 return false —— 调用方会把
+    // false 翻译成 LINK_EXPIRED/410 死链，语义与账本都错，stress-round4 V1e/V28e 已复现）
+    let code = ''
+    try { await m.__debug.isAudioPlayable('https://example.com/not-audio.html') } catch (e) { code = e && e.code }
+    assert(code === 'NOT_AUDIO', `206 + text/html 未被判 NOT_AUDIO（code=${code || '无=放行'})`)
 
     const m2 = fresh({}, (url, opts, cb) => {
       setImmediate(() => cb(null, {

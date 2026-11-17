@@ -1728,6 +1728,14 @@ async function httpGet(url, params = {}, timeoutType = 'default', headers = null
 
 // v1.0 P0：轻量音频可播性判定——Range 取前1KB，206/200音频即视为可播
 // v8.10.4：区分「确定死链」与「校验未完成」——410/403/404 判死链；超时/网络/5xx/429 抛出交给竞速按网络类处理
+// v8.16.2（R-12⑦）：活着但内容不是音频 ≠ 死链。旧调用方把 `false` 一律翻译成 LINK_EXPIRED（410 死链语义），
+// 于是 1min 死链缓存 + 180s 冷却，与「内容性结论」该走的短路账本完全不同。这里带码抛出，让调用方按 NOT_AUDIO 记账。
+function notAudioError(ct) {
+  const err = new Error(`${ERROR_CODES.NOT_AUDIO}: 交付内容不是音频(content-type=${String(ct).slice(0, 64)})`);
+  err.code = ERROR_CODES.NOT_AUDIO;
+  return err;
+}
+
 async function isAudioPlayable(audioUrl, timeoutMs = 3000, cancelToken = null) {
   if (!audioUrl || typeof audioUrl !== "string" || !HTTP_URL_REGEX.test(audioUrl)) return false;
   try {
@@ -1743,8 +1751,13 @@ async function isAudioPlayable(audioUrl, timeoutMs = 3000, cancelToken = null) {
     // 是 text/html / application/json 的「假音频」也被判可播。这里 206/200 同口径：
     // 有 content-type 就必须像音频；缺失时仍放行（不少 CDN 不返回该头，保持原宽容度）。
     const looksAudio = /audio|octet|mpeg|mp3|flac|ogg|aac|mp4|m4a/i.test(ct);
-    if (res.statusCode === 206) return ct ? looksAudio : true;
+    if (res.statusCode === 206) {
+      if (!ct) return true;                    // 缺头仍放行（部分 CDN 不给 content-type）
+      if (looksAudio) return true;
+      throw notAudioError(ct);                 // 206 + text/html / json：内容不是音频，不是死链
+    }
     if (res.statusCode === 200 && /audio|octet|mpeg|mp3|flac|ogg|aac/i.test(ct)) return true;
+    if (res.statusCode === 200 && ct && /text\/|json|html/i.test(ct)) throw notAudioError(ct);
     return false;
   } catch (e) {
     // v8.10.4：网络类异常 ≠ 死链。旧实现一律 return false，调用方据此抛 LINK_EXPIRED，
@@ -1963,17 +1976,52 @@ function qualityConfidenceOf(info, durationSec) {
 // 同一首歌后续请求会带上被改过的字段）；但 D-39 的时长校验又确实需要这个值，
 // 所以改为按对象记在内部表里，由 originalDurationSec 读取，调用方对象保持只读。
 const durationHints = new Map();
+// v8.16.2（R-12② 修正）：子源解析到的时长还须按「歌曲身份」留一份。
+// 原因：suyinKuwoGetUrl 的兜底档会传 `{name, duration}` 浅拷贝给搜索函数（D-31 故意丢 singer），
+// hint 挂在那个临时对象上，外层验真拿到的却是原始 songInfo —— 只按对象键存会读不到，
+// 时长校验（D-39）随之失效（V39a 实测放行）。身份键用 hash 优先、退化到 歌名|歌手。
+const durationHintByKey = new Map();
+function durationHintKey(songInfo) {
+  if (!songInfo || typeof songInfo !== "object") return "";
+  if (songInfo.hash) return "h:" + String(songInfo.hash);
+  if (!songInfo.name) return "";
+  return "n:" + String(songInfo.name) + "|" + String(songInfo.singer ?? songInfo.artist ?? "");
+}
+// 兜底档传进来的浅拷贝只剩歌名（singer/hash 被有意丢掉），键要与完整对象对得上，
+// 故额外留一份「仅歌名」键；读取时 hash → 歌名|歌手 → 仅歌名，逐级回退。
+function durationHintNameKey(songInfo) {
+  if (!songInfo || typeof songInfo !== "object" || !songInfo.name) return "";
+  return "n:" + String(songInfo.name);
+}
 function setDurationHint(songInfo, sec) {
   if (!songInfo || typeof songInfo !== "object") return;
-  const n = Number(sec);
+  // 源解析出的时长可能是 "1:05:00" / "3:20" 文本（parseMessageSongInfo 原样给出），
+  // 旧实现把这个字符串写回 songInfo.duration 再由 originalDurationSec 的冒号分支解析；
+  // 旁路必须同口径，否则字符串一律 Number()=NaN 被丢，时长校验静默失效。
+  let n = Number(sec);
+  if (typeof sec === "string" && sec.includes(":")) {
+    const parts = sec.split(":").map(x => parseInt(x, 10)).filter(x => Number.isFinite(x));
+    if (parts.length === 2) n = parts[0] * 60 + parts[1];
+    else if (parts.length === 3) n = parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
   if (!Number.isFinite(n) || n <= 0) return;
-  boundedMapSet(durationHints, songInfo, Math.round(n));
+  const v = Math.round(n);
+  boundedMapSet(durationHints, songInfo, v);
+  const k = durationHintKey(songInfo);
+  if (k) boundedMapSet(durationHintByKey, k, v);
+  const nk = durationHintNameKey(songInfo);
+  if (nk) boundedMapSet(durationHintByKey, nk, v);
 }
 
 function originalDurationSec(songInfo) {
   const raw = songInfo?.duration ?? songInfo?.dt ?? songInfo?.interval ?? songInfo?.songDuration;
   // 调用方没给时长时，用子源解析出的旁路提示（D-39 修复的等价实现，无跨桥副作用）
-  const hinted = (songInfo && typeof songInfo === "object") ? durationHints.get(songInfo) : 0;
+  const hinted = (songInfo && typeof songInfo === "object")
+    ? (durationHints.get(songInfo)
+        ?? durationHintByKey.get(durationHintKey(songInfo))
+        ?? durationHintByKey.get(durationHintNameKey(songInfo))
+        ?? 0)
+    : 0;
   if ((raw === undefined || raw === null || raw === "") && hinted) return hinted;
   if (typeof raw === "string" && raw.includes(":")) {
     const parts = raw.split(":").map(x => parseInt(x, 10)).filter(x => Number.isFinite(x));

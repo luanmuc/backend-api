@@ -1666,6 +1666,11 @@ var __lxSourceBundle = (() => {
         const res = await httpRequestWithRetry(fullUrl, opts, retries);
         return res.body;
       }
+      function notAudioError(ct) {
+        const err = new Error(`${ERROR_CODES.NOT_AUDIO}: \u4EA4\u4ED8\u5185\u5BB9\u4E0D\u662F\u97F3\u9891(content-type=${String(ct).slice(0, 64)})`);
+        err.code = ERROR_CODES.NOT_AUDIO;
+        return err;
+      }
       async function isAudioPlayable(audioUrl, timeoutMs = 3e3, cancelToken = null) {
         var _a2;
         if (!audioUrl || typeof audioUrl !== "string" || !HTTP_URL_REGEX.test(audioUrl)) return false;
@@ -1679,8 +1684,13 @@ var __lxSourceBundle = (() => {
           });
           const ct = String(((_a2 = res.headers) == null ? void 0 : _a2["content-type"]) || "");
           const looksAudio = /audio|octet|mpeg|mp3|flac|ogg|aac|mp4|m4a/i.test(ct);
-          if (res.statusCode === 206) return ct ? looksAudio : true;
+          if (res.statusCode === 206) {
+            if (!ct) return true;
+            if (looksAudio) return true;
+            throw notAudioError(ct);
+          }
           if (res.statusCode === 200 && /audio|octet|mpeg|mp3|flac|ogg|aac/i.test(ct)) return true;
+          if (res.statusCode === 200 && ct && /text\/|json|html/i.test(ct)) throw notAudioError(ct);
           return false;
         } catch (e) {
           const code = e && e.code ? e.code : ERROR_CODES.NETWORK_ERROR;
@@ -1866,16 +1876,38 @@ var __lxSourceBundle = (() => {
         return bytes && dur ? "estimated" : "unknown";
       }
       var durationHints = /* @__PURE__ */ new Map();
+      var durationHintByKey = /* @__PURE__ */ new Map();
+      function durationHintKey(songInfo) {
+        var _a2, _b2;
+        if (!songInfo || typeof songInfo !== "object") return "";
+        if (songInfo.hash) return "h:" + String(songInfo.hash);
+        if (!songInfo.name) return "";
+        return "n:" + String(songInfo.name) + "|" + String((_b2 = (_a2 = songInfo.singer) != null ? _a2 : songInfo.artist) != null ? _b2 : "");
+      }
+      function durationHintNameKey(songInfo) {
+        if (!songInfo || typeof songInfo !== "object" || !songInfo.name) return "";
+        return "n:" + String(songInfo.name);
+      }
       function setDurationHint(songInfo, sec) {
         if (!songInfo || typeof songInfo !== "object") return;
-        const n = Number(sec);
+        let n = Number(sec);
+        if (typeof sec === "string" && sec.includes(":")) {
+          const parts = sec.split(":").map((x) => parseInt(x, 10)).filter((x) => Number.isFinite(x));
+          if (parts.length === 2) n = parts[0] * 60 + parts[1];
+          else if (parts.length === 3) n = parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
         if (!Number.isFinite(n) || n <= 0) return;
-        boundedMapSet(durationHints, songInfo, Math.round(n));
+        const v = Math.round(n);
+        boundedMapSet(durationHints, songInfo, v);
+        const k = durationHintKey(songInfo);
+        if (k) boundedMapSet(durationHintByKey, k, v);
+        const nk = durationHintNameKey(songInfo);
+        if (nk) boundedMapSet(durationHintByKey, nk, v);
       }
       function originalDurationSec(songInfo) {
-        var _a2, _b2, _c2;
+        var _a2, _b2, _c2, _d2, _e2, _f2;
         const raw = (_c2 = (_b2 = (_a2 = songInfo == null ? void 0 : songInfo.duration) != null ? _a2 : songInfo == null ? void 0 : songInfo.dt) != null ? _b2 : songInfo == null ? void 0 : songInfo.interval) != null ? _c2 : songInfo == null ? void 0 : songInfo.songDuration;
-        const hinted = songInfo && typeof songInfo === "object" ? durationHints.get(songInfo) : 0;
+        const hinted = songInfo && typeof songInfo === "object" ? (_f2 = (_e2 = (_d2 = durationHints.get(songInfo)) != null ? _d2 : durationHintByKey.get(durationHintKey(songInfo))) != null ? _e2 : durationHintByKey.get(durationHintNameKey(songInfo))) != null ? _f2 : 0 : 0;
         if ((raw === void 0 || raw === null || raw === "") && hinted) return hinted;
         if (typeof raw === "string" && raw.includes(":")) {
           const parts = raw.split(":").map((x) => parseInt(x, 10)).filter((x) => Number.isFinite(x));

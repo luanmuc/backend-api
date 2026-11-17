@@ -49,6 +49,8 @@
 | `docs/candidate-status.md` | 自动生成 | scripts/recheck-candidates.js | 每次候选复检覆盖 | 规则5 新鲜度 |
 | `docs/health-daily/` | 自动生成 | scripts/health-daily.js | 每日 CI 运行时覆盖 | 整目录登记（逐文件豁免；90 天滚动清理） |
 | `docs/probe-history.jsonl` | 自动追加 | scripts/probe.js | 每次巡检追加一行 | — |
+| `docs/chain-sample.jsonl` | 自动追加 | scripts/chain-sample.js | 出链抽样每次一行（src/plat/ok/code/playable/ms） | — |
+| `docs/device-digests.jsonl` | 自动追加 | scripts/pull-device-digests.js | 真机摘要每次一行 | — |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
 | `docs/reports/候选接入评审-2026-11-15.md` | 本轮评审 | 人 | 4 候选接入结论（含真实取链证据），结论变更时重写 | 2026-11-15 |
