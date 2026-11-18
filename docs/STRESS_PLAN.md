@@ -97,7 +97,7 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 
 | # | 套件 | 设计负载（原 v9 口径） | 通过标准 |
 |---|---|---|---|
-| P1 | `stress-test.js` | 1000 并发、200 并发、12s 总预算、限速窗口、熔断雪崩、505 首缓存、3000 次长跑、排序、TTL、200 次 × 2s Timer | 12/0；成功率 ≥95%；外呼收敛；Timer 不随请求线性增长 |
+| P1 | `stress-test.js` | 1000 并发、200 并发、12s 总预算、限速窗口、熔断雪崩、505 首缓存、3000 次长跑、排序、TTL、200 次 × 2s Timer | 12/0；成功率 ≥95%；外呼收敛；Timer 不随请求线性增长；**S4b「窗口滑过后恢复」判据只看 `after`（窗口后那次请求是否成功），不得用累计外呼计数兜底——2026-11-19 前该断言写成 `after \|\| total() > 0`，因 `total()` 恒 >0 而永不失败** |
 | P2 | `stress-round3.js` | 突发并发、缓存穿透、冷却、降档、限流、探针、跨平台 | 14/0；冷却仍写、128k 可走、外呼不放大 |
 | P3 | `stress-round4.js` | 故障谱系、预热 TTL、探针双歌、档位 breaker、短路、排序、快照 | 133/0；TTL 内新增预热 0；半开只放一枪 |
 | P4 | 变异 `mutation/run.js --full --strict` | 22 个锚点 | 22 killed / 0 survived；`--strict` 下 skipped 即失败 |

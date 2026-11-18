@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **49 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集已全部并进 `npm test` 的 **45 个脚本**（冒烟 1 + 审计 42 + 压测 2；2026-11-16 把 CI 的 L3/L4 审计清单全量并入，此前本地只跑 26 个，`f-repo` 这类文档死链门禁本地根本不跑；**2026-11-17 把 `stress-round3/4` 并入本地 `npm test`**——此前这两条只在云端 `stress-short` 跑，导致「本地全绿、推送后云端红」（T8 硬编码错误码数 17）的盲区反复出现），其余 4 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
+> **49 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集已全部并进 `npm test` 的 **45 个脚本**（冒烟 1 + 审计 42 + 压测 2；2026-11-16 把 CI 的 L3/L4 审计清单全量并入，此前本地只跑 26 个，`f-repo` 这类文档死链门禁本地根本不跑；**2026-11-17 把 `stress-round3/4` 并入本地 `npm test`**——此前这两条只在云端 `stress-short` 跑，导致「本地全绿、推送后云端红」（T8 硬编码错误码数 17）的盲区反复出现；**2026-11-19 起 `test/audit/` 下 43 个脚本全部进 CI**——此前只接 19 个，24 个（含 14 个 `health-*`）零执行点，新增 L4.1/L4.2/L4.3 三个 step 补齐，实测 222 条断言在干净环境全绿），其余 4 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
 > 断言实测（2026-11-13 当前工作树）：冒烟 **67 组** + 压测 **159 条**（12/14/**133**）+ 审计断言按各脚本输出汇总（本轮新增 health-snapshot **11/0**、health-probe-batch2 **9/0**、health-eligibility-batch3 **9/0**）；历史 429/655 是旧口径，不再作为当前总数。逐入口明细见下方「入口总表」。变异体 **22 个**（`--full --strict` 全量 **22 killed / 0 survived**，2026-11-13 实测）。
@@ -14,6 +14,9 @@
 |---|---|---|
 | L3 | `node test/audit/e-extra.js` | 90（J~U 二轮 + L3/L4/FAULT8 熔断/限流） |
 | L4 | `node test/audit/r-admission.js` / `node test/audit/u-cross-platform.js` / `node test/audit/v-cross-platform-stress.js` | 23 + 15 + 13（L4 裁决层 + 跨平台兜底 + 跨平台压力） |
+| L4.1 | 7 个 `health-*`（状态机/资格/权威/熔断/不变量/摘除/清账） | 44（10+9+9+5+5+4+2） |
+| L4.2 | 7 个 `health-*`（探测/持久化/调度/快照/事件） | 58（9+10+9+10+2+11+7） |
+| L4.3 | `quality-policy-v2` / `quality-truth` / `y-provider-contract` / `s-source-lifecycle` / `v-eligibility` / `z-cancel` / `aa-p3-persist` / `budget-admission` / `tg-truth` / `readthrough-fixes` | 120（12+9+16+14+7+11+10+7+10+24） |
 | L1.3 | `node --expose-gc test/stress-test.js` | 12（S 组，压量） |
 | L5 | `node --expose-gc test/stress-round3.js` | 14（T 组，压态） |
 | L5.1 | `node --expose-gc test/stress-round4.js` | 133（V 组，压判据） |
@@ -74,6 +77,18 @@
 | `test/audit/s-source-lifecycle.js` | **14** | v8.15.1 生命周期治理：三份治理文档存在、增源七步/减源五条/一进一出、`source-inventory --check`、退役源清零、版本 8.15.1 | 读文件 + 子进程 | `node test/audit/s-source-lifecycle.js` |
 | `test/audit/z-cancel.js` | **10** | v8.13 协作式真取消：预取消零外呼、请求中取消调用宿主 `lx.request` 返回的取消句柄、race 取消全部 launcher、wrapExecute 前后检查、取消不写熔断/失败计数、观察源不进链 | mock 宿主 + `__debug` | `node test/audit/z-cancel.js` |
 | `test/mutation/run.js` | 22 变异体 | 五轮新增：把源码改坏一处，看门禁能否发现（在临时副本上跑）；2026-11-13 `--full --strict` 全量（MU19 锚点已随 `revertHalfOpenOnSkip(id,quality)` 更新） **22 killed / 0 survived**；变异器改为改 `src/*` 后重建再跑门禁，22 个锚点全部命中；2026-11-10 曾因对压缩产物打锚点出现 skipped，已消除 | 本地 | `node test/mutation/run.js [--full] [--strict]` |
+
+### 按需执行（不进 `npm test`，v9.1.2 / B05-002·B05-003）
+
+这几类跑起来慢（压测约 8 分钟、变异全量约 20 分钟），所以**不塞进 `npm test` 主链**，但已补上可发现的本土入口——不用翻 `ci.yml` 才知道怎么跑：
+
+| 入口 | 命令 | 何时跑 | CI 处 |
+|---|---|---|---|
+| 压力三件套（压测 S 组 12 + round3 + round4） | `npm run test:stress` | 改并发/预算/缓存容量/熔断层后；发版前 | `stress-long` job：push 且 `src` 有变更时 |
+| 变异测试（fast 子集 5 门禁） | `npm run test:mutation` | 改了门禁判据本身，验证「改坏能红」 | `mutation` job：push 且 `src` 有变更时跑 `--fast` |
+| 变异测试（全量 22 变异体） | `node test/mutation/run.js --full --strict` | 发版前 / 每周巡检 | `mutation` job：schedule 与 workflow_dispatch |
+
+> 注：`test:mutation` 别名默认即 `--strict`（22 变异体必须 100% killed）；push 场景为省时间只跑 `FAST_GATES` 5 个门禁。压测三个脚本都依赖 `--expose-gc`（时长/内存断言），别名已内置。
 
 ## 二、mock 宿主必须同构的四件事（不照做会出现假故障）
 

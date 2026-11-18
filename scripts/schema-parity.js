@@ -13,7 +13,8 @@ const path = require('path')
 
 function main() {
   const ROOT = path.resolve(__dirname, '..')
-  const APP = path.resolve(ROOT, '../lx-music-mobile')
+  // v9.1.2（B03-004）：同 cross-repo-version，LX_APP_DIR 可覆盖默认 ../lx-music-mobile
+  const APP = path.resolve(ROOT, process.env.LX_APP_DIR || '../lx-music-mobile')
   const fails = []
 
   const persist = fs.readFileSync(path.join(ROOT, 'src/core/18-health-persist.js'), 'utf8')

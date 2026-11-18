@@ -14,7 +14,9 @@ const path = require('path')
 
 function main() {
 const ROOT = path.resolve(__dirname, '..')
-const APP = path.resolve(ROOT, '../lx-music-mobile')
+// v9.1.2（B03-004）：默认仍是 ../lx-music-mobile（本地双仓并列的约定）；
+// LX_APP_DIR 可覆盖——CI 用 actions/checkout 把 App 仓取到 workspace 内别的目录时靠它指路。
+const APP = path.resolve(ROOT, process.env.LX_APP_DIR || '../lx-music-mobile')
 const VERBOSE = process.argv.includes('--verbose')
 const fails = []
 

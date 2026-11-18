@@ -71,7 +71,10 @@ function validateProviderContracts() {
 const KNOWN_COVERAGE_GAPS = Object.freeze([
   Object.freeze({ platform: "mg", reason: "仅 suyinKuwo 单源；suyinMigu 处于 probation 不进链", risk: "high", reviewAt: "2026-11-26" }),
   Object.freeze({ platform: "kg", reason: "仅 suyinKuwo 单源；无第二源", risk: "high", reviewAt: "2026-11-19" }),
-  Object.freeze({ platform: "tx", reason: "suyinKuwo + juheTx 双源；juheTx 为基础设施限流源，7 天复核", risk: "medium", reviewAt: "2026-11-19" }),
+  // v9.1.2（B04-001）：原写「suyinKuwo + juheTx 双源」漏记了链位次更靠前的 qingliangTx，
+  // 且 reviewAt 与 docs/SOURCE_REGISTRY.md 的「覆盖缺口」表（2026-11-18）不一致。
+  // 现按登记表对齐为三源 + 同日期，两处口径必须同步改。
+  Object.freeze({ platform: "tx", reason: "suyinKuwo + qingliangTx + juheTx 三源；qingliangTx 第三方单点、juheTx 受基础设施限流", risk: "medium", reviewAt: "2026-11-18" }),
 ]);
 
 module.exports = {

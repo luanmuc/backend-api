@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v9.1.1 探针参数修复版（缓存可用性判据 + 日志脱敏；v9.1.1 修巡检把空 songId 塞给 handler 导致三源 100% 假失败）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
- * @version 9.1.1
+ * @description v9.1.2 门禁与断言加固版（P1 修复：docs-audit 硬失败可退出非零 / verify-real 支持 --require-all-ok / 签名缺钥可拦 --require-key / X-P 跨仓校验接入 push CI / live 驱动清理 4 个退役源 / provider contract 三源口径与注册表同步 / a-static 异步拒绝必须结构化错误码 / C10 并发外呼上限断言；详见 CHANGELOG）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
+ * @version 9.1.2
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -490,7 +490,7 @@ var __lxSourceBundle = (() => {
   // src/core/02-config.js
   var require_config = __commonJS({
     "src/core/02-config.js"(exports, module) {
-      var SOURCE_VERSION = true ? "9.1.1" : "8.16.4";
+      var SOURCE_VERSION = true ? "9.1.2" : "8.16.4";
       var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
       function normalizeProbeSongPool(value) {
         if (!Array.isArray(value)) return null;
@@ -5680,7 +5680,10 @@ var __lxSourceBundle = (() => {
       var KNOWN_COVERAGE_GAPS = Object.freeze([
         Object.freeze({ platform: "mg", reason: "\u4EC5 suyinKuwo \u5355\u6E90\uFF1BsuyinMigu \u5904\u4E8E probation \u4E0D\u8FDB\u94FE", risk: "high", reviewAt: "2026-11-26" }),
         Object.freeze({ platform: "kg", reason: "\u4EC5 suyinKuwo \u5355\u6E90\uFF1B\u65E0\u7B2C\u4E8C\u6E90", risk: "high", reviewAt: "2026-11-19" }),
-        Object.freeze({ platform: "tx", reason: "suyinKuwo + juheTx \u53CC\u6E90\uFF1BjuheTx \u4E3A\u57FA\u7840\u8BBE\u65BD\u9650\u6D41\u6E90\uFF0C7 \u5929\u590D\u6838", risk: "medium", reviewAt: "2026-11-19" })
+        // v9.1.2（B04-001）：原写「suyinKuwo + juheTx 双源」漏记了链位次更靠前的 qingliangTx，
+        // 且 reviewAt 与 docs/SOURCE_REGISTRY.md 的「覆盖缺口」表（2026-11-18）不一致。
+        // 现按登记表对齐为三源 + 同日期，两处口径必须同步改。
+        Object.freeze({ platform: "tx", reason: "suyinKuwo + qingliangTx + juheTx \u4E09\u6E90\uFF1BqingliangTx \u7B2C\u4E09\u65B9\u5355\u70B9\u3001juheTx \u53D7\u57FA\u7840\u8BBE\u65BD\u9650\u6D41", risk: "medium", reviewAt: "2026-11-18" })
       ]);
       module.exports = {
         validateProviderContracts,
@@ -6529,7 +6532,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.1 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.2 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {

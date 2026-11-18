@@ -94,3 +94,15 @@
 - 不得因为“看起来可能有用”就突破 12 源预算。
 - 不得把可用但同质的源说成死源；退役理由必须写真实退出线。
 - 不得在未记录证据的情况下删除源或移动历史 tag。
+
+## 7. 实现现状补充（2026-11-19）
+
+退役动作的**契约侧**已全部完成：`SOURCE_HANDLERS`（13 键）、`SOURCE_TOGGLES`（13 键）、`buildProbeConfig` 中均无 8 个退役源。
+
+但 `src/core/10-vendors.js` 仍保留 `gdWy` / `xinghaiBackup` / `lingchuan` 三个取链函数与
+`GD_API` / `LINGCHUAN_API` / `PLATFORM_TO_XINGHAI_BACKUP` 常量；`lingchuanApiKey` 仍在
+`USER_CONFIG` 与 config 白名单脱敏路径中。
+
+**判定为不改（B 档）**：三个 helper 全仓零运行时引用，属不可达死代码，不影响运行；
+删除会改变产物导出面并触发 `verify-bundle` 的导出契约复核，收益（少量体积）与风险（契约变更）不成比例。
+若将来重做产物契约，可一并清理。

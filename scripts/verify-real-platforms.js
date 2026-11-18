@@ -69,8 +69,15 @@ const run = async platform => {
 }
 
 if (require.main === module) (async () => {
+  const results = []
   for (const p of ['kw', 'wy', 'tx', 'mg', 'kg']) {
-    console.log(JSON.stringify(await run(p)))
+    const r = await run(p)
+    results.push(r)
+    console.log(JSON.stringify(r))
   }
-  process.exit(0)
+  // v9.1.2（B03-006）：默认保持诊断语义（只打日志、exit 0），避免平台侧波动把
+  // 流水线打红；显式 --require-all-ok 时任一平台失败退非零，供将来把「真实链验收」
+  // 接进 CI 时不至于是现成的假绿。
+  const hard = process.argv.includes('--require-all-ok') && results.some((r) => !r.ok)
+  process.exit(hard ? 1 : 0)
 })().catch(e => { console.error(e); process.exit(1) })

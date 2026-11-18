@@ -134,7 +134,9 @@ if (require.main === module) (async () => {
         const url = await h.fn(plat, idVal, '128k', song);
         const host = (String(url).match(/^(https?:\/\/[^/]+)/) || [, ''])[1];
         let playable = '';
-        if (/^https?:\/\//.test(String(url)) && !/\.php|kwplay/.test(String(url))) playable = await rangeCheck(String(url));
+        // B03-012：.php / kwplay 直链不做 Range 校验，但原来留空串，读起来像「未校验=不可播」。
+        // 显式标 skipped，避免假绿/假红两边误解。
+        if (/^https?:\/\//.test(String(url))) playable = /\.php|kwplay/.test(String(url)) ? 'skipped' : await rangeCheck(String(url));
         rows.push({ src: h.id, plat, ok: true, code: 'OK', host, playable, ms: Date.now() - t0 });
       } catch (e) {
         const msg = String((e && e.message) || e);

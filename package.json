@@ -1,6 +1,6 @@
 {
   "name": "lx-music-source",
-  "version": "9.1.1",
+  "version": "9.1.2",
   "engines": {
     "node": ">= 18"
   },
@@ -15,7 +15,9 @@
     "api-surface": "node scripts/api-surface.js",
     "gate:v9": "bash scripts/v9-gate.sh",
     "verify": "node scripts/verify-bundle.js",
-    "ref-map": "node scripts/ref-closure.js"
+    "ref-map": "node scripts/ref-closure.js",
+    "test:stress": "node --expose-gc test/stress-test.js && node --expose-gc test/stress-round3.js && node --expose-gc test/stress-round4.js",
+    "test:mutation": "node test/mutation/run.js --strict"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

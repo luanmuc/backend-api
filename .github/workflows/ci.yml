@@ -50,6 +50,33 @@ jobs:
           node-version: 20
       - name: L0 语法检查
         run: node --check lx-source.js
+      # v9.1.2（B03-003）：E0 契约面 / L 分层依赖 / C2 产物校验此前只在 v9-gate.sh 里，
+      # ci.yml 从未调用 → 拆包分层退化与契约面漂移在 push 门禁上无人看守。三者零第三方依赖。
+      - name: E0/L 门禁（契约面快照 + 分层依赖 + 产物校验）
+        run: bash scripts/v9-gate.sh --group fast
+      - name: E1 行为等价（抽样 100 例对齐基线）
+        run: node scripts/equiv-snapshot.js --fast --sample 5
+      # v9.1.2（B03-004）：跨仓 X/P 同构校验需要 App 仓。sparse 只取 3 个必要文件，
+      # checkout 失败则跳过（不把网络/权限波动打成流水线红），成功则必须过。
+      - name: 检出 App 仓（仅跨仓同构校验所需文件）
+        id: app
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: luanmuc/mobile-app
+          path: _app
+          sparse-checkout: |
+            src/core/init/userApi/builtinSource.ts
+            src/core/healthDigest.ts
+            android/app/src/main/assets/builtin_source.js
+          sparse-checkout-cone-mode: false
+      - name: X/P 跨仓同构（版本行正则 + healthDigest 四顶层键）
+        if: ${{ steps.app.outcome == 'success' }}
+        env:
+          LX_APP_DIR: ${{ github.workspace }}/_app
+        run: |
+          node scripts/cross-repo-version.js
+          node scripts/schema-parity.js
       - name: L1 冒烟测试（mock lx 宿主，67 组用例）
         run: node test/lx-source-smoke-test.js
       - name: L1.1 candidate-audit 专项测试（v8.1）
@@ -84,6 +111,39 @@ jobs:
           node test/audit/v-cross-platform-stress.js
           node test/audit/w-fallback-owner.js
           node test/audit/x-media-envelope.js
+      # 2026-11-19：剩余 24 个 audit 脚本接入 CI。此前 test/audit 下 43 个脚本里只接了 19 个，
+      # 24 个（含 14 个 health-* 与 readthrough-fixes / y-provider-contract 等）从未在流水线里跑过。
+      # 实测：24 个在干净环境（node_modules 为空）全部 exit 0，断言合计 222 条。
+      - name: L4.1 审计门禁（健康状态族①：状态机/资格/权威/熔断/不变量/摘除/清账）
+        run: |
+          node test/audit/health-state-machine-v2.js
+          node test/audit/health-eligibility-batch3.js
+          node test/audit/health-authority-split.js
+          node test/audit/health-breaker-quality.js
+          node test/audit/health-linkage-invariants.js
+          node test/audit/health-resolve-dead.js
+          node test/audit/health-scoped-reset.js
+      - name: L4.2 审计门禁（健康状态族②：探测/持久化/调度/快照/事件）
+        run: |
+          node test/audit/health-probe-batch2.js
+          node test/audit/health-probe-fidelity.js
+          node test/audit/health-probe-outcome.js
+          node test/audit/health-persistence-v2.js
+          node test/audit/health-scheduler-fake-clock.js
+          node test/audit/health-snapshot-eta.js
+          node test/audit/health-transition-events.js
+      - name: L4.3 审计门禁（质量/契约/生命周期/取消/预算/口径/通读回归）
+        run: |
+          node test/audit/quality-policy-v2.js
+          node test/audit/quality-truth.js
+          node test/audit/y-provider-contract.js
+          node test/audit/s-source-lifecycle.js
+          node test/audit/v-eligibility.js
+          node test/audit/z-cancel.js
+          node test/audit/aa-p3-persist.js
+          node test/audit/budget-admission.js
+          node test/audit/tg-truth.js
+          node test/audit/readthrough-fixes.js
       # v8.11.2（G2）：QuickJS 真引擎。此前该入口在本地因缺依赖 SKIP、且从未进 CI，
       # QR 组 3 条断言长期空转（rec 里 id 未定义的 bug 也因此藏了很久）。
       - name: L5.2 QuickJS 真引擎（宿主无 Buffer，模拟 App 运行环境）
@@ -121,10 +181,14 @@ jobs:
       - name: L5.1 第四轮压力测试（V 组 133 条：故障谱系/不变量/MISMATCH/阈值边界/配置面/兜底档实证）
         run: node --expose-gc test/stress-round4.js
 
-  # ---------- v8.11.2（G1）：变异测试（只跑夜间与手动触发，不参与 push 闸门） ----------
+  # ---------- v8.11.2（G1）：变异测试 ----------
+  # v9.1.2（B05-003）：原来只在 schedule/dispatch 跑 —— push 引入的回归要等一周才可能被抓到，
+  # 而 10 个默认门禁变异体没有任何第二道行为门禁兜底。现在 push（且 src 有变）也跑，
+  # 但只跑 FAST_GATES 子集（5 个门禁，2~3 分钟）；schedule/dispatch 仍跑全量（含 SLOW_GATES）。
   mutation:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    needs: [changes]
+    if: needs.changes.outputs.src == 'true' || github.event_name != 'push'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -132,8 +196,8 @@ jobs:
           node-version: 20
       - name: 安装构建依赖（变异测试需要 esbuild）
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: 变异测试（22 变异体，killed 率必须 100%）
-        run: node test/mutation/run.js --full --strict
+      - name: 变异测试（push 跑 fast 子集，schedule/dispatch 跑全量 22 变异体）
+        run: node test/mutation/run.js --strict ${{ github.event_name == 'push' && '--fast' || '--full' }}
 
   # ---------- v2.0：每日端点巡检 + 健康表写回 ----------
   probe:
@@ -261,7 +325,9 @@ jobs:
           fi
 
           # 连续失败 ≥7 天 → 打 escalated 标签（标签不存在则先创建；失败不阻断）
-          if DAY="${DAY}" node -e 'const s=require("./docs/health-daily/"+process.env.DAY+".json");process.exit((s.rows||[]).some(r=>r.bucket==="handle"&&r.consecutiveFail>=7)?0:1)' 2>/dev/null; then
+          # 字段口径：health-daily.js:438-441 顶层只产出 handle/watch/fragment 三个数组，没有 rows；
+          #          handle 数组内每项都已是 handle 桶，故直接按 consecutiveFail 判定。
+          if DAY="${DAY}" node -e 'const s=require("./docs/health-daily/"+process.env.DAY+".json");process.exit((s.handle||[]).some(r=>r.consecutiveFail>=7)?0:1)' 2>/dev/null; then
             gh label create escalated --color B60205 --description "连续 7 天未恢复" >/dev/null 2>&1 || true
             [ -n "$NUM" ] && gh issue edit "$NUM" --add-label escalated >/dev/null 2>&1 || true
             echo "⚠️ 存在连续 ≥7 天未恢复项，已打 escalated 标签"
@@ -309,10 +375,17 @@ jobs:
           LX_KEY_ID: k1
         run: |
           if [ -z "$LX_SIGNING_KEY" ]; then
-            echo "::warning::未配置 LX_SIGNING_KEY，跳过签名（不产出半成品签名）"
-            exit 0
+            if [ "${ALLOW_UNSIGNED:-0}" = "1" ]; then
+              echo "::warning::ALLOW_UNSIGNED=1：显式跳过签名（不产出 sig / manifest，artifact 无签名）"
+              echo "- signed: false（ALLOW_UNSIGNED=1 显式跳过）" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "::error::未配置 LX_SIGNING_KEY（B03-002）：sign-release 的语义就是签名发布，缺密钥不能算成功"
+            echo "  · 要发布签名产物：把 ed25519 私钥存进 repo secret LX_SIGNING_KEY"
+            echo "  · 要临时跳过（fork/PR/无密钥环境）：显式设置 ALLOW_UNSIGNED=1"
+            exit 1
           fi
-          node scripts/sign-release.js
+          node scripts/sign-release.js --require-key
           # 用内置公钥自校验一次：签完立刻验，签坏比不签更容易排查
           node scripts/sign-release.js --verify --pub "MCowBQYDK2VwAyEA72onGCEiDfN+SQDOEHnqkqsIyl8G/ma7tgrRJvC71dQ="
           echo "## 发布包签名" >> "$GITHUB_STEP_SUMMARY"

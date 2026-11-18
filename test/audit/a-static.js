@@ -7,6 +7,10 @@ const code = fs.readFileSync(SRC, 'utf8');
 const lines = code.split('\n');
 
 const out = [];
+// v9.1.2（B06-002）：本脚本是纯同步块结构，无法 await Promise。凡需观察「异步 rejection」
+// 的判据（目前是 B6）一律压进 pending，等微任务跑完再由 finalize() 统一 rec + 统计，
+// 否则 `p.catch(() => {})` 会把 rejection 静默吞掉，畸形输入照样绿。
+const pending = [];
 const rec = (id, name, ok, detail) => {
   out.push({ id, name, ok: !!ok, detail: String(detail || '') });
   console.log(`${ok ? '✓' : '✗'} [${id}] ${name}${detail ? ' — ' + String(detail).slice(0, 220) : ''}`);
@@ -148,6 +152,7 @@ const loadWith = (hostPatch) => {
 {
   // B6：宿主版本差异——musicInfo 缺字段 / version 缺失
   let ok = true, err = '';
+  let b6Rejects = 0, b6Msg = '', b6Codes = [];
   try {
     delete require.cache[require.resolve(SRC)];
     let handler = null;
@@ -161,12 +166,41 @@ const loadWith = (hostPatch) => {
     require(SRC);
     for (const info of [{}, { name: 'x' }, { name: 'x', singer: 'y' }, null, undefined]) {
       const p = handler({ action: 'musicUrl', source: 'kw', info: { type: 'flac', musicInfo: info } });
-      if (p && typeof p.catch === 'function') await0(p);
+      // v9.1.2（B06-002）：原写法 `if (p.catch) await0(p)` 只挂一个空 catch 把 rejection 吞掉
+      // ——畸形输入触发异步 rejection 时本判据照样 PASS（假绿）。改为收集拒绝码，
+      // 交给 pending 里的延迟判据判定（同步块无法 await 微任务）。
+      if (p && typeof p.catch === 'function') {
+        p.catch((e) => {
+          b6Rejects++;
+          const c = (e && e.code) || '';
+          b6Codes.push(c || '(无 code)');
+          if (!b6Msg) b6Msg = `${c || '(无 code)'}: ${String((e && e.message) || e).slice(0, 60)}`;
+        });
+      }
     }
     ok = true;
     err = '5 种畸形 musicInfo 均返回 Promise（未同步抛错）';
   } catch (e) { ok = false; err = e.message; }
-  rec('B6', '宿主/参数降级不崩', ok, err);
+  pending.push(() => {
+    // v9.1.2（B06-002 判据修正）：handler 的契约本来就是「错误用 rejection 表达」，
+    // 所以「异步拒绝」本身不是失败。真正的判红条件是**拒绝不是结构化错误**：
+    // 码缺失 / 不在产物 ERROR_CODES 枚举里（类型错误、码丢失这类才是回归）。
+    // 这样既保住 findings 建议的「异步必须给出结构化错误」，也不会把正常的
+    // PARAM_ERROR 误判成「降级崩了」。
+    const KNOWN_CODES = new Set(
+      (code.match(/ERROR_CODES\s*=\s*\{[\s\S]*?\n\s*\}/) || [''])[0]
+        .split('\n')
+        .map((ln) => (ln.match(/^\s*[A-Z][A-Z0-9_]{3,}\s*:\s*"([A-Z][A-Z0-9_]{3,})"/) || [])[1])
+        .filter(Boolean),
+    );
+    const unstructured = b6Codes.filter((c) => !KNOWN_CODES.has(c));
+    rec('B6', '宿主/参数降级不崩（异步拒绝必须是结构化错误码）', ok && unstructured.length === 0,
+      ok
+        ? (b6Rejects
+          ? `${b6Rejects} 个畸形输入异步拒绝，码=${b6Codes.join(',')}${unstructured.length ? ` ⚠ 非已知码 ${unstructured.join(',')}` : '（枚举内 ✓）'}`
+          : '5 种畸形 musicInfo 均返回 Promise 且无异步 rejection')
+        : err);
+  });
 }
 
 function await0(p) { p.catch(() => {}); }
@@ -212,9 +246,15 @@ function await0(p) { p.catch(() => {}); }
   rec('B5', '各源 platforms 显式声明', m.length > 0, `${m.length} 处 platforms 声明`);
 }
 
-const pass = out.filter(o => o.ok).length;
-const fail = out.filter(o => !o.ok).length;
-console.log(`\n批0/1 汇总：${pass} 通过 / ${fail} 失败`);
-// 顶层 exit 必须带 require.main 守卫（g-meta M9）；被 require 时只设 exitCode，不杀调用方
-if (require.main === module) process.exit(fail ? 1 : 0);
-else process.exitCode = fail ? 1 : 0;
+// v9.1.2（B06-002）：等一轮微任务跑完再执行 pending 里的延迟判据（B6 的异步 rejection 要
+// 等 Promise 拒绝回调真正跑过才有结论），然后才统计与退出。
+function finalize() {
+  for (const fn of pending) fn();
+  const pass = out.filter(o => o.ok).length;
+  const fail = out.filter(o => !o.ok).length;
+  console.log(`\n批0/1 汇总：${pass} 通过 / ${fail} 失败`);
+  // 顶层 exit 必须带 require.main 守卫（g-meta M9）；被 require 时只设 exitCode，不杀调用方
+  if (require.main === module) process.exit(fail ? 1 : 0);
+  else process.exitCode = fail ? 1 : 0;
+}
+setTimeout(finalize, 60);

@@ -12,7 +12,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v9.1.1** 探针参数修复版：URL 缓存（App `getMusicUrl` 无 TTL）与跨平台缓存（TTL 10min）**命中前必须先探测可用性**，探不过即清缓存再走链路（`isAudioPlayable` Range 探测 / `deleteCrossFallbackCached`）；取链结果补「可用」形态判据（空串/HTML/JSON 不再当成功）；另起 `RF22` 静态门禁；`isAudioPlayable` 的 200/206 判据口径对齐（修 2 处误杀：忽略 Range 的 CDN、`audio/mp4` 的 m4a 直链），`RF23` 行行为断言锁住。`lx-source.js` 内 `@version 9.1.1`，产物 **364168 bytes** | 上一版 v9.1.0（363581 bytes）为缓存可用性判据 + 日志脱敏；上一版 **v9.0.0** 模块化拆包 + 发布签名版：`src/legacy.js` 由 6272 行拆到 **1290 行**，逻辑迁入 **33 个 `src/core` 模块**（`06-binding.js` 提供 `bindDep/dep` 依赖注入，legacy 注册 110 条），只留 3 个启动期求值定义（`SUYIN_163_API` / `suyin163GetUrl` / `PROVIDER_CONTRACT`，实测搬出即行为漂移）。发布包支持 **ed25519 签名**（`scripts/sign-release.js`，私钥在 CI secret `LX_SIGNING_KEY`，App 内置公钥验签后才采用），并落地 **版本区间语义**（health 快照按区间判定，不再用 7 元素白名单）。`lx-source.js` 内 `@version 9.0.0`，产物 **362008 bytes** |
+| 当前版本 | **v9.1.2** 门禁与断言加固版（P1 修复 9 条：docs-audit 硬失败可退出非零 / verify-real 支持 --require-all-ok / 签名缺钥可拦 --require-key / X-P 跨仓校验接入 push CI / live 驱动清理退役源 / provider contract 三源口径与注册表同步 / a-static 异步拒绝必须结构化错误码 / C10 并发外呼上限断言）：URL 缓存（App `getMusicUrl` 无 TTL）与跨平台缓存（TTL 10min）**命中前必须先探测可用性**，探不过即清缓存再走链路（`isAudioPlayable` Range 探测 / `deleteCrossFallbackCached`）；取链结果补「可用」形态判据（空串/HTML/JSON 不再当成功）；另起 `RF22` 静态门禁；`isAudioPlayable` 的 200/206 判据口径对齐（修 2 处误杀：忽略 Range 的 CDN、`audio/mp4` 的 m4a 直链），`RF23` 行行为断言锁住。`lx-source.js` 内 `@version 9.1.2`，产物 **364168 bytes** | 上一版 v9.1.0（363581 bytes）为缓存可用性判据 + 日志脱敏；上一版 **v9.0.0** 模块化拆包 + 发布签名版：`src/legacy.js` 由 6272 行拆到 **1290 行**，逻辑迁入 **33 个 `src/core` 模块**（`06-binding.js` 提供 `bindDep/dep` 依赖注入，legacy 注册 110 条），只留 3 个启动期求值定义（`SUYIN_163_API` / `suyin163GetUrl` / `PROVIDER_CONTRACT`，实测搬出即行为漂移）。发布包支持 **ed25519 签名**（`scripts/sign-release.js`，私钥在 CI secret `LX_SIGNING_KEY`，App 内置公钥验签后才采用），并落地 **版本区间语义**（health 快照按区间判定，不再用 7 元素白名单）。`lx-source.js` 内 `@version 9.0.0`，产物 **362008 bytes** |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
@@ -40,7 +40,7 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 平台 | 可用音质 | 主路子源 | 交叉验证 |
 |---|---|---|---|
-| 网易云 wy | 128k / 320k / flac | 溯音163 / wyOuter / gdWy | oiapi.net ❌ PAYLOAD_NO_URL；music.163.com ✅ |
+| 网易云 wy | 128k / 320k / flac | 溯音163 / wyOuter | oiapi.net ❌ PAYLOAD_NO_URL；music.163.com ✅ |
 | 酷我 kw | 128k / 320k / flac | 溯音酷我 + 星海后端（双源 v1.0） | oiapi.net ✅；yy.zddyr.top ✅；search.kuwo.cn ✅；antiserver.kuwo.cn ✅；nmobi.kuwo.cn ❌ HTTP 404 |
 | QQ tx | 128k（走溯音酷我兜底） | 溯音QQ 关闭 | oiapi.net ❌ HTTP 404 |
 | 酷狗 kg | 128k（走溯音酷我兜底） | — | —（无独立源，走 kw 兜底） |
@@ -57,7 +57,8 @@ https://ghproxy.net/raw.githubusercontent.com/luanmuc/backend-api/master/lx-sour
 
 | 版本 | 核心功能 |
 |---|---|
-| **v9.1.1**（当前，2026-11-18） | **探针参数修复**：巡检调用真实 handler 时第 2 参（songId）写死空串 `""`，而各 handler 取 id 都是 `songId ?? songInfo?.id` —— `??` 只对 null/undefined 生效，空串被当成"有值"选中后 `if (!id)` 抛 `PARAM_ERROR`（0~1ms、一个字节都没发），于是 `wyOuter` / `xinghaiBackend` / `suyin163` 探测 100% 假失败，健康分每轮被白扣 6 次（真机 digest 的 probe 3/9 即此）。现传 `null` 让 handler 的 songInfo 兜底生效；`suyin163` / `suyinMigu` 的「songInfo 风格」错配（5 参包装被两参调用）改走 5 参路径。`RF24` 门禁（负向+正向自检）。`@version 9.1.1`，产物 364168 bytes |
+| **v9.1.2**（当前，2026-11-19） | **门禁与断言加固** | 9 条 P1：①`docs-audit` 有 🔴 即 exit 1（此前恒 0）②`verify-real-*` 加 `--require-all-ok` ③`sign-release` 加 `--require-key`，CI 缺钥显式失败 ④`v9-gate fast` + `equiv-snapshot --fast` 进 test-fast，App 稀疏检出后跑 X/P 跨仓校验 ⑤`tools/live` 清理 4 个退役源、L6 改按「源×档」计熔断 ⑥provider contract tx 行三源口径 ⑦`a-static` B6 异步拒绝必须结构化错误码 ⑧`b-logic` C10 外呼 ≤ 4 |
+| v9.1.1（2026-11-18） | **探针参数修复**：巡检调用真实 handler 时第 2 参（songId）写死空串 `""`，而各 handler 取 id 都是 `songId ?? songInfo?.id` —— `??` 只对 null/undefined 生效，空串被当成"有值"选中后 `if (!id)` 抛 `PARAM_ERROR`（0~1ms、一个字节都没发），于是 `wyOuter` / `xinghaiBackend` / `suyin163` 探测 100% 假失败，健康分每轮被白扣 6 次（真机 digest 的 probe 3/9 即此）。现传 `null` 让 handler 的 songInfo 兜底生效；`suyin163` / `suyinMigu` 的「songInfo 风格」错配（5 参包装被两参调用）改走 5 参路径。`RF24` 门禁（负向+正向自检）。`@version 9.1.1`，产物 364168 bytes |
 | v9.1.0（2026-11-18） | **缓存可用性判据**：`13-chain-helpers` 跨平台缓存命中前 `isAudioPlayable(cachedUrl, 2000)` 探测，探不过 `deleteCrossFallbackCached` 清理后继续走链路；新增该 API（key 构造留在模块内，调用方不拼 key）；`RF22` 静态门禁（含负向自检）。与 App v1.9.2-b155 配套（App 侧三处 URL 缓存命中点同样加判据）。`@version 9.1.0`，产物 363581 bytes |
 | **v9.0.0**（2026-11-18，已被 v9.1.0 接续） | **模块化拆包 + 发布签名 + 版本区间语义**：6272 行单文件 → 1290 行 legacy + 33 个 `src/core` 模块（依赖注入 `bindDep/dep`，110 条注册）；新增 `sign-release.js`（Node 内置 crypto 的 ed25519，零新依赖）与 `ci.yml` `sign-release` job；新增 `layer-check.js`(L1–L6)、`cross-repo-version.js`(X1–X5)、`schema-parity.js`；`18-health-persist` 改纯区间判定（撤掉 7 元素白名单）；`v9-gate.sh` 重写为 `--group fast/core/stress`。`@version 9.0.0`，产物 362008 bytes |
 | **v8.16.4**（2026-11-17） | **播放摘除档位归因（疑-31）**：`playDeadStreak` 原只按 `sourceId` 累计，一档播不了（典型是高档解码失败/大文件分片失败）三次就把整源连 128k 保底一起摘 5 分钟，而"播放成功才解除"的路径又被摘除挡住 → 半开试错死等。修法：`bumpPlayDead(sourceId, quality)` 记录触发档 `playDeadQuality`；`isPlayDead()` 在「请求档 ≠ 触发档 且该档 `success>0`」时放行且不消费 trial；失败跨档置哨兵 `"*"` 表示源级、永久不豁免（直到真实播放成功清零）；快照导出 `playDead.quality` 并回填（旧快照为 null = 源级，保守）。门禁：`readthrough-fixes` **21/0**（新增 RF21）、`y-provider-contract` 16/0、`verify:bundle` 8/0。`@version 8.16.4`，产物 6083 行 / 320161 bytes |

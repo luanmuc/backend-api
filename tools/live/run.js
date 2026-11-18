@@ -87,15 +87,18 @@ async function musicUrl(song, quality, source = 'kw') {
       `${d2}ms code=${ef2 && ef2.code} 解析外呼=${fB - fA}`);
 
     // D-01：开启新源后失败缓存必须失效（重试应产生新外呼）
+    // v9.1.2（B01-001）：原写死 xinghaiBackup（已退役）→ toggle 抛 PARAM_ERROR 直接崩脚本。
+    // 改为按当前注册表动态取一个非默认主源的 kw 源，注册表再变也不会让本组失效。
     mod.__debug.setFailCached(mod.__debug.buildCacheKey('fail_kw', FREE2, '128k'), 'NOT_FOUND');
     const cd = fullCalls();
-    await call({ action: 'toggle', source: 'kw', info: { id: 'xinghaiBackup', enabled: true } });
+    const toggleProbeSrc = Object.keys(mod.SOURCE_HANDLERS).find((id) => id !== 'suyinKuwo') || 'suyinKuwo'
+    await call({ action: 'toggle', source: 'kw', info: { id: toggleProbeSrc, enabled: true } });
     let ef3 = null;
     try { await musicUrl(FREE2, '128k'); } catch (e) { ef3 = e; }
     const ce = fullCalls();
     rec('L2-4', 'toggle 开启新源后失败缓存失效（D-01 端到端）', (ce - cd) > 0,
       `重试外呼=${ce - cd} code=${ef3 && ef3.code}（>0 说明没再吃旧缓存）`);
-    await call({ action: 'toggle', source: 'kw', info: { id: 'xinghaiBackup', enabled: false } });
+    await call({ action: 'toggle', source: 'kw', info: { id: toggleProbeSrc, enabled: false } });
 
     // L3 调度层
     const t3 = Date.now();
@@ -171,9 +174,14 @@ async function musicUrl(song, quality, source = 'kw') {
       return a0 ? { hash: String(a0.DC_TARGETID), rid: String(a0.DC_TARGETID) } : null;
     };
     const only = async (id) => {
+      // v9.1.2（B01-001）：toggle 未知 id 会抛 PARAM_ERROR 把整个脚本中途打断——
+      // run.js 曾写死 xinghaiBackup / nianxinVip / lingchuan / gdWy 四个已退役源。
+      // 这里先按当前注册表校验：不在册就明确跳过（而不是让 toggle 抛错）。
+      if (!mod.SOURCE_HANDLERS[id]) { console.log(`⏭ only(${id})：不在当前注册表（${Object.keys(mod.SOURCE_HANDLERS).length} 源），跳过本组`); return false }
       for (const x of Object.keys(mod.SOURCE_HANDLERS)) {
         await call({ action: 'toggle', source: 'kw', info: { id: x, enabled: x === id } });
       }
+      return true
     };
     const sid = await wyId('稻香'); const sid2 = await wyId('七里香'); const sid3 = await wyId('晴天');
     const kwNames = ['海阔天空', '平凡之路', '好久不见', '突然好想你', '后来', '爱情转移', '演员', '夜曲'];
@@ -188,10 +196,10 @@ async function musicUrl(song, quality, source = 'kw') {
       ['xinghaiBackend', 'kw', 'flac', Object.assign({ name: '平凡之路', singer: '朴树', interval: '05:00' }, kr['平凡之路'] || {})],
       ['helloworldKw', 'kw', 'flac', Object.assign({ name: '好久不见', singer: '陈奕迅', interval: '04:10' }, kr['好久不见'] || {})],
       ['changqingVip', 'kw', '128k', Object.assign({ name: '突然好想你', singer: '五月天', interval: '05:00' }, kr['突然好想你'] || {})],
-      ['nianxinVip', 'kw', '128k', Object.assign({ name: '后来', singer: '刘若英', interval: '05:40' }, kr['后来'] || {})],
+      // v9.1.2（B01-001）：nianxinVip 已退役（不在 13 源注册表），该行断言不可能成立 → 移除
       ['huibq', 'kw', '128k', Object.assign({ name: '爱情转移', singer: '陈奕迅', interval: '04:20' }, kr['爱情转移'] || {})],
       ['ikun', 'kw', '128k', Object.assign({ name: '演员', singer: '薛之谦', interval: '04:21' }, kr['演员'] || {})],
-      ['gdWy', 'wy', 'flac', Object.assign({ name: '晴天', singer: '周杰伦', interval: '04:29' }, sid3 || {})],
+      // v9.1.2（B01-001）：gdWy 已退役（仅 lx-src 残留 gdWyGetUrl 取链函数，未进注册表）→ 移除
     ];
     for (const [id, platform, q, song] of jobs) {
       await only(id);
@@ -217,38 +225,57 @@ async function musicUrl(song, quality, source = 'kw') {
       return a0 ? { hash: String(a0.DC_TARGETID), rid: String(a0.DC_TARGETID) } : {};
     };
     const only = async (id) => {
+      // v9.1.2（B01-001）：toggle 未知 id 会抛 PARAM_ERROR 把整个脚本中途打断——
+      // run.js 曾写死 xinghaiBackup / nianxinVip / lingchuan / gdWy 四个已退役源。
+      // 这里先按当前注册表校验：不在册就明确跳过（而不是让 toggle 抛错）。
+      if (!mod.SOURCE_HANDLERS[id]) { console.log(`⏭ only(${id})：不在当前注册表（${Object.keys(mod.SOURCE_HANDLERS).length} 源），跳过本组`); return false }
       for (const x of Object.keys(mod.SOURCE_HANDLERS)) {
         await call({ action: 'toggle', source: 'kw', info: { id: x, enabled: x === id } });
       }
+      return true
     };
     const rid = await kwRid('爱情转移');
     const song = Object.assign({ name: '爱情转移', singer: '陈奕迅', interval: '04:20' }, rid);
     const probe1 = async () => { try { return await musicUrl(song, '128k'); } catch (e) { return e; } };
 
     await call({ action: 'config', source: 'kw', info: { breakerCooldownMs: 300, playDeadReviveMs: 1000 } });
-    await only('lingchuan');
-    const chain0 = mod.buildSourceChain('kw', '128k').map(h => h.id);
-    // 失败缓存按「歌+档」短路，同一首同档重复不会真的再打源 → 用三档各打一次，才是三次真实失败
+    // v9.1.2（B01-001）：原写死 lingchuan（已退役，only() 遇未知 id 会连带把全部源关掉）。
+    // 改为在册源 + 前提检查：只有三档全失败时才断言熔断，否则明确跳过（不制造假结论）。
+    const L6_SRC = 'huibq'
+    const l6Ready = await only(L6_SRC)
+    const chain0 = l6Ready ? mod.buildSourceChain('kw', '128k').map(h => h.id) : []
+    // v9.1.2（B01-001 深层判据修正）：熔断是「源 × 档」计数 —— 19-dispatch 的 recordFailure 走
+    // qualityLedger(b, quality)，阈值 3 指的是**同一档连续 3 次**失败。原写法「三档各打一次」每档
+    // 只累 1 次，永远到不了阈值，这才是退役源之外的第二层假断言。
+    // 同档重复会被失败缓存（key = 歌 + 档）短路，故改用三首不同的歌压同一档。
     const codes = [];
-    for (const q of ['128k', '320k', 'flac']) {
-      try { await musicUrl(song, q); codes.push('ok'); } catch (e) { codes.push(e.code); }
+    if (l6Ready) for (const nm of ['爱情转移', '后来', '十年']) {
+      const r3 = await kwRid(nm)
+      const s3 = Object.assign({ name: nm, interval: '04:20' }, r3)
+      try { await musicUrl(s3, '128k'); codes.push('ok'); } catch (e) { codes.push(e.code); }
     }
     const snapA = await call({ action: 'health' });
-    rec('L6-1', '同一源不同档连续 3 次真实失败后熔断', snapA.lingchuan && snapA.lingchuan.state === 'open',
-      `链=${chain0.join('>')||'(空)'} 三档码=${codes.join(',')} state=${snapA.lingchuan && snapA.lingchuan.state}`);
+    if (!l6Ready) {
+      console.log(`⏭ L6-1/L6-2/L6-4 跳过：源 ${L6_SRC} 不在当前注册表`)
+    } else if (codes.some((c) => c === 'ok')) {
+      console.log(`⏭ L6-1/L6-2/L6-4 跳过：${L6_SRC} 三档码=${codes.join(',')}，非全失败 → 熔断前提不成立`)
+    } else {
+    rec('L6-1', '同一源不同档连续 3 次真实失败后熔断', snapA[L6_SRC] && snapA[L6_SRC].state === 'open',
+      `链=${chain0.join('>')||'(空)'} 三档码=${codes.join(',')} state=${snapA[L6_SRC] && snapA[L6_SRC].state}`);
 
     await sleep(600);
     const song2 = Object.assign({ name: '后来', singer: '刘若英', interval: '05:40' }, await kwRid('后来'));
     let e3 = null;
     try { await musicUrl(song2, '128k'); } catch (e) { e3 = e; }
     const snapB = await call({ action: 'health' });
-    rec('L6-2', '冷却后半开试探、失败再回 open', snapB.lingchuan && snapB.lingchuan.state === 'open' && e3 && e3.code !== 'RATE_LIMIT',
-      `冷却 300ms 后 state=${snapB.lingchuan && snapB.lingchuan.state} 试探码=${e3 && e3.code}`);
+    rec('L6-2', '冷却后半开试探、失败再回 open', snapB[L6_SRC] && snapB[L6_SRC].state === 'open' && e3 && e3.code !== 'RATE_LIMIT',
+      `冷却 300ms 后 state=${snapB[L6_SRC] && snapB[L6_SRC].state} 试探码=${e3 && e3.code}`);
 
-    await call({ action: 'toggle', source: 'kw', info: { id: 'lingchuan', enabled: false } });
+    await call({ action: 'toggle', source: 'kw', info: { id: L6_SRC, enabled: false } });
     const chainKw = mod.buildSourceChain('kw', '128k').map(h => h.id);
-    rec('L6-4', '关掉的源不出现在链里', !chainKw.includes('lingchuan'),
+    rec('L6-4', '关掉的源不出现在链里', !chainKw.includes(L6_SRC),
       `kw 128k 链=${chainKw.join('>') || '(空)'}`);
+    }
 
     for (const x of Object.keys(mod.SOURCE_HANDLERS)) {
       await call({ action: 'toggle', source: 'kw', info: { id: x, enabled: mod.SOURCE_TOGGLES[x] !== false } });

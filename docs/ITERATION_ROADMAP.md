@@ -9,7 +9,7 @@
 
 ---
 
-> **当前版本（2026-11-18）**：`@version 9.1.1` 探针参数修复版——巡检调 handler 第 2 参（songId）写死空串导致 `wyOuter`/`xinghaiBackend`/`suyin163` 探测 100% 假失败（`??` 不对空串生效，被 `if(!id)` 立即判死，0~1ms 未发请求），改传 `null` + 修 `suyin163`/`suyinMigu` 的 songInfo 风格错配；产物 364168 bytes / 7097 行，`npm test` 全绿（24 条 RF）、`v9-gate[core]` 全绿。上一版 `@version 9.1.0` 缓存可用性判据 + 日志脱敏版（363581 bytes）——跨平台缓存命中前必须 `isAudioPlayable` 探测、探不过 `deleteCrossFallbackCached` 清理；取链结果补「可用」形态判据；新增 `RF22` 静态门禁（含负向自检）与 `RF23`（200/206 口径对齐，修 2 处误杀）；产物 363581 bytes，`v9-gate[core]` 36s 全绿、`npm test` 全绿（23 条 RF）。上一版 `@version 9.0.0` 为模块化拆包 + 发布签名版（362008 bytes）——6272 行 `legacy.js` 拆为 1290 行装配层 + 33 个 `src/core` 模块（`bindDep/dep` 依赖注入 110 条），发布包支持 ed25519 验签，health 快照改版本区间判定；产物 362008 bytes，`v9-gate[core]` 35s 全绿、`npm test` 133/0。上一版 8.16.4 为播放摘除档位归因——真实播放失败按触发档归因（一档播放死不连坐同源其他有成功史的档，跨档失败仍源级摘除），归因档随快照持久化；产物 6083 行 / 320161 bytes，`readthrough-fixes` 21/0、`y-provider-contract` 16/0。上一版 8.16.3 为本地拦截码收口（R-13 / `PLAYBACK_FAILED` 一等码 / Y16）。
+> **当前版本（2026-11-19）**：`@version 9.1.2` 门禁与断言加固版（P1 修复 9 条）——巡检调 handler 第 2 参（songId）写死空串导致 `wyOuter`/`xinghaiBackend`/`suyin163` 探测 100% 假失败（`??` 不对空串生效，被 `if(!id)` 立即判死，0~1ms 未发请求），改传 `null` + 修 `suyin163`/`suyinMigu` 的 songInfo 风格错配；产物 364735 bytes / 7100 行，`npm test` 全绿（24 条 RF）、`v9-gate[core]` 全绿。上一版 `@version 9.1.0` 缓存可用性判据 + 日志脱敏版（363581 bytes）——跨平台缓存命中前必须 `isAudioPlayable` 探测、探不过 `deleteCrossFallbackCached` 清理；取链结果补「可用」形态判据；新增 `RF22` 静态门禁（含负向自检）与 `RF23`（200/206 口径对齐，修 2 处误杀）；产物 363581 bytes，`v9-gate[core]` 36s 全绿、`npm test` 全绿（23 条 RF）。上一版 `@version 9.0.0` 为模块化拆包 + 发布签名版（362008 bytes）——6272 行 `legacy.js` 拆为 1290 行装配层 + 33 个 `src/core` 模块（`bindDep/dep` 依赖注入 110 条），发布包支持 ed25519 验签，health 快照改版本区间判定；产物 362008 bytes，`v9-gate[core]` 35s 全绿、`npm test` 133/0。上一版 8.16.4 为播放摘除档位归因——真实播放失败按触发档归因（一档播放死不连坐同源其他有成功史的档，跨档失败仍源级摘除），归因档随快照持久化；产物 6083 行 / 320161 bytes，`readthrough-fixes` 21/0、`y-provider-contract` 16/0。上一版 8.16.3 为本地拦截码收口（R-13 / `PLAYBACK_FAILED` 一等码 / Y16）。
 
 ## 终极版本三层目标（2026-11-04 用户确认）
 
@@ -26,7 +26,7 @@
 ### 第二层：省心了 ✅ 核心已达成
 
 > 目标：用户完全不用管——音源自己健康、自己切换、自己优化，零感知出问题。
- > 当前最新版本 v9.1.1 | **v8.16.2**（通读缺陷全修：按 `docs/archive/READTHROUGH_v8.16.1.md` 第六节顺序修完 R-01~R-12，档位熔断持久化 / 真实交付音质入账 / 播放与取链分账 / 快照运行期资格 / 半开名额后置消费 / 跨平台可取消 / 兜底结构化判据 等；新增 `test/audit/readthrough-fixes.js` 18 条回归；已本地提交，待推送）｜上一版 **v8.16.1**（健康态跨版本恢复：旧版本快照按数值比较接受，已推送 master + tag `v8.16.1`）｜此前 **v8.16.0**（接入晴亮 tx 源，登记 13 / 上链 11 / 观察 2）| [x] 待发布（tag 随推送补）｜历史版本见 CHANGELOG
+ > 当前最新版本 v9.1.2 | **v8.16.2**（通读缺陷全修：按 `docs/archive/READTHROUGH_v8.16.1.md` 第六节顺序修完 R-01~R-12，档位熔断持久化 / 真实交付音质入账 / 播放与取链分账 / 快照运行期资格 / 半开名额后置消费 / 跨平台可取消 / 兜底结构化判据 等；新增 `test/audit/readthrough-fixes.js` 18 条回归；已本地提交，待推送）｜上一版 **v8.16.1**（健康态跨版本恢复：旧版本快照按数值比较接受，已推送 master + tag `v8.16.1`）｜此前 **v8.16.0**（接入晴亮 tx 源，登记 13 / 上链 11 / 观察 2）| [x] 待发布（tag 随推送补）｜历史版本见 CHANGELOG
 > 2026-11-14 追加音质真实标签补修：m4a/ogg 按总字节+时长回填 320k/128k、wav→flac、未知总字节保留请求档；片段兜底带 `fragment: true`（已并入 v8.14.0）。
 > 核心功能已达成：健康系统 + 候选源生态 + 全量审计修复 + 提前预警。旧编号 v30.x 评估记录（提前预警已实现、其余放弃）已归档 docs/ARCHIVE_OLD_TAGS.md。
 

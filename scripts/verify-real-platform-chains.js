@@ -99,5 +99,8 @@ if (require.main === module) (async () => {
     results.push(await run('tx', tx, 'juheTx'))
   } catch (e) { results.push({ platform: 'tx', ok: false, stage: 'search', message: String(e.message || e) }) }
   for (const r of results) console.log(JSON.stringify(r))
-  process.exit(0)
+  // v9.1.2（B03-006）：同 verify-real-platforms —— 默认诊断 exit 0，
+  // --require-all-ok 时任一平台失败退非零。
+  const hard = process.argv.includes('--require-all-ok') && results.some((r) => !r.ok)
+  process.exit(hard ? 1 : 0)
 })().catch(e => { console.error(e); process.exit(1) })

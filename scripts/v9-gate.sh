@@ -56,7 +56,7 @@ step "E3 stress-round3" node --expose-gc test/stress-round3.js
 step "X 跨仓版本" node scripts/cross-repo-version.js
 step "P probe/telemetry schema" node scripts/schema-parity.js
 
-APP=../lx-music-mobile
+APP=${LX_APP_DIR:-../lx-music-mobile}
 if [ -f "$APP/scripts/check_source_contract.js" ]; then
   if (cd "$APP" && node scripts/check_source_contract.js >/dev/null 2>&1); then echo "✅ C1 App 契约"
   else echo "❌ C1 App 契约"; FAIL=1; fi

@@ -4,7 +4,7 @@ const { CROSS_FALLBACK_CACHE_TTL_MS, crossFallbackCache, getCrossFallbackCached,
 /*!
  * @name 豆包定制[聚合音源]
  * @description v9.0.0 模块化拆包 + 发布签名版（v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；health 快照按版本区间判定；发布包支持 ed25519 验签）。上一版 v8.16.4 为播放摘除档位归因版。历史版本见 docs/CHANGELOG.md。
- * @version 9.1.1 探针参数修复（缓存可用性判据 + 日志脱敏 + 探针误报）（旧版本账本可恢复 / 未来版本拒绝）
+ * @version 9.1.2 门禁与断言加固（docs-audit 可红 / 签名缺钥可拦 / X-P 接 CI / live 退役源 / a-static 结构化拒绝 / C10 外呼上限）（旧版本账本可恢复 / 未来版本拒绝）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -150,7 +150,7 @@ const SUYIN_163_API = "https://oiapi.net/api/Music_163";
 // v9.0 业务层 · 34-breaker-state（熔断与摘除状态（熔断计数、播放/解析摘除、音质短路））
 // ============================================================
 
-// Huibq：实测仅酷我真实可用，其他平台假兜底，默认关闭
+// Huibq：实测仅酷我真实可用，其他平台假兜底（35-source-switch 中 huibq 默认开启）
 
 // 聆川（未配置，默认关闭；2026-11-06 实测域名不可解析已死，保留常量便于恢复，probe 已排除该域名）
 // ---------- v9.0 拆包：10-vendors 已迁至 src/core/10-vendors.js（原地引入）----------
@@ -675,7 +675,7 @@ bindDep("helloworldKwGetUrl", helloworldKwGetUrl);
 
 /* 星海后端主域聚合（v1.0：仅 kw；v1.0：128k/320k/flac 三档，E10 实测） */
 
-/* Huibq（实测仅酷我真实，其他平台假兜底，默认关闭） */
+/* Huibq（实测仅酷我真实，其他平台假兜底；默认开启见 35-source-switch） */
 
 bindDep("huibqGetUrl", huibqGetUrl);
 
@@ -1150,7 +1150,11 @@ send(EVENT_NAMES.inited, {
 // v4.0.1：发版通知（updateAlert）已停用——每次加载/导入都弹更新提示过于打扰，
 // 用户选择关闭（App 端「允许显示更新弹窗」勾选与否都不再弹；版本信息看 logInfo/Release）
 //
-logInfo(`豆包定制聚合音源 v9.1.1 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+// v9.1.2：下面这行**必须**保留字面量版本号 —— `scripts/self-check.js:38-47` 用
+// `/豆包定制聚合音源\s+v(\S+)/` 取第一个匹配并与 @version 比对，App 内置升级正则同理。
+// 因此：①不能改成模板变量；②本注释也不要写出被该正则命中的完整串（否则注释先于 logInfo
+// 被匹配到，会报「版本串不同步」）。升版本时这里和 `src/00-header.js` 的 @version 一起改。
+logInfo(`豆包定制聚合音源 v9.1.2 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

@@ -31,7 +31,14 @@ function genKey() {
 function sign() {
   const keyB64 = process.env.LX_SIGNING_KEY || ''
   if (!keyB64) {
-    console.log('⏭ sign-release：未提供 LX_SIGNING_KEY（本地/PR 环境跳过签名，不产出 sig）')
+    // v9.1.2（B03-002）：默认保持本地/PR 的诊断语义（跳过签名、exit 0）；
+    // --require-key 时缺密钥 exit 1 —— release job 用这个开关，
+    // 避免「无签名产物随绿色流水线流出」（旧行为是静默 warn + exit 0）。
+    if (process.argv.includes('--require-key')) {
+      console.error('❌ sign-release：--require-key 已指定，但未提供 LX_SIGNING_KEY')
+      return 1
+    }
+    console.log('⏭ sign-release：未提供 LX_SIGNING_KEY（本地/PR 环境跳过签名，不产出 sig；release 请加 --require-key）')
     return 0
   }
   const body = fs.readFileSync(ARTIFACT)
@@ -62,9 +69,15 @@ function verify(pubB64) {
   catch (e) { console.log('❌ 公钥解析失败：' + e.message); return 1 }
   const ok = crypto.verify(null, body, pub, Buffer.from(sig, 'base64'))
   if (!ok) { console.log('❌ 验签失败：产物与签名不匹配（可能被替换）'); return 1 }
-  const mf = fs.existsSync(MANIFEST) ? JSON.parse(fs.readFileSync(MANIFEST, 'utf8')) : null
-  if (mf && mf.sha256 !== sha256(body)) { console.log('❌ manifest sha256 与产物不符'); return 1 }
-  console.log(`✅ 验签通过${mf ? `（v${mf.version} / sha256 ${mf.sha256.slice(0, 12)}…）` : ''}`)
+  // B03-007：manifest 是 sha256 + 版本的锁定层。原来缺失时直接当成验签通过，
+  // 等于把 sha 锁定变成可选 —— 整个 manifest 可被剥离而不报错。缺失必须算失败。
+  if (!fs.existsSync(MANIFEST)) { console.log('❌ 缺少 lx-source.js.manifest.json（sha256/版本锁定层不可缺失）'); return 1 }
+  const mf = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'))
+  if (mf.sha256 !== sha256(body)) { console.log('❌ manifest sha256 与产物不符'); return 1 }
+  // B03-007：还要交叉核对版本，避免 manifest 与产物版本错配（例如换了产物没更新 manifest）。
+  const ver = versionOf(body.toString('utf8'))
+  if (mf.version !== ver) { console.log(`❌ manifest 版本(${mf.version}) 与产物 @version(${ver}) 不一致`); return 1 }
+  console.log(`✅ 验签通过（v${mf.version} / sha256 ${mf.sha256.slice(0, 12)}…）`)
   return 0
 }
 

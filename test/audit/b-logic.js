@@ -221,7 +221,13 @@ const restoreTime = () => { Date.now = REAL; };
   {
     fresh(['suyinKuwo']); scene = oneSource(); probeFn = () => audio(flac(269.7, 44100), 'audio/flac', 55397039); reset();
     const out = await Promise.all(Array.from({ length: 10 }, () => req('flac', { name: '并发歌', singer: 'p', duration: 271000, songmid: 'c10' }).then(r => ({ ok: !!(r && r.url) })).catch(() => ({ ok: false }))));
-    rec('C10', '10 并发同歌全部成功且无明显放量', out.filter(x => x.ok).length === 10, `成功 ${out.filter(x => x.ok).length}/10 · 外呼 ${total()}`);
+    const c10Ok = out.filter(x => x.ok).length, c10Calls = total();
+    // v9.1.2（B06-003）：原判据只断言 10/10 成功 —— 「无明显放量」只写在用例名里，没有任何断言，
+    // 重复外呼 / 重复写缓存的回归完全无感（10 并发各打一遍也能绿）。实测当前固定 3 次外呼
+    // （128k 保底 + 重试路径），这里钉上限 4（留 1 次余量）：真退化成「每请求各打一遍」立刻转红。
+    // 缓存写入数与外呼同源（同一次成功才写一次），故外呼上限同时约束重复写缓存。
+    rec('C10', '10 并发同歌全部成功且无明显放量（外呼 ≤ 4）', c10Ok === 10 && c10Calls <= 4,
+      `成功 ${c10Ok}/10 · 外呼 ${c10Calls}（上限 4）`);
   }
 
   restoreTime();

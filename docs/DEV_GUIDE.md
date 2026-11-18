@@ -25,9 +25,9 @@
 | ⑤ 歌曲信息与匹配工具 | 2633~3780 | `normalizeKeyword`、`titleMatch`/`durationMatch`、`buildSearchKeywords`、`songInfoMatch`、`buildCacheKey`、`getHashOrMid` |
 | ⑥ 音源实现 | 3781~4365 | 13 个子源（11 上链 + 2 观察），每个源自带 `maxQuality`、`platforms`、`lifecycle` 与 `chain` 声明 |
 | ⑦ 注册表 + 调度 + 健康分 | 4366~4896 | `getHealthSnapshot`、`SOURCE_HANDLERS`、`buildSourceChain`、`sortChainByHealth`、`fallbackRace`、`buildQualityChain`、`getUrlWithFallback`、`wrapExecute`（成功走 `admit({probe})`、失败走 `admit+applyAdmission`）；**v8.12.0**：跨平台兜底（`getUrlWithCrossPlatformFallback`/`tryCrossPlatformFallback`/`crossSearchPlatform`/`resolveCrossPlatformCandidate`/`pickCrossCandidate`，tx→wy→kw，严格身份匹配，3s grace，10min 缓存，`cross_platform` 事件） |
-| ⑧ 上报 + 事件监听 | 6215~7097（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
+| ⑧ 上报 + 事件监听 | 6218~7100（EOF） | `sourceConfig`（5 平台 × qualitys 按真实能力裁剪）、`on(request)` 入口、`send(inited)`、启动健康探测 |
 
-> **v9.1.1（探针参数修复）**：`lx-source.js` / **364168 bytes**，`@version 9.1.0`。跨平台缓存（TTL 10min）命中前必须 `isAudioPlayable(cachedUrl, 2000)` 探测，探不过 `deleteCrossFallbackCached` 清缓存后继续走链路；`RF22` 提供静态门禁（含负向自检）。**v9.1.1 修探针误报**：巡检调 handler 时第 2 参（songId）写死空串 `""`，而各 handler 取 id 都是 `songId ?? songInfo?.id` —— `??` 只对 null/undefined 生效，空串被当成"有值"选中后 `if (!id)` 抛 `PARAM_ERROR`（0~1ms，未发请求），导致 `wyOuter` / `xinghaiBackend` / `suyin163` 探测 100% 假失败、健康分被白扣；现传 `null` 让 handler 的 songInfo 兜底生效，并把 `suyin163` / `suyinMigu` 的「songInfo 风格」错配改为 5 参路径。`RF24` 静态门禁（含负向+正向自检）。上一版 v9.1.0 为缓存可用性判据 + 日志脱敏（363581 bytes）。上一版 **v9.0.0（模块化拆包 + 发布签名）**：`lx-source.js` 共 7097 行 / **362008 bytes**，`@version 9.0.0`；`src/legacy.js` 1290 行 + 33 个 `src/core` 模块（装配清单见文件头），`06-binding.js` 的 `bindDep/dep` 解耦；新增 `scripts/sign-release.js`（ed25519 签名/验签/篡改检测）与 `schema-parity.js`；`v9-gate.sh` 分 `fast/core/stress` 三组。上一版 v8.16.4 为播放摘除档位归因（320161 bytes）；真实播放失败改按「触发档」归因（`playDeadQuality`）：三次失败同档则不摘整源、其他有成功史的档（含 128k）继续可用；跨档失败置 `"*"` 按源级摘除、永不豁免；豁免放行不消费半开 trial；归因档随快照 `playDead.quality` 持久化（旧快照按源级）。新增回归 `RF21`（21/0）。上一版 v8.16.3 为本地拦截码收口（6060 行 / 318733 bytes，R-13 / `PLAYBACK_FAILED` 一等码 / Y16 交叉断言）。
+> **v9.1.2（门禁与断言加固）**：`lx-source.js` / **364735 bytes**，`@version 9.1.2`。跨平台缓存（TTL 10min）命中前必须 `isAudioPlayable(cachedUrl, 2000)` 探测，探不过 `deleteCrossFallbackCached` 清缓存后继续走链路；`RF22` 提供静态门禁（含负向自检）。**v9.1.1 修探针误报**：巡检调 handler 时第 2 参（songId）写死空串 `""`，而各 handler 取 id 都是 `songId ?? songInfo?.id` —— `??` 只对 null/undefined 生效，空串被当成"有值"选中后 `if (!id)` 抛 `PARAM_ERROR`（0~1ms，未发请求），导致 `wyOuter` / `xinghaiBackend` / `suyin163` 探测 100% 假失败、健康分被白扣；现传 `null` 让 handler 的 songInfo 兜底生效，并把 `suyin163` / `suyinMigu` 的「songInfo 风格」错配改为 5 参路径。`RF24` 静态门禁（含负向+正向自检）。上一版 v9.1.0 为缓存可用性判据 + 日志脱敏（363581 bytes）。上一版 **v9.0.0（模块化拆包 + 发布签名）**：`lx-source.js` 共 7100 行 / **362008 bytes**，`@version 9.0.0`；`src/legacy.js` 1290 行 + 33 个 `src/core` 模块（装配清单见文件头），`06-binding.js` 的 `bindDep/dep` 解耦；新增 `scripts/sign-release.js`（ed25519 签名/验签/篡改检测）与 `schema-parity.js`；`v9-gate.sh` 分 `fast/core/stress` 三组。上一版 v8.16.4 为播放摘除档位归因（320161 bytes）；真实播放失败改按「触发档」归因（`playDeadQuality`）：三次失败同档则不摘整源、其他有成功史的档（含 128k）继续可用；跨档失败置 `"*"` 按源级摘除、永不豁免；豁免放行不消费半开 trial；归因档随快照 `playDead.quality` 持久化（旧快照按源级）。新增回归 `RF21`（21/0）。上一版 v8.16.3 为本地拦截码收口（6060 行 / 318733 bytes，R-13 / `PLAYBACK_FAILED` 一等码 / Y16 交叉断言）。
 > 行段为 **v8.16.0 产物**实测值；构建产物由 `scripts/build-source.js` 生成，`docs-audit` 规则 7 从 `var PROVIDER_CONTRACT` 校验末段边界 = EOF。
 > **v8.15.1 压测适配**：`stress-round4` 的 V18 预热计数按 `coldStartTimeoutMs` 双键隔离；冷启动超时被钳到总预算后，测试需同步抬高 `raceBudgetMs`，否则实际请求超时变成总预算、按 4321ms 计数会假红。
 
@@ -159,7 +159,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | xinghaiBackup | 多平台 | — | ❌ 关闭 | （zrcdy.dpdns.org 未单列；music-dl.sayqz.com 失效） | ✅ 维持关闭 |
 | huibq | 多平台 | — | ✅ 开启（v8.6） | lxmusicapi.onrender.com 实测五平台全音质出链可播；免费实例冷启动慢 | ✅ 已纳 A 方案 |
 | lingchuan | 多平台 | — | ❌ 关闭 | api.lingchuan.com = DNS 失效（域名死，无公开替代） | ❌ 判否归档（2026-11-06 研究确认，probe 已排除监控） |
-| ikun | kw/wy | 128k/320k/flac 等 | ✅ **可用（公益免卡密）** | **c.wwwweb.top = 可用**（v8.1 域名迁移：api.ikunshare.com DNS 死 → c.wwwweb.top / POST /music/url；实测 rid=228908 真链 206 可播） | ✅ 已复活（默认关闭，开启即用；付费版可填卡密） |
+| ikun | kw/wy | 128k/320k/flac 等 | ✅ **可用（公益免卡密）** | **c.wwwweb.top = 可用**（v8.1 域名迁移：api.ikunshare.com DNS 死 → c.wwwweb.top / POST /music/url；实测 rid=228908 真链 206 可播） | ✅ 已复活（默认开启；付费版可填卡密） |
 
 **交叉验证的三个规划含义**：
 1. **溯音咪咕（mg）有机会**：pdone 的 CI 显示 `api.xcvts.cn` 可用，本仓库 502 是 IP 维度封禁 → 当时（v3.0 时代）规划测"备用域名/代理"路线恢复 mg，v7.0 已实测判否（溯音咪咕 502 IP 封禁未解除，见七章）。
@@ -481,11 +481,11 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 
 ## 十一、配置键总表（v8.16.0 基线）
 
-> 单一真相仍是 `lx-source.js` 的 `USER_CONFIG`（默认值）、`ALLOWED_KEYS`（34 个数字可写）、`ALLOWED_BOOL_KEYS`（9 个布尔可写）与 `PARAM_LIMITS`（上限）。本表是镜像，配置面有改动时必须同步。v8.10.3 曾出现「死键在面板能写、运行时根本不读」，根因就是没有可对照的键表。
+> 单一真相仍是 `lx-source.js` 的 `USER_CONFIG`（默认值）、`ALLOWED_KEYS`（35 个数字可写）、`ALLOWED_BOOL_KEYS`（9 个布尔可写）与 `PARAM_LIMITS`（上限）。本表是镜像，配置面有改动时必须同步。v8.10.3 曾出现「死键在面板能写、运行时根本不读」，根因就是没有可对照的键表。
 
 ### 11.1 面板可写（`config` action 生效）
 
-#### 数字键（`ALLOWED_KEYS`，34 个）
+#### 数字键（`ALLOWED_KEYS`，35 个）
 
 | 键 | 默认 | 上限 | 说明 |
 | --- | --- | --- | --- |
@@ -523,6 +523,7 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | `allFailShortTtlMs` | 30000 | max 10min | 全链网络类失败短缓存 |
 | `playDeadReviveMs` | 300000（5min） | max 2h | 播放摘除后的半开试探冷却 |
 | `memoryMapMax` | 2000 | min 1 / max 20000 | 按歌曲累积记忆表条目上限 |
+| `crossPlatformGraceMs` | 3000（3s） | max 30s | 跨平台兜底 grace 窗口（R-09，v8.16.2 新增） |
 
 #### 布尔键（`ALLOWED_BOOL_KEYS`，9 个）
 

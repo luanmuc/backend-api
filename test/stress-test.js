@@ -106,7 +106,7 @@ const handles = () => (typeof process.getActiveResourcesInfo === 'function' ? pr
     rec('S4', '窗口配额打满后拒绝（rateWindowMax=3/2000ms）', rejected > 0, `10 次结果：${codes.join('/')}；外呼 ${total()}`);
     await new Promise(r => setTimeout(r, 2100));
     let after = false; try { await req('flac', GOOD('s4_r')); after = true; } catch (e) { }
-    rec('S4b', '窗口滑过后恢复', after || total() > 0, `窗口后请求：${after ? '成功' : '仍失败'}，外呼 ${total()}`);
+    rec('S4b', '窗口滑过后恢复', after, `窗口后请求：${after ? '成功' : '仍失败'}，外呼 ${total()}；判据只看 after，外呼计数仅作 detail`);
   }
 
   // S5 熔断雪崩

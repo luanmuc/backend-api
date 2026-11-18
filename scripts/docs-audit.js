@@ -522,12 +522,15 @@ ruleTestEntryCount();
 
   console.log(`\n[L4 文档巡检] ${DRY ? 'DRY-RUN（不修改）' : '自动修复'} — ${new Date().toISOString().slice(0, 10)}\n`);
   for (const r of report) console.log(r);
-  console.log(`\n汇总：${DRY ? '待处理' : '已修复'} ${fixed} 项 · 报告 ${report.length - fixed} 项\n`);
-  // 恒成功：修复/报告已落盘，workflow 以 git diff 判断是否有提交
+  const hard = report.filter((r) => r.startsWith('🔴')).length;
+  console.log(`\n汇总：${DRY ? '待处理' : '已修复'} ${fixed} 项 · 报告 ${report.length - fixed} 项 · 硬失败 ${hard} 项\n`);
+  // v9.1.2（B03-005）：🔴 必须非零退出。此前恒 exit 0，22+ 条 🔴 只落在报告文本里，
+  // 硬失败只能靠 weekly workflow `grep 🔴` 兜底 → push 门禁形同虚设。
+  // 🟡/⚠️ 属「已自动修复」或「需关注但不阻塞」，保持 exit 0，避免把建议误判成流水线红。
+  return hard;
 }
 
 if (require.main === module) {
-  runAll();
-  process.exit(0);
+  process.exit(runAll() ? 1 : 0);
 }
 module.exports = { runAll, RULES: { ruleScriptsDoc, ruleSourceAuditFacts } };
