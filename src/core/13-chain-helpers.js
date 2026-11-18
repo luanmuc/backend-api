@@ -96,8 +96,26 @@ async function getUrlWithCrossPlatformFallback(platform, songInfo, quality, trac
   }
   const crossCached = dep('getCrossFallbackCached')(platform, songInfo, quality);
   if (crossCached) {
-    logDebug(`[跨平台缓存] ${platform} ${songInfo?.name || ""} 命中 ${crossCached.result.sourcePlatform}，${dep('CROSS_FALLBACK_CACHE_TTL_MS') / 60000}min 内不再搜`);
-    return { ...crossCached.result };
+    /* v9.1（缓存可用性，P0）：旧实现只判 TTL 就把 result 原样返回，一条已失效的 URL 会被
+     * 连续复用满 10 分钟——真机表现是「卡在加载/下载 0% 然后超时」，日志里只看得到笼统失败。
+     * 这里复用 25-handlers 的 isAudioPlayable（206/200 同口径校验 content-type、死链与网络异常分开），
+     * 不另写探测函数。超时 2000ms：既短于函数默认 3000ms，也远短于本函数下游的预算，
+     * 避免把「验证缓存」变成新的等待点。该命中分支没有可继承的上游 cancelToken（
+     * getUrlWithCrossPlatformFallback 的签名只有 traceId），故用短超时封顶等待。 */
+    const cachedUrl = crossCached.result && crossCached.result.url;
+    if (cachedUrl && typeof cachedUrl === 'string') {
+      const stillPlayable = await dep('isAudioPlayable')(cachedUrl, 2000);
+      if (!stillPlayable) {
+        dep('deleteCrossFallbackCached')(platform, songInfo, quality);
+        logInfo(`[跨平台缓存] ${platform} ${songInfo?.name || ""} 命中 ${crossCached.result.sourcePlatform} 但 URL 已失效，已删缓存重新走跨平台链路`);
+      } else {
+        logDebug(`[跨平台缓存] ${platform} ${songInfo?.name || ""} 命中 ${crossCached.result.sourcePlatform}，${dep('CROSS_FALLBACK_CACHE_TTL_MS') / 60000}min 内不再搜（URL 已验可播）`);
+        return { ...crossCached.result };
+      }
+    } else {
+      logDebug(`[跨平台缓存] ${platform} ${songInfo?.name || ""} 命中 ${crossCached.result.sourcePlatform}（无 url 字段，按原行为返回）`);
+      return { ...crossCached.result };
+    }
   }
   return new Promise((resolve, reject) => {
     let settled = false;

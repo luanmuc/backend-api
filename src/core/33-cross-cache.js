@@ -30,6 +30,12 @@ function setCrossFallbackCached(platform, songInfo, quality, result) {
   });
 }
 
+/* v9.1（缓存可用性）：命中后发现 URL 已失效时按「同一 key 语义」精确删除。
+ * 键构造只在本模块内持有，调用方不要自己拼 key（拼错就删不掉，等于没修）。 */
+function deleteCrossFallbackCached(platform, songInfo, quality) {
+  return crossFallbackCache.delete(crossCacheKey(platform, songInfo, quality));
+}
+
 module.exports = {
   CROSS_FALLBACK_CACHE_MAX,
   CROSS_FALLBACK_CACHE_TTL_MS,
@@ -37,4 +43,5 @@ module.exports = {
   crossCacheKey,
   getCrossFallbackCached,
   setCrossFallbackCached,
+  deleteCrossFallbackCached,
 };

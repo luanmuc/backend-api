@@ -20,6 +20,7 @@
  * RF16 206 也校验 content-type（R-12⑦）
  * RF17 cacheTtlMs 热更新生效（R-12⑥，静态）
  * RF18 版本/口径一致（R-08，静态）
+ * RF22 跨平台缓存命中前必须探测可用性（v9.1，静态）
  *
  * 用法：node test/audit/readthrough-fixes.js
  */
@@ -360,6 +361,60 @@ const killPlayDead = (m) => {
     const item = st && st.sources && st.sources.suyinKuwo
     assert(item && typeof item.playDead === 'object', '快照缺 playDead')
     assert('quality' in item.playDead, '快照 playDead 未带触发档 quality')
+  })
+
+  await check('RF22 跨平台缓存命中前必须探测可用性（v9.1，静态）', () => {
+    // 背景（实测）：crossFallbackCache TTL 10 分钟，命中分支旧实现直接 return 缓存结果。
+    // 源仓 online.ts 注释自认「缓存命中不证明音源当前可出链」——死链会被复用 10 分钟。
+    // 断言：命中分支必须 (a) 先 await isAudioPlayable 探测，(b) 探不过要 deleteCrossFallbackCached 清掉再走链路。
+    // 注意：产物里 crossCached.result 会先出现在 logDebug/logInfo 的模板串里（那不是返回点），
+    // 所以必须遍历所有出现点，只要有一处是「return 命中缓存」且同时具备探测+清缓存才算通过。
+    const detector = (text) => {
+      let idx = -1
+      let found = false
+      while ((idx = text.indexOf('crossCached.result', idx + 1)) >= 0) {
+        found = true
+        const window = text.slice(Math.max(0, idx - 2000), idx + 40)
+        if (/isAudioPlayable/.test(window) && /deleteCrossFallbackCached/.test(window)) return { found: true, probes: true, purges: true }
+      }
+      return { found, probes: false, purges: false }
+    }
+    const real = detector(CODE)
+    assert(real.found, '产物里找不到 crossCached.result 命中返回点（模块可能被改名，需复核本门禁锚点）')
+    assert(real.probes, '跨平台缓存命中前没有 isAudioPlayable 探测（死链会被直接复用）')
+    assert(real.purges, '探测不通过时没有 deleteCrossFallbackCached 清缓存（下一轮仍命中坏缓存）')
+    // 负向自检：修复前的写法（直接 return 缓存）必须被判红，否则门禁是假绿
+    const before = 'if (crossCached) { logDebug(x); return { ...crossCached.result } }'
+    const d = detector(before)
+    assert(d.found && !d.probes && !d.purges, '负向自检失败：修复前写法未被识别为缺判据')
+    // 新增 API 必须在产物中可见，且由 legacy 依赖注入（bindDep）
+    assert(/function deleteCrossFallbackCached/.test(CODE) || /deleteCrossFallbackCached\s*=/.test(CODE), '产物缺 deleteCrossFallbackCached 实现')
+    assert(/bindDep\("deleteCrossFallbackCached"/.test(CODE), 'legacy 未 bindDep deleteCrossFallbackCached（调用方会拿到 undefined）')
+  })
+
+  await check('RF23 200 与 206 同口径，不误杀忽略 Range 的 CDN（v9.1）', async () => {
+    // 误杀链：isAudioPlayable 返回 false → 上层抛 LINK_EXPIRED → 进 byQuality.linkExpired
+    //        → 累计 3 次压制该源该档 6 小时。所以这里必须断言「不能判死」，不只是「不崩」。
+    const mock = (statusCode, headers) => fresh({}, (url, opts, cb) => {
+      setImmediate(() => cb(null, { statusCode, headers, body: audioBody() }))
+      return () => {}
+    })
+    // ① 200 + 无 content-type：旧实现 return false（误杀），现应放行
+    const m1 = mock(200, {})
+    assert(await m1.__debug.isAudioPlayable('https://example.com/no-ct') === true, '200 + 无 content-type 仍被判死（忽略 Range 的 CDN 会被误杀）')
+    // ② 200 + audio/mp4：旧实现 200 分支正则不含 mp4 → false（m4a 被误杀），现应放行
+    const m2 = mock(200, { 'content-type': 'audio/mp4', 'content-length': '64' })
+    assert(await m2.__debug.isAudioPlayable('https://example.com/a.m4a') === true, '200 + audio/mp4 仍被判死（m4a 直链被误杀）')
+    // ③ 200 + text/html：必须仍判 NOT_AUDIO（对齐不能把"假音频"一起放进来）
+    const m3 = mock(200, { 'content-type': 'text/html', 'content-length': '64' })
+    let code = ''
+    try { await m3.__debug.isAudioPlayable('https://example.com/fake.html') } catch (e) { code = e && e.code }
+    assert(code === 'NOT_AUDIO', `200 + text/html 未判 NOT_AUDIO（code=${code || '无=放行'})`)
+    // ④ 206 两侧行为必须保持（RF16 已覆盖 text/html 与 audio/mpeg，这里补缺头与 mp4）
+    const m4 = mock(206, {})
+    assert(await m4.__debug.isAudioPlayable('https://example.com/range-no-ct') === true, '206 + 无 content-type 放行行为被改坏')
+    const m5 = mock(206, { 'content-type': 'audio/mp4', 'content-length': '64' })
+    assert(await m5.__debug.isAudioPlayable('https://example.com/range.m4a') === true, '206 + audio/mp4 应可播')
   })
 
   console.log(`\n${passed} passed, ${failures.length} failed`)

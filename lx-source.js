@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v9.0.0 模块化拆包 + 发布签名版（13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定。上一版 v8.16.4 为播放摘除档位归因版）
- * @version 9.0.0
+ * @description v9.1.0 缓存可用性判据 + 日志脱敏版（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
+ * @version 9.1.0
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -490,7 +490,7 @@ var __lxSourceBundle = (() => {
   // src/core/02-config.js
   var require_config = __commonJS({
     "src/core/02-config.js"(exports, module) {
-      var SOURCE_VERSION = true ? "9.0.0" : "8.16.4";
+      var SOURCE_VERSION = true ? "9.1.0" : "8.16.4";
       var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
       function normalizeProbeSongPool(value) {
         if (!Array.isArray(value)) return null;
@@ -2858,8 +2858,20 @@ var __lxSourceBundle = (() => {
         }
         const crossCached = dep("getCrossFallbackCached")(platform, songInfo, quality);
         if (crossCached) {
-          logDebug(`[\u8DE8\u5E73\u53F0\u7F13\u5B58] ${platform} ${(songInfo == null ? void 0 : songInfo.name) || ""} \u547D\u4E2D ${crossCached.result.sourcePlatform}\uFF0C${dep("CROSS_FALLBACK_CACHE_TTL_MS") / 6e4}min \u5185\u4E0D\u518D\u641C`);
-          return __spreadValues({}, crossCached.result);
+          const cachedUrl = crossCached.result && crossCached.result.url;
+          if (cachedUrl && typeof cachedUrl === "string") {
+            const stillPlayable = await dep("isAudioPlayable")(cachedUrl, 2e3);
+            if (!stillPlayable) {
+              dep("deleteCrossFallbackCached")(platform, songInfo, quality);
+              logInfo(`[\u8DE8\u5E73\u53F0\u7F13\u5B58] ${platform} ${(songInfo == null ? void 0 : songInfo.name) || ""} \u547D\u4E2D ${crossCached.result.sourcePlatform} \u4F46 URL \u5DF2\u5931\u6548\uFF0C\u5DF2\u5220\u7F13\u5B58\u91CD\u65B0\u8D70\u8DE8\u5E73\u53F0\u94FE\u8DEF`);
+            } else {
+              logDebug(`[\u8DE8\u5E73\u53F0\u7F13\u5B58] ${platform} ${(songInfo == null ? void 0 : songInfo.name) || ""} \u547D\u4E2D ${crossCached.result.sourcePlatform}\uFF0C${dep("CROSS_FALLBACK_CACHE_TTL_MS") / 6e4}min \u5185\u4E0D\u518D\u641C\uFF08URL \u5DF2\u9A8C\u53EF\u64AD\uFF09`);
+              return __spreadValues({}, crossCached.result);
+            }
+          } else {
+            logDebug(`[\u8DE8\u5E73\u53F0\u7F13\u5B58] ${platform} ${(songInfo == null ? void 0 : songInfo.name) || ""} \u547D\u4E2D ${crossCached.result.sourcePlatform}\uFF08\u65E0 url \u5B57\u6BB5\uFF0C\u6309\u539F\u884C\u4E3A\u8FD4\u56DE\uFF09`);
+            return __spreadValues({}, crossCached.result);
+          }
         }
         return new Promise((resolve, reject) => {
           let settled = false;
@@ -4161,13 +4173,18 @@ var __lxSourceBundle = (() => {
           });
           const ct = String(((_a = res.headers) == null ? void 0 : _a["content-type"]) || "");
           const looksAudio = /audio|octet|mpeg|mp3|flac|ogg|aac|mp4|m4a/i.test(ct);
+          const looksText = /text\/|json|html/i.test(ct);
           if (res.statusCode === 206) {
             if (!ct) return true;
             if (looksAudio) return true;
             throw notAudioError(ct);
           }
-          if (res.statusCode === 200 && /audio|octet|mpeg|mp3|flac|ogg|aac/i.test(ct)) return true;
-          if (res.statusCode === 200 && ct && /text\/|json|html/i.test(ct)) throw notAudioError(ct);
+          if (res.statusCode === 200) {
+            if (!ct) return true;
+            if (looksAudio) return true;
+            if (looksText) throw notAudioError(ct);
+            return false;
+          }
           return false;
         } catch (e) {
           const code = e && e.code ? e.code : ERROR_CODES.NETWORK_ERROR;
@@ -4426,13 +4443,17 @@ var __lxSourceBundle = (() => {
           result
         });
       }
+      function deleteCrossFallbackCached(platform, songInfo, quality) {
+        return crossFallbackCache.delete(crossCacheKey(platform, songInfo, quality));
+      }
       module.exports = {
         CROSS_FALLBACK_CACHE_MAX,
         CROSS_FALLBACK_CACHE_TTL_MS,
         crossFallbackCache,
         crossCacheKey,
         getCrossFallbackCached,
-        setCrossFallbackCached
+        setCrossFallbackCached,
+        deleteCrossFallbackCached
       };
     }
   });
@@ -6033,7 +6054,7 @@ var __lxSourceBundle = (() => {
     "src/legacy.js"(exports, module) {
       var { SOURCE_TOGGLES, userEnabled, autoOff, autoOffReason, autoOffAt, isUserEnabled, effectiveEnabled, runtimeToggles, manualOff, manualOffAt } = require_source_switch();
       var { breakerMap, playDeadStreak, playDeadQuality, playDeadDeadline, resolveDeadStreak, resolveDeadDeadline, qualitySkipProbeAt, qualityShortCircuitKey, getBreaker, forceQualityProbe } = require_breaker_state();
-      var { CROSS_FALLBACK_CACHE_TTL_MS, crossFallbackCache, getCrossFallbackCached, setCrossFallbackCached } = require_cross_cache();
+      var { CROSS_FALLBACK_CACHE_TTL_MS, crossFallbackCache, getCrossFallbackCached, setCrossFallbackCached, deleteCrossFallbackCached } = require_cross_cache();
       var { PROVIDER_LIFECYCLE } = require_provider_meta();
       var { bindDep } = require_binding();
       var { normalizeProbeSongPool, USER_CONFIG, cfg } = require_config();
@@ -6181,6 +6202,7 @@ var __lxSourceBundle = (() => {
       bindDep("CROSS_FALLBACK_CACHE_TTL_MS", CROSS_FALLBACK_CACHE_TTL_MS);
       bindDep("crossFallbackCache", crossFallbackCache);
       bindDep("getCrossFallbackCached", getCrossFallbackCached);
+      bindDep("deleteCrossFallbackCached", deleteCrossFallbackCached);
       bindDep("setCrossFallbackCached", setCrossFallbackCached);
       bindDep("clearCrossFallbackCache", clearCrossFallbackCache);
       bindDep("crossSearchPlatform", crossSearchPlatform);
@@ -6503,7 +6525,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.0.0 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.0 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {

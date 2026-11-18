@@ -382,13 +382,23 @@ async function isAudioPlayable(audioUrl, timeoutMs = 3000, cancelToken = null) {
     // 是 text/html / application/json 的「假音频」也被判可播。这里 206/200 同口径：
     // 有 content-type 就必须像音频；缺失时仍放行（不少 CDN 不返回该头，保持原宽容度）。
     const looksAudio = /audio|octet|mpeg|mp3|flac|ogg|aac|mp4|m4a/i.test(ct);
+    const looksText = /text\/|json|html/i.test(ct);
+    // v9.1：200 与 206 口径对齐。此前两处不对称会**误杀**正常源（不是漏判，是错判）：
+    //   ① 206 缺 content-type 放行，200 缺头却判死 —— 忽略 Range 头、直接回 200 的 CDN 被封成死链；
+    //   ② 200 分支的音频正则不含 mp4|m4a —— `audio/mp4` 的 m4a 直链被判死。
+    // 误杀的代价：上层把 false 翻成 LINK_EXPIRED 进 byQuality.linkExpired，累计 3 次压制该源该档 6 小时。
+    // 主判据仍是 08-media.js 的 sniffAudioBytes（读真实字节判魔数），这里只是预筛，口径必须一致。
     if (res.statusCode === 206) {
       if (!ct) return true;                    // 缺头仍放行（部分 CDN 不给 content-type）
       if (looksAudio) return true;
       throw notAudioError(ct);                 // 206 + text/html / json：内容不是音频，不是死链
     }
-    if (res.statusCode === 200 && /audio|octet|mpeg|mp3|flac|ogg|aac/i.test(ct)) return true;
-    if (res.statusCode === 200 && ct && /text\/|json|html/i.test(ct)) throw notAudioError(ct);
+    if (res.statusCode === 200) {
+      if (!ct) return true;                    // ① 与 206 统一：缺头不再判死
+      if (looksAudio) return true;             // ② 放行 audio/mp4 / video/mp4 等 m4a 常见类型
+      if (looksText) throw notAudioError(ct);  // 200 + 文本类：内容不是音频
+      return false;                            // 其余未知类型：保守判不可播（与旧 200 行为一致）
+    }
     return false;
   } catch (e) {
     // v8.10.4：网络类异常 ≠ 死链。旧实现一律 return false，调用方据此抛 LINK_EXPIRED，
