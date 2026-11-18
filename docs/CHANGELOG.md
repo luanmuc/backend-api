@@ -75,6 +75,11 @@
 > 本文件是**完整历史**：新版本的详细改动只写这里，README 每版保留一行即可。
 > 2026-11-05 之前（v11.11 ~ v29.9 共 53 个小版本）见 [`ARCHIVE_OLD_TAGS.md`](./ARCHIVE_OLD_TAGS.md)。
 
+### v9.0.0 发布补丁（2026-11-18，CI）
+
+- **`sign-release` job 补 `npm ci`**：该 job 在 `setup-node` 后直接跑 `build-source.js`，`esbuild` 是 devDependency，未安装 → `Cannot find module 'esbuild'`，首推 CI 唯一红点。补装依赖后 job 绿，产出 `source-release-signed` artifact（`lx-source.js` + `.sig` + manifest）。
+
+
 ## 完整版本表
 
 | 版本 | 核心功能 |
