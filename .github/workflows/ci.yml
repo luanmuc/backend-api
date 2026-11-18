@@ -286,6 +286,45 @@ jobs:
             echo "## ⚠️ 生态扫描失败" >> "$GITHUB_STEP_SUMMARY";
           }
 
+  # ---------- v9.3：发布包签名（ed25519） ----------
+  # 只产出 artifact，不自动改 Release 资产：Release 是手工发版的，CI 擅自覆盖已发布的
+  # 二进制会让「哪个包被签过」这件事失去可审计性。发版时把两个产物手动传上去。
+  # 缺 LX_SIGNING_KEY 时**跳过签名**而不是产半成品——带无效签名的包比不签更糟（App 会拒收且难排查）。
+  sign-release:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && needs.test-fast.result == 'success' }}
+    needs: [test-fast]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 重新构建产物（确保签的是本次源码产物，不是仓库里的旧文件）
+        run: node scripts/build-source.js
+      - name: 签名（LX_SIGNING_KEY）
+        env:
+          LX_SIGNING_KEY: ${{ secrets.LX_SIGNING_KEY }}
+          LX_KEY_ID: k1
+        run: |
+          if [ -z "$LX_SIGNING_KEY" ]; then
+            echo "::warning::未配置 LX_SIGNING_KEY，跳过签名（不产出半成品签名）"
+            exit 0
+          fi
+          node scripts/sign-release.js
+          # 用内置公钥自校验一次：签完立刻验，签坏比不签更容易排查
+          node scripts/sign-release.js --verify --pub "MCowBQYDK2VwAyEA72onGCEiDfN+SQDOEHnqkqsIyl8G/ma7tgrRJvC71dQ="
+          echo "## 发布包签名" >> "$GITHUB_STEP_SUMMARY"
+          node -e "const m=require('./lx-source.js.manifest.json');console.log('- version: '+m.version+'\n- size: '+m.size+'\n- sha256: '+m.sha256+'\n- keyId: '+m.keyId)" >> "$GITHUB_STEP_SUMMARY"
+      - name: 上传签名产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-release-signed
+          path: |
+            lx-source.js
+            lx-source.js.sig
+            lx-source.js.manifest.json
+          if-no-files-found: warn
+
   # ---------- v8.10.3：发版自动 purge jsDelivr CDN ----------
   # push master 或发版后立刻刷新 CDN 缓存，App 端检查更新马上能拉到最新版
   purge-cdn:

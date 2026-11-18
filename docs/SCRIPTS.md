@@ -1,6 +1,6 @@
 # 脚本索引（scripts/）
 
-> 21 个脚本 + 4 个 git hook 相关文件。**改任何脚本前先看「副作用」列**——有的会改文件、有的会起定时器、有的会打网络。
+> 28 个脚本（含 1 条 shell runner `v9-gate.sh`，其余为 .js）+ `scripts/lib/` 1 个子库文件（不计入以上 24 个顶层台账）+ 4 个 git hook 相关文件。**改任何脚本前先看「副作用」列**——有的会改文件、有的会起定时器、有的会打网络。
 > 单一真相原则：端点清单只认 `endpoint-registry.js`，开关只认 `source-toggles.js`，日期只认 `cn-date.js`。别在别的脚本里再抄一份。
 > v8.15.1 起本文件纳入 `docs-audit.js` 规则 22：脚本数、每个脚本行数、幽灵条目都会被门禁校验（登记不全直接报红）。
 
@@ -8,7 +8,7 @@
 
 | 脚本 | 职责 | 触发 | 副作用 |
 |---|---|---|---|
-| `build-source.js` (55) | 单文件产物构建：`src/*.js` → esbuild IIFE + CommonJS 桥，写 `lx-source.js`，并校验产物 IIFE 形态与 `@version` 一致性 | `npm run build` / 发布前 | **改** `lx-source.js`（唯一权威产物） |
+| `build-source.js` (56) | 单文件产物构建：`src/*.js` → esbuild IIFE + CommonJS 桥，写 `lx-source.js`，并校验产物 IIFE 形态与 `@version` 一致性 | `npm run build` / 发布前 | **改** `lx-source.js`（唯一权威产物） |
 | `verify-bundle.js` (105) | 产物门禁 B1~B8：版本头、契约 13/11/2、逐源一致、五平台链可重建、取消 API、退役源不在产物、体积/行数上限；**dist/ 不存在时先就地重建再校验**（干净检出也能跑） | `npm run verify:bundle` / CI | 缺产物会写 dist/ |
 | `source-inventory.js` (112) | 源清单预算：13/11/2（登记/上链/观察）+ 退役 8 源不得回产物 + 观察源默认关闭、必须有 `reviewAt`、不得占链位 | `npm run inventory` / CI | 只读 + 报错退出 |
 | `dump-chain.js` (75) | 链序 golden 生成：10 个 active 源 × 5 平台 × 4 音质，写 `test/fixtures/chain-golden.json`（`sourceHead` 读真实 HEAD，不写死） | 链序变更后手动 `--json` | **改** `test/fixtures/chain-golden.json` |
@@ -33,9 +33,15 @@
 
 | 脚本 | 职责 | 触发 | 副作用 |
 |---|---|---|---|
-| `self-check.js` (116) | 发布自检门 L2：`@version` ↔ logInfo 串、各平台 actions 声明、README/ROADMAP 三向同步 | 手动 / CI | 只读 + 报错退出 |
-| `docs-audit.js` (488) | 文档一致性 L4：22 条规则，可自动修数字/版本/行数/脚本清单 | CI 每日 / `--dry-run` | **默认会改文档**；`--dry-run` 只报告 |
-| `doc-sync-map.js` (111) | 改动文件 → 必同步文档清单（hook 用），`--check` 硬触发拦截 | commit 时 hook | 无（被 hook 调用） |
+| `self-check.js` (125) | 发布自检门 L2：`@version` ↔ logInfo 串、各平台 actions 声明、README/ROADMAP 三向同步 | 手动 / CI | 只读 + 报错退出 |
+| `docs-audit.js` (533) | 文档一致性 L4：23 条规则（新增规则23：v9-gate 分组完整性），可自动修数字/版本/行数/脚本清单 | CI 每日 / `--dry-run` | **默认会改文档**；`--dry-run` 只报告 |
+| `layer-check.js` (92) | 分层依赖检查：core 模块无环、不反向 require legacy、无同名顶层定义、不直读 globalThis.lx | `v9-gate --group fast/core` | 只读 |
+| `cross-repo-version.js` (53) | 跨仓版本闸门：用 App 的 `HEADER_VERSION_LINE_REGEX` 真实解析源仓产物，断言产物版本 = legacy 版本、形态合法、App 内置源不高于源仓 | `v9-gate --group core` | 只读 |
+| `schema-parity.js` (47) | probe/telemetry 同 schema 校验：源仓 probeRequests/probeSuccess/totalRequests/totalSuccess ↔ App DigestSourceCount{total,ok}，顶层 probe/play/chain/schema 齐备 | `v9-gate --group core` | 只读 |
+| `sign-release.js` (81) | ed25519 发布签名：`--gen-key` 生成密钥对；默认读 `LX_SIGNING_KEY` 签 `lx-source.js` → `.sig` + `.manifest.json`；`--verify --pub <b64>` 验签并比对 sha256 | 发布前 / CI | **会写 .sig 与 .manifest.json**；无密钥时跳过（不产坏签名） |
+
+
+**CI（ci.yml `sign-release` job）**：push master 且 test-fast 通过后重建产物 → 用 secret `LX_SIGNING_KEY` 签名 → 用内置公钥自校验 → 上传 artifact。**刻意不自动改 Release 资产**：Release 手工发版，CI 擅自覆盖会让「哪些包被签过」失去可审计性。缺 secret 时跳过签名（不产半成品）。| `doc-sync-map.js` (111) | 改动文件 → 必同步文档清单（hook 用），`--check` 硬触发拦截 | commit 时 hook | 无（被 hook 调用） |
 
 ## 四、单一真相模块（被其他脚本 require）
 
@@ -74,3 +80,13 @@ node scripts/docs-audit.js --dry-run     # 文档一致性只读检查
 node scripts/docs-audit.js               # 自动修数字（改完记得 git diff）
 node scripts/dump-chain.js --json        # 链序变更后重生成 golden
 ```
+
+## 九、v9 拆包门禁（只读，不碰产物）
+
+| 脚本 | 职责 | 触发 | 副作用 |
+|---|---|---|---|
+| `api-surface.js` (178) | E0 契约面提取/比对：静态解析导出面（27）/ `__debug`（85）/ 错误码（18）/ 事件字段（12）/ 快照键（6），基线 `test/fixtures/api-surface.json`；拆包前后必须逐项一致 | `npm run api-surface` / 拆包每刀 | 默认只读；`--write` 改 fixture |
+| `equiv-snapshot.js` (216) | E1 行为等价快照：固定 mock 宿主 + 60 歌 × 5 平台 × 4 档 = 1200 例，录 URL/错误码指纹。`--fast --sample 5` 走正常面 100 例（实测 1s）；全量含故障面约 878s，只给段末用 | 拆包每刀（抽样）/ 段末（全量） | `--write` 改 `test/fixtures/equiv-baseline.json` |
+| `v9-gate.sh` (75) | v9 分组门禁 runner（v9.1-b）：`--group fast` = E0+L 分层+C2（0s）；`--group core`（默认）= fast + E1 抽样100 + E3 round3 + X 跨仓版本 + C1 App 契约（36s）；`--group stress` = core + E1 全量 + round4；`--full` 等价 stress | `npm run gate:v9` | 只读；C1 会 cd App 仓跑契约脚本 |
+| `ref-closure.js` (183) | 引用闭包地图（v9.0 拆包选批依据）：静态抽顶层定义的块范围 + 出边/入边/是否用公共层，输出枢纽 top15、叶子、近叶子；`--write` 写 `docs/V9_MODULE_MAP.md` | `npm run ref-map` / 拆包选批前 | 默认只读；`--write` 改 `docs/V9_MODULE_MAP.md` |
+| `lib/js-block.js` (190) | v9.0 拆包切块共享库（**`scripts/lib/` 子目录，不计入顶层 24 个台账**）：`scanToClose` / `blockEnd` / `findDef` / `topDefs` / `parseExports` / `assertParseable`，内置字符串·模板·注释·正则感知 + 默认参数保护 + esbuild 单块 parse 自检 | 被 `/tmp` 迁移脚本与拆包流程 `require` | 纯只读：不写文件、不打网络、不退出 |

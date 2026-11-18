@@ -2,12 +2,13 @@
 
 > **重构说明**：本文件由 v10.0 重构而来，文件名保留 `AUDIT_PLAN_v10.md` 以兼容既有引用。历史 round1~5 分册、v9.0、以及各轮审计报告全部归档，不再叠加进本文件；「当前要审什么、缺口在哪」只以本文件为准。
 >
-> **基线（唯一真值，2026-11-16）**：
-> - 源仓：`luanmuc/backend-api` @ `master`，v8.16.4（播放摘除档位归因，本地单提交待推送；v8.16.2 已有 tag + Release），`lx-source.js` **v8.16.4**，**6083 行 / 320161 bytes**（`node scripts/build-source.js` 实跑）
-> - App 仓：`luanmuc/mobile-app` @ `54249f8b`（已推送），v1.9.2-**b143** / versionCode **302**（Build `43849852397` success，5 APK）；`npm run preflight` 36/36 绿（202s）
+> **基线（唯一真值，2026-11-18）**：
+> - 源仓：`luanmuc/backend-api` @ `master`，**v9.0.0**（模块化拆包 + 发布签名 + 版本区间语义；本地单提交待推送，v8.16.4 为线上最后一个 Release），`lx-source.js` **@version 9.0.0 / 7071 行 / 362008 bytes**（`node scripts/build-source.js` 实跑），ed25519 签名 keyId=**k1**
+> - App 仓：`luanmuc/mobile-app`，**v1.9.3-b151** / versionCode **310**（本地单提交待推送；线上最后一个 Release 为 v1.9.2-b150）；`npm run preflight --fast` **39 通过 / 0 失败**
 > - track-player：`88b062b`（v2 分支）
-> - 硬数字：`test/` 下 **49 个 `.js` 入口**；`npm test` **43 个脚本**（CI 的 L3/L4 审计清单已全量并入，2026-11-16 之前只 26 个）；审计断言 **567 条**（健康域 102 + 其余 455 + 口径 10）；冒烟 67 组；压测 162 条；变异 22 killed / 0 survived
-> - 本文件对应变更：v8.16.2「逐行通读 R-01~R-12 全修」= 档位熔断持久化 / 真实交付音质入账 / 播放与取链分账 / 快照运行期资格 / 试探键清理 / 半开名额后置消费 / `gateErr` 带码带源 / 跨平台可取消 / 兜底结构化判据 / 失败缓存死分支 / provider 不回写调用方对象；新增 `test/audit/readthrough-fixes.js`（RF1~RF18）；`chain-golden.json` 按 `dump-chain.js --json` 重建（`version` 8.16.2 / `sourceHead` 随 HEAD）；`ACCEPTED_SOURCE_VERSIONS` 扩到 `[8.14.1, 8.15.1, 8.16.0, 8.16.1, 8.16.2]`
+> - 硬数字：`test/` 下 **49 个 `.js` 入口**；`npm test` 链上 **45 条命令**（含 4 条压测、1 条冒烟），审计脚本约 **40 个**；审计断言以 `docs/TESTING.md` / `docs/AUDIT_MATRIX.md` 实跑值为准；冒烟 67 组；压测 162 条（S12 + T14 + V133）；变异 22 killed / 0 survived
+> - **v9 新增防线（本轮新增审计面）**：`layer-check.js`（L1~L6 拆包分层，legacy 不得回长、core 模块依赖只能走 `dep()`）、`cross-repo-version.js`（X1~X5 用 App 真实 `HEADER_VERSION_LINE_REGEX` 解析产物）、`schema-parity.js`（4 组计数语义 + App `HealthDigest` 四顶层键）、`sign-release.js`（ed25519 签名/验签/篡改检测）、`v9-gate.sh --group fast|core|stress`
+> - 本文件对应变更：v9.0「6272 行单文件 → 1290 行装配层 + 33 个 `src/core` 模块（`bindDep/dep` 110 条注册）」；`18-health-persist` 改纯区间判定（撤 7 元素白名单）；`02-config` 增 `SOURCE_VERSION`；RF18 去硬编码改「package.json 与产物 `@version` 一致」
 
 ---
 
@@ -69,6 +70,10 @@
 
 | **健康域（14 脚本）** | 探测分批/资格判定/断路器/快照 ETA/事件/状态机/持久化/版本兼容 | `health-*.js` | **102** | A |
 | **计划唯一性** | 每仓审计 1 份 + 压测 1 份；归档合并为一份 | `tg-truth` G14 + `docs-audit` | 1 | A |
+| **拆包分层（v9.0 新增）** | legacy 不得回长（行数上界）、core 模块只能通过 `dep()` 取依赖、装配清单与模块数一致 | `scripts/layer-check.js` | L1~L6 | A |
+| **跨仓版本解析（v9.0 新增）** | 用 App 真实 `HEADER_VERSION_LINE_REGEX` 解析产物 `@version`，双仓口径必须一致 | `scripts/cross-repo-version.js` | X1~X5 | A |
+| **计数语义对齐（v9.0 新增）** | `probe.total` ↔ `probeRequests` ↔ `DigestSourceCount.total` 等 4 组 + App `HealthDigest` 四顶层键 | `scripts/schema-parity.js` | 4 组 | A |
+| **发布签名（v9.0 新增）** | ed25519 签名/验签/篡改必红、keyId 与 App 内置公钥表一一对应、无密钥时跳过而不产半成品 | `scripts/sign-release.js` + `check_source_signing`(App) | 签名链路 | A |
 
 **当前总数**：冒烟 **67 组** + 审计 **567 条**（健康域 102 + 其余 455 + 口径 10）+ 压测 **162 条** + 变异 **22 killed / 0 survived**。计数真值以 `docs/TESTING.md` 与 `docs/AUDIT_MATRIX.md` 为准；`npm test` rc=0 覆盖 42 个脚本。
 
@@ -149,6 +154,11 @@ node test/mutation/run.js --full --strict   # 变异 22 killed / 0 survived（�
 node scripts/self-check.js                  # 版本串三处一致
 node scripts/docs-audit.js --dry-run        # 文档镜像 0 红
 npm run verify:bundle                       # 产物 lx-source.js 8/0
+bash scripts/v9-gate.sh --group core        # v9 门禁（E0+L+C2+E1抽样+E3+X+C1），~35s
+node scripts/layer-check.js                 # L1~L6 拆包分层
+node scripts/cross-repo-version.js          # X1~X5 双仓版本口径
+node scripts/schema-parity.js               # 4 组计数语义 + App HealthDigest 键
+node scripts/sign-release.js --verify --pub "$LX_PUBKEY"   # 发布签名可验
 ```
 
 ### 5b. 全量脚本台账（48 入口 = 42 进 `npm test` + 6 按需）
@@ -255,5 +265,6 @@ npm run verify:bundle                       # 产物 lx-source.js 8/0
 
 | 日期 | 变更 | 实跑证据 |
 |---|---|---|
+| 2026-11-18 | 基线升到 **v9.0.0**（7071 行 / 362008B / ed25519 k1）；新增 4 个审计面（layer-check L1~L6、cross-repo-version X1~X5、schema-parity、sign-release 验签）；`npm test` 42→**45 条命令**；修 MU15/MU22 拆包后失效锚点 | `npm test` RC=0；V 133/0；S 12/0；变异 22 killed/0 survived；`v9-gate core` 35s 通过；`verify:bundle` 8/0；`docs-audit` 0 红 |
 | 2026-11-17 | 巡检升级第一阶段：probe 每次 3 次探测 + `--assert-samples` 空跑守卫；日报加 Wilson 95% 下限与出链抽样段；告警改滚动 Issue；`tg-truth` 加 G15/G17（口径 7→9） | `npm test` rc0 42 脚本 / 567 条；`probe --reps=3 --assert-samples` 当日 51 样本；`source-audit --quick` 8/11 出链 |
 | 2026-11-16 | 基线升到 v8.16.1 / App b143；`npm test` 26→42 脚本（并入 CI 审计清单）；计划唯一性收口（`tg-truth` G14） | `npm test` rc0 42 脚本 / 564 条；`f-repo` 56/0；`docs-audit --dry-run` 0 红；`verify:bundle` 8/0；`npm test` rc0 |

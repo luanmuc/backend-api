@@ -79,8 +79,15 @@ const note = (id, name, detail) => {
 // ---------- A7 判据层魔法数字 ----------
 {
   const fnStart = code.indexOf('function verifyDelivery');
-  const fnEnd = code.indexOf('function rememberFragmentSource');
-  const body = code.slice(fnStart, fnEnd);
+  // v9.0 拆包后 verifyDelivery 落在 src/core/15-verify.js，不再是 bundle 里一段连续区间：
+  // 改用花括号配对截取本函数体，并剔除 `const X = 数字` 这类常量定义行（定义不是裸值）。
+  let end = fnStart, depth = 0;
+  for (let i = code.indexOf('{', fnStart); i < code.length; i++) {
+    if (code[i] === '{') depth++;
+    else if (code[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+  }
+  const body = code.slice(fnStart, end).split('\n')
+    .filter((l) => !/^(?:const|let|var)\s+\w+\s*=/.test(l.trim())).join('\n');
   const bare = [];
   for (const [num, constName] of [['0.6', 'VERIFY_DUR_RATIO'], ['15', 'VERIFY_DUR_GAP_SEC'], ['90', 'VERIFY_MIN_ORIGINAL_SEC'], ['1023', 'VERIFY_RANGE_BYTES']]) {
     const re = new RegExp(`(^|[^\\w.])${num.replace('.', '\\.')}([^\\w.]|$)`, 'g');

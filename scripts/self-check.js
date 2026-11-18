@@ -20,10 +20,19 @@ if (require.main !== module) {
 let failed = false;
 const fail = (msg) => { failed = true; console.error('[自检失败] ' + msg); };
 
-const srcPath = path.join(__dirname, '..', 'src', 'legacy.js'); // 静态实现源；发布产物由 build-source.js 生成
+// v9.0 拆包后静态实现源分布在 src/core/*.js + src/legacy.js：按模块顺序拼接后再静态自检，
+// 否则已迁出的定义（如 PLATFORM_QUALITIES）会被误判缺失。发布产物仍由 build-source.js 生成。
+const srcDir = path.join(__dirname, '..', 'src');
+const srcPath = path.join(srcDir, 'legacy.js');
+const coreDir = path.join(srcDir, 'core');
 const readmePath = path.join(__dirname, '..', 'README.md');
 const roadmapPath = path.join(__dirname, '..', 'docs', 'ITERATION_ROADMAP.md');
-const src = fs.readFileSync(srcPath, 'utf-8');
+const coreFiles = fs.existsSync(coreDir) ? fs.readdirSync(coreDir).filter((f) => f.endsWith('.js')).sort() : [];
+const src = coreFiles
+  .map((f) => fs.readFileSync(path.join(coreDir, f), 'utf-8'))
+  .concat(fs.readFileSync(path.join(srcDir, '00-header.js'), 'utf-8'))
+  .concat(fs.readFileSync(srcPath, 'utf-8'))
+  .join('\n');
 
 // 1) 版本串同步
 const verHeaderMatch = src.match(/@version\s+(\S+)/);

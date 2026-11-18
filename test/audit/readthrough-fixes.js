@@ -291,12 +291,17 @@ const killPlayDead = (m) => {
 
   await check('RF18 版本/口径一致（R-08，静态）', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-    assert(pkg.version === '8.16.4', `package.json version=${pkg.version}`)
+    // v9.0.0：不再硬编码版本号（每次升版都要改断言，等于把门禁变成维护负担）。
+    // 改为断言「package.json 与产物 @version 一致」——这才是这条规则真正要防的漂移。
+    const distSrc = fs.readFileSync(SRC, 'utf8')
+    const distVer = (/@version\s+(\S+)/.exec(distSrc) || [])[1]
+    assert(distVer === pkg.version, `产物 @version=${distVer} ≠ package.json=${pkg.version}`)
     assert(/13 登记源 \/ 11 上链 \/ 2 观察/.test(pkg.description), `package description 口径陈旧: ${pkg.description}`)
     const header = fs.readFileSync(path.join(ROOT, 'src/00-header.js'), 'utf8')
-    assert(/@version 8\.16\.4/.test(header), '头模板版本未升')
+    const verRe = pkg.version.replace(/[.]/g, '\\.')
+    assert(new RegExp('@version ' + verRe).test(header), `头模板版本未升（应含 @version ${pkg.version}）`)
     assert(/13 登记源 \/ 11 上链 \/ 2 观察/.test(header), '头模板口径陈旧')
-    assert(CODE.includes('@version 8.16.4'), '产物版本头未升')
+    assert(new RegExp('@version ' + pkg.version).test(CODE), '产物版本头未升')
     assert(!/12 登记源 \/ 10 上链/.test(CODE), '产物仍写旧口径 12/10')
   })
 

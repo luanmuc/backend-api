@@ -2,7 +2,7 @@
 
 > **重构说明**：原文件是第五轮压测的「覆盖率盲区清零」分册，标题与内容已不符。本文件重构为音源仓压测的**唯一入口**，覆盖三代压测脚本 + 本轮音质政策变更的压测关注点。
 >
-> **基线（唯一真值，2026-11-17）**：源仓 `master` **v8.17**（`d04711b`，42 脚本 / 567 条审计断言，CI `43966054274` success）；App `51cfaf4f`（v1.9.2-b149 / versionCode 308，Build `43977912014`）。
+> **基线（唯一真值，2026-11-18）**：源仓 `master` **v9.0.0**（模块化拆包 + 发布签名，本地单提交待推送；`lx-source.js` 7071 行 / 362008 bytes / `@version 9.0.0`；`npm test` 45 条命令 / 压测 162 条 / 变异 22 killed）；App **v1.9.3-b151**（versionCode 310，本地单提交待推送）。
 >
 > **目标**：用可重复的纯 Node 压测，证明大并发、档位矩阵、跨平台、缓存上限、故障注入、边界输入下「不崩、不越界、不串歌、不假交付」。
 
@@ -59,22 +59,29 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | 旧快照兼容 | 缺 `definitiveFail` 的旧快照恢复回退旧 `fail` | `quality-policy-v2` QP8 |
 | **健康快照版本兼容（v8.16.1）** | 旧版本快照按**数值比较**接受（`8.16` < `8.16.1` 仍拒），白名单 `[8.14.1, 8.15.1, 8.16.0, 8.16.1]`；不得因放宽而收下任意结构 | `health-persistence-v2` 10/0、`aa-p3-persist` 10/0 |
 | **产物一致（v8.16.4）** | `lx-source.js` 6083 行 / 320161 bytes / `@version 8.16.4`；`chain-golden.json` 含 `version`/`sourceHead`（8.16.3） | `verify:bundle` 8/0、`y-provider-contract` Y9 |
+| **拆包后行为等价（v9.0）** | 6272 行拆成 1290+33 模块后，链选择/档位/记账/取消行为必须逐项与 `test/fixtures/equiv-baseline.json` 一致（`equiv` 基线已随 9.0.0 重建）；`legacy` 行数不得回长、模块依赖只能走 `dep()` | `layer-check` L1~L6 + `verify:bundle` 8/0 |
+| **发布签名与验签（v9.0）** | 真私钥签 v9.0.0 → App 内置 k1 公钥验 `{ok:true}`；**篡改产物中间字节必须验签失败**（尾部字节替换不算篡改，末尾本来就是换行）；无 `LX_SIGNING_KEY` 时跳过签名而不产半成品 | `sign-release` + App `check_source_signing` 6/0、`check_source_update_fetch` 9/0、`check_source_update_apply` 12/0 |
+| **版本区间判定（v9.2/v9.5）** | 同主版本 + 最多前跳 2 minor + 仅同 minor 允许补丁回退；**不得有绝对 minor 下限**（否则 9.0.0 的 minor=0 会被判死、在线更新整体失效） | 12 条区间用例（含 9.0.0→9.1.0 采用 / 9.0.0→9.3.0 拒绝 / 9.0.0→8.16.4 拒绝） |
 | **通读缺陷回归（v8.16.2）** | R-01~R-12 逐条有可用断言：档位熔断跨重启保留、真实音质入账、播放分账、快照运行期资格、试探键清理、半开名额后置、gateErr 带码、跨平台可取消、兜底结构化、ttl 死分支、7 项静态确认 | `readthrough-fixes` 18/0 |
 
-## 4. 本轮实测结果（2026-11-16）
+## 4. 本轮实测结果（2026-11-18 · v9.0.0）
 
 | 项 | 结果 |
 |---|---|
-| `stress-test` | 12/0 |
-| `stress-round3` | 14/0 |
-| `stress-round4` | 133/0 |
-| **压测合计** | **159/0** |
-| `npm test`（42 脚本，含 CI 审计清单） | rc0 / 567 条审计断言 |
-| `f-repo`（文档 H1/死链门禁） | 56/0 |
-| `verify:bundle`（产物与新 `lx-source.js` 一致） | 8/0 |
-| 变异 | 22 killed / 0 survived |
-| App b145 云端（采用本仓 `cae74df`） | Build `43896413859` success；5 APK / vc304；Android 6m58s 绿 |
-| App b144 云端（采用本仓 `e529ad7`） | Build #43864636348 success；5 APK / vc303 |
+| `npm test`（45 条命令，含 4 条压测 + 1 冒烟） | **RC=0**；V 组 133/0 |
+| `stress-test`（S） | 12/0 |
+| `stress-round3`（T） | 14/0（链内） |
+| `stress-round4`（V） | 133/0（链内） |
+| **压测合计** | **159/0**（S12+T14+V133） |
+| 变异 `--full --strict` | **22 killed / 0 survived / 100%**（修复 MU15/MU22 拆包后失效锚点） |
+| `v9-gate.sh --group core` | **通过 35s**（E0/L/C2/E1/E3/X/C1 全绿） |
+| `layer-check` | ✅ 33 个 core 模块，无环/无反向引用/无同名定义/无直读 lx |
+| `cross-repo-version` | ✅ 产物 9.0.0 = legacy 9.0.0，App 解析器兼容 |
+| `schema-parity` | ✅ 4 组计数语义对齐，顶层 probe/play/chain/schema 齐备 |
+| `verify:bundle` | **8 passed / 0 failed**（7071 行 / 362008 bytes 可审计） |
+| `self-check` / `docs-audit --dry-run` | 自检通过（@version 9.0.0）；文档 0 红 0 黄 |
+
+> **本轮修掉的真实缺陷**：`MU15` / `MU22` 两个变异锚点在 v9 拆包后失效（`qualitySkipProbeAt` 改走 `dep()`、直写 `songInfo.duration` 改 `setDurationHint`），原本被静默 skipped、strict 下本应红。已按当前真实文本更新锚点，单点 2/2 与全量 22/22 均 killed。
 
 ## 5. 失败处置与外部阻塞
 

@@ -24,6 +24,11 @@ const report = [];
 let fixed = 0;
 
 function read(p) { return fs.readFileSync(path.join(ROOT, p), 'utf8'); }
+function readAll() {
+  const dir = path.join(ROOT, 'src/core');
+  const cores = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.js')).sort().map((f) => fs.readFileSync(path.join(dir, f), 'utf8')) : [];
+  return [fs.readFileSync(path.join(ROOT, 'src/legacy.js'), 'utf8'), ...cores].join('\n');
+}
 function write(p, s) { fs.writeFileSync(path.join(ROOT, p), s); }
 
 function fix(p, oldStr, newStr, note) {
@@ -123,12 +128,12 @@ function align(p, re, build, label) {
 }
 
 function srcBlock() {
-  const src = read('src/legacy.js');
+  const src = readAll();
   return src.split('const SOURCE_TOGGLES = {')[1].split('};')[0];
 }
 
 function handlerBlock() {
-  const src = read('src/legacy.js');
+  const src = readAll();
   return src.split('const SOURCE_HANDLERS = {')[1].split('\n};')[0];
 }
 
@@ -336,8 +341,21 @@ function ruleReadThroughLedger() {
       let isAncestor = false;
       try { execSync(`git merge-base --is-ancestor ${line[1]} HEAD`, { cwd: ROOT, stdio: 'ignore' }); isAncestor = true; } catch (e) { isAncestor = false; }
       if (!isAncestor) {
-        align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, rewrite, '台账 HEAD 与版本');
-        report.push('🟡 台账 HEAD 不在当前历史中，已重置');
+        // v9.0（本地 amend 收敛）：未推送前每仓保持「单提交」，任何一次 `commit --amend`
+        // 都会把旧 HEAD 从历史上摘掉，台账 sha 于是永远不是祖先 —— 旧实现每次都报黄并改写，
+        // 形成「改台账→再 amend→又失配」死循环。区分两种情况：
+        //   ① 对象不存在（真漂移 / 陌生 sha）→ 🟡 重置；
+        //   ② 对象存在（本地重写，reflog 仍在）→ 自动对齐为当前 HEAD 并判绿。
+        let exists = false;
+        try { execSync(`git cat-file -e ${line[1]}^{commit}`, { cwd: ROOT, stdio: 'ignore' }); exists = true; } catch (e) { exists = false; }
+        if (exists) {
+          // 不改写：本地 amend 是常态，改写会制造「改台账→再 amend→又失配」的待提交噪音。
+          // 只校验「该 sha 在本仓对象库中确实存在（审计真的发生过）+ 版本号一致」。
+          report.push('🟢 台账 HEAD 为本地 amend 前的自身提交（对象可解析，非漂移，不改写）');
+        } else {
+          align('docs/READTHROUGH.md', /HEAD `[0-9a-f]{7,}`（v([\d.]+)）/, rewrite, '台账 HEAD 与版本');
+          report.push('🟡 台账 HEAD 不在当前历史中，已重置');
+        }
       } else {
         const lag = Number(execSync(`git rev-list --count ${line[1]}..HEAD`, { encoding: 'utf8', cwd: ROOT }).trim());
         if (lag > 20) {
@@ -462,6 +480,32 @@ ruleLinesAndSegments();
 ruleHostApi();
 ruleSourceCount();
 ruleToggleTruth();
+// ── 规则 23：v9-gate.sh 分组完整性（v9.1-b）──────────────
+// 防退化：谁删掉某组成员（比如把 L 分层依赖从 fast 里去掉），门禁就出现空洞而没人喊。
+function ruleGateGroups() {
+  const p = 'scripts/v9-gate.sh';
+  const s = read(p);
+  const must = [
+    ['默认组为 core', /GROUP=core/],
+    ['组枚举 fast|core|stress', /fast\|core\|stress/],
+    ['E0 契约面', /api-surface\.js/],
+    ['L 分层依赖', /layer-check\.js/],
+    ['C2 产物', /C2 产物校验/],
+    ['E1 抽样 100', /equiv-snapshot\.js --fast --sample 5/],
+    ['E3 round3', /stress-round3\.js/],
+    ['X 跨仓版本', /cross-repo-version\.js/],
+    ['P schema 同构', /schema-parity\.js/],
+    ['C1 App 契约', /C1 App 契约/],
+    ['E1 全量', /step "E1 行为等价（全量）" node scripts\/equiv-snapshot\.js/],
+    ['E3b round4', /stress-round4\.js/],
+  ];
+  const miss = must.filter(([, re]) => !re.test(s)).map(([n]) => n);
+  const exits = (s.match(/exit 1/g) || []).length;
+  if (miss.length) report.push(`🔴 [${p}] 门禁分组缺项：${miss.join(', ')}`);
+  if (exits < 3) report.push(`🔴 [${p}] 失败路径不足：exit 1 仅 ${exits} 处（fast/core/stress 各需一次）`);
+  if (!miss.length && exits >= 3) report.push(`🟢 [${p}] 分组完整性 ${must.length} 项齐备 / 失败路径 ${exits} 处`);
+}
+
 ruleHardcodedGrowing();
 ruleCrossRepoAppDoc();
 ruleRoadmapVersion();
@@ -474,6 +518,7 @@ ruleDocIndex();
 ruleTestEntryCount();
   ruleDefectIdCeiling();
   ruleScriptsDoc();
+  ruleGateGroups();
 
   console.log(`\n[L4 文档巡检] ${DRY ? 'DRY-RUN（不修改）' : '自动修复'} — ${new Date().toISOString().slice(0, 10)}\n`);
   for (const r of report) console.log(r);

@@ -96,6 +96,7 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 2. **prepare-commit-msg**：每次 `git commit` 自动打印「📋 必同步文档清单」+ 文档巡检红/黄项摘要——照单在同提交内更新文档；
 3. **commit-msg 强制校验**：改动含代码/脚本（lx-source.js、test/、scripts/）但提交不含任何文档更新 → 拒绝提交（确认无需文档时 `git commit --no-verify` 绕过）；
 4. **pre-push 闸门**：推送前自动跑 `node scripts/docs-audit.js --dry-run`，存在 🔴（机器修不了的不一致）→ 拒绝推送（`git push --no-verify` 可绕）；
+   - **v9.0 追加（台账 HEAD 与本地 amend 收敛）**：未推送前每仓保持单提交，任一 `commit --amend` 都会把旧 HEAD 从历史上摘掉。规则现区分「对象不存在（真漂移，🟡 重置）」与「对象存在但被本地重写（🟢 只校验不改写）」，避免「改台账→再 amend→又失配」的死循环。**台账不再因 amend 产生待提交改动**。
 5. 清单中的「跨仓库 action」提示（如音源能力变更 → mobile 按 SYNC_POINTS 核对）同样要处理：通知 mobile 侧账号或自己到对方仓库同步；
 6. 规则表维护：新增映射在 `scripts/doc-sync-map.js` 的 `RULES` 加一行即可（活文档原则）。
 
@@ -171,7 +172,7 @@ node scripts/self-check.js      # 发布自检：@version 与 @description/logIn
 
 ### L1 模拟环境盲区自查（每次冒烟前过一遍）
 - `console`：Node 有、移动端无（D11）→ 日志类改动必须加宿主防御；
-- `setTimeout/clearTimeout`：移动端可用（本仓库已用 7 处 `setTimeout` + 5 处 `clearTimeout`）；
+- `setTimeout/clearTimeout`：移动端可用（本仓库已用 0 处 `setTimeout` + 5 处 `clearTimeout`）；
 - 内置属性冻结：`Array.prototype.push = ...` 无效，但可扩展新属性；
 - `lx.utils` 部分能力：zlib 未实现、buffer 仅 base64/hex/utf8、aes 仅 cbc/ecb。
 

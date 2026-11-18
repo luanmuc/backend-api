@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **49 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集已全部并进 `npm test` 的 **45 个脚本**（冒烟 1 + 审计 42 + 压测 2；2026-11-16 把 CI 的 L3/L4 审计清单全量并入，此前本地只跑 26 个，`f-repo` 这类文档死链门禁本地根本不跑；**2026-11-17 把 `stress-round3/4` 并入本地 `npm test`**——此前这两条只在云端 `stress-short` 跑，导致「本地全绿、推送后云端红」（T8 硬编码错误码数 17）的盲区反复出现），其余 6 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
+> **49 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集已全部并进 `npm test` 的 **45 个脚本**（冒烟 1 + 审计 42 + 压测 2；2026-11-16 把 CI 的 L3/L4 审计清单全量并入，此前本地只跑 26 个，`f-repo` 这类文档死链门禁本地根本不跑；**2026-11-17 把 `stress-round3/4` 并入本地 `npm test`**——此前这两条只在云端 `stress-short` 跑，导致「本地全绿、推送后云端红」（T8 硬编码错误码数 17）的盲区反复出现），其余 4 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
 > 断言实测（2026-11-13 当前工作树）：冒烟 **67 组** + 压测 **159 条**（12/14/**133**）+ 审计断言按各脚本输出汇总（本轮新增 health-snapshot **11/0**、health-probe-batch2 **9/0**、health-eligibility-batch3 **9/0**）；历史 429/655 是旧口径，不再作为当前总数。逐入口明细见下方「入口总表」。变异体 **22 个**（`--full --strict` 全量 **22 killed / 0 survived**，2026-11-13 实测）。
@@ -166,3 +166,17 @@ node scripts/verify-real-platform-chains.js  # G7 平台 ID 链：先搜 songmid
 
 - **G2 真机验收：blocked**。云主机无 `adb`、无 `/dev/kvm`、`ANDROID_HOME` 未设置；`scripts/health_device_acceptance.sh --dry-run` 返回 3。未执行真机 UI 验收，不得写成通过。
 - **G7 tx 完整链：blocked**。上游约 60 秒试听；代码只能识别 `PREVIEW_FRAGMENT` 并回退，不能证明完整曲目。
+
+## 九、v9 拆包门禁（`npm run gate:v9`）
+
+拆包期的单一安全网，36s 跑完，每个 commit 必过：
+
+```bash
+npm run gate:v9          # E0 契约面 + E1 抽样100例 + E3 round3 + C2 产物 + C1 App 契约
+npm run gate:v9 -- --full # 再加 round4(133条) 与 E1 全量(1200例, ~878s)
+npm run api-surface      # 只查 E0 契约面
+node scripts/equiv-snapshot.js --fast --sample 5   # 只查 E1（1s）
+node scripts/equiv-snapshot.js --write             # 行为改动被承认后重建基线
+```
+
+注意：E1 全量含故障面（`n%3===0` 空 url / `n%3===1` HTTP 500），故障例会触发降档重试链，所以慢；日常只跑正常面抽样，全量留给段末。

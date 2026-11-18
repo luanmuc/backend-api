@@ -18,7 +18,9 @@ const S = (id, msg) => { red++; console.log('  ❌  ' + '[' + id + '] ' + msg + 
 
 // G1 源数：provider 定义数 vs run.js 断言值
 try {
-  const provs = [...rd('src/legacy.js').matchAll(/\n\s+([A-Za-z0-9_]+):\s+provider\(/g)].map(m => m[1])
+  const allSrc = fs.readdirSync(path.join(root, 'src/core')).filter((f) => f.endsWith('.js'))
+    .map((f) => rd('src/core/' + f)).join('\n') + '\n' + rd('src/legacy.js')
+  const provs = [...allSrc.matchAll(/\n\s+([A-Za-z0-9_]+):\s+provider\(/g)].map(m => m[1])
   const m = rd('tools/live/run.js').match(/real\.length === (\d+)/)
   if (!m) F('G1 run.js 找不到 real.length 断言')
   else if (Number(m[1]) === provs.length) P('G1', `源数 ${m[1]} = 实际 provider ${provs.length}`)

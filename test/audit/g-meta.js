@@ -22,6 +22,13 @@ const rec = (id, name, ok, detail) => {
 
 const read = (p) => fs.readFileSync(p, 'utf8');
 const src = read(SRC);
+// v9.0 拆包：公共层已拆到 src/core/，涉及「配置表/白名单/cfg()」的判据必须跨模块读，
+// 否则按单文件读会把「已迁走」误报成「未解析到（判据失效）」。
+const CORE_DIR = path.join(ROOT, 'src', 'core');
+const coreTexts = fs.existsSync(CORE_DIR)
+  ? fs.readdirSync(CORE_DIR).filter((f) => f.endsWith('.js')).sort().map((f) => read(path.join(CORE_DIR, f)))
+  : [];
+const srcAll = [...coreTexts, src].join('\n');
 
 // 所有审计/测试脚本文件清单（用于 M1~M3、M8~M12）
 const auditFiles = fs.readdirSync(AUDIT).filter((f) => f.endsWith('.js')).map((f) => path.join(AUDIT, f));
@@ -196,11 +203,11 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
   // 不看"文本里提到没提到"，只查三个**语义位置**：配置默认表、可写白名单、cfg() 读取参数。
   // 这三处是结构确定的，不用剥注释，也不会被日志文案里的历史说明误伤。
   const hits = [];
-  const blockOf = (re) => { const m = src.match(re); return m ? m[0] : ''; };
+  const blockOf = (re) => { const m = srcAll.match(re); return m ? m[0] : ''; };
   const positions = [
     ['USER_CONFIG', blockOf(/const USER_CONFIG\s*=\s*\{[\s\S]*?\n\};/)],
     ['ALLOWED_KEYS', blockOf(/ALLOWED_KEYS\s*=\s*\[[\s\S]{0,3000}?\]/)],
-    ['cfg()调用', (src.match(/cfg\(\s*['"][\w]+['"]/g) || []).join('\n')],
+    ['cfg()调用', (srcAll.match(/cfg\(\s*['"][\w]+['"]/g) || []).join('\n')],
   ];
   for (const [label, text] of positions) {
     if (!text) { hits.push(`${label} 未解析到（判据失效）`); continue; }
@@ -418,7 +425,7 @@ const scriptJs = fs.readdirSync(SCRIPTS).filter((f) => f.endsWith('.js')).map((f
 // （加回来照样能过几乎所有行为用例，因为内层缓存命中的表现和正常交付一模一样）。
 // 所以这里守结构不变量：缓存只能有**一个**写点，且必须在 `await verifyDelivery` 之后。
 {
-  const t = read(SRC).split('\n');
+  const t = srcAll.split('\n');
   const calls = [];
   t.forEach((l, i) => {
     if (!/setCachedUrl\(/.test(l)) return;

@@ -33,6 +33,7 @@ function build() {
     outfile: DIST,
     legalComments: 'none',
     banner: { js: HEADER },
+    define: { __LX_SOURCE_VERSION__: JSON.stringify(VERSION) },   // v9.2：版本唯一真相源 = package.json
     logLevel: 'warning',
   });
 }

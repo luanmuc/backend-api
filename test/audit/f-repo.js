@@ -21,7 +21,9 @@ const rec = (id, name, ok, detail) => {
 };
 const abs = p => path.join(ROOT, p);
 const read = p => fs.readFileSync(abs(p), 'utf8');
-const STATIC_SRC = 'src/legacy.js';
+const CORE_DIR = path.join(__dirname, '../../src/core');
+const STATIC_SRC = fs.readdirSync(CORE_DIR).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(path.join(CORE_DIR, f), 'utf8')).join('\n')
+  + '\n' + fs.readFileSync(path.join(__dirname, '../../src/legacy.js'), 'utf8');
 const exists = p => fs.existsSync(abs(p));
 // core.quotepath=false：否则中文文件名会被转成 "\347\254..." 加引号，statSync 直接 ENOENT
 const files = execFileSync('git', ['-c', 'core.quotepath=false', 'ls-files'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
@@ -94,7 +96,7 @@ console.log('\n[U] 全文件静态合规（' + files.length + ' 个 tracked 文�
   rec('U8', '无明文 token / 40 位密钥', secrets.length === 0, secrets.join(','));
 
   // 只抓「真调试残留」：排除 logInfo/logWarn 里对 console 的绑定与转发
-  const dbg = read(STATIC_SRC).split('\n')
+  const dbg = STATIC_SRC.split('\n')
     .filter(l => /console\.(log|debug|error)/.test(l))
     .filter(l => !/console\.(log|error)\.bind\(console\)/.test(l))
     .filter(l => !/^\s*(\/\/|\*)/.test(l));
@@ -144,7 +146,7 @@ console.log('\n[V] 交叉引用与一致性');
   }
   rec('V1', `全部 ${md.length} 个 .md 相对链接无死链`, dead.length === 0, dead.slice(0, 4).join(' | '));
 
-  const verSrc = (read(STATIC_SRC).match(/@version\s+([\d.]+)/) || [])[1];
+  const verSrc = (STATIC_SRC.match(/@version\s+([\d.]+)/) || [])[1];
   const docsHaveVer = ['README.md', 'docs/ITERATION_ROADMAP.md', 'docs/DEV_GUIDE.md'].map(f => {
     const m = read(f).match(new RegExp('v?' + verSrc.replace(/\./g, '\\.') + '\\b'));
     return m ? null : f;
@@ -156,16 +158,16 @@ console.log('\n[V] 交叉引用与一致性');
   const smokeNum = Math.max(...smokePairs);
   rec('V3', `冒烟实测组数可解析（${smokeNum} 组）`, smokeNum >= 60, 'max=' + smokeNum);
 
-  const toggleKeys = (read(STATIC_SRC).match(/const SOURCE_TOGGLES = \{([\s\S]*?)\n\};/) || [])[1] || '';
+  const toggleKeys = (STATIC_SRC.match(/const SOURCE_TOGGLES = \{([\s\S]*?)\n\};/) || [])[1] || '';
   const toggleN = (toggleKeys.match(/^\s{2}\w+:/gm) || []).length;
   const docN = (read('docs/DEV_GUIDE.md').match(/(\d+)\s*个子源|登记源\s*(\d+)/) || [])[0] || '';
   // v8.13：SOURCE_TOGGLES 12 键 = 12 登记源（10 上链 + 2 观察），一一对应
-  const srcCnt = (read(STATIC_SRC).match(/id:\s*"[\w.]+"/g) || []).length;
+  const srcCnt = (STATIC_SRC.match(/id:\s*"[\w.]+"/g) || []).length;
   // 注意：juhe 五源写在同一行，按行数统计会得 16，真实是 20 个键（用 parseToggles 的解析结果做真值）
   const parsedN = (() => { try { const o = require(abs('scripts/source-toggles.js')).parseToggles(); return Object.keys(o.toggles || o).length; } catch (e) { return -1; } })();
   rec('V4', `SOURCE_TOGGLES 实测 ${parsedN} 个开关（文档口径 ${docN || '未声明'}）`, parsedN === 13, `解析 ${parsedN} 键 / 行内 ${toggleN} 行`);
 
-  const errBlock = (read(STATIC_SRC).match(/const ERROR_CODES = \{([\s\S]*?)\n\};/) || [])[1] || '';
+  const errBlock = (STATIC_SRC.match(/const ERROR_CODES = \{([\s\S]*?)\n\};/) || [])[1] || '';
   const errCnt = (errBlock.match(/^\s{2}\w+:/gm) || []).length;
   const errDoc = (read('docs/DEV_GUIDE.md').match(/ERROR_CODES[^\n]*?(\d+)\s*个/) || [])[1];
   rec('V5', `ERROR_CODES 实测 ${errCnt} 个${errDoc ? `，文档写 ${errDoc}` : '（文档未写死，OK）'}`, !errDoc || Number(errDoc) === errCnt);
@@ -235,7 +237,7 @@ console.log('\n[W] 脚本自洽');
 // ══ X 组：功能联动（跨模块契约） ══
 console.log('\n[X] 功能联动（跨模块）');
 {
-  const src = read(STATIC_SRC);
+  const src = STATIC_SRC;
   const probe = read('scripts/probe.js');
   const daily = read('scripts/health-daily.js');
   const rh = read('README_HEALTH.md');
@@ -290,7 +292,7 @@ console.log('\n[X] 功能联动（跨模块）');
 // ══ Y 组：残留与死码 ══
 console.log('\n[Y] 残留与死码');
 {
-  const src = read(STATIC_SRC);
+  const src = STATIC_SRC;
   const fnDefs = [...src.matchAll(/^function (\w+)\(/gm)].map(m => m[1]);
   const dupFn = fnDefs.filter((n, i) => fnDefs.indexOf(n) !== i);
   rec('Y1', `无重复函数定义（${fnDefs.length} 个）`, dupFn.length === 0, dupFn.join(','));
@@ -310,7 +312,7 @@ console.log('\n[Y] 残留与死码');
     .filter(v => (src.match(new RegExp(`\\b${v}\\b`, 'g')) || []).length <= 1);
   rec('Y5', '无只声明不使用的 let 变量', unusedVar.length === 0, unusedVar.slice(0, 5).join(','));
 
-  const expBlock = (src.match(/module\.exports = \{([\s\S]*?)\n\s*\};/) || [])[1] || '';
+  const expBlock = (src.match(/module\.exports = \{\n([\s\S]*?)\n  \};/) || [])[1] || '';
   const expNames = [...expBlock.matchAll(/^\s{2,4}(\w+),?/gm)].map(m => m[1]);
   rec('Y6', `导出测试面存在且非空（${expNames.length} 项）`, expNames.length >= 10, expNames.length + ' 项');
 }

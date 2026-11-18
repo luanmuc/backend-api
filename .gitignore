@@ -1,2 +1,6 @@
 node_modules/
 dist/
+
+# v9.3-a 发布签名产物（CI 生成，不入库）
+lx-source.js.sig
+lx-source.js.manifest.json

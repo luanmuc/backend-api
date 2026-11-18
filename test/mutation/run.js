@@ -124,8 +124,9 @@ const MUTANTS = [
   {
     id: 'MU15',
     name: '音质短路到期不放行（qualityShortCircuitProbeMs 形同虚设，该档永久被跳过）',
-    from: "if (Date.now() >= qualitySkipProbeAt.get(key)) { qualitySkipProbeAt.set(key, Date.now() + probeMs); return false; }",
-    to: 'if (Date.now() >= qualitySkipProbeAt.get(key)) { qualitySkipProbeAt.set(key, Date.now() + probeMs); return true; }',
+    // v9：qualitySkipProbeAt 已迁入 34-breaker-state，经 dep() 取用（拆包后锚点随之更新）
+    from: "if (Date.now() >= dep('qualitySkipProbeAt').get(key)) { dep('qualitySkipProbeAt').set(key, Date.now() + probeMs); return false; }",
+    to: "if (Date.now() >= dep('qualitySkipProbeAt').get(key)) { dep('qualitySkipProbeAt').set(key, Date.now() + probeMs); return true; }",
     gates: ['test/stress-round4.js'],
   },
   {
@@ -176,8 +177,9 @@ const MUTANTS = [
   },
   // MU22（v8.11.1 / D-39）：message 里的时长不回填 → 调用方没传 duration 时片段校验静默失效
   { id: 'MU22', name: 'D-39 message 时长回填被删 → 超长曲片段校验失效',
-    from: 'if (parsed && parsed.duration && !songInfo.duration) songInfo.duration = parsed.duration;',
-    to: 'if (false) songInfo.duration = parsed.duration;',
+    // v9：直写 songInfo.duration 有跨桥副作用，已改 setDurationHint（29-search），锚点随之更新
+    from: 'if (parsed && parsed.duration) setDurationHint(songInfo, parsed.duration);',
+    to: 'if (false) setDurationHint(songInfo, parsed.duration);',
     gates: ['test/stress-round4.js'] }
 ];
 

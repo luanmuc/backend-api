@@ -16,7 +16,7 @@
 
 ## 二、机器已覆盖的项（不必人肉重查）
 
-`scripts/docs-audit.js` 22 条规则（v8.15.1 起新增规则 22：`docs/SCRIPTS.md` ↔ `scripts/` 实测一致性）：冒烟组数（全文档 4 处）、`lx-source.js` 总行数、行段表末段边界、setTimeout 处数、子源总数、ikun/huibq 开关真值、`@version` 串、pdone URL、health/candidate 新鲜度、跨仓 App 文档版本、写死增长量检测、`ITERATION_ROADMAP` 当前版本、`SOURCE_AUDIT` 登记源数与 `verified` 源数、README 当前版本行、CI 变异体数（且必须带 `--strict`）、`AUDIT_MATRIX` 逐行行数与漏登文件、`READTHROUGH` 台账同步、`DOC_INDEX` 登记完整性、测试入口数、缺陷编号上界、脚本清单（数量/行数/幽灵条目）。
+`scripts/docs-audit.js` 23 条规则（v9.1-b 新增规则 23：`v9-gate.sh` 分组完整性——11 项成员齐备 + 三组失败路径各一次，防门禁空洞）：冒烟组数（全文档 4 处）、`lx-source.js` 总行数、行段表末段边界、setTimeout 处数、子源总数、ikun/huibq 开关真值、`@version` 串、pdone URL、health/candidate 新鲜度、跨仓 App 文档版本、写死增长量检测、`ITERATION_ROADMAP` 当前版本、`SOURCE_AUDIT` 登记源数与 `verified` 源数、README 当前版本行、CI 变异体数（且必须带 `--strict`）、`AUDIT_MATRIX` 逐行行数与漏登文件、`READTHROUGH` 台账同步、`DOC_INDEX` 登记完整性、测试入口数、缺陷编号上界、脚本清单（数量/行数/幽灵条目）、门禁分组完整性（v9.1-b）。
 
 ## 三、持续增长量（不要写死）
 

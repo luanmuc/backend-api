@@ -40,7 +40,7 @@
 | `docs/reports/*.md` | 手写（每轮一份） | 分轮审计报告：`v8.11.1-全面审计报告.md`、`-第五轮审计结算.md`、`-第六轮缺口审计.md` |
 | `docs/AUDIT_RESULTS.md` | 手写 | 三代审计总账 + **D-01~D-39** 缺陷编号 + 结论性事实 + 历轮过程 |
 | `docs/READTHROUGH.md` | 手写（**活文档·每版本必刷**） | 全仓通读台账：2026-11-10 快照 75 文件逐条结论；当前 99 文件覆盖见 `AUDIT_MATRIX.md`；规则18 校验 |
-| `docs/READTHROUGH_v8.16.1.md` | 手写（单轮结论·冻结） | 2026-11-17 对 `lx-source.js`（5881 行）逐行通读的结论文档：缺陷 R-01~R-12、证伪记录、无缺陷模块清单、复现骨架 |
+| `docs/archive/READTHROUGH_v8.16.1.md` | 手写（单轮结论·冻结） | 2026-11-17 对 `lx-source.js`（5881 行）逐行通读的结论文档：缺陷 R-01~R-12、证伪记录、无缺陷模块清单、复现骨架 |
 | `docs/SOURCE_REGISTRY.md` | 活文档（人工维护 + `source-inventory --check` 机器闸门，**13/11/2 唯一登记表**） | 登记源、上链/观察、平台拓扑、质量、复核日期 |
 | `docs/SOURCE_LIFECYCLE.md` | 手写 | 增源七步准入、减源五条退出线、一进一出、复核节奏 |
 | `docs/SOURCE_RETIREMENT.md` | 归档（退役台账） | v8.13.0 退役 8 源的原因与取证，只追加 |

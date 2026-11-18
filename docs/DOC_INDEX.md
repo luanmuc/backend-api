@@ -25,15 +25,16 @@
 | `docs/AUDIT_RESULTS.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/CHANGELOG.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/DEV_GUIDE.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
+| `docs/V9_MODULE_MAP.md` | 当前态 | 机器生成（`scripts/ref-closure.js --write`） | 每次拆包迁移后 | 33 个 core 模块 → 依赖闭包与导出表 |
 | `docs/KNOWN_ISSUES.md` | 当前态 | 人 | 每次版本变更/每轮审计/发现新问题时 | 规则19 |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 当前态 | 人 | 音质策略方案变更时 | 规则19 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/ITERATION_ROADMAP.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
-| `docs/PROGRESS_round5.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
+| `docs/archive/PROGRESS_round5.md` | 归档（原历史快照） | 人 | 只读，不随版本更新（v9.5 整理归档） | — |
 | `docs/README.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
-| `docs/READTHROUGH_v8.16.1.md` | 历史快照（单轮通读结论） | 人 | 冻结：只记录 2026-11-17 这轮对 `lx-source.js` 的逐行结论 | 规则19 |
-| `docs/READTHROUGH_v8.16.2.md` | 当前态（本轮通读结论） | 人 | 每次 8.16.x 产物变更/新增缺陷后 | 规则19 |
+| `docs/archive/READTHROUGH_v8.16.1.md` | 归档（原历史快照，单轮通读结论） | 人 | 只读，不随版本更新（v9.5 整理归档；当时 8.16.1 产物） | 规则19 |
+| `docs/archive/READTHROUGH_v8.16.2.md` | 归档（原 8.16.2 单轮通读结论） | 人 | 只读，不随版本更新（v9.5 整理归档；8.16.2 产物 6045 行时代的 R-13 结论） | 规则19 
 | `docs/DOC_INDEX.md` | 当前态（本表自身） | 人 | 新增/删除任何 docs 文件时 | 规则19 自校验 |
 | `docs/SOURCE_REGISTRY.md` | 当前态 | 人 | 增删源/版本变更时 | 规则19 |
 | `docs/SOURCE_LIFECYCLE.md` | 当前态 | 人 | 生命周期规则变更时 | 规则19 |

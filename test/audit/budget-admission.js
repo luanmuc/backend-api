@@ -27,7 +27,13 @@ rec('A2-1', '预算耗尽使用独立错误码', d.ADMISSION_POLICY.BUDGET && d.
 const adm = d.admissionLedger('BUDGET', code, 'strong')
 rec('A2-2', '预算耗尽不 bump resolveDead / playDead', adm.resolveDead === false && adm.playDead === false, JSON.stringify(adm))
 rec('A2-3', '预算耗尽是业务失败，不是 hardFail', adm.health === 'businessFail', adm.health)
-const legacy = fs.readFileSync(path.join(__dirname, '../../src/legacy.js'), 'utf8')
+const SRC_DIR = path.join(__dirname, '../../src')
+const coreFiles = fs.readdirSync(path.join(SRC_DIR, 'core')).filter((f) => f.endsWith('.js')).sort()
+const legacy = [
+  fs.readFileSync(path.join(SRC_DIR, '00-header.js'), 'utf8'),
+  ...coreFiles.map((f) => fs.readFileSync(path.join(SRC_DIR, 'core', f), 'utf8')),
+  fs.readFileSync(path.join(SRC_DIR, 'legacy.js'), 'utf8'),
+].join('\n')
 // R38：原正则的 `.*` 不跨行——一旦写法变成「先赋 NETWORK_TIMEOUT、下一行再拼文案」就漏检。
 // 改成允许 120 字符的跨行窗口（预算错误码与预算文案不得同时出现在同一段里）。
 const bad = /ERROR_CODES\.NETWORK_TIMEOUT[\s\S]{0,120}(?:竞速预算耗尽|单源超出预算)/.test(legacy)
