@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v9.1.0 缓存可用性判据 + 日志脱敏版（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
- * @version 9.1.0
+ * @description v9.1.1 探针参数修复版（缓存可用性判据 + 日志脱敏；v9.1.1 修巡检把空 songId 塞给 handler 导致三源 100% 假失败）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
+ * @version 9.1.1
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -490,7 +490,7 @@ var __lxSourceBundle = (() => {
   // src/core/02-config.js
   var require_config = __commonJS({
     "src/core/02-config.js"(exports, module) {
-      var SOURCE_VERSION = true ? "9.1.0" : "8.16.4";
+      var SOURCE_VERSION = true ? "9.1.1" : "8.16.4";
       var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
       function normalizeProbeSongPool(value) {
         if (!Array.isArray(value)) return null;
@@ -4585,8 +4585,11 @@ var __lxSourceBundle = (() => {
             tier: "core",
             quality: "128k",
             useHandler: true,
-            handlerStyle: "songInfo",
-            handlerSong: { id: probe163Id, name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }
+            // v9.1.1（探针误报）：此源注册的是 5 参包装 (platform, songId, quality, songInfo, cancelToken)，
+            // 旧配置标了「songInfo 风格」→ 走两参调用 → hSong 被塞进 platform、songId=null，
+            // 内层 suyin163GetUrl(songInfo=undefined) 必抛「缺少songmid/id」→ 探测 100% 假失败。
+            handlerPlatform: "wy",
+            handlerSong: { id: probe163Id, songmid: probe163Id, name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }
           },
           wyOuter: {
             tier: "core",
@@ -4660,7 +4663,8 @@ var __lxSourceBundle = (() => {
             tier: "secondary",
             quality: "128k",
             useHandler: true,
-            handlerStyle: "songInfo",
+            // v9.1.1：与 suyin163 同一类错配——注册是 5 参包装，旧配置却走两参调用。
+            handlerPlatform: "mg",
             handlerSong: { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 }
           }
         };
@@ -4765,7 +4769,7 @@ var __lxSourceBundle = (() => {
                   const h2 = dep("SOURCE_HANDLERS")[id];
                   if (h2 && typeof h2.fn === "function") {
                     const hSong = p.handlerSong || { name: p.songName, duration: 0 };
-                    const url = p.handlerStyle === "songInfo" ? await h2.fn(hSong, null) : await h2.fn(p.handlerPlatform || "kw", "", quality, hSong, null);
+                    const url = p.handlerStyle === "songInfo" ? await h2.fn(hSong, null) : await h2.fn(p.handlerPlatform || "kw", null, quality, hSong, null);
                     const playable = typeof url === "string" && await dep("isAudioPlayable")(upgradeToHttps(url), probeTimeout);
                     const duration2 = Date.now() - startProbe;
                     recordHealthEvent({ event: "probe_result", traceId, sourceId: id, quality, ok: playable, code: playable ? "" : "PROBE_FAIL", latencyMs: duration2, reason: playable ? "PASS" : "FAIL" });
@@ -6525,7 +6529,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.0 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.1 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {

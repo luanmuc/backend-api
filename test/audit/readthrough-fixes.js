@@ -417,6 +417,25 @@ const killPlayDead = (m) => {
     assert(await m5.__debug.isAudioPlayable('https://example.com/range.m4a') === true, '206 + audio/mp4 应可播')
   })
 
+  await check('RF24 探测不得把空 songId 塞给 handler（v9.1.1）', async () => {
+    // 真实事故：巡检调 handler 时第 2 参写死 ""，而各 handler 取 id 都是 `songId ?? songInfo?.id`
+    // —— `??` 只对 null/undefined 生效，空串会被当成"有值"选中，随后 `if (!id)` 抛 PARAM_ERROR。
+    // 结果 wyOuter / xinghaiBackend / suyin163 探测 100% 假失败（0~1ms，一个字节都没发），
+    // 健康分被白扣 6 次/轮。真机 digest 的 probe 3/9 就是这么来的。
+    const detector = (code) => {
+      if (/h\.fn\([^)]*,\s*""\s*,/.test(code)) return 'songId 传空串：只有 null/undefined 才能让 handler 的 `?? songInfo?.id` 兜底生效'
+      if (/handlerStyle:\s*"songInfo"/.test(code)) return '配置型 handlerStyle:"songInfo"：5 参包装源会被两参调用错位（hSong 被塞进 platform、songId=null）'
+      return ''
+    }
+    const hit = detector(CODE)
+    assert(hit === '', hit)
+    // 负向自检：修复前的两种写法必须被抓住
+    assert(detector('await h.fn(p.handlerPlatform || "kw", "", quality, hSong, null)') !== '', '检测器失效：空串 songId 未被识别')
+    assert(detector('    suyin163: { handlerStyle: "songInfo", handlerSong: {} }') !== '', '检测器失效：配置型 handlerStyle 未被识别')
+    // 正向：修复后的写法必须放行
+    assert(detector('await h.fn(p.handlerPlatform || "kw", null, quality, hSong, null)') === '', '检测器误报：传 null 不应被判违规')
+  })
+
   console.log(`\n${passed} passed, ${failures.length} failed`)
   if (failures.length) {
     for (const f of failures) console.log(`  - ${f}`)

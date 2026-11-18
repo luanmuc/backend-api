@@ -135,8 +135,11 @@ function buildProbeConfig() {
       tier: "core",
       quality: "128k",
       useHandler: true,
-      handlerStyle: "songInfo",
-      handlerSong: { id: probe163Id, name: "晴天", singer: "周杰伦", duration: 271000 },
+      // v9.1.1（探针误报）：此源注册的是 5 参包装 (platform, songId, quality, songInfo, cancelToken)，
+      // 旧配置标了「songInfo 风格」→ 走两参调用 → hSong 被塞进 platform、songId=null，
+      // 内层 suyin163GetUrl(songInfo=undefined) 必抛「缺少songmid/id」→ 探测 100% 假失败。
+      handlerPlatform: "wy",
+      handlerSong: { id: probe163Id, songmid: probe163Id, name: "晴天", singer: "周杰伦", duration: 271000 },
     },
     wyOuter: {
       tier: "core",
@@ -210,7 +213,8 @@ function buildProbeConfig() {
       tier: "secondary",
       quality: "128k",
       useHandler: true,
-      handlerStyle: "songInfo",
+      // v9.1.1：与 suyin163 同一类错配——注册是 5 参包装，旧配置却走两参调用。
+      handlerPlatform: "mg",
       handlerSong: { name: "晴天", singer: "周杰伦", duration: 271000 },
     }
   };
@@ -329,7 +333,12 @@ async function probeSingleSource(id, pc) {
               // 少数源的签名是 (songInfo, cancelToken)，用显式风格标记适配，不硬套五参。
               const url = p.handlerStyle === "songInfo"
                 ? await h.fn(hSong, null)
-                : await h.fn(p.handlerPlatform || "kw", "", quality, hSong, null);
+                // v9.1.1（探针误报）：第二个参数是 songId，旧实现写死空串 ""。
+                // 而各 handler 取 id 都是 `songId ?? songInfo?.id` —— `??` 只对 null/undefined 生效，
+                // 空串会被当成"有值"选中，随后 `if (!id)` 抛 PARAM_ERROR（0~1ms，一个字节都没发出去），
+                // 于是 wyOuter / xinghaiBackend / suyin163 的探测 100% 假失败、健康分被白扣。
+                // 传 null 让 handler 自己的 songInfo 兜底生效（不写死某个字段，保留各源的多字段兜底）。
+                : await h.fn(p.handlerPlatform || "kw", null, quality, hSong, null);
               const playable = typeof url === "string" && await dep('isAudioPlayable')(upgradeToHttps(url), probeTimeout);
               const duration = Date.now() - startProbe;
               recordHealthEvent({ event: "probe_result", traceId, sourceId: id, quality, ok: playable, code: playable ? "" : "PROBE_FAIL", latencyMs: duration, reason: playable ? "PASS" : "FAIL" });
