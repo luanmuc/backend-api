@@ -299,6 +299,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: 安装依赖（build-source 依赖 devDep esbuild，缺它直接 MODULE_NOT_FOUND）
+        run: npm ci
       - name: 重新构建产物（确保签的是本次源码产物，不是仓库里的旧文件）
         run: node scripts/build-source.js
       - name: 签名（LX_SIGNING_KEY）
