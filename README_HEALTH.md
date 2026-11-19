@@ -1,10 +1,10 @@
 # 端点健康表（自动巡检）
 
-> 由 `scripts/probe.js` 自动生成 · 更新于 2026-11-18T09:55:18.589Z · 判定规则：2xx/3xx 或 Range 206 为可用（4xx/5xx/超时/域名不可解析为失败）
+> 由 `scripts/probe.js` 自动生成 · 更新于 2026-11-19T01:33:49.466Z · 判定规则：2xx/3xx 或 Range 206 为可用（4xx/5xx/超时/域名不可解析为失败）
 >
 > ⚠️ **口径**：本表是"端点级"健康（服务是否活着）。v8.5 起对取链型端点（oiapi Kuwo/163、ikun、星海后端、溯音咪咕）增加真实取链 + 直链 Range 可播二次校验，失败标 `PAYLOAD_*`；但"端点可用 ≠ 音源可用"的残余风险仍存在——源级最终判据以 **App 健康面板（源内探针，带 Range 校验）** 为准。
 
-共提取 17 个端点，可用 9 个；近 7 日成功率基于 `docs/probe-history.jsonl` 历史（2026-11-18 追加）。
+共提取 17 个端点，可用 9 个；近 7 日成功率基于 `docs/probe-history.jsonl` 历史（2026-11-19 追加）。
 
 ### 平台健康汇总
 
@@ -16,26 +16,26 @@
 
 | 端点 | 状态 | HTTP | 耗时(ms) | 近7日成功率 | 说明 |
 |---|---|---|---|---|---|
-| `https://oiapi.net/api/QQ_Music` | ❌ 失败 | 404 | 245 | 0% (0/7天) | HTTP 404 |
-| `https://oiapi.net/api/Music_163` | ❌ 失败 | 200 | 892 | 86% (6/7天) | PAYLOAD_NO_URL |
-| `https://oiapi.net/api/Kuwo` | ✅ 可用 | 200 | 2202 | 71% (5/7天) | OK |
-| `https://api.xcvts.cn/api/music/migu` | ❌ 失败 | 206 | 1199 | 29% (2/7天) | PAYLOAD_NO_URL |
-| `https://lxmusicapi.onrender.com` | ❌ 失败 | 503 | 185 | 57% (4/7天) | HTTP 503 |
-| `https://api.music.lerd.dpdns.org` | ❌ 失败 | 429 | 12 | 14% (1/7天) | HTTP 429 |
-| `https://music.lzmhhh.com/api/music/url` | ⚪ 不适用（需带参） | 500 | 262 | 0% (0/3天) | HTTP 500 |
-| `https://yy.zddyr.top/lx/api/` | ✅ 可用 | 200 | 810 | 100% (7/7天) | OK |
-| `http://antiserver.kuwo.cn/anti.s` | ✅ 可用 | 206 | 513 | 86% (6/7天) | OK |
-| `https://c.wwwweb.top` | ✅ 可用 | 200 | 1803 | 86% (6/7天) | OK |
-| `http://nmobi.kuwo.cn/mobi.s` | ⚪ 不适用（需带参） | 404 | 214 | 0% (0/7天) | HTTP 404 |
-| `https://musicserver.haitangw.cc/v1/music/resolve-url` | ⚪ 不适用（需带参） | 404 | 1234 | 0% (0/7天) | HTTP 404 |
-| `https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={lev…` | ✅ 可用 | 200 | 838 | 100% (7/7天) | OK |
-| `https://music.163.com/song/media/outer/url?id={id}.mp3` | ✅ 可用 | 302 | 1081 | 100% (7/7天) | OK |
-| `https://music.163.com/api/song/lyric` | ✅ 可用 | 200 | 878 | 100% (7/7天) | OK |
-| `https://music.163.com/api/song/detail` | ✅ 可用 | 200 | 589 | 100% (7/7天) | OK |
-| `http://search.kuwo.cn/r.s` | ✅ 可用 | 206 | 844 | 86% (6/7天) | OK |
+| `https://oiapi.net/api/QQ_Music` | ❌ 失败 | 404 | 241 | 0% (0/7天) | HTTP 404 |
+| `https://oiapi.net/api/Music_163` | ❌ 失败 | 200 | 984 | 86% (6/7天) | PAYLOAD_NO_URL |
+| `https://oiapi.net/api/Kuwo` | ✅ 可用 | 200 | 979 | 86% (6/7天) | OK |
+| `https://api.xcvts.cn/api/music/migu` | ❌ 失败 | 206 | 1032 | 43% (3/7天) | PAYLOAD_NO_URL |
+| `https://lxmusicapi.onrender.com` | ❌ 失败 | 503 | 270 | 43% (3/7天) | HTTP 503 |
+| `https://api.music.lerd.dpdns.org` | ❌ 失败 | 200 | 214 | 29% (2/7天) | PAYLOAD_NO_URL |
+| `https://music.lzmhhh.com/api/music/url` | ⚪ 不适用（需带参） | 500 | 327 | 0% (0/4天) | HTTP 500 |
+| `https://yy.zddyr.top/lx/api/` | ✅ 可用 | 200 | 728 | 100% (7/7天) | OK |
+| `http://antiserver.kuwo.cn/anti.s` | ✅ 可用 | 206 | 944 | 100% (7/7天) | OK |
+| `https://c.wwwweb.top` | ✅ 可用 | 200 | 1247 | 86% (6/7天) | OK |
+| `http://nmobi.kuwo.cn/mobi.s` | ⚪ 不适用（需带参） | 404 | 222 | 0% (0/7天) | HTTP 404 |
+| `https://musicserver.haitangw.cc/v1/music/resolve-url` | ⚪ 不适用（需带参） | 404 | 759 | 0% (0/7天) | HTTP 404 |
+| `https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={lev…` | ✅ 可用 | 200 | 944 | 100% (7/7天) | OK |
+| `https://music.163.com/song/media/outer/url?id={id}.mp3` | ✅ 可用 | 302 | 1577 | 100% (7/7天) | OK |
+| `https://music.163.com/api/song/lyric` | ✅ 可用 | 200 | 1121 | 100% (7/7天) | OK |
+| `https://music.163.com/api/song/detail` | ✅ 可用 | 200 | 1118 | 100% (7/7天) | OK |
+| `http://search.kuwo.cn/r.s` | ✅ 可用 | 206 | 858 | 86% (6/7天) | OK |
 
 ## ⚠️ 死源建议（连续 3 天以上失败，供迭代时摘除/留档）
 
 ### 🟡 次要（备用/边缘端点连续失败）
 
-- `https://lxmusicapi.onrender.com`：连续 3 天失败（近7日成功率 57%），当前仍失败 · HTTP 503
+- `https://lxmusicapi.onrender.com`：连续 4 天失败（近7日成功率 43%），当前仍失败 · HTTP 503
