@@ -85,6 +85,8 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
    - 推送被拒绝（non-fast-forward）时，立即 rebase 再推，**禁止 force push（`-f`）**；
    - 若其他账号已完成同一主题（如候选实证判否、版本号规划），直接复用其结论、合并到自己的文档行，不重复劳动；
    - **额度中断恢复时**：先 fetch 看远端状态，确认上次中断在哪一步（代码已改未推 / 文档未同步 / 自检未跑），从断点继续，不从头重做。
+9. **提交信息里禁止出现跳过标记字样**（2026-11-19 实踩）：GitHub Actions 对 commit message 做**全文扫描**，正文任何位置出现 `[skip ci]` / `[ci skip]` / `[no ci]` / `[skip actions]`，**整次 push 的所有 workflow 都不触发**（不是只跳过某个 job）。本仓 `sign-release` job 只在 `push` 事件跑，被跳过时没有任何报错，症状就是「代码推上去了但 CI 一直没动静」——`gh api repos/{owner}/{repo}/commits/<sha>/check-runs -q .total_count` 返回 0 即可判定。描述 CI 行为时不要把标记原样写进提交信息（写「跳过标记」即可）；已命中只能靠 `workflow_dispatch` 补跑，或推一个 message 干净的新提交重新触发。
+
 8. **未推送前，一仓只保留一个提交（用户口径，强制）**：本地可以边改边提交（便于断点/回滚），但**在用户明确说"推送"之前**，必须 `git reset --soft origin/master` 把这些本地提交合并成**一个**提交再推；一次发布 = 一个提交。禁止把开发过程的碎提交一起推上去。合并后用 `git rev-list --count origin/master..HEAD` 自检，结果必须是 `1`。
 
 
