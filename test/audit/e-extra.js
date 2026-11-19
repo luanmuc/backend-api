@@ -325,6 +325,24 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     await c1; const calls1 = total();
     reset(); try { await req('flac', { ...GOOD, songmid: 'o5b' }); } catch (e) { }
     rec('O5', 'playDeadReviveMs 内反复失败不放大外呼', total() <= calls1, `首次=${calls1} 再次=${total()}`);
+
+    // O6（2026-11-19）：冷启动源连续探测失败必须豁免自动关闭。
+    // 背景：冷态可能只是进程未唤醒，若照常 autoOff，每次冷启动都会把源关掉；恢复只能等探测通过，
+    // 会在用户侧表现为「重启后源莫名变灰」。对照源用于证明豁免不是「autoOff 整个失效」。
+    const m6 = fresh(null);
+    const pick6 = id => { const s = m6.getHealthSnapshot(); return (s.sources && s.sources[id]) || s[id] };
+    m6.applyProbeResult('huibq', false);
+    m6.applyProbeResult('huibq', false);
+    const cold6 = pick6('huibq');
+    rec('O6a', '冷启动源（huibq）连续 2 次探测失败不自动关闭',
+      cold6 && cold6.autoOff === false && cold6.offReason == null,
+      `autoOff=${cold6 && cold6.autoOff} offReason=${cold6 && cold6.offReason}`);
+    m6.applyProbeResult('suyinKuwo', false);
+    m6.applyProbeResult('suyinKuwo', false);
+    const normal6 = pick6('suyinKuwo');
+    rec('O6b', '非冷启动源（suyinKuwo）同样 2 次失败会被自动关闭（对照）',
+      normal6 && normal6.autoOff === true && normal6.offReason === 'AUTO_OFF_PROBE',
+      `autoOff=${normal6 && normal6.autoOff} offReason=${normal6 && normal6.offReason}`);
   }
 
   // ================= P 健康分 =================
