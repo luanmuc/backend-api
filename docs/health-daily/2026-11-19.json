@@ -12,7 +12,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1219
+        "ms": 1365
       },
       {
         "date": "2026-11-19",
@@ -21,7 +21,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 2914
+        "ms": 1357
       },
       {
         "date": "2026-11-19",
@@ -30,7 +30,7 @@
         "ok": false,
         "code": "SERVER_ERROR",
         "playable": "",
-        "ms": 638
+        "ms": 682
       },
       {
         "date": "2026-11-19",
@@ -39,7 +39,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1467
+        "ms": 2730
       },
       {
         "date": "2026-11-19",
@@ -48,7 +48,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1277
+        "ms": 1155
       },
       {
         "date": "2026-11-19",
@@ -57,7 +57,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 2064
+        "ms": 2073
       },
       {
         "date": "2026-11-19",
@@ -66,7 +66,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 964
+        "ms": 1814
       },
       {
         "date": "2026-11-19",
@@ -75,7 +75,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 236
+        "ms": 981
       },
       {
         "date": "2026-11-19",
@@ -84,7 +84,7 @@
         "ok": true,
         "code": "OK",
         "playable": "skipped",
-        "ms": 1149
+        "ms": 1950
       },
       {
         "date": "2026-11-19",
@@ -93,7 +93,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 2025
+        "ms": 2338
       },
       {
         "date": "2026-11-19",
@@ -102,44 +102,11 @@
         "ok": true,
         "code": "OK",
         "playable": "skipped",
-        "ms": 752
+        "ms": 1038
       }
     ]
   },
-  "deviceDigest": {
-    "date": "2026-11-19",
-    "devices": 1,
-    "probe": {
-      "total": 9,
-      "ok": 5
-    },
-    "play": {
-      "total": 4,
-      "ok": 4
-    },
-    "bySource": {
-      "suyin163": {
-        "total": 2,
-        "ok": 0,
-        "rate": 0
-      },
-      "xinghaiBackend": {
-        "total": 2,
-        "ok": 0,
-        "rate": 0
-      },
-      "suyinKuwo": {
-        "total": 3,
-        "ok": 3,
-        "rate": 100
-      },
-      "wyOuter": {
-        "total": 2,
-        "ok": 2,
-        "rate": 100
-      }
-    }
-  },
+  "deviceDigest": null,
   "prevDate": "2026-11-18",
   "prevDateMode": "uniform",
   "prevDates": {
@@ -171,8 +138,8 @@
       ],
       "url": "https://lxmusicapi.onrender.com",
       "kind": "payload",
-      "rate": 12.1,
-      "total": 33,
+      "rate": 13.3,
+      "total": 30,
       "consecutiveFail": 4,
       "reason": "HTTP 503"
     }
@@ -181,8 +148,8 @@
     {
       "label": "juheTx",
       "url": "https://api.music.lerd.dpdns.org",
-      "rate": 72.7,
-      "total": 33
+      "rate": 70,
+      "total": 30
     }
   ],
   "fragment": [],

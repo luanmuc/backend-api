@@ -20,14 +20,14 @@
 {"date":"2026-11-18","src":"suyinKuwo","plat":"kw","ok":true,"code":"OK","playable":"","ms":1371}
 {"date":"2026-11-18","src":"wyOuter","plat":"wy","ok":false,"code":"NOT_FOUND","playable":"","ms":1802}
 {"date":"2026-11-18","src":"xinghaiBackend","plat":"kw","ok":true,"code":"OK","playable":"","ms":698}
-{"date":"2026-11-19","src":"changqingVip","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1219}
-{"date":"2026-11-19","src":"helloworldKw","plat":"kw","ok":false,"code":"NOT_FOUND","playable":"","ms":2914}
-{"date":"2026-11-19","src":"huibq","plat":"kw","ok":false,"code":"SERVER_ERROR","playable":"","ms":638}
-{"date":"2026-11-19","src":"ikun","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1467}
-{"date":"2026-11-19","src":"juheTx","plat":"tx","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1277}
-{"date":"2026-11-19","src":"kuwoOfficial","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":2064}
-{"date":"2026-11-19","src":"qingliangTx","plat":"tx","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":964}
-{"date":"2026-11-19","src":"suyin163","plat":"wy","ok":false,"code":"NOT_FOUND","playable":"","ms":236}
-{"date":"2026-11-19","src":"suyinKuwo","plat":"kw","ok":true,"code":"OK","playable":"skipped","ms":1149}
-{"date":"2026-11-19","src":"wyOuter","plat":"wy","ok":false,"code":"NOT_FOUND","playable":"","ms":2025}
-{"date":"2026-11-19","src":"xinghaiBackend","plat":"kw","ok":true,"code":"OK","playable":"skipped","ms":752}
+{"date":"2026-11-19","src":"changqingVip","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1365}
+{"date":"2026-11-19","src":"helloworldKw","plat":"kw","ok":false,"code":"NOT_FOUND","playable":"","ms":1357}
+{"date":"2026-11-19","src":"huibq","plat":"kw","ok":false,"code":"SERVER_ERROR","playable":"","ms":682}
+{"date":"2026-11-19","src":"ikun","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":2730}
+{"date":"2026-11-19","src":"juheTx","plat":"tx","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1155}
+{"date":"2026-11-19","src":"kuwoOfficial","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":2073}
+{"date":"2026-11-19","src":"qingliangTx","plat":"tx","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1814}
+{"date":"2026-11-19","src":"suyin163","plat":"wy","ok":false,"code":"NOT_FOUND","playable":"","ms":981}
+{"date":"2026-11-19","src":"suyinKuwo","plat":"kw","ok":true,"code":"OK","playable":"skipped","ms":1950}
+{"date":"2026-11-19","src":"wyOuter","plat":"wy","ok":false,"code":"NOT_FOUND","playable":"","ms":2338}
+{"date":"2026-11-19","src":"xinghaiBackend","plat":"kw","ok":true,"code":"OK","playable":"skipped","ms":1038}
