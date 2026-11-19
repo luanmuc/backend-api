@@ -1,0 +1,9 @@
+{
+  "artifact": "lx-source.js",
+  "version": "9.1.2",
+  "size": 364735,
+  "sha256": "d406bef1441dcade84dc69e981a49785e1a834497db122f975d0ff10ffe34542",
+  "sigAlg": "ed25519",
+  "keyId": "k1",
+  "sig": "5KwxPbbv1qhRNDx5q4HdBtxFiBheNB2XdpGatAQA//TyCGeAYHEHJW/NWK038S7zQz8z1lYUFmSRutWrRluaBg=="
+}

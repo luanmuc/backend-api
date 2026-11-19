@@ -360,6 +360,8 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' && needs.test-fast.result == 'success' }}
     needs: [test-fast]
+    permissions:
+      contents: write   # B2：签好的 manifest 需提交回 master，App 双通道才能拉到同源的验签文件
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -399,6 +401,28 @@ jobs:
             lx-source.js.sig
             lx-source.js.manifest.json
           if-no-files-found: warn
+      - name: 同步 manifest 回 master（App 双通道验签依赖）
+        # B2：App 的「更新音源」走 Contents API / jsDelivr 双通道拉脚本，验签要从同一通道
+        # 拉 manifest；jsDelivr 不服务 Release assets，所以 manifest 必须进仓库。
+        # 签名是确定性的（sign-release.js 不写 signedAt），同一份产物重跑不会产生 diff。
+        if: ${{ hashFiles('lx-source.js.manifest.json') != '' }}
+        run: |
+          if ! git ls-files --error-unmatch lx-source.js.manifest.json >/dev/null 2>&1; then
+            echo "::warning::manifest 尚未被 git 跟踪：请本地提交一次 lx-source.js.manifest.json，之后本步骤自动接管"
+            exit 0
+          fi
+          if git diff --quiet -- lx-source.js.manifest.json; then
+            echo "manifest 与仓库一致，无需提交"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lx-source.js.manifest.json
+          git commit -m "chore(sign): 同步发布签名 manifest [skip ci]"
+          git push || {
+            echo "::error::manifest 同步失败：App 端「更新音源」会因缺同源 manifest 而验签失败，请手工提交 lx-source.js.manifest.json"
+            exit 1
+          }
 
   # ---------- v8.10.3：发版自动 purge jsDelivr CDN ----------
   # push master 或发版后立刻刷新 CDN 缓存，App 端检查更新马上能拉到最新版
@@ -412,12 +436,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2   # 只要上一个 commit，够 diff 用
-      - name: purge jsDelivr CDN（仅 lx-source.js 变更时）
+      - name: purge jsDelivr CDN（lx-source.js / manifest 变更时）
         run: |
-          # 只在 lx-source.js 真正变更时才 purge，改 CI 配置不刷新缓存
-          if git diff --name-only HEAD~1 HEAD | grep -q "^lx-source.js$"; then
+          # 两个文件必须同时刷新：只刷脚本会让「脚本是新的、manifest 还是旧的」，
+          # App 端 sha256 校验直接拒（fail-closed），用户看到的是「检查更新失败」。
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -E "^lx-source.js(\.manifest\.json)?$" || true)
+          if [ -n "$CHANGED" ]; then
+            echo "变更文件：$CHANGED"
             curl -s "https://purge.jsdelivr.net/gh/luanmuc/backend-api@master/lx-source.js" || true
-            echo "✅ CDN 缓存已刷新"
+            curl -s "https://purge.jsdelivr.net/gh/luanmuc/backend-api@master/lx-source.js.manifest.json" || true
+            echo "✅ CDN 缓存已刷新（脚本 + manifest）"
           else
-            echo "ℹ️ lx-source.js 无变更，跳过 CDN purge"
+            echo "ℹ️ lx-source.js / manifest 无变更，跳过 CDN purge"
           fi

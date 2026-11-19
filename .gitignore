@@ -1,6 +1,8 @@
 node_modules/
 dist/
 
-# v9.3-a 发布签名产物（CI 生成，不入库）
+# v9.3-a 发布签名产物
+# .sig 不入库：仅本地/CI 诊断产物，App 从不读取（签名从 manifest 的 sig 字段取）
 lx-source.js.sig
-lx-source.js.manifest.json
+# manifest 必须入库（B2）：App 的「更新音源」走 Contents API / jsDelivr 双通道拉取，
+# 验签要求脚本与 manifest 同源可拉；只放 Release assets 时 jsDelivr 拿不到。

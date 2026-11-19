@@ -46,6 +46,10 @@ function sign() {
   const sig = crypto.sign(null, body, key).toString('base64')
   const ver = versionOf(body.toString('utf8'))
   fs.writeFileSync(SIG_FILE, sig + '\n')
+  // 注意：manifest 不写 signedAt。它是唯一的非确定性字段——同一份脚本在任意时间签名，
+  // sig（ed25519 是确定性签名）+ sha256 + size + version 都完全相同；带时间戳会让我们
+  // 「把 manifest 提交进仓库供 App 双通道拉取」时每天产生一次无意义提交。
+  // 审计时间可从 git commit / Release 资产时间获得。
   fs.writeFileSync(MANIFEST, JSON.stringify({
     artifact: 'lx-source.js',
     version: ver,
@@ -54,7 +58,6 @@ function sign() {
     sigAlg: 'ed25519',
     keyId: process.env.LX_KEY_ID || 'k1',
     sig: sig,
-    signedAt: new Date().toISOString().slice(0, 10),
   }, null, 2) + '\n')
   console.log(`✅ 已签名：v${ver} / ${body.length}B / keyId=${process.env.LX_KEY_ID || 'k1'} / sig ${sig.slice(0, 12)}…`)
   return 0
