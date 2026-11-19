@@ -31,9 +31,9 @@ else
 fi
 
 # 3) 文档门禁：硬失败必须为 0（docs-audit 退出码恒 0，只能看输出）
-DOC_OUT=$(node scripts/docs-audit.js --dry-run 2>&1 || true)
-if echo "$DOC_OUT" | grep -q "硬失败 0 项"; then
-  echo "✅ docs-audit（硬失败 0 项）"
+DOC_OUT=$(node scripts/docs-audit.js --dry-run 2>&1); DOC_RC=$?
+if [ "$DOC_RC" = "0" ] && echo "$DOC_OUT" | grep -q "硬失败 0 项"; then
+  echo "✅ docs-audit（exit 0 / 硬失败 0 项）"
 else
   echo "❌ docs-audit（存在硬失败）"
   echo "$DOC_OUT" | grep "🔴" | head -8 | sed 's/^/     /'
