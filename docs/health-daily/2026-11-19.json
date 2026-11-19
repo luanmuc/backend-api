@@ -12,7 +12,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 733
+        "ms": 1365
       },
       {
         "date": "2026-11-19",
@@ -21,7 +21,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 1944
+        "ms": 1357
       },
       {
         "date": "2026-11-19",
@@ -30,7 +30,7 @@
         "ok": false,
         "code": "SERVER_ERROR",
         "playable": "",
-        "ms": 1667
+        "ms": 682
       },
       {
         "date": "2026-11-19",
@@ -39,7 +39,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1171
+        "ms": 2730
       },
       {
         "date": "2026-11-19",
@@ -48,7 +48,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 2396
+        "ms": 1155
       },
       {
         "date": "2026-11-19",
@@ -57,7 +57,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 3388
+        "ms": 2073
       },
       {
         "date": "2026-11-19",
@@ -66,7 +66,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1602
+        "ms": 1814
       },
       {
         "date": "2026-11-19",
@@ -75,7 +75,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 712
+        "ms": 981
       },
       {
         "date": "2026-11-19",
@@ -83,8 +83,8 @@
         "plat": "kw",
         "ok": true,
         "code": "OK",
-        "playable": "",
-        "ms": 1084
+        "playable": "skipped",
+        "ms": 1950
       },
       {
         "date": "2026-11-19",
@@ -93,7 +93,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 3109
+        "ms": 2338
       },
       {
         "date": "2026-11-19",
@@ -101,8 +101,8 @@
         "plat": "kw",
         "ok": true,
         "code": "OK",
-        "playable": "",
-        "ms": 733
+        "playable": "skipped",
+        "ms": 1038
       }
     ]
   },
@@ -138,8 +138,8 @@
       ],
       "url": "https://lxmusicapi.onrender.com",
       "kind": "payload",
-      "rate": 14.8,
-      "total": 27,
+      "rate": 13.3,
+      "total": 30,
       "consecutiveFail": 4,
       "reason": "HTTP 503"
     }
@@ -148,8 +148,8 @@
     {
       "label": "juheTx",
       "url": "https://api.music.lerd.dpdns.org",
-      "rate": 66.7,
-      "total": 27
+      "rate": 70,
+      "total": 30
     }
   ],
   "fragment": [],
