@@ -468,6 +468,37 @@ console.log('\n[Z] 资源与启动');
   }
 }
 
+// Z10（B2）：签名 manifest 必须入库，且与产物一致
+// 背景：App 的手动「更新音源」走「同一通道拉 script + manifest」；jsDelivr 不服务 Release
+// assets，manifest 若被 .gitignore 忽略，CDN 兜底通道必然拉不到 → 验签链整体失效。
+try {
+  const crypto = require('crypto')
+  const mfPath = 'lx-source.js.manifest.json'
+  const mfExists = fs.existsSync(abs(mfPath))
+  let tracked = false
+  try {
+    tracked = execFileSync('git', ['ls-files', '--error-unmatch', mfPath], { cwd: ROOT, stdio: 'pipe' })
+      .toString().trim() === mfPath
+  } catch (_) { tracked = false }
+  const ig = fs.existsSync(abs('.gitignore')) ? read('.gitignore') : ''
+  const ignored = ig.split('\n').some((l) => l.trim() && !l.trim().startsWith('#') && l.includes('lx-source.js.manifest.json'))
+  const prod = fs.existsSync(abs('lx-source.js')) ? fs.readFileSync(abs('lx-source.js')) : Buffer.alloc(0)
+  let ok = false
+  let detail = ''
+  if (mfExists && tracked && !ignored) {
+    const mf = JSON.parse(read(mfPath))
+    const sha = crypto.createHash('sha256').update(prod).digest('hex')
+    ok = mf.size === prod.length && String(mf.sha256).toLowerCase() === sha
+    detail = `size ${mf.size}/${prod.length} sha ${String(mf.sha256).slice(0, 8)}/${sha.slice(0, 8)}`
+    if (!ok) detail += '（与产物不一致）'
+  } else {
+    detail = `存在=${mfExists} 已跟踪=${tracked} 被忽略=${ignored}`
+  }
+  rec('Z10', '签名 manifest 已入库且与产物一致（size/sha256 双验；B2 验签链依赖）', ok, detail)
+} catch (e) {
+  rec('Z10', '签名 manifest 已入库且与产物一致', false, '异常 ' + e.message)
+}
+
 
 console.log(`\n第三轮全仓覆盖审计（U~Z）汇总：${res.length - fail} 通过 / ${fail} 失败`);
 // require.main 守卫：被其他脚本 require 时不得杀掉调用方（D-16 同类，见 g-meta M9）
