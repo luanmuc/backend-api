@@ -34,6 +34,10 @@ const CANDIDATES = [
   {
     name: 'huanyin（幻音 v3）',
     judge: '2026-11-05 判否：music-dl.sayqz.com DNS 不可解析（域名失效）+ api.xcvts.cn 咪咕 502（IP 被限），双通道失效',
+    // 2026-11-19 人工核查结案：备用通道 api.xcvts.cn 的咪咕线路已由 suyinMigu 接入（同一线路，无新增平台/音质），
+    // 主域名仍 DNS 失效 → 本候选不产生增量，属「不可接入」，不再每次探测都挂回「需人工核查」。
+    // 探测仍照跑（证据照记），只是不再覆盖人工结论。
+    manualVerdict: { st: 'void', why: 'api.xcvts.cn 咪咕线路已由 suyinMigu 接入，无新增量；主域名仍 DNS 失效' },
     checks: [
       { label: 'DNS music-dl.sayqz.com', type: 'dns', host: 'music-dl.sayqz.com' },
       { label: '业务 api.xcvts.cn 咪咕', type: 'http', url: 'https://api.xcvts.cn/api/music/migu?keyword=test&page=1&pageSize=1' },
@@ -85,7 +89,9 @@ async function runCheck(c) {
 // 判定单候选状态：'recovered'（可重评）| 'review'（需人工核查）| 'paid'（付费/卡密门）| 'dead'（仍失效）
 // 优先级刻意写成「付费门 > 域名 > 业务出链 > 参数疑变 > 仅页面活 > 死」：
 // 首页 200 曾经把「需要卡密的付费门」误报成「已恢复-可重评」，2026-11-16 实测纠偏。
-function candidateState(checks) {
+function candidateState(checks, manualVerdict) {
+  // 人工结论最优先：已结案的候选不再被单次探测结果反复拉回「需人工核查」
+  if (manualVerdict && manualVerdict.st) return manualVerdict.st
   // 付费/卡密门最优先：业务接口自述需卡密，首页再怎么 200 也不是可接入的公益源
   if (checks.some(c => c.result && c.result.ok && c.result.gate)) return 'paid';
   // 域名恢复（huanyin）：DNS 可解析 → 重评信号
@@ -122,9 +128,13 @@ function selfTest() {
       { type: 'biz', label: 'b', result: { ok: true, status: 502, bizCode: 502, gate: false } },
     ]],
   ];
+  // RC5：人工结案优先于任何探测结果（huanyin 场景：业务 400 本会判 review，人工结论应压成 void）
+  cases.push(['RC5', '人工结论优先于探测结果 → 仍判 void', 'void', [
+    { type: 'http', label: 'b', result: { ok: true, status: 200, bizCode: 400, gate: false } },
+  ], { st: 'void', why: '无新增量' }])
   let fail = 0;
-  for (const [id, name, expect, checks] of cases) {
-    const got = candidateState(checks);
+  for (const [id, name, expect, checks, manual] of cases) {
+    const got = candidateState(checks, manual);
     const ok = got === expect;
     if (!ok) fail += 1;
     console.log(`${ok ? '✓' : '✗'} [${id}] ${name} — 期望 ${expect} 实得 ${got}`);
@@ -152,13 +162,15 @@ async function main() {
       console.log(`  - ${r.label}: ${rStr}`);
       results.push(r);
     }
-    const st = candidateState(results);
+    const st = candidateState(results, cand.manualVerdict);
     const verdict = st === 'recovered' ? '🟢 已恢复 —— 可启动重评（候选实证流程）'
       : st === 'paid' ? '⚪ 付费/卡密门 —— 不可接入（维持判否，不再提示重评）'
+      : st === 'void' ? `⚪ 无新增量 —— 不可接入（人工核查：${cand.manualVerdict?.why || ''}）`
       : st === 'review' ? '🟡 需人工核查 —— 接口有响应但通道未证实/参数疑变更，建议重评'
       : '🔴 仍失效 —— 继续等待';
     console.log(`  ➜ ${verdict}\n`);
     const stLabel = st === 'recovered' ? '🟢 已恢复-可重评' : st === 'paid' ? '⚪ 付费门-维持判否'
+      : st === 'void' ? '⚪ 无新增量-维持判否（人工结案）'
       : st === 'review' ? '🟡 需人工核查' : '🔴 仍失效';
     lines.push(`| ${cand.name} | ${stLabel} | ${cand.checks.map(c => {
       const r = results.find(x => x.label === c.label);

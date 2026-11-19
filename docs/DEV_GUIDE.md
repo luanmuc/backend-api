@@ -343,6 +343,12 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | **hyw（HYWmusic v1.2.0）** | 后端 502 | 后端已恢复（http/https 103.79.184.97=HTTP 200），但首页显示**需要卡密**（"卡密总数/登录控制台"），非免费公益源 → 维持判否 |
 | **huanyin（幻音 v3）** | 主域名 DNS 失效 + 咪咕 502 | 主域名 music-dl.sayqz.com DNS 仍失效；业务接口 api.xcvts.cn 已接入（suyinMigu）→ 无新增量，维持判否 |
 
+> **2026-11-19 结案（两候选退出轮询）**：`recheck-candidates.js` 补了「人工结论层」——已结案的候选不再被单次探测结果反复拉回「🟡 需人工核查」。本轮实测：
+> - **hyw → ⚪ 付费/卡密门（维持判否）**：业务 `GET /api/music/url?platform=tx&songmid=0039MnYb0qxYhV&quality=320k` 仍返回 **HTTP 401 / 业务码 401**（`cardKeyRequired`），首页偶发超时也不影响该结论；
+> - **huanyin → ⚪ 无新增量（人工结案）**：备用通道 `api.xcvts.cn` 咪咕 `HTTP 200 / 业务码 400`（接口活着但需参数），该线路**已由 suyinMigu 接入**，同一线路无新增平台/音质；主域名 `music-dl.sayqz.com` 仍 `ENOTFOUND`。
+>
+> 两候选均不再要求人工复核；探测仍每次照跑，证据照记（`candidate-status.md` 顶部时间戳即最近一次实测）。新增自检 **RC5**（人工结论优先于探测结果），实跑 `自检 5/5`。
+
 > **2026-11-16 复评（hyw 二次，附实测）**：`candidate-status.md` 又报 hyw「🟢 已恢复-可重评」，逐项实测后**仍是付费门**——
 > `GET https://103.79.184.97/api/music/url?platform=tx&songmid=0039MnYb0qxYhV&quality=320k` → **HTTP 401**，
 > body `{"code":401,"message":"需要卡密才能访问，请在请求中携带 key 参数","received":{…,"hasKey":false,"cardKeyRequired":true}}`；
