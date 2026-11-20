@@ -87,6 +87,12 @@ rec('Y8', 'probation 无链位次 / 默认关闭 / 有 reviewAt', () => {
   assert.strictEqual(H.suyinMigu.reviewAt, '2026-11-26');
 });
 rec('Y9', 'chain-golden.json 11 源 5×4 逐项一致，且不含观察源', () => {
+  // 2026-11-20：huibq 默认关闭后，链里会被 default-off 过滤掉。
+  // golden 是「能力基线」（dump-chain 生成时强制开启全部 active 源），
+  // 这里用同口径开启，比对的是链序而不是开关状态。
+  for (const id of Object.keys(mod.SOURCE_HANDLERS)) {
+    if (mod.SOURCE_HANDLERS[id].lifecycle === 'active') mod.runtimeToggles[id] = true;
+  }
   const golden = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'chain-golden.json'), 'utf8'));
   assert.strictEqual(golden.version, require(path.join(__dirname, '..', '..', 'package.json')).version);
   for (const p of ['kw', 'wy', 'tx', 'mg', 'kg']) {

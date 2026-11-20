@@ -53,6 +53,7 @@ check('S2 localThrottle 是只读投影，不改变 eligible', () => {
 
 check('S3 coldStart 只做可见 reason，不阻断资格', () => {
   const m = fresh()
+  m.runtimeToggles.huibq = true // 2026-11-20：huibq 默认关闭（上游暂停），本组验证 coldStart 语义需先启用
   const item = m.__debug.getHealthSnapshot().huibq
   assert(item && item.coldStart, 'huibq 应带 coldStart 标记')
   assert(item.coldStart.reason === 'COLD_START', `reason=${item.coldStart.reason}`)
@@ -125,6 +126,7 @@ check('S10 生产探测配置只保留 handler 目标，不携带旧 URL 字段'
 // 改成对真实设计取证：所有源带 twoSong 标记（执行期据此展开）+ 跨轮次必须换歌 + 多目标源目标间必须是不同歌。
 check('S11 twoSong 标记全覆盖、跨轮轮换歌曲、多目标源单轮不同歌', () => {
   const m = fresh()
+  m.runtimeToggles.huibq = true // 2026-11-20：关闭的源不进探测配置，本组按 13 源全开口径验证
   const cfg0 = m.buildProbeConfig()
   const ids = Object.keys(cfg0)
   assert(ids.length === 13, `探测配置源数 ${ids.length}`)

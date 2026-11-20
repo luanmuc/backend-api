@@ -13,7 +13,9 @@ const SOURCE_TOGGLES = {
   xinghaiBackend: true, // 星海后端主域：kw 高音质双源 + 128k 兜底
   helloworldKw: true,   // helloworld(kw)：convert_url_with_sign 直链，kw 128k/320k/flac
   changqingVip: true,   // 长青：kw 128k 兜底
-  huibq: true,          // Huibq：kw/wy 链尾兜底（冷启动源）
+  huibq: false,         // Huibq：2026-11-20 关闭——11-16 起上游 onrender 服务被 owner 主动暂停
+                        //（503「This service has been suspended by its owner.」，根路径同 503）；
+                        // 11-04~11-15 曾连续 12 天全 200，属暂停而非冷启动；保留函数便于复活
   juheTx: true,         // Juhe 聚合(tx)：tx 第三源，7 天复核
   qingliangTx: true,    // 晴亮(tx)：tx 主用第二源（2026-11-15 实测 5/5 全曲 320k），3 天复核
   ikun: true,           // ikun：kw/wy 链尾兜底（公益版免卡密）

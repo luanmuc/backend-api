@@ -277,7 +277,9 @@ async function probeSingleSource(id, pc) {
   dep('probeState').lastProbeAt[id] = Date.now();
   // v8.10.3：形参从 cfg 改名 pc —— 旧名遮蔽了全局配置读取函数 cfg(key, def)，
   // 而下面冷启动分支要调 cfg('coldStartProbeTimeoutMs')，直接 TypeError 被 catch 吞成"探测失败"。
-  // 全仓唯一 coldStart 源是 huibq → 它的探针 100% 失败（实测：正常响应也不发请求、score 恒为负）。
+  // 全仓唯一 coldStart 源是 huibq。注意「探针 100% 失败」的说法已被证伪：
+  // probe-history 显示 11-04~11-15 连续 12 天 200（正常响应、score 正常）；
+  // 真正 100% 失败的是 11-16 之后——那是 owner 暂停服务（503 Service Suspended），不是冷启动。
   // v8.14：逐目标三值探测。每个质量档单独给 PASS/FAIL/UNKNOWN，源级只做聚合：
   //   任一目标 PASS = 源可达（但不能证明所有档可交付）；全部 FAIL = 源失败；否则 UNKNOWN。
   let probes = pc.probes || [{

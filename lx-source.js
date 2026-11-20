@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v9.1.2 门禁与断言加固版（P1 修复：docs-audit 硬失败可退出非零 / verify-real 支持 --require-all-ok / 签名缺钥可拦 --require-key / X-P 跨仓校验接入 push CI / live 驱动清理 4 个退役源 / provider contract 三源口径与注册表同步 / a-static 异步拒绝必须结构化错误码 / C10 并发外呼上限断言；详见 CHANGELOG）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
- * @version 9.1.2
+ * @description v9.1.3 溯音163 接口兼容修复（data.items）+ 门禁与断言加固版（P1 修复：docs-audit 硬失败可退出非零 / verify-real 支持 --require-all-ok / 签名缺钥可拦 --require-key / X-P 跨仓校验接入 push CI / live 驱动清理 4 个退役源 / provider contract 三源口径与注册表同步 / a-static 异步拒绝必须结构化错误码 / C10 并发外呼上限断言；详见 CHANGELOG）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
+ * @version 9.1.3
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -65,8 +65,10 @@ var __lxSourceBundle = (() => {
         // helloworld(kw)：convert_url_with_sign 直链，kw 128k/320k/flac
         changqingVip: true,
         // 长青：kw 128k 兜底
-        huibq: true,
-        // Huibq：kw/wy 链尾兜底（冷启动源）
+        huibq: false,
+        // Huibq：2026-11-20 关闭——11-16 起上游 onrender 服务被 owner 主动暂停
+        //（503「This service has been suspended by its owner.」，根路径同 503）；
+        // 11-04~11-15 曾连续 12 天全 200，属暂停而非冷启动；保留函数便于复活
         juheTx: true,
         // Juhe 聚合(tx)：tx 第三源，7 天复核
         qingliangTx: true,
@@ -490,7 +492,7 @@ var __lxSourceBundle = (() => {
   // src/core/02-config.js
   var require_config = __commonJS({
     "src/core/02-config.js"(exports, module) {
-      var SOURCE_VERSION = true ? "9.1.2" : "8.16.4";
+      var SOURCE_VERSION = true ? "9.1.3" : "8.16.4";
       var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
       function normalizeProbeSongPool(value) {
         if (!Array.isArray(value)) return null;
@@ -4277,7 +4279,7 @@ var __lxSourceBundle = (() => {
           chain: { kw: 8, wy: 8 },
           upstreamGroup: "huibq",
           coldStart: true,
-          note: "onrender \u51B7\u542F\u52A8\uFF1B\u4EC5 kw/wy \u5B9E\u6D4B\u53EF\u7528"
+          note: "onrender\uFF1B**2026-11-16 \u8D77\u670D\u52A1\u88AB owner \u4E3B\u52A8\u6682\u505C**\uFF08503 \u300CThis service has been suspended by its owner.\u300D\uFF0C\u6839\u8DEF\u5F84\u540C\u6837 503\uFF0C0.8s \u5373\u8FD4\u56DE\uFF09\uFF1B11-04~11-15 \u8FDE\u7EED 12 \u5929 200 \u66FE\u5B8C\u5168\u53EF\u7528\uFF0C\u51B7\u542F\u52A8\u53EA\u89E3\u91CA 11-01~11-03 \u7684\u8FDE\u63A5\u8D85\u65F6"
         }),
         juheTx: provider("juheTx", "Juhe\u805A\u5408(tx)", juheGetUrl, "flac", {
           platforms: ["tx"],
@@ -6077,7 +6079,8 @@ var __lxSourceBundle = (() => {
         if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u6EAF\u97F3163\u7F3A\u5C11songmid/id`);
         const res = await httpGet(SUYIN_163_API, { id }, "parse", null, RETRY_TIMES, cancelToken);
         if ((res == null ? void 0 : res.code) === 0 && (res == null ? void 0 : res.data)) {
-          const item = Array.isArray(res.data) ? res.data[0] : res.data;
+          const payload = res.data;
+          const item = Array.isArray(payload) ? payload[0] : Array.isArray(payload.items) ? payload.items[0] : payload;
           if (item == null ? void 0 : item.url) return item.url;
         }
         throw new Error(`${ERROR_CODES.NOT_FOUND}: \u6EAF\u97F3163\u83B7\u53D6\u5931\u8D25`);
@@ -6532,7 +6535,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.2 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.3 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {

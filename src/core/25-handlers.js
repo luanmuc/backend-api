@@ -490,7 +490,8 @@ const SOURCE_HANDLERS = {
   }),
   huibq: provider("huibq", "Huibq", huibqGetUrl, "320k", {
     platforms: ["kw", "wy"], anchors: ["rid", "songmid", "id"], chain: { kw: 8, wy: 8 }, upstreamGroup: "huibq",
-    coldStart: true, note: "onrender 冷启动；仅 kw/wy 实测可用",
+    coldStart: true,
+    note: "onrender；**2026-11-16 起服务被 owner 主动暂停**（503 「This service has been suspended by its owner.」，根路径同样 503，0.8s 即返回）；11-04~11-15 连续 12 天 200 曾完全可用，冷启动只解释 11-01~11-03 的连接超时",
   }),
   juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "flac", {
     platforms: ["tx"], anchors: ["songmid", "musicId", "id"], chain: { tx: 3 }, upstreamGroup: "juhe",

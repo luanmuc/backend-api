@@ -93,6 +93,9 @@ function loadSource(noConsole) {
   if (noConsole) globalThis.console = undefined; // 模拟 D11：无 console 宿主
   try {
     require(SRC);
+    // 2026-11-20：huibq 默认关闭（上游 onrender 被 owner 暂停）。本冒烟测的是「能力」而非「默认开关」，
+    // 统一临时开启；默认关闭与手动开启两条路径由 T38 单独验证。
+    require(SRC).runtimeToggles.huibq = true;
     if (noConsole) globalThis.console = saved;
     return null;
   } catch (e) {
@@ -916,13 +919,19 @@ async function test(name, fn) {
     modV36.runtimeToggles.huibq = huibqDefault; // 复原为默认状态（避免污染后续 T38）
   }
 
-  console.log('[T38] v8.6 huibq 默认开启：kw/wy 链尾兜底 + 探针默认在册（v8.9 收窄平台能力）');
+  console.log('[T38] 2026-11-20 huibq 默认关闭（上游 onrender 被 owner 暂停）：关闭即不进链，手动开启可恢复');
   {
-    assert.strictEqual(modV36.SOURCE_TOGGLES.huibq, true, `huibq 应默认开启（A 方案），实际 ${modV36.SOURCE_TOGGLES.huibq}`);
-    // v8.9：huibq 仅 kw/wy（tx/mg/kg 实测必败，不再白耗兜底）
+    assert.strictEqual(modV36.SOURCE_TOGGLES.huibq, false, `huibq 应默认关闭（11-16 起上游 503 Service Suspended），实际 ${modV36.SOURCE_TOGGLES.huibq}`);
+    modV36.runtimeToggles.huibq = false; // 显式关闭，验证「默认关闭时不进链」
     for (const plat of ['kw', 'wy']) {
       const chain38 = modV36.buildSourceChain(plat, '128k');
-      assert.ok(chain38.some(h => h.id === 'huibq'), `${plat} 128k 链尾应含 huibq，实际 ${chain38.map(h => h.id).join('→')}`);
+      assert.ok(!chain38.some(h => h.id === 'huibq'), `${plat} 默认关闭时链不应含 huibq，实际 ${chain38.map(h => h.id).join('→')}`);
+    }
+    // 手动开启后恢复 kw/wy 链尾能力（保留函数便于上游复活）
+    modV36.runtimeToggles.huibq = true;
+    for (const plat of ['kw', 'wy']) {
+      const chain38 = modV36.buildSourceChain(plat, '128k');
+      assert.ok(chain38.some(h => h.id === 'huibq'), `${plat} 手动开启后链尾应含 huibq，实际 ${chain38.map(h => h.id).join('→')}`);
     }
     for (const plat of ['tx', 'mg', 'kg']) {
       const chain38 = modV36.buildSourceChain(plat, '128k');
@@ -930,11 +939,12 @@ async function test(name, fn) {
     }
     const probeCfg38 = modV36.buildProbeConfig();
     assert.ok(probeCfg38.huibq && probeCfg38.huibq.useHandler === true && !probeCfg38.huibq.url,
-      `huibq 默认开启后探针应默认在册，实际 ${JSON.stringify(probeCfg38.huibq || null).slice(0, 100)}`);
+      `huibq 手动开启后探针应在册，实际 ${JSON.stringify(probeCfg38.huibq || null).slice(0, 100)}`);
   }
 
   console.log('[T39] v8.7 huibq 假成功治理：msg「无法获取播放链接！」不得交付错链');
   {
+    require(SRC).runtimeToggles.huibq = true; // 2026-11-20：huibq 默认关闭，本组需它在链里应答
     resetMock();
     mockRoute = (u) => {
       if (u.includes('lxmusicapi.onrender.com')) {
@@ -954,6 +964,7 @@ async function test(name, fn) {
 
   console.log('[T40] v8.8 分批错峰并发接管：首批未 settle 时后批已并发启动，不再串行等满');
   {
+    require(SRC).runtimeToggles.huibq = true; // 2026-11-20：huibq 默认关闭，批3 需它交付
     resetMock();
     const urls40 = [];
     mockRoute = (u) => {
@@ -1053,6 +1064,7 @@ async function test(name, fn) {
   {
     console.log('[T44] v8.9 huibq 平台能力收窄：仅 kw/wy 进链，tx/mg/kg 不含 huibq');
     const mod = require(SRC);
+    mod.runtimeToggles.huibq = true; // 2026-11-20：huibq 默认关闭，本组验证「手动开启后」的平台能力
     const chainTx = mod.buildSourceChain('tx', '128k');
     const chainMg = mod.buildSourceChain('mg', '128k');
     const chainKg = mod.buildSourceChain('kg', '128k');
@@ -1146,6 +1158,7 @@ async function test(name, fn) {
   {
     const mod47 = require(SRC);
     const savedHb = mod47.runtimeToggles.huibq;
+    mod47.runtimeToggles.huibq = true; // 2026-11-20：huibq 默认关闭，本组验证冷启动豁免需先启用
     const savedKw = mod47.runtimeToggles.suyinKuwo;
     try {
       // coldStart 源（huibq）：连续 2 次探测失败 → 应保留启用

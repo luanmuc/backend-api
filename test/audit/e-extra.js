@@ -330,6 +330,10 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
     // 背景：冷态可能只是进程未唤醒，若照常 autoOff，每次冷启动都会把源关掉；恢复只能等探测通过，
     // 会在用户侧表现为「重启后源莫名变灰」。对照源用于证明豁免不是「autoOff 整个失效」。
     const m6 = fresh(null);
+    // 2026-11-20：huibq 已默认关闭（上游 onrender 服务被 owner 暂停），
+    // 本组测的是「coldStart 源连续探测失败不被 autoOff」这条策略，
+    // 与默认开关无关——临时开启以恢复前提，用完不还原（实例即弃）。
+    m6.runtimeToggles.huibq = true;
     const pick6 = id => { const s = m6.getHealthSnapshot(); return (s.sources && s.sources[id]) || s[id] };
     m6.applyProbeResult('huibq', false);
     m6.applyProbeResult('huibq', false);
