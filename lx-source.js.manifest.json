@@ -1,9 +1,9 @@
 {
   "artifact": "lx-source.js",
-  "version": "9.1.2",
-  "size": 364735,
-  "sha256": "d406bef1441dcade84dc69e981a49785e1a834497db122f975d0ff10ffe34542",
+  "version": "9.1.3",
+  "size": 365415,
+  "sha256": "b81443617054c9ca5669bf4163a5679cb0354bfa3a03c6c033f431a068e80e15",
   "sigAlg": "ed25519",
   "keyId": "k1",
-  "sig": "5KwxPbbv1qhRNDx5q4HdBtxFiBheNB2XdpGatAQA//TyCGeAYHEHJW/NWK038S7zQz8z1lYUFmSRutWrRluaBg=="
+  "sig": "6VtsgugGRQhlkIZwRt3ga1xRcF4QmdpHcPNGZv+bemq/faTASivRLeP080Zxze0EFK0tl4A5tDPLOztFmcsrDw=="
 }
