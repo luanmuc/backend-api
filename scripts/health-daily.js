@@ -18,9 +18,9 @@ const { ENDPOINTS, WINDOW_DAYS, CONSECUTIVE_FAIL_DAYS } = require('./endpoint-re
 // v8.10.5：开关解析抽成独立模块（probe 也要用：README_HEALTH 只对启用源出死源建议）
 const { parseToggles } = require('./source-toggles.js');
 const { todayCN } = require('./cn-date.js'); // v8.10.6：默认日期改北京（原 toISOString 是 UTC，本地 0~8 点会拿到昨天）
+const history = require('./lib/history.js'); // v9.1.4：历史读取/归一化/窗口统计的单一真相
 
 const SRC = path.join(__dirname, '..', 'lx-source.js');
-const HISTORY_PATH = path.join(__dirname, '..', 'docs', 'probe-history.jsonl');
 const OUT_DIR = path.join(__dirname, '..', 'docs', 'health-daily');
 
 const MAX_FAIL_RATE = 50; // 故障率上限(%)：超过即需处理（v8.10.5 改名，原名 FAIL_RATE_THRESHOLD 语义反向，易被误改成 <50）
@@ -38,89 +38,15 @@ const CHANGE_PP_THRESHOLD = 30; // 窗口成功率变化超过 30 个百分点�
 
 // ---------- 启用状态：统一由 scripts/source-toggles.js 解析（v8.10.5） ----------
 
-// ---------- 历史聚合 ----------
-function loadHistory() {
-  if (!fs.existsSync(HISTORY_PATH)) return [];
-  return fs.readFileSync(HISTORY_PATH, 'utf8')
-    .split('\n').filter(Boolean)
-    .map(l => { try { return JSON.parse(l); } catch { return null; } })
-    .filter(Boolean);
-}
+// ---------- 历史聚合：v9.1.4 起全部委托 scripts/lib/history.js ----------
+// 旧实现本文件里另有一份 loadHistory/wilsonLower/windowStats/prevDataDate，
+// 与 probe.js 的 aggregateHistory 口径不同（探测级 vs 天级），
+// 同一个端点同一天会出现两个不同的"成功率"。
+// 这里只保留薄封装维持原有调用签名；实现、归一化、Wilson 计算都只有一份。
+const loadHistory = () => history.load();
+const windowStats = (entries, url, baseDate) => history.windowStats(entries, url, baseDate, WINDOW_DAYS);
+const prevDataDate = history.prevDataDate;
 
-/** 取某端点在某日为基准、往前 WINDOW_DAYS 天的窗口统计；无数据返回 null */
-// v8.17：二项比例的 Wilson 95% 置信下限（z=1.96），返回 0~1
-function wilsonLower(k, n, z = 1.96) {
-  if (!n) return 0;
-  const p = k / n;
-  const denom = 1 + (z * z) / n;
-  const centre = p + (z * z) / (2 * n);
-  const margin = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
-  return Math.max(0, (centre - margin) / denom);
-}
-
-function windowStats(entries, url, baseDate) {
-  // v8.10.7（T6）：窗口改**日历日**（目标日往前 WINDOW_DAYS 天），不再取「最近 N 个有数据日」。
-  // 旧口径在断档时会把窗口偷偷拉长到两周前，用陈旧数据充当下"最近 7 天健康度"；
-  // 实测改日历日后断档场景参与判定数不变、也不会判死（窗口内无样本 → no-data，样本少 → 小样本规则兜底）。
-  const window = [];
-  for (let i = WINDOW_DAYS - 1; i >= 0; i--) {
-    const d = new Date(baseDate + 'T00:00:00Z');
-    d.setUTCDate(d.getUTCDate() - i);
-    window.push(d.toISOString().slice(0, 10));
-  }
-  const recs = entries.filter(e => e.url === url && window.includes(e.date));
-  if (!recs.length) return null;
-
-  const total = recs.length;
-  const success = recs.filter(r => r.ok).length;
-  const rate = Math.round((success / total) * 1000) / 10;
-  const rateRaw = rate; // v8.17：保留点估计（历史对比用），判定看 wilsonLow
-  const wilsonLow = total ? Math.round(wilsonLower(success, total) * 1000) / 10 : 0;
-
-  const byDate = {};
-  for (const r of recs) {
-    if (!byDate[r.date]) byDate[r.date] = { ok: 0, fail: 0 };
-    if (r.ok) byDate[r.date].ok++; else byDate[r.date].fail++;
-  }
-  const sorted = Object.keys(byDate).sort();
-  let consecutiveFail = 0;
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    if (byDate[sorted[i]].ok === 0) consecutiveFail++;
-    else break;
-  }
-
-  const latest = entries.filter(e => e.url === url && e.date === baseDate).sort((a, b) => a.date.localeCompare(b.date));
-  const winDates = [...new Set(recs.map(r => r.date))].sort();
-  return {
-    total, success, rate, rateRaw, wilsonLow, consecutiveFail,
-    todayCount: latest.length,          // v8.10.5：当天样本数——0 表示今日未探测，不得拿窗口数据冒充今日判定
-    lastDate: winDates.length ? winDates[winDates.length - 1] : null,
-    
-    avgTime: Math.round(recs.reduce((s, r) => s + (r.time || 0), 0) / total),
-    lastOk: latest.length ? latest[latest.length - 1].ok : null,
-    lastStatus: latest.length ? latest[latest.length - 1].status : 0,
-    lastReason: latest.length ? latest[latest.length - 1].reason : '',
-    reasons: [...new Set(recs.filter(r => !r.ok).map(r => r.reason))],
-  };
-}
-
-/**
- * v8.10.6（T7）：某端点**自己**上一次有数据的日期（严格早于 targetDate）。
- *
- * 原实现取「全局日期集的倒数第二天」当所有端点的基准。一旦某端点中间几天缺样本
- * （probe 部分失败、或该端点新登记），它拿不到"上次状态"→ lastOk=null → 真正的翻转
- * （可用 → 失败）既不报 🔴，还会被降级成一句「窗口成功率 100% → 50%」的 pp 变化，
- * 读的人只会以为"在缓慢变差"，而不知道"这个源已经直接坏掉了"。
- */
-function prevDataDate(entries, url, targetDate) {
-  let best = null;
-  for (const e of entries) {
-    if (!e || !e.date || e.url !== url) continue;
-    if (e.date >= targetDate) continue; // 严格早于目标日
-    if (best === null || e.date > best) best = e.date;
-  }
-  return best;
-}
 function labelOf(ep) {
   return ep.sources && ep.sources.length ? ep.sources.join('/') : (ep.label || ep.url.slice(0, 40));
 }
@@ -131,7 +57,7 @@ function clean(s) {
 }
 
 // ---------- 渲染 ----------
-function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dataThrough, gapDays, chainSample, deviceDigest }) {
+function render({ rows, changes, targetDate, prevDateLabel, lineNo, dataThrough, gapDays, chainSample, deviceDigest }) {
   const L = [];
   L.push(`# 健康日报 ${targetDate}`);
   L.push('');
@@ -141,6 +67,11 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
   L.push(`> **样本警示**：样本 <${SMALL_SAMPLE} 时成功率只作趋势参考；样本不足且未连续 ${CONSECUTIVE_FAIL_DAYS} 天全失败的，**一律不进「需处理」**。`);
   L.push('> **巡检出口**：探测跑在 GitHub Actions（海外 IP）。`403`/`429` 多见于地区或风控拦截，**不等同于用户手机不可用**，故先归「观察」。');
   L.push(`> **今日未探测**：当天没有任何探测样本的端点不参与判定（\`--date\` 对应日无数据时不拿窗口旧数据顶替）。`);
+  // v9.1.4：旧口径样本被整体剔除后样本数会突然变小，不解释就是"巡检退化"的假象。
+  const legacyTotal = rows.reduce((s, r) => s + (r.legacyCount || 0), 0);
+  if (legacyTotal) {
+    L.push(`> **历史口径断层**：本窗口另有 ${legacyTotal} 条 2026-11-20 前由旧版探针写入的记录——它们只记裸 HTTP 结果，payload 失败也记为成功，已整体标记 \`legacy\` 且**不参与**成功率与连续性统计。有效样本因此暂时偏小，属于口径切换的正常过渡：每天新增约 ${ENDPOINTS.length} 条新口径记录，7 天后自然恢复。`);
+  }
   L.push('');
   if (gapDays > 0) {
     L.push(`> ⚠️ **数据断档**：${targetDate} 无探测数据，最近一次数据是 **${dataThrough}**（已 ${gapDays} 天未探测）。下面所有判定基于窗口内历史，**不代表今日状态**。`);
@@ -160,7 +91,8 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
   L.push('');
 
   // 需处理
-  const handle = rows.filter(r => r.bucket === 'handle');
+  // 工具端点（无 sources）不进「需处理」表——它没有 SOURCE_TOGGLES 可关，动作列无从下笔
+  const handle = rows.filter(r => r.bucket === 'handle' && r.sources && r.sources.length);
   L.push('## 需处理（启用源）');
   L.push('');
   if (!handle.length) {
@@ -178,8 +110,10 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
   }
   L.push('');
 
-  // 观察
-  const watch = rows.filter(r => r.bucket === 'watch');
+  // 观察（v9.1.4：与「正常」同规则，只列**源**端点，工具端点统一走表后脚注）
+  const watchAll = rows.filter(r => r.bucket === 'watch');
+  const watch = watchAll.filter(r => r.sources && r.sources.length);
+  const watchTools = watchAll.filter(r => !r.sources || !r.sources.length);
   L.push('## 观察（启用源，暂不动作）');
   L.push('');
   if (!watch.length) {
@@ -194,15 +128,45 @@ function render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dat
       L.push(`| ${clean(r.label)} | \`${clean(r.url).slice(0, 46)}\` | ${r.total} | ${r.rate}% | ${r.wilsonLow}% | ${r.consecutiveFail} 天 | ${note} |`);
     }
   }
+  if (watchTools.length) {
+    L.push('');
+    L.push(`> 另有 ${watchTools.length} 个工具类端点（非音源，仅提供搜索/歌词等能力）处于观察：${watchTools.map(r => `\`${clean(r.url).slice(0, 34)}\`（${r.rate}%，${r.total} 样本）`).join('、')}。`);
+  }
   L.push('');
 
-  // 正常
+  // 仅试听（能力受限）——v9.1.4：片段由音源本体验真拦截，用户听不到，故不算故障
+  const limited = rows.filter(r => r.bucket === 'limited');
+  L.push('## 仅试听（能力受限，不影响用户）');
+  L.push('');
+  if (!limited.length) {
+    L.push('无。');
+  } else {
+    L.push('> 这些源对探测歌只返回试听片段。音源本体的交付验真（`src/core/15-verify.js` 的 `PREVIEW_FRAGMENT` + 3KB/s 体积下界）会**拦截该结果并继续换源**，用户不会听到片段；本段只记录能力边界，不参与「需处理」告警。');
+    L.push('');
+    L.push('| 源 | 端点 | 样本 | 成功率 | 95%下限 | 最近原因 |');
+    L.push('|---|---|---|---|---|---|');
+    for (const r of limited) {
+      const durCell = r.lastDur ? `仅试听 ${r.lastDur}s` : '仅试听片段';
+      L.push(`| ${clean((r.sources || []).join('/') || r.label)} | \`${clean(r.url).slice(0, 46)}\` | ${r.total} | ${r.rate}% | ${r.wilsonLow}% | ${durCell} |`);
+    }
+  }
+  L.push('');
+
+  // 正常（v9.1.4：只列**源**端点）
+  // 旧实现把 wyLyric / wyDetail / kuwoSearch 三个工具端点也算进"正常"，
+  // 读者会以为"有 8 个源健康"，实际其中 3 个根本不是音源，与播放可用性无关。
   const okRows = rows.filter(r => r.bucket === 'ok');
+  const okSources = okRows.filter(r => r.sources && r.sources.length);
+  const okTools = okRows.filter(r => !r.sources || !r.sources.length);
   L.push('## 正常');
   L.push('');
-  L.push(okRows.length
-    ? okRows.map(r => `\`${clean(r.url).slice(0, 42)}\`（${clean(r.label)} ${r.rate}%，下限 ${r.wilsonLow}%，${r.total} 样本）`).join('、')
+  L.push(okSources.length
+    ? okSources.map(r => `\`${clean(r.url).slice(0, 42)}\`（${clean(r.label)} ${r.rate}%，下限 ${r.wilsonLow}%，${r.total} 样本）`).join('、')
     : '无。');
+  if (okTools.length) {
+    L.push('');
+    L.push(`> 另有 ${okTools.length} 个工具类端点（非音源，仅提供搜索/歌词等能力）存活：${okTools.map(r => `\`${clean(r.url).slice(0, 36)}\``).join('、')}。`);
+  }
   L.push('');
 
   // v8.17：出链抽样（真实取链）——补「端点活着 ≠ 能出链」的缺口
@@ -398,6 +362,10 @@ function main() {
     else if (!enabled) { bucket = 'skip'; skipReason = 'disabled'; }
     // ① 今日无样本 → 不得用窗口旧数据冒充"今日判定"（V2）
     else if (cur.todayCount === 0) { bucket = 'skip'; skipReason = 'no-today'; }
+    // ②.1 仅试听 = 能力受限，不是故障（v9.1.4，2026-11-20 用户口径）。
+    // 音源本体的交付验真（src/core/15-verify.js 的 PREVIEW_FRAGMENT + 3KB/s 体积下界）
+    // 会拦下片段并继续换源，用户根本听不到；这里单列「仅试听」，不进「需处理」。
+    else if (cur.lastFragment && cur.lastOk === true) { bucket = 'limited'; }
     // ② 小样本不得进 handle，除非已连续 3 天全失败（那说明真坏，不是抖动）（V18）
     else if (cur.total < SMALL_SAMPLE && cur.consecutiveFail < CONSECUTIVE_FAIL_DAYS)
       bucket = (cur.rate < OBSERVE_MAX_RATE || cur.wilsonLow < WILSON_OK_MIN) ? 'watch' : 'ok';
@@ -413,12 +381,16 @@ function main() {
     else if (cur.rate < OBSERVE_MAX_RATE || cur.wilsonLow < WILSON_OK_MIN) bucket = 'watch';
     else bucket = 'ok';
 
-    rows.push({ url: ep.url, sources: ep.sources, kind: ep.kind, label, bucket, skipReason, ...cur });
+    // v9.1.4：连续失败天数同时给「窗口内」（判定用）与「全历史」（告警升级用）。
+    // 窗口只有 7 天，cur.consecutiveFail 最大只能是 7 —— 与 CI 的 escalated 阈值 7 刚好卡死，
+    // 永远无法表达"已经连续挂了 20 天"。全历史值单独给一个字段。
+    const consecutiveFailAll = history.consecutiveFailDays(entries, ep.url, targetDate);
+    rows.push({ url: ep.url, sources: ep.sources, kind: ep.kind, label, bucket, skipReason, consecutiveFailAll, ...cur });
   }
 
   const chainSample = loadChainSample(targetDate);
   const deviceDigest = loadDeviceDigests(targetDate);
-  const report = render({ rows, changes, targetDate, prevDateLabel, toggles, lineNo, dataThrough, gapDays, chainSample, deviceDigest });
+  const report = render({ rows, changes, targetDate, prevDateLabel, lineNo, dataThrough, gapDays, chainSample, deviceDigest });
 
   if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(outPath, report);
@@ -435,18 +407,24 @@ function main() {
     prevDates: Object.fromEntries(prevDates),
     registered: ENDPOINTS.length,
     judged: rows.filter(r => r.bucket !== 'skip').length,
-    handle: rows.filter(r => r.bucket === 'handle').map(r => ({
+    handle: rows.filter(r => r.bucket === 'handle' && r.sources && r.sources.length).map(r => ({
       label: r.label, sources: r.sources, url: r.url, kind: r.kind,
-      rate: r.rate, total: r.total, consecutiveFail: r.consecutiveFail, reason: r.lastReason,
+      // rate 与 rateRaw 同值：前者是展示口径，后者是历史对比口径（G15 双口径守卫要求两者都在）
+      rate: r.rate, rateRaw: r.rateRaw, total: r.total, consecutiveFail: r.consecutiveFail,
+      // v9.1.4：全历史连续失败天数（不受 7 天窗口限制），CI 的 escalated 判据读这个
+      consecutiveFailAll: r.consecutiveFailAll,
+      reason: r.lastReason,
     })),
-    watch: rows.filter(r => r.bucket === 'watch').map(r => ({ label: r.label, url: r.url, rate: r.rate, total: r.total })),
+    watch: rows.filter(r => r.bucket === 'watch' && r.sources && r.sources.length).map(r => ({ label: r.label, url: r.url, rate: r.rate, total: r.total })),
+    // v9.1.4：仅试听单列（能力受限，不是故障）
+    limited: rows.filter(r => r.bucket === 'limited').map(r => ({ label: r.label, url: r.url, sources: r.sources, rate: r.rate, total: r.total })),
     // v8.11：交付片段（能播但只有几秒）单独暴露——它不会被"可用率"暴露，
     // 因为片段在端点层是 100% 绿色的 206；不单列就等于巡检对用户真实听感失明
     fragment: rows.filter(r => String(r.lastReason || '').includes('PAYLOAD_FRAGMENT')).map(r => ({ label: r.label, url: r.url, sources: r.sources })),
     changes: changes.map(c => c.text),
   };
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2) + '\n');
-  const handle = rows.filter(r => r.bucket === 'handle').length;
+  const handle = rows.filter(r => r.bucket === 'handle' && r.sources && r.sources.length).length;
   console.log(`✅ 日报已生成: ${outPath}`);
   console.log(`   登记 ${ENDPOINTS.length} 端点 / 参与判定 ${rows.filter(r => r.bucket !== 'skip').length}；需处理 ${handle} 条；今日变化 ${changes.length} 条`);
 

@@ -12,10 +12,20 @@ const REPO = process.env.TELEMETRY_REPO || 'luanmuc/lx-telemetry'
 const API = `https://api.github.com/repos/${REPO}/contents/digests`
 const RAW = `https://raw.githubusercontent.com/${REPO}/main/digests`
 const OUT = path.join(__dirname, '..', 'docs', 'device-digests.jsonl')
-const KEEP_DAYS = 60
 
+// v9.1.4：原实现有一个从未参与过滤的 `KEEP_DAYS = 60`，日志却照它打印
+// 「保留 60 天窗口」，而真实 cutoff 由 `--days`（默认 14）决定 —— 日志与行为不符。
+// 删除该死常量，日志改用真实 days。
+//
+// cstDate：把任意时间戳换算成**北京日期**。
+// 无时区后缀的串按 UTC 解释（CI runner 是 UTC；显式补 Z，避免本地 +08 环境对同一串
+// 得到与 CI 不同的日期）。Date.parse 归一化到 UTC 毫秒后统一 +8h —— 带不带偏移都对。
 function cstDate(iso) {
-  return new Date(Date.parse(iso) + 8 * 3600 * 1000).toISOString().slice(0, 10)
+  if (!iso) return ''
+  const s = /[zZ]|[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + 'Z'
+  const ms = Date.parse(s)
+  if (!Number.isFinite(ms)) return ''
+  return new Date(ms + 8 * 3600 * 1000).toISOString().slice(0, 10)
 }
 
 async function fetchJson(url) {
@@ -69,7 +79,7 @@ async function main() {
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true })
   fs.writeFileSync(OUT, uniq.map(r => JSON.stringify(r)).join('\n') + (uniq.length ? '\n' : ''))
-  console.log(`✅ [device-digests] ${uniq.length} 条（${files.length} 个日文件，保留 ${KEEP_DAYS} 天窗口）`)
+  console.log(`✅ [device-digests] ${uniq.length} 条（${files.length} 个日文件，保留 ${days} 天窗口）`)
 }
 
 if (require.main === module) main().catch(e => { console.error('❌ ' + e.message); process.exit(1) })

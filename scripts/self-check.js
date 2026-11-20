@@ -97,8 +97,11 @@ if (fs.existsSync(roadmapPath)) {
     const addLine = (wf.match(/^\s*git add .*$/m) || [''])[0];
     if (!addLine) fail('ci.yml 找不到 `git add` 行');
     else {
-      for (const f of ['README_HEALTH.md', 'README.md', 'docs/probe-history.jsonl', 'docs/health-daily/', 'docs/candidate-status.md']) {
-        if (addLine.indexOf(f) === -1) fail('CI 写回清单缺少 ' + f + '（该文件会被巡检产出/改写，但永远不会被提交）');
+      // v9.1.4：断言「整目录 docs/ 被写入清单覆盖」，不再逐文件枚举。
+      // 逐文件清单每新增一个巡检产物就要同步改一次 —— v8.0 就因为漏了 README.md 白写过一整轮（V14/V15）。
+      // docs/ 是巡检产物的唯一落点，收口到目录后新增产物不会静默丢提交。
+      for (const f of ['README_HEALTH.md', 'README.md', 'docs/']) {
+        if (addLine.indexOf(f) === -1) fail('CI 写回清单缺少 ' + f + '（该目录/文件会被巡检产出或改写，但永远不会被提交）');
       }
     }
   }

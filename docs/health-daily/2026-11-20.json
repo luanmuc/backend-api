@@ -159,30 +159,54 @@
     "https://music.163.com/song/media/outer/url?id={id}.mp3": "2026-11-19",
     "https://music.163.com/api/song/lyric": "2026-11-19",
     "https://music.163.com/api/song/detail": "2026-11-19",
-    "http://search.kuwo.cn/r.s": "2026-11-19"
+    "http://search.kuwo.cn/r.s": "2026-11-19",
+    "https://c.y.qq.com/soso/fcgi-bin/client_search_cp": null,
+    "https://music.163.com/api/search/get/web": null
   },
-  "registered": 17,
-  "judged": 10,
-  "handle": [
+  "registered": 19,
+  "judged": 9,
+  "handle": [],
+  "watch": [
     {
-      "label": "huibq",
-      "sources": [
-        "huibq"
-      ],
-      "url": "https://lxmusicapi.onrender.com",
-      "kind": "payload",
-      "rate": 8.6,
-      "total": 35,
-      "consecutiveFail": 5,
-      "reason": "HTTP 503"
+      "label": "suyin163",
+      "url": "https://oiapi.net/api/Music_163",
+      "rate": 100,
+      "total": 4
+    },
+    {
+      "label": "suyinKuwo",
+      "url": "https://oiapi.net/api/Kuwo",
+      "rate": 100,
+      "total": 4
+    },
+    {
+      "label": "xinghaiBackend",
+      "url": "https://yy.zddyr.top/lx/api/",
+      "rate": 100,
+      "total": 4
+    },
+    {
+      "label": "kuwoOfficial",
+      "url": "http://antiserver.kuwo.cn/anti.s",
+      "rate": 100,
+      "total": 4
+    },
+    {
+      "label": "ikun",
+      "url": "https://c.wwwweb.top",
+      "rate": 100,
+      "total": 4
     }
   ],
-  "watch": [
+  "limited": [
     {
       "label": "juheTx",
       "url": "https://api.music.lerd.dpdns.org",
-      "rate": 77.1,
-      "total": 35
+      "sources": [
+        "juheTx"
+      ],
+      "rate": 25,
+      "total": 4
     }
   ],
   "fragment": [],

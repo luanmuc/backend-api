@@ -264,8 +264,10 @@ jobs:
         run: |
           git config user.name 'luanmuc[bot]'
           git config user.email 'luanmuc@users.noreply.github.com'
-          # v8.10.5：补 README.md —— probe 每天整段重写其中「音源可用性」表格，此前不在 add 清单里等于白写（V14/V15）
-          git add README_HEALTH.md README.md docs/probe-history.jsonl docs/health-daily/ docs/candidate-status.md docs/chain-sample.jsonl docs/device-digests.jsonl
+          # v9.1.4：改为 `git add docs/` 整目录，不再逐文件列举。
+          # 逐文件清单每加一个巡检产物就要手改一次，v8.0 就漏过 README.md（V14/V15）。
+          # docs/ 是巡检产物的唯一落点，整目录收口不会漏；README_HEALTH/README 单独补上。
+          git add README_HEALTH.md README.md docs/
           git commit -m "chore(probe): 每日端点巡检刷新健康表+历史记录+v8.0健康日报 [自动]" -q || echo "健康表无变化，跳过提交"
           # v8.13.2（S-01）：巡检产物是发布/健康判定的依据，push 失败必须让 job 红。
           # 此前只写 warning + step summary，run 仍绿，等于静默丢失健康表。
@@ -325,9 +327,10 @@ jobs:
           fi
 
           # 连续失败 ≥7 天 → 打 escalated 标签（标签不存在则先创建；失败不阻断）
-          # 字段口径：health-daily.js:438-441 顶层只产出 handle/watch/fragment 三个数组，没有 rows；
-          #          handle 数组内每项都已是 handle 桶，故直接按 consecutiveFail 判定。
-          if DAY="${DAY}" node -e 'const s=require("./docs/health-daily/"+process.env.DAY+".json");process.exit((s.handle||[]).some(r=>r.consecutiveFail>=7)?0:1)' 2>/dev/null; then
+          # v9.1.4：改读 consecutiveFailAll（全历史连续失败天数）。
+          # 旧实现读 consecutiveFail，那是 7 天窗口内的计数 —— 最大只能是 7，与阈值刚好卡死，
+          # 无法区分"刚好 7 天"和"已经连续挂了 20 天"。
+          if DAY="${DAY}" node -e 'const s=require("./docs/health-daily/"+process.env.DAY+".json");process.exit((s.handle||[]).some(r=>(r.consecutiveFailAll ?? r.consecutiveFail)>=7)?0:1)' 2>/dev/null; then
             gh label create escalated --color B60205 --description "连续 7 天未恢复" >/dev/null 2>&1 || true
             [ -n "$NUM" ] && gh issue edit "$NUM" --add-label escalated >/dev/null 2>&1 || true
             echo "⚠️ 存在连续 ≥7 天未恢复项，已打 escalated 标签"

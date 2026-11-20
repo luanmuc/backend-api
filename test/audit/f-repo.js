@@ -209,7 +209,9 @@ console.log('\n[W] 脚本自洽');
   // 真实字段是 url/sources/kind/note（没有 id）——按 url 唯一性与字段完整性校验
   const urls = list.map(e => e.url);
   const fieldOk = list.every(e => e.url && Array.isArray(e.sources) && e.kind);
-  rec('W5', `endpoint-registry 导出 ${list.length} 条、url 唯一且字段完整`, list.length === 17 && new Set(urls).size === list.length && fieldOk,
+  // v9.1.4：19 条（新增 txSearch / wySearch 两条 param 工具端点 —— 它们此前每天触发
+  // 「源码中未登记端点」告警，属真漏登记，不是噪声）
+  rec('W5', `endpoint-registry 导出 ${list.length} 条、url 唯一且字段完整`, list.length === 19 && new Set(urls).size === list.length && fieldOk,
     `uniqUrl=${new Set(urls).size} fieldOk=${fieldOk}`);
 
   const tog = require(abs('scripts/source-toggles.js'));

@@ -24,11 +24,19 @@ const {
 } = require('./endpoint-registry.js');
 const { todayCN } = require('./cn-date.js'); // v8.10.6：北京日期单一真相（原为 probe 本地实现，health-daily 各算一份导致分叉）
 const { parseToggles } = require('./source-toggles.js'); // v8.10.5：死源建议只对启用源
+// v9.1.4：探测歌与取链实现各收敛到一份共享库
+// —— 此前 probe 与 source-audit 各写一份探测歌、PAYLOAD_CHECKS 各写一份取链逻辑，
+//    与 lx-source.js 的 provider 形成第三、第四份实现，suyin163 修复后巡检仍报坏即由此而来。
+const { songOf, idOf, EXPECT_SEC } = require('./lib/probe-songs.js');
+const { loadSource, resolveUrl } = require('./lib/source-host.js');
 
 const SRC = path.join(__dirname, '..', 'lx-source.js');
 const OUT = path.join(__dirname, '..', 'README_HEALTH.md');
-const HIST_DIR = path.join(__dirname, '..', 'docs');
-const HIST_FILE = path.join(HIST_DIR, 'probe-history.jsonl');
+// v9.1.4：巡检历史的读写 / 归一化 / 聚合全部收敛到 scripts/lib/history.js（单一真相）。
+// 旧实现里本文件自己解析 JSONL、自己算天级成功率，health-daily 又算探测级成功率，
+// 同一个端点同一天出现两个"成功率"。这里不再保留第二份实现。
+const history = require('./lib/history.js');
+const { HIST_FILE, HIST_DIR } = history;
 const HISTORY_DAYS = WINDOW_DAYS; // v8.10.5：不再本文件硬编码，取 endpoint-registry 的单一值
 const CONCURRENCY = 5; // v8.0：并发池——同时最多 5 个请求，避免被风控封 IP
 const DEAD_STREAK_THRESHOLD = CONSECUTIVE_FAIL_DAYS; // v8.10.5：同上，单一来源
@@ -43,23 +51,26 @@ const UA_POOL = [ // v8.0：UA 池轮换，降低被风控概率
 
 // v8.0：平台映射表——用于自动生成 README.md 的"音源可用性"表格
 // 每个平台关联一组端点关键词（匹配 URL 子串），自动汇总状态
+// v9.1.4：删掉已退役的 gdstudio.xyz —— v8.13 退役后它仍留在这里，
+// 导致每次巡检都打一条「PLATFORM_MAP 有 1 个关键词在登记表里找不到端点」的告警（噪声化）。
+// mainSources 改为中性描述，不再写"溯音QQ 关闭"这类随开关一变就过时的状态字面量。
 const PLATFORM_MAP = [
   {
     name: '网易云 wy',
     qualities: '128k / 320k / flac',
-    mainSources: '溯音163 / wyOuter / gdWy',
-    endpointKeys: ['oiapi.net/api/Music_163', 'music.163.com/api/song/lyric', 'music.163.com/api/song/detail', 'gdstudio.xyz'],
+    mainSources: '溯音163 / wyOuter',
+    endpointKeys: ['oiapi.net/api/Music_163', 'music.163.com/api/song/lyric', 'music.163.com/api/song/detail'],
   },
   {
     name: '酷我 kw',
     qualities: '128k / 320k / flac',
-    mainSources: '溯音酷我 + 星海后端（双源 v1.0）',
+    mainSources: '溯音酷我 + 星海后端（双源）',
     endpointKeys: ['oiapi.net/api/Kuwo', 'zddyr.top', 'search.kuwo.cn', 'antiserver.kuwo.cn', 'nmobi.kuwo.cn'],
   },
   {
     name: 'QQ tx',
     qualities: '128k（走溯音酷我兜底）',
-    mainSources: '溯音QQ 关闭',
+    mainSources: '溯音QQ（观察态）/ 聚合 tx',
     endpointKeys: ['oiapi.net/api/QQ_Music'],
   },
   {
@@ -71,7 +82,7 @@ const PLATFORM_MAP = [
   {
     name: '咪咕 mg',
     qualities: '128k（走溯音酷我兜底）',
-    mainSources: '溯音咪咕关闭',
+    mainSources: '溯音咪咕（观察态）',
     endpointKeys: ['api.xcvts.cn/api/music/migu'],
   },
 ];
@@ -90,89 +101,67 @@ const REPS = Math.max(1, Math.min(10, Number((args.find(a => a.startsWith('--rep
 const ASSERT_SAMPLES = args.includes('--assert-samples');
 
 // v4.0：追加本次巡检结果到历史记录（CI 每日跑，历史随 commit 保留）
-// v8.0：30 天滚动清理——只保留近 30 天数据，防止文件无限增长
-const HISTORY_RETENTION_DAYS = 30;
-function appendHistory(results) {
+// v9.1.4：写盘与清理交给 scripts/lib/history.js；本函数只负责**构造记录**。
+// 关键语义修复（P0）：历史里的 `ok` 从"这一次 HTTP 成不成"改为"端点级最终结论"
+//   = httpOk && (无 payload 校验 || payload 通过)。
+// 旧 schema 把 payload 失败只记在 `payload:false`，`ok` 仍是 true，
+// 而 health-daily 只看 `ok` → 取链失败在判定层被完全丢失
+// （实测：同日同一次巡检，README_HEALTH 说 suyin163 PAYLOAD_NO_URL 失败，日报说 94.3% 正常）。
+function writeHistory(results) {
   const date = todayCN(); // v8.10.5：北京日期，与 health-daily 的 --date 同源
-  // v8.10.8：把 payload 校验结果一并写进历史（有则写、无则略）。
-  // 否则「这个端点这次是真带参取链校验过，还是只看了状态码」在历史里无法区分——
-  // 将来若某个 payload 校验被改回去，没人能立刻从数据里看出来（T2 的可追溯性补口）。
-  // v8.17：一个端点的 REPS 次探测各写一行（attempts 缺失时退回单行），
-  // 让成功率按"探测次数"统计而不是按"端点×天"统计。
-  const lines = [];
+  const records = [];
   for (const r of results) {
-    const attempts = Array.isArray(r.attempts) && r.attempts.length ? r.attempts : [{ ok: r.ok, status: r.status, time: r.time, reason: r.reason }];
+    const attempts = Array.isArray(r.attempts) && r.attempts.length
+      ? r.attempts
+      : [{ ok: r.ok, status: r.status, time: r.time, reason: r.reason }];
+    const payloadFail = r.payload === false;
     for (const a of attempts) {
-      lines.push(JSON.stringify({
-        date, url: r.url, ok: a.ok, status: a.status, time: a.time, reason: a.reason,
-        ...(r.payload === undefined ? {} : { payload: a.ok ? r.payload : false }),
-      }));
+      records.push({
+        date,
+        url: r.url,
+        ok: payloadFail ? false : a.ok, // 端点级最终结论
+        httpOk: a.ok,                    // 裸探测结果（保留原始信号，便于区分"HTTP 挂了"与"取链挂了"）
+        status: a.status,
+        time: a.time,
+        reason: payloadFail ? r.reason : a.reason,
+        httpReason: a.reason,
+        ...(r.payload === undefined ? {} : { payload: r.payload }),
+        // 仅试听：端点可用但交付会被验真拦截（见 runPayloadCheck 注释），单独留痕供日报单列
+        ...(r.fragment ? { fragment: true, dur: r.dur, expect: r.expect } : {}),
+      });
     }
   }
-  if (!fs.existsSync(HIST_DIR)) fs.mkdirSync(HIST_DIR, { recursive: true });
-  // v8.10.5：改为**原子写**——先合并+清理，写临时文件再 rename。
-  // 旧实现是「append 到正式文件 → 再全量重写」，两步之间崩溃会留下半截文件（V29）。
-  const allLines = fs.existsSync(HIST_FILE)
-    ? fs.readFileSync(HIST_FILE, 'utf8').split('\n').filter(l => l.trim())
-    : [];
-  const merged = allLines.concat(lines);
-  const cutoff = new Date(Date.now() - HISTORY_RETENTION_DAYS * 864e5).toISOString().slice(0, 10);
-  const kept = [];
-  for (const line of merged) {
-    try {
-      const r = JSON.parse(line);
-      if (r.date >= cutoff) kept.push(line);
-    } catch (e) { kept.push(line); } // 解析失败的行保留（防丢数据）
-  }
-  const tmp = HIST_FILE + '.tmp';
-  fs.writeFileSync(tmp, kept.join('\n') + '\n');
-  fs.renameSync(tmp, HIST_FILE);
-  if (kept.length < merged.length) {
-    console.log(`历史清理：${merged.length} 行 → ${kept.length} 行（删除 ${merged.length - kept.length} 行 ${HISTORY_RETENTION_DAYS} 天前旧数据）`);
-  }
+  const { dropped } = history.append(records);
+  if (dropped > 0) console.log(`历史清理：删除 ${dropped} 行 ${history.RETENTION_DAYS} 天前旧数据`);
   return date;
 }
 
-// v4.0：按 URL 聚合近 HISTORY_DAYS 日成功率（每天取最后一次结果）
-function aggregateHistory() {
-  if (!fs.existsSync(HIST_FILE)) return {};
-  const cutoffMs = Date.now() - HISTORY_DAYS * 864e5;
-  const byUrl = {}; // url -> { date: ok }
-  for (const line of fs.readFileSync(HIST_FILE, 'utf8').split('\n')) {
-    if (!line.trim()) continue;
-    let r;
-    try { r = JSON.parse(line); } catch (e) { continue; }
-    const t = Date.parse(r.date + 'T00:00:00Z');
-    if (!t || t < cutoffMs) continue;
-    const u = r.url;
-    byUrl[u] = byUrl[u] || {};
-    byUrl[u][r.date] = !!r.ok; // 同日多次取最后一次
-  }
-  const stats = {};
-  for (const [url, days] of Object.entries(byUrl)) {
-    const dates = Object.keys(days).sort();
-    let ok = 0, fail = 0;
-    for (const d of dates) { if (days[d]) ok++; else fail++; }
-    // 连续失败天数：从最新一天往前数连续失败
-    let streak = 0;
-    for (let i = dates.length - 1; i >= 0; i--) {
-      if (days[dates[i]]) break;
-      streak++;
-    }
-    stats[url] = { days: dates.length, ok, fail, streak, rate: dates.length ? (ok / dates.length) : 1 };
-  }
-  return stats;
+// v4.0：按 URL 聚合近 HISTORY_DAYS 日成功率
+// v9.1.4：读取时归一化（旧记录里 payload:false + ok:true 会被压成 ok:false），
+// 天级聚合只作为辅助视图，健康度主口径统一用探测级（见 README_HEALTH 表头）。
+function readHistory() {
+  return history.load();
 }
 
 // v4.0：死源建议阈值——连续失败天数 ≥ 该值即建议关闭（写回健康表留档，供迭代时摘除）
-function collectDeadSources(hist, results) {
+// v9.1.4：连续失败天数改为**全历史**统计（旧实现从 7 天窗口里数，最大只能数到 7，
+// 与"连续 7 天未恢复"的告警阈值刚好卡死，无法区分"刚好 7 天"和"已经挂了 20 天"）。
+function collectDeadSources(results, entries) {
   const dead = [];
-  const urlByResult = new Map(results.map(r => [r.url, r]));
-  for (const [url, h] of Object.entries(hist)) {
-    if (h.streak >= DEAD_STREAK_THRESHOLD) {
-      const cur = urlByResult.get(url);
-      dead.push({ url, streak: h.streak, rate: h.rate, currentOk: cur ? cur.ok : false, reason: cur ? cur.reason : '历史连续失败' });
-    }
+  const today = todayCN();
+  for (const r of results) {
+    const streak = history.consecutiveFailDays(entries, r.url, today);
+    if (streak < DEAD_STREAK_THRESHOLD) continue;
+    const st = history.windowStats(entries, r.url, today, HISTORY_DAYS);
+    dead.push({
+      url: r.url,
+      streak,
+      rate: st ? st.rate : 0,
+      dayOk: st ? st.dayOk : 0,
+      dayTotal: st ? st.dayTotal : 0,
+      currentOk: r.ok,
+      reason: r.reason,
+    });
   }
   return dead.sort((a, b) => b.streak - a.streak);
 }
@@ -185,6 +174,9 @@ function extractEndpoints(src) {
   while ((m = re.exec(src))) {
     const u = m[0].replace(/[;:,]$/, '');
     if (u.includes('{id}') || u.includes('{level}')) continue; // 模板 URL 跳过（无真实参数无法探测）
+    // v9.1.4：纯域名根（path 为空或 "/"）不是端点——源码里的站点链接/拼接基址
+    // 此前每天被算进"未登记端点"告警（music.163.com/、music.lzmhhh.com/），把真漏检埋掉。
+    try { const pathname = new URL(u).pathname; if (!pathname || pathname === '/') continue; } catch { continue; }
     urls.add(u);
   }
   // 过滤明显非 API 的示例/文档 URL（v7.0 S5：旧正则末尾悬空 `|` 空分支使正则恒真、过滤形同虚设，已修正；
@@ -297,7 +289,7 @@ function parseDurationFromHead(rawBuf) {
 }
 
 async function rangeOk(audioUrl, expectSec) {
-  if (!audioUrl || !/^https?:\/\//.test(String(audioUrl))) return 'NO_URL';
+  if (!audioUrl || !/^https?:\/\//.test(String(audioUrl))) return { state: 'NO_URL' };
   const probe = async () => {
     const r = await payloadFetch(String(audioUrl).replace(/^http:/, 'https:'), { headers: { Range: 'bytes=0-1023' } });
     const ct = String((r.headers || {})['content-type'] || '');
@@ -310,146 +302,60 @@ async function rangeOk(audioUrl, expectSec) {
   if (!r.playable && (r.status === 429 || r.status === 503)) {
     await sleep(1500);
     r = await probe();
-    if (!r.playable && (r.status === 429 || r.status === 503)) return 'THROTTLED';
+    if (!r.playable && (r.status === 429 || r.status === 503)) return { state: 'THROTTLED' };
   }
-  if (!r.playable) return 'DEAD';
+  if (!r.playable) return { state: 'DEAD' };
   // v8.11：能播 + 只有几秒 = 试听片段（实测酷我 VIP 歌统一 84972 字节 / 5.3 秒，206 全绿骗过状态码判定）
-  if (r.dur && expectSec && expectSec >= 90 && r.dur / expectSec < 0.6 && expectSec - r.dur > 15) return 'FRAGMENT';
-  return 'PLAYABLE';
+  if (r.dur && expectSec && expectSec >= 90 && r.dur / expectSec < 0.6 && expectSec - r.dur > 15) {
+    return { state: 'FRAGMENT', dur: r.dur };
+  }
+  return { state: 'PLAYABLE', dur: r.dur };
 }
 
-// 每个取链型端点的真实调用（返回直链，交由 rangeOk 判定可播）
+// 每个取链型端点的真实调用 —— v9.1.4 起**直接调用源自己的 provider**。
+// 旧实现每条手写一份 getUrl，等于在巡检里维护第四份源实现：
+// suyin163 的 legacy 已修成兼容 data[] / data.items[] / data{url} 三形态，
+// 而 PAYLOAD_CHECKS 仍只认 data[0].url —— 2026-11-20 实测：源已修好，巡检还报 PAYLOAD_NO_URL。
+// 现在取链只有一份（源自己那份），巡检只负责：喂探测歌 → 拿直链 → Range 判可播。
 const PAYLOAD_CHECKS = [
-  {
-    // v8.10.7（T2）：anti.s 对**任何**请求都回 206（缺参正文是 6 字节 "failed"），
-    // 只判状态码必然永远假绿。改为带参 convert_url 取链：返回体是纯文本 URL（非 JSON），
-    // 用两个不同资源 id 兜底 —— 单个 rid 失效不该被判成"服务死亡"。
-    key: 'antiserver.kuwo.cn/anti.s',
-    expectSec: 269, // 探测歌 MUSIC_228908《晴天》271s，实测交付 269.7s；命中 <60% 记为片段
-    getUrl: async () => {
-      for (const rid of ['MUSIC_228908', 'MUSIC_186016']) {
-        const r = await payloadFetch(`http://antiserver.kuwo.cn/anti.s?type=convert_url&rid=${rid}&format=mp3&response=url`);
-        const t = String(r.body || '').trim();
-        if (/^https?:\/\//.test(t)) return t;
-      }
-      return '';
-    },
-  },
-  {
-    key: 'oiapi.net/api/Kuwo',
-    getUrl: async () => {
-      const r = await payloadFetch('https://oiapi.net/api/Kuwo?msg=' + encodeURIComponent('晴天 周杰伦') + '&n=1&br=9');
-      try { const j = JSON.parse(r.body); if (j && j.data && j.data.url) return j.data.url; } catch (e) {}
-      const m = String(r.body).match(/音乐链接[：:]\s*(\S+)/);
-      return m ? m[1] : '';
-    },
-  },
-  {
-    key: 'oiapi.net/api/Music_163',
-    getUrl: async () => {
-      const r = await payloadFetch('https://oiapi.net/api/Music_163?id=347230');
-      try { const j = JSON.parse(r.body); const u = j && j.data && j.data[0] && j.data[0].url; if (u) return u; } catch (e) {}
-      const m = String(r.body).match(/音乐链接[：:]\s*(\S+)/);
-      return m ? m[1] : '';
-    },
-  },
-  {
-    key: 'c.wwwweb.top',
-    getUrl: async () => {
-      const r = await payloadFetch('https://c.wwwweb.top/music/url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: 'kw', musicId: '228908', quality: '128k' }),
-      });
-      try { const j = JSON.parse(r.body); if (j && Number(j.code) === 200 && j.url) return j.url; } catch (e) {}
-      return '';
-    },
-  },
-  {
-    key: 'yy.zddyr.top/lx/api',
-    getUrl: async () => {
-      const r = await payloadFetch('https://yy.zddyr.top/lx/api/?source=kw&name=' + encodeURIComponent('晴天') + '&singer=' + encodeURIComponent('周杰伦') + '&songmid=228908&quality=128k', { headers: { 'X-Client': 'lx-aggregate/12.0', 'User-Agent': 'LX-Music-Mobile' } });
-      try { const j = JSON.parse(r.body); if (j && Number(j.code) === 200 && typeof j.url === 'string') return j.url; } catch (e) {}
-      return '';
-    },
-  },
-  {
-    key: 'api.xcvts.cn/api/music/migu',
-    getUrl: async () => {
-      const r = await payloadFetch('https://api.xcvts.cn/api/music/migu?gm=' + encodeURIComponent('晴天') + '&n=1&num=1&type=json');
-      try {
-        const j = JSON.parse(r.body);
-        if (j && j.musicInfo) return typeof j.musicInfo === 'string' ? j.musicInfo : (j.musicInfo.url || '');
-      } catch (e) {}
-      return '';
-    },
-  },
-  {
-    // v8.10.9：huibq 裸 GET 返回 200 + 文档 JSON（"MusicFree 音源script2"）→ 假绿；
-    // 真实调用是 /url/{platform}/{id}/{quality}，且需 X-Request-Key（lx-source.js 里硬编码 share-v3）
-    key: 'lxmusicapi.onrender.com',
-    getUrl: async () => {
-      const r = await payloadFetch('https://lxmusicapi.onrender.com/url/kw/228908/128k', { headers: { 'X-Request-Key': 'share-v3' } });
-      try { const j = JSON.parse(r.body); if (j && typeof j.url === 'string' && /^https?:\/\//.test(j.url)) return j.url; } catch (e) {}
-      return '';
-    },
-  },
-  {
-    // v8.10.9：suyinQQ 裸 GET 恒 403（"该Api暂时无法访问"），裸探测与真实调用同结果；
-    // 带 key 才是真实调用形式，服务恢复后可真验证（key 与 lx-source.js 的 SUYIN_QQ_KEY 一致）
-    key: 'oiapi.net/api/QQ_Music',
-    getUrl: async () => {
-      const r = await payloadFetch('https://oiapi.net/api/QQ_Music?key=oiapi-ef6133b7-ac2f-dc7d-878c-d3e207a82575&type=json&br=128&n=1&songid=102065756');
-      try { const j = JSON.parse(r.body); if (j && typeof j.music === 'string' && /^https?:/.test(j.music)) return j.music; if (j && typeof j.url === 'string') return j.url; } catch (e) {}
-      return '';
-    },
-  },
-  {
-    // v8.10.9：gdWy 裸 GET 只拿到网页首页/503，真实调用需 types=url&source=&id=&br=
-    key: 'music-api.gdstudio.xyz',
-    getUrl: async () => {
-      // v8.10.11：探测 id 不能用手写死的 VIP 歌。仓库自己早就写明
-      //「186016 周杰伦 VIP 无 url 已排除」（lx-source.js 的 PROBE_163_IDS 注释）。
-      // buildProbeConfig 里 gdWy 曾同样写死 186016 —— 已于 lx-source.js v8.10.12 一并修正为 2652820720。
-      // 这里保留双 id 顺序兜底：2652820720（已实测出真链）优先，347230 仅作后备（该 id 在本端点未验证）。
-      // 改用已验证能出真实 mp3 的免费歌 id（同源网易云 id），并做双 id 兜底。
-      for (const id of ['2652820720', '347230']) {
-        const r = await payloadFetch(`https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light&types=url&source=netease&id=${id}&br=320`);
-        const m = String(r.body || '').match(/"url"\s*:\s*"(https?:[^"]+)"/);
-        if (m) return m[1];
-        const m2 = String(r.body || '').match(/https?:\/\/[^"'\s]+\.(?:mp3|flac|m4a)/i);
-        if (m2) return m2[0];
-      }
-      return '';
-    },
-  },
-  {
-    // v8.10.9：juhe 裸 GET 返回 "200 OK" 空壳 HTML（假绿）；真实调用是 POST /{platform} 带 JSON body
-    key: 'api.music.lerd.dpdns.org',
-    getUrl: async () => {
-      const r = await payloadFetch('https://api.music.lerd.dpdns.org/kw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ songId: '228908', quality: '128k', source: 'kw', interval: 200 }),
-      });
-      try { const j = JSON.parse(r.body); if (j && j.code === 200 && typeof j.data?.url === 'string') return j.data.url; } catch (e) {}
-      return '';
-    },
-  },
+  { key: 'antiserver.kuwo.cn/anti.s', src: 'kuwoOfficial', plat: 'kw', expectSec: 269 }, // 实测交付 269.7s
+  { key: 'oiapi.net/api/Kuwo', src: 'suyinKuwo', plat: 'kw' },
+  { key: 'oiapi.net/api/Music_163', src: 'suyin163', plat: 'wy' },
+  { key: 'c.wwwweb.top', src: 'ikun', plat: 'kw' },
+  { key: 'yy.zddyr.top/lx/api', src: 'xinghaiBackend', plat: 'kw' },
+  { key: 'api.xcvts.cn/api/music/migu', src: 'suyinMigu', plat: 'mg' },
+  { key: 'lxmusicapi.onrender.com', src: 'huibq', plat: 'kw' },
+  { key: 'oiapi.net/api/QQ_Music', src: 'suyinQQ', plat: 'tx' },
+  { key: 'api.music.lerd.dpdns.org', src: 'juheTx', plat: 'tx' },
 ];
 
-async function runPayloadCheck(endpointUrl) {
+async function runPayloadCheck(endpointUrl, liveMod) {
   const c = PAYLOAD_CHECKS.find(x => endpointUrl.includes(x.key));
   if (!c) return null;
   try {
-    const url = await c.getUrl();
-    if (!url) return { ok: false, reason: 'PAYLOAD_NO_URL' };
-    const state = await rangeOk(url, c.expectSec);
-    if (state === 'PLAYABLE') return { ok: true, reason: 'OK' };
-    if (state === 'FRAGMENT') return { ok: false, reason: 'PAYLOAD_FRAGMENT' };
+    const song = songOf(c.plat);
+    const id = idOf(c.plat);
+    if (!song || !id) return { ok: false, reason: 'PAYLOAD_NO_SONG' };
+    // 取链走源自己的 provider（与 App 内置音源同一份实现）
+    const url = await resolveUrl(liveMod, { src: c.src, plat: c.plat, quality: '128k', id, song });
+    const expect = c.expectSec || EXPECT_SEC;
+    const { state, dur } = await rangeOk(url, expect);
+    if (state === 'PLAYABLE') return { ok: true, reason: 'OK', dur };
+    // v9.1.4（2026-11-20 用户口径）：只出试听片段**不是故障**。音源本体的交付验真
+    // （src/core/15-verify.js 的 PREVIEW_FRAGMENT + 3KB/s 体积下界）会拦下片段并继续换源，
+    // 用户根本听不到；巡检再把它记成"失败"只会每天刷一条假告警（实测 juheTx 对 VIP《晴天》
+    // 稳定返回 60.1s / 960887B，而它上游对 10 首免费歌全部 NOT_FOUND —— 换歌只会更糟）。
+    // 判"可用但受限"，单独标注实际时长，交给日报的「仅试听」段。
+    if (state === 'FRAGMENT') return { ok: true, fragment: true, reason: 'PAYLOAD_FRAGMENT', dur, expect };
     if (state === 'THROTTLED') return { ok: true, reason: 'PAYLOAD_THROTTLED' }; // 限流非死链，不误判
     return { ok: false, reason: 'PAYLOAD_DEAD' };
-  } catch (e) { return { ok: false, reason: 'PAYLOAD_ERR' }; }
+  } catch (e) {
+    // 源自己的失败码（NOT_FOUND / SERVER_ERROR / NETWORK_ERROR / …）直接透传，
+    // 比笼统的 PAYLOAD_ERR 有诊断价值：一眼能看出是源不认这首歌，还是网络/上游挂了。
+    const msg = String((e && e.message) || e);
+    const code = (msg.match(/^([A-Z_]+)[:：]/) || [])[1];
+    return { ok: false, reason: code ? `PAYLOAD_${code}` : 'PAYLOAD_ERR' };
+  }
 }
 
 // ---- 单端点探测（GET + Range 0-1023，4s 超时，失败重试 1 次）----
@@ -556,6 +462,27 @@ if (require.main === module) (async () => {
     console.warn(`::warning::存在孤儿 payload 校验（registry 未声明为 payload，校验可能不再生效）：${orphanChecks.join(', ')}`);
   }
 
+  // v9.1.4：payload 校验改为直接调用源自己的 provider，因此必须加载 lx-source.js 产物。
+  // 加载失败**不允许降级**成"只看状态码"—— 那会把取链失败重新变回假绿，等于撤销 v8.5 的修复（fail-closed）。
+  let liveMod = null;
+  if (registryEndpoints.some(e => e.kind === 'payload')) {
+    try { liveMod = loadSource({ timeout: 9000, followMax: 5 }).mod; }
+    catch (e) {
+      console.error(`::error::无法加载 lx-source.js 执行真实取链校验：${e.message}`);
+      process.exit(1);
+    }
+    if (!liveMod || !liveMod.SOURCE_HANDLERS) {
+      console.error('::error::lx-source.js 未导出 SOURCE_HANDLERS，无法执行真实取链校验');
+      process.exit(1);
+    }
+  }
+
+  // v9.1.4：开关在探测**之前**解析——payload 真实取链要花请求，
+  // 已关闭的源（huibq 已死、suyinQQ/suyinMigu 观察态）不该每天再被真打一次。
+  let toggles = {};
+  try { toggles = parseToggles().toggles; }
+  catch (e) { console.warn(`⚠️ 开关解析失败（${e.message}），死源建议不做启用过滤`); }
+
   // v8.0：用并发池替代 Promise.all——限制同时最多 CONCURRENCY 个请求
   // v8.5：端点探活 + 取链型端点二次校验（真实取链 + Range 可播）
   const results = await poolRun(endpoints.map(u => async () => {
@@ -568,26 +495,36 @@ if (require.main === module) (async () => {
     // 端点级结论取多数：3 次里 ≥2 次成功算端点可用（避免单次抖动直接判死）
     rep.ok = okN >= Math.ceil(REPS / 2);
     if (!rep.ok) return rep;
-    const p = await runPayloadCheck(u);
+    // v9.1.4：关闭的源跳过真实取链，只保留端点存活探测。
+    // 工具类端点（sources 为空 / toggleable:false）没有开关，照常校验。
+    const ep = registryByUrl().get(u);
+    const disabled = ep && ep.toggleable !== false && ep.sources.length
+      && !ep.sources.some(s => toggles[s] === true);
+    if (disabled) return { ...rep, payloadSkipped: 'disabled' };
+    const p = await runPayloadCheck(u, liveMod);
     if (!p) return rep;
     if (!p.ok) return { ...rep, ok: false, reason: p.reason, payload: false };
-    return { ...rep, payload: true };
+    return { ...rep, payload: true, ...(p.fragment ? { fragment: true, dur: p.dur, expect: p.expect } : {}) };
   }), CONCURRENCY);
-  const okCount = results.filter(r => r.ok).length;
+  // v9.1.4：param 类端点（真实调用必须带参）的裸探测 2xx **不代表**真实可用——
+  // 带 {id}/{level} 模板的 URL 会被服务器当普通请求返回 200/302（实测两例），
+  // 旧实现把它们算进"可用"。这里从可用统计里剔除，只留端点级真实结论。
+  const paramUrls = new Set(results
+    .filter(r => { const reg = registryByUrl().get(r.url); return reg && reg.kind === 'param'; })
+    .map(r => r.url));
+  const judgedTotal = results.length - paramUrls.size;
+  const okCount = results.filter(r => r.ok && !paramUrls.has(r.url)).length;
 
   if (asJson) {
-    console.log(JSON.stringify({ checkedAt: new Date().toISOString(), total: results.length, ok: okCount, results }, null, 2));
-    process.exit(okCount === results.length ? 0 : 2);
+    console.log(JSON.stringify({ checkedAt: new Date().toISOString(), total: results.length, judged: judgedTotal, ok: okCount, results }, null, 2));
+    process.exit(okCount === judgedTotal ? 0 : 2);
   }
 
   // 健康表写回 README_HEALTH.md（CI 每日刷新；v2.0 写回目标，README 引用它）
   // v4.0：追加本次结果到历史 + 近7日成功率列
-  const today = appendHistory(results);
-  const hist = aggregateHistory();
-  let toggles = {};
-  try { toggles = parseToggles().toggles; }
-  catch (e) { console.warn(`⚠️ 开关解析失败（${e.message}），死源建议不做启用过滤`); }
-  const dead = collectDeadSources(hist, results)
+  const today = writeHistory(results);
+  const entries = readHistory();
+  const dead = collectDeadSources(results, entries)
     // v8.10.5：param 类端点裸探测必 4xx，不是"死源"，不进摘除建议
     .filter(d => { const reg = registryByUrl().get(d.url); return !reg || reg.kind !== 'param'; })
     // v8.10.5：只对**启用中**的源出摘除建议（V16）——旧实现在这里不分开关，
@@ -608,7 +545,10 @@ if (require.main === module) (async () => {
         lines.push(`- **${p.name}**：无独立源，走 kw 兜底`);
         continue;
       }
-      const hits = p.endpointKeys.map(k => results.find(r => r.url.includes(k))).filter(Boolean);
+      const hits = p.endpointKeys.map(k => results.find(r => r.url.includes(k))).filter(Boolean)
+        // param 端点裸探测恒为假绿，混进平台汇总只会把「4/5 可用」变成噪声
+        .filter(r => { const reg = registryByUrl().get(r.url); return !reg || reg.kind !== 'param'; });
+      if (!hits.length) { lines.push(`- **${p.name}**：无独立源，走 kw 兜底`); continue; }
       const okHits = hits.filter(r => r.ok);
       const emoji = okHits.length === hits.length ? '🟢' : okHits.length > 0 ? '🟡' : '🔴';
       lines.push(`- ${emoji} **${p.name}**：${okHits.length}/${hits.length} 端点可用`);
@@ -621,25 +561,38 @@ if (require.main === module) (async () => {
   lines.push('');
   lines.push(`> 由 \`scripts/probe.js\` 自动生成 · 更新于 ${new Date().toISOString()} · 判定规则：2xx/3xx 或 Range 206 为可用（4xx/5xx/超时/域名不可解析为失败）`);
   lines.push('>');
-  lines.push('> ⚠️ **口径**：本表是"端点级"健康（服务是否活着）。v8.5 起对取链型端点（oiapi Kuwo/163、ikun、星海后端、溯音咪咕）增加真实取链 + 直链 Range 可播二次校验，失败标 `PAYLOAD_*`；但"端点可用 ≠ 音源可用"的残余风险仍存在——源级最终判据以 **App 健康面板（源内探针，带 Range 校验）** 为准。');
+  lines.push('> ⚠️ **口径（v9.1.4 起）**：`状态` = **端点级最终结论**（HTTP 可达 **且** 取链校验通过）。v9.1.4 前 payload 失败只落在历史 `payload` 字段、`状态` 仍显示可用，导致本表与健康日报结论相反（实测 suyin163：本表 `PAYLOAD_NO_URL` 失败、同日日报写 94.3% 正常）。`探测成功率` 按**探测次数**统计，与 `docs/health-daily/` 日报同源同算；`可用天` 是天级辅助视图。`param` 类（真实调用必须带参）一律不计入可用；**仅试听**（表里 `🟡 可用（仅试听 …）`）计入可用——片段由音源本体的交付验真（`src/core/15-verify.js` 的 `PREVIEW_FRAGMENT`）拦截并换源，用户听不到，这里只记录能力边界。');
   lines.push('');
-  lines.push(`共提取 ${results.length} 个端点，可用 ${okCount} 个；近 ${HISTORY_DAYS} 日成功率基于 \`docs/probe-history.jsonl\` 历史（${today} 追加）。`);
+  lines.push(`共提取 ${results.length} 个端点（其中 ${paramUrls.size} 个 param 类不参与可用判定），可用 ${okCount}/${judgedTotal} 个；近 ${HISTORY_DAYS} 日探测成功率基于 \`docs/probe-history.jsonl\` 历史（${today} 追加）。`);
   lines.push('');
   lines.push(platformSummary());
   lines.push('');
-  lines.push('| 端点 | 状态 | HTTP | 耗时(ms) | 近7日成功率 | 说明 |');
-  lines.push('|---|---|---|---|---|---|');
+  lines.push('| 端点 | 状态 | HTTP | 耗时(ms) | 近7日探测成功率 | 可用天 | 说明 |');
+  lines.push('|---|---|---|---|---|---|---|');
   for (const r of results) {
+    // v9.1.4：口径统一为**探测级**（每次 attempt 一次），与 health-daily 同源同算，
+    // 不再出现"README_HEALTH 说 86%、日报说 94%"的双口径。
+    const st = history.windowStats(entries, r.url, today, HISTORY_DAYS);
     // v8.0：恢复标记——历史有失败但当前恢复了，加 🟡 "已恢复观察中"
-    const h = hist[r.url];
     let tag = r.ok ? '✅ 可用' : '❌ 失败';
-    if (r.ok && h && h.streak > 0) tag = '🟡 已恢复观察中';
-    // v8.10.5：param 类端点（真实调用带参、裸探测恒 4xx）不判失败，避免健康表长期挂红误导
+    if (r.ok && st && st.consecutiveFail > 0) tag = '🟡 已恢复观察中';
+    // v9.1.4（P0）：param 类端点**一律不判可用**，无论裸探测返回什么。
+    // 旧实现只在 !r.ok 时标"不适用"——但带 {id}/{level} 模板的 URL 被服务器当普通请求
+    // 返回 200/302（实测 musicapi.haitangw.net、music.163.com/song/media/outer），
+    // 于是 param 端点被算成 ✅ 可用。那是假绿：模板 URL 探测成功 ≠ 真实带参调用能出链。
     const reg = registryByUrl().get(r.url);
-    if (reg && reg.kind === 'param' && !r.ok) tag = '⚪ 不适用（需带参）';
-    const reason = r.reason.length > 40 ? r.reason.slice(0, 40) + '…' : r.reason;
-    const rateCell = h ? `${Math.round(h.rate * 100)}% (${h.ok}/${h.days}天)` : '—';
-    lines.push(`| \`${r.url.slice(0, 70)}${r.url.length > 70 ? '…' : ''}\` | ${tag} | ${r.status || '-'} | ${r.time} | ${rateCell} | ${reason} |`);
+    if (reg && reg.kind === 'param') tag = '⚪ 不适用（需带参）';
+    else if (r.fragment) tag = `🟡 可用（仅试听 ${r.dur || '?'}s / ${r.expect || EXPECT_SEC}s）`;
+    // 仅试听不写 PAYLOAD_FRAGMENT 这种内部码，写人话并点明由谁兜底
+    const reason = r.fragment
+      ? `仅试听 ${r.dur || '?'}s（应 ${r.expect || EXPECT_SEC}s）；交付验真会拦截并换源`
+      : (r.reason.length > 40 ? r.reason.slice(0, 40) + '…' : r.reason);
+    // param 端点不参与可用判定，成功率/可用天也不再展示——否则 `music.163.com/song/media/outer`
+    // 会以「100%（36/36 次）」出现在表里，与它同一行的「⚪ 不适用」直接矛盾，读者只会记住那个 100%。
+    const isParamRow = !!(reg && reg.kind === 'param');
+    const rateCell = isParamRow ? '—' : (st ? `${st.rate}% (${st.success}/${st.total} 次)` : '—');
+    const dayCell = isParamRow ? '—' : (st ? `${st.dayOk}/${st.dayTotal} 天` : '—');
+    lines.push(`| \`${r.url.slice(0, 70)}${r.url.length > 70 ? '…' : ''}\` | ${tag} | ${r.status || '-'} | ${r.time} | ${rateCell} | ${dayCell} | ${reason} |`);
   }
   // v4.0：死源建议——连续 DEAD_STREAK_THRESHOLD 天以上失败的端点，建议关闭留档
   if (dead.length) {
@@ -662,17 +615,17 @@ if (require.main === module) (async () => {
     if (urgent.length) {
       lines.push('### 🔴 紧急（主路端点连续失败）');
       lines.push('');
-      for (const d of urgent) lines.push(`- \`${d.url}\`：连续 ${d.streak} 天失败（近7日成功率 ${Math.round(d.rate * 100)}%），当前${d.currentOk ? '恢复可用' : '仍失败'}${d.reason ? ` · ${d.reason}` : ''}`);
+      for (const d of urgent) lines.push(`- \`${d.url}\`：连续 ${d.streak} 天失败（近7日探测成功率 ${d.rate}%，可用 ${d.dayOk}/${d.dayTotal} 天），当前${d.currentOk ? '恢复可用' : '仍失败'}${d.reason ? ` · ${d.reason}` : ''}`);
       lines.push('');
     }
     if (minor.length) {
       lines.push('### 🟡 次要（备用/边缘端点连续失败）');
       lines.push('');
-      for (const d of minor) lines.push(`- \`${d.url}\`：连续 ${d.streak} 天失败（近7日成功率 ${Math.round(d.rate * 100)}%），当前${d.currentOk ? '恢复可用' : '仍失败'}${d.reason ? ` · ${d.reason}` : ''}`);
+      for (const d of minor) lines.push(`- \`${d.url}\`：连续 ${d.streak} 天失败（近7日探测成功率 ${d.rate}%，可用 ${d.dayOk}/${d.dayTotal} 天），当前${d.currentOk ? '恢复可用' : '仍失败'}${d.reason ? ` · ${d.reason}` : ''}`);
     }
   }
   fs.writeFileSync(OUT, lines.join('\n') + '\n');
-  console.log(`已写回 ${OUT}：${okCount}/${results.length} 可用，历史 ${today} 已追加`);
+  console.log(`已写回 ${OUT}：${okCount}/${judgedTotal} 可用（另 ${paramUrls.size} 个 param 端点不参与判定），历史 ${today} 已追加`);
 
   // v8.0：自动更新 README.md 里的"音源可用性"表格（日期 + 状态 + 原因标注）
   const README = path.join(__dirname, '..', 'README.md');
@@ -729,7 +682,12 @@ ${tableRows}
 > 详细对照表、缺陷与**各版本当前状态（以 docs/ITERATION_ROADMAP.md 与 DEV_GUIDE 为准）**见 [DEV_GUIDE.md](./docs/DEV_GUIDE.md)。`
   );
 
-  if (updatedReadme !== readmeContent) {
+  // v9.1.4：锚点缺失时**显式报红**。旧实现 replace 不匹配 → updatedReadme === readmeContent
+  // → 静默跳过，没有任何信号；README 的可用性表格会一直停在旧日期而无人发现。
+  if (!/^## 音源可用性（\d{4}-\d{2}-\d{2} 核验）/m.test(readmeContent)) {
+    console.error('::error::README.md 未找到「## 音源可用性（YYYY-MM-DD 核验）」锚点，可用性表格未更新');
+    process.exitCode = 1;
+  } else if (updatedReadme !== readmeContent) {
     fs.writeFileSync(README, updatedReadme);
     console.log(`已自动更新 README.md 音源可用性表格（日期 ${todayStr}）`);
   }
@@ -749,8 +707,8 @@ ${tableRows}
     console.log('❌ 所有平台主路都不可用——紧急！');
     process.exit(2);
   }
-  if (okCount < results.length) {
-    console.log(`⚠️ 有 ${results.length - okCount} 个端点失败（非全挂，不阻断 CI）`);
+  if (okCount < judgedTotal) {
+    console.log(`⚠️ 参与判定的 ${judgedTotal} 个端点中有 ${judgedTotal - okCount} 个失败（非全挂，不阻断 CI）`);
   }
 
   // v8.17：空跑守卫——历史当天行数不足说明巡检没真正执行（脚本坏了/端点表空了），
@@ -764,11 +722,25 @@ ${tableRows}
         try { if (JSON.parse(line).date === today) todayRows++; } catch {}
       }
     }
-    const need = results.length * 2;
+    // v9.1.4：阈值与 REPS 对齐。旧实现硬编码 `× 2`，而默认 REPS=3 ——
+    // `--reps=1` 时必然误红（1 < 2），`--reps=3` 时只跑 2 次却能过（守卫偏松）。
+    const need = results.length * REPS;
     if (todayRows < need) {
-      console.error(`❌ [samples] 当日样本 ${todayRows} < 期望 ${need}（端点 ${results.length} × 2）——巡检未真正执行`);
+      console.error(`❌ [samples] 当日样本 ${todayRows} < 期望 ${need}（端点 ${results.length} × REPS ${REPS}）——巡检未真正执行`);
       process.exit(3);
     }
     console.log(`✅ [samples] 当日样本 ${todayRows}（端点 ${results.length}，每次 ${REPS} 次探测）`);
   }
+
+  // v9.1.4：Node 的 undici 在 keep-alive 连接上会保持事件循环存活。实测 `--reps=1`
+  // 写完全部产物后进程仍驻留 11 分钟不退出（CI 里会一路等到 job 超时，把整条流水线拖死）。
+  // 但裸调 process.exit 会把还堵在管道里的 console.log 一起截断（实测日志只剩一行 EXIT=0），
+  // 所以先等 stdout 排空再退，并留 1.5s 兜底。
+  // 必须留在 IIFE 内部：放到顶层会在第一个 await 让出后立刻触发，把整个巡检掐断（实测 0.14s 退出、零产物）。
+  const exitAfterFlush = code => {
+    if (process.stdout.writableLength === 0) return process.exit(code);
+    process.stdout.once('drain', () => process.exit(code));
+    setTimeout(() => process.exit(code), 1500).unref();
+  };
+  setImmediate(() => exitAfterFlush(process.exitCode ?? 0));
 })();

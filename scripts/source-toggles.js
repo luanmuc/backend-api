@@ -118,7 +118,11 @@ function parseToggles(srcPath = SRC) {
   }
 
   const count = Object.keys(toggles).length;
-  if (count < 10) throw new Error(`SOURCE_TOGGLES 只解析出 ${count} 个开关（v8.13 预算为 12），疑似解析失败`);
+  // v9.1.4：期望值从端点登记表派生，不再硬编码 10。
+  // 旧实现写死 `count < 10`：源数量增减后要么误报（删到 9 个）要么漏判（新加源解析失败也能过）。
+  const { ENDPOINTS } = require('./endpoint-registry.js');
+  const expected = new Set(ENDPOINTS.flatMap(e => e.sources || [])).size;
+  if (count < expected) throw new Error(`SOURCE_TOGGLES 只解析出 ${count} 个开关（登记表涉及 ${expected} 个源），疑似解析失败`);
   return { toggles, lineNo };
 }
 

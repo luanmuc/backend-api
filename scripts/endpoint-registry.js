@@ -37,6 +37,10 @@ const ENDPOINTS = [
   { url: 'https://music.163.com/api/song/lyric', sources: [], label: 'wyLyric 网易歌词接口', kind: 'endpoint', toggleable: false, note: '官方公开接口' },
   { url: 'https://music.163.com/api/song/detail', sources: [], label: 'wyDetail 网易详情接口', kind: 'endpoint', toggleable: false, note: '官方公开接口' },
   { url: 'http://search.kuwo.cn/r.s', sources: [], label: 'kuwoSearch 酷我搜索接口', kind: 'endpoint', toggleable: false, note: '' },
+  // v9.1.4：两个搜索接口此前每天被"源码中未登记端点"告警命中（真漏登记，不是噪声）。
+  // 真实调用必须带 query（QQ 的 w/s、网易的 s/type），裸探测 4xx 属正常 → kind=param，不参与可用判定。
+  { url: 'https://c.y.qq.com/soso/fcgi-bin/client_search_cp', sources: [], label: 'txSearch QQ 搜索接口', kind: 'param', toggleable: false, note: '真实调用需 w/s 参数' },
+  { url: 'https://music.163.com/api/search/get/web', sources: [], label: 'wySearch 网易搜索接口', kind: 'param', toggleable: false, note: '真实调用需 s/type 参数' },
 ];
 
 // 明确不登记（保留说明，避免后人以为是漏项）：

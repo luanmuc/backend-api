@@ -76,14 +76,10 @@ console.log = realLog;
 // --quick 例外：每日抽样只测真实启用的源，否则等于给用户不用的源发请求。
 if (!QUICK) for (const k of Object.keys(mod.runtimeToggles)) mod.runtimeToggles[k] = true;
 
-// 固定探测歌（各平台真实 ID，与 lx-source.js 探针池保持同一首歌便于对照）
-const SONGS = {
-  kw: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, hash: '228908', rid: 228908, songmid: '228908', id: '228908' },
-  wy: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, id: 2652820720, songmid: '2652820720' },
-  tx: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, songmid: '004Z8Ihr0JIu5s' },
-  mg: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, songmid: '228908', id: '228908' },
-  kg: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, hash: '228908', songmid: '228908' },
-};
+// v9.1.4：探测歌收敛到 scripts/lib/probe-songs.js（与 probe 的 payload 校验共用一份）。
+// 此前两处各写一份《晴天》id —— wy 的 id 就出现过 186016（VIP 无 url）与 2652820720 两种写法，
+// 两个巡检用不同的歌，结论无法互相对照。
+const { songOf, idOf } = require('./lib/probe-songs.js');
 
 function rangeCheck(url) {
   return new Promise((resolve) => {
@@ -126,9 +122,9 @@ if (require.main === module) (async () => {
       if (mod.runtimeToggles[h.id] !== true) continue;
       if (ONLY && !(h.platforms || []).includes(ONLY)) continue;
       const plat = ONLY || (h.platforms || [])[0];
-      const song = SONGS[plat];
+      const song = songOf(plat);
       if (!song) continue;
-      const idVal = song.hash || song.songmid || song.id;
+      const idVal = idOf(plat);
       const t0 = Date.now();
       try {
         const url = await h.fn(plat, idVal, '128k', song);
@@ -158,8 +154,9 @@ if (require.main === module) (async () => {
   for (const plat of platforms) {
     const chain = mod.buildSourceChain(plat, '128k');
     for (const h of chain) {
-      const song = SONGS[plat];
-      const idVal = song.hash || song.songmid || song.id;
+      const song = songOf(plat);
+      const idVal = idOf(plat);
+      if (!song || !idVal) continue; // v9.1.4：探测歌缺失时跳过该源，不拿空 id 硬打上游
       const t0 = Date.now();
       try {
         const url = await h.fn(plat, idVal, '128k', song);
@@ -183,8 +180,9 @@ if (require.main === module) (async () => {
       if (h.lifecycle !== 'probation') continue;
       if (ONLY && !h.platforms.includes(ONLY)) continue;
       const plat = ONLY || h.platforms[0];
-      const song = SONGS[plat];
-      const idVal = song.hash || song.songmid || song.id;
+      const song = songOf(plat);
+      const idVal = idOf(plat);
+      if (!song || !idVal) continue; // v9.1.4：探测歌缺失时跳过该源，不拿空 id 硬打上游
       const t0 = Date.now();
       try {
         const url = await h.fn(plat, idVal, '128k', song);
