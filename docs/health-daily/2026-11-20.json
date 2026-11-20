@@ -12,7 +12,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1221
+        "ms": 3916
       },
       {
         "date": "2026-11-20",
@@ -21,7 +21,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 3190
+        "ms": 2268
       },
       {
         "date": "2026-11-20",
@@ -39,16 +39,16 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 1764
+        "ms": 2113
       },
       {
         "date": "2026-11-20",
         "src": "juheTx",
         "plat": "tx",
-        "ok": true,
-        "code": "OK",
-        "playable": "206 audio/mpeg",
-        "ms": 1441
+        "ok": false,
+        "code": "RATE_LIMIT",
+        "playable": "",
+        "ms": 51
       },
       {
         "date": "2026-11-20",
@@ -56,8 +56,8 @@
         "plat": "kw",
         "ok": true,
         "code": "OK",
-        "playable": "206 audio/mpeg",
-        "ms": 2219
+        "playable": "TIMEOUT",
+        "ms": 13988
       },
       {
         "date": "2026-11-20",
@@ -66,16 +66,16 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 2089
+        "ms": 1633
       },
       {
         "date": "2026-11-20",
         "src": "suyin163",
         "plat": "wy",
-        "ok": false,
-        "code": "NOT_FOUND",
-        "playable": "",
-        "ms": 236
+        "ok": true,
+        "code": "OK",
+        "playable": "206 audio/mpeg; charset=UTF-8",
+        "ms": 1539
       },
       {
         "date": "2026-11-20",
@@ -84,7 +84,7 @@
         "ok": true,
         "code": "OK",
         "playable": "skipped",
-        "ms": 1478
+        "ms": 1367
       },
       {
         "date": "2026-11-20",
@@ -93,7 +93,7 @@
         "ok": false,
         "code": "NOT_FOUND",
         "playable": "",
-        "ms": 2086
+        "ms": 2025
       },
       {
         "date": "2026-11-20",
@@ -102,7 +102,7 @@
         "ok": true,
         "code": "OK",
         "playable": "skipped",
-        "ms": 803
+        "ms": 689
       }
     ]
   },
@@ -110,32 +110,32 @@
     "date": "2026-11-20",
     "devices": 1,
     "probe": {
-      "total": 25,
-      "ok": 13
+      "total": 50,
+      "ok": 28
     },
     "play": {
-      "total": 31,
-      "ok": 31
+      "total": 63,
+      "ok": 63
     },
     "bySource": {
       "suyin163": {
-        "total": 6,
-        "ok": 0,
-        "rate": 0
+        "total": 12,
+        "ok": 2,
+        "rate": 16.7
       },
       "xinghaiBackend": {
-        "total": 6,
+        "total": 12,
         "ok": 0,
         "rate": 0
       },
       "suyinKuwo": {
-        "total": 9,
-        "ok": 9,
+        "total": 18,
+        "ok": 18,
         "rate": 100
       },
       "wyOuter": {
-        "total": 4,
-        "ok": 4,
+        "total": 8,
+        "ok": 8,
         "rate": 100
       }
     }
@@ -168,47 +168,13 @@
   "handle": [],
   "watch": [
     {
-      "label": "suyin163",
-      "url": "https://oiapi.net/api/Music_163",
-      "rate": 100,
-      "total": 4
-    },
-    {
-      "label": "suyinKuwo",
-      "url": "https://oiapi.net/api/Kuwo",
-      "rate": 100,
-      "total": 4
-    },
-    {
-      "label": "xinghaiBackend",
-      "url": "https://yy.zddyr.top/lx/api/",
-      "rate": 100,
-      "total": 4
-    },
-    {
-      "label": "kuwoOfficial",
-      "url": "http://antiserver.kuwo.cn/anti.s",
-      "rate": 100,
-      "total": 4
-    },
-    {
-      "label": "ikun",
-      "url": "https://c.wwwweb.top",
-      "rate": 100,
-      "total": 4
-    }
-  ],
-  "limited": [
-    {
       "label": "juheTx",
       "url": "https://api.music.lerd.dpdns.org",
-      "sources": [
-        "juheTx"
-      ],
-      "rate": 25,
-      "total": 4
+      "rate": 14.3,
+      "total": 7
     }
   ],
+  "limited": [],
   "fragment": [],
   "changes": []
 }
