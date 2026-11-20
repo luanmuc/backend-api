@@ -2,7 +2,7 @@
 
 > **重构说明**：原文件是第五轮压测的「覆盖率盲区清零」分册，标题与内容已不符。本文件重构为音源仓压测的**唯一入口**，覆盖三代压测脚本 + 本轮音质政策变更的压测关注点。
 >
-> **基线（唯一真值，2026-11-18）**：源仓 `master` **v9.0.0**（模块化拆包 + 发布签名，本地单提交待推送；`lx-source.js` 7071 行 / 362008 bytes / `@version 9.0.0`；`npm test` 45 条命令 / 压测 162 条 / 变异 22 killed）；App **v1.9.3-b151**（versionCode 310，本地单提交待推送）。
+> **基线（唯一真值，2026-11-20）**：源仓 `master` **v9.1.4**（`297c88e` 巡检链重构，**脚本级、不改 `src/**` 与产物**，产物仍 `@version 9.1.3`）；`npm test` **46 个脚本** / 压测 **162 条** / 变异 **22 killed**；App **v1.9.2-b187**（`dadef6a1`，已推送）。
 >
 > **目标**：用可重复的纯 Node 压测，证明大并发、档位矩阵、跨平台、缓存上限、故障注入、边界输入下「不崩、不越界、不串歌、不假交付」。
 
@@ -63,12 +63,14 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | **发布签名与验签（v9.0）** | 真私钥签 v9.0.0 → App 内置 k1 公钥验 `{ok:true}`；**篡改产物中间字节必须验签失败**（尾部字节替换不算篡改，末尾本来就是换行）；无 `LX_SIGNING_KEY` 时跳过签名而不产半成品 | `sign-release` + App `check_source_signing` 6/0、`check_source_update_fetch` 9/0、`check_source_update_apply` 12/0 |
 | **版本区间判定（v9.2/v9.5）** | 同主版本 + 最多前跳 2 minor + 仅同 minor 允许补丁回退；**不得有绝对 minor 下限**（否则 9.0.0 的 minor=0 会被判死、在线更新整体失效） | 12 条区间用例（含 9.0.0→9.1.0 采用 / 9.0.0→9.3.0 拒绝 / 9.0.0→8.16.4 拒绝） |
 | **通读缺陷回归（v8.16.2）** | R-01~R-12 逐条有可用断言：档位熔断跨重启保留、真实音质入账、播放分账、快照运行期资格、试探键清理、半开名额后置、gateErr 带码、跨平台可取消、兜底结构化、ttl 死分支、7 项静态确认 | `readthrough-fixes` 18/0 |
+| **巡检链口径单一真相（v9.1.4）** | `ok` 只认**端点级**最终结论（`httpOk && payload`），`httpOk`/`httpReason` 保留 HTTP 事实；成功率只有**探测级**一套（`rateRaw` + `wilsonLow`）；param 类端点一律不判可用；`legacy` 记录不参与统计；`consecutiveFail` 按全历史 | `probe --assert-samples`、`tg-truth` 口径一致、`f-repo` 57/0 |
+| **仅试听降级（v9.1.4，用户口径）** | juheTx《晴天》稳定 60.1s / 960887B 试听片段 → 判「可用但受限」（`ok:true` + `fragment:true` + 实际时长），README 显示 `🟡 可用（仅试听 60s/271s）`、日报单列且**不进「需处理」**；依据是源本体 `src/core/15-verify.js` 的 `PREVIEW_FRAGMENT` 会拦截并换源，用户听不到片段 | 真实 `probe --reps=1` 三轮（可用 10/12） |
 
-## 4. 本轮实测结果（2026-11-18 · v9.0.0）
+## 4. 本轮实测结果（2026-11-20 · v9.1.4）
 
 | 项 | 结果 |
 |---|---|
-| `npm test`（45 条命令，含 4 条压测 + 1 冒烟） | **RC=0**；V 组 133/0 |
+| `npm test`（**46 个脚本**，含压测 2 条 + 冒烟 1 条） | **RC=0**；V 组 133/0 |
 | `stress-test`（S） | 12/0 |
 | `stress-round3`（T） | 14/0（链内） |
 | `stress-round4`（V） | 133/0（链内） |
@@ -102,7 +104,7 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | P3 | `stress-round4.js` | 故障谱系、预热 TTL、探针双歌、档位 breaker、短路、排序、快照 | 133/0；TTL 内新增预热 0；半开只放一枪 |
 | P4 | 变异 `mutation/run.js --full --strict` | 22 个锚点 | 22 killed / 0 survived；`--strict` 下 skipped 即失败 |
 | P5 | 冒烟 `lx-source-smoke-test.js` | 67 组插件加载/导出/配置/取链 | 67/0 |
-| P6 | 审计 `npm test` | **42 脚本 / 567 条断言**（含 e-extra 90/0、f-repo 56/0、tg-truth 10 规则） | 42 脚本 rc0 |
+| P6 | 审计 `npm test` | **46 脚本 / 567 条断言**（含 e-extra 90/0、f-repo **57/0**、tg-truth 口径全一致） | 46 脚本 rc0 |
 
 **执行顺序**：P5 → P6 → P1 → P2 → P3 → P4；任一红先修实现或明确夹具漂移，再全量复跑。
 
