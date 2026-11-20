@@ -14,6 +14,9 @@
  * 用法：
  *   node scripts/check-data-retention.js            # 只报告，恒 exit 0
  *   node scripts/check-data-retention.js --strict   # 有超限项时 exit 1（给 CI 用）
+ *
+ * 约定（g-meta M9/M9b）：顶层不 process.exit，退出码只在 CLI 入口给；
+ * 被 require 时只读文件、不写盘、不发网络、不退出。
  */
 
 const fs = require("fs");
@@ -26,14 +29,11 @@ const HEALTH_DIR = path.join(ROOT, "docs", "health-daily");
 const KEEP_DAYS = 30;   // probe-history 保留窗口（天）
 const KEEP_FILES = 14;  // health-daily 保留份数（每日一份 ≈ 14 天）
 
-const strict = process.argv.includes("--strict");
-let over = 0;
-
 // ── 1. probe-history.jsonl ────────────────────────────────────────────────
 function checkHistory() {
   if (!fs.existsSync(HISTORY)) {
     console.log("⚪ probe-history.jsonl 不存在，跳过");
-    return;
+    return 0;
   }
   const raw = fs.readFileSync(HISTORY, "utf8").split("\n").filter(Boolean);
   const dates = new Set();
@@ -51,6 +51,7 @@ function checkHistory() {
 
   console.log(`probe-history.jsonl：${raw.length} 行 / ${days} 天 / ${first} ~ ${last} / 解析失败 ${bad} 行`);
 
+  let over = 0;
   if (bad > 0) {
     console.log(`  🔴 有 ${bad} 行不是合法 JSON —— 坏行会污染历史统计，应先修`);
     over++;
@@ -63,13 +64,14 @@ function checkHistory() {
   } else {
     console.log(`  🟢 覆盖 ${days} 天 <= KEEP_DAYS(${KEEP_DAYS})，无需归档`);
   }
+  return over;
 }
 
 // ── 2. health-daily/ ─────────────────────────────────────────────────────
 function checkHealthDaily() {
   if (!fs.existsSync(HEALTH_DIR)) {
     console.log("⚪ health-daily/ 不存在，跳过");
-    return;
+    return 0;
   }
   const files = fs.readdirSync(HEALTH_DIR).filter((f) => /^\d{4}-\d{2}-\d{2}\.md$/.test(f)).sort();
   console.log(`health-daily/：${files.length} 份日报（${files[0] || "-"} ~ ${files[files.length - 1] || "-"}）`);
@@ -77,14 +79,21 @@ function checkHealthDaily() {
     const excess = files.length - KEEP_FILES;
     const oldestKept = files[excess];
     console.log(`  🟡 ${files.length} 份 > KEEP_FILES(${KEEP_FILES})：可归档 ${files[0]} ~ ${files[excess - 1]}（${excess} 份）到 docs/archive/health-daily/，保留 ${oldestKept} 起（本脚本不执行移动）`);
-    over++;
-  } else {
-    console.log(`  🟢 ${files.length} 份 <= KEEP_FILES(${KEEP_FILES})，无需归档`);
+    return 1;
   }
+  console.log(`  🟢 ${files.length} 份 <= KEEP_FILES(${KEEP_FILES})，无需归档`);
+  return 0;
 }
 
-checkHistory();
-checkHealthDaily();
+function main() {
+  const over = checkHistory() + checkHealthDaily();
+  console.log(over === 0 ? "\n汇总：无超限项" : `\n汇总：${over} 项超限（本脚本只报告，不删数据）`);
+  return over;
+}
 
-console.log(over === 0 ? "\n汇总：无超限项" : `\n汇总：${over} 项超限（本脚本只报告，不删数据）`);
-process.exit(strict && over > 0 ? 1 : 0);
+if (require.main === module) {
+  const over = main();
+  process.exit(process.argv.includes("--strict") && over > 0 ? 1 : 0);
+}
+
+module.exports = { checkHistory, checkHealthDaily, main, KEEP_DAYS, KEEP_FILES };
