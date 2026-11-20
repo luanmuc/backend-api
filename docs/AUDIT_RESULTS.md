@@ -460,7 +460,7 @@ gdstudio → {"ok": true, "status": 200, "time": 1068, "reason": "OK", "payload"
 
 **已知边界（记录未修）**：慢源场景单次点歌可达 40s——`raceBudget*` 只约束竞速决策，不取消“已在飞的请求”，每源 5s 超时 × 重试 1 次 + 可播校验 5s 逐档累加。真实源 P95 < 1s 时不触发，仅上游整体抖动时放大。
 
-**待确认语义**：`xinghaiBackup` 的 `platform !== "kg"` 条件（该源是 20 源中唯一在其全部候选平台零外呼者，域名已不可解析、默认关闭，现网零影响）。
+**已知边界（已结案，2026-11-20）**：`xinghaiBackup` 的 `platform !== "kg"` 条件不必再确认——该源是 20 源中唯一在其全部候选平台零外呼者，域名已不可解析、默认关闭（`SOURCE_TOGGLES=false`），现网零影响；条件本身正确（`kg` 无对应 handler），保留即可。
 
 ### 审计后按决策修复（2026-11-08）
 
@@ -1997,3 +1997,23 @@ V29 只钉住「命中脏缓存 → 复验 → 拒」，**拒绝之后是否恢�
 - **M5 时长门放宽**：`scoreCrossCandidate` 的 `diff > 5` → `diff > 500` → **12/13**，V13 红（`accepted=1`）。
 
 > V13 是补测：M5 在未补 V13 时曾 **13/13 存活**，因为 V7 的 remix 候选先被歌名判掉，没走到时长判据。补 V13 后该变异体被杀，V 组证据从「现状绿」升级为「改坏会红」。
+
+## 28. v8.13 ~ v9.1.4 结论归档（2026-11-12 ~ 2026-11-20）
+
+> 本节只做**结论索引**：方法与证据分别在 `docs/CHANGELOG.md`（按版本逐条）、`docs/READTHROUGH.md`（逐文件逐行）、`docs/AUDIT_MATRIX.md`（覆盖矩阵）、`docs/KNOWN_ISSUES.md`（缺陷台账）。补这一节是为了解决「唯一汇总处断档」——27 节停在 11-11，此后 9 天的结论此前只写在别处。
+
+| 版本 | 本轮真缺陷（P0/P1 为主） | 证据落点 |
+|---|---|---|
+| v8.13.0 | 源生命周期治理落地：13 登记 = 11 上链 + 2 观察，加/砍源从临时决定变可复核流程 | `SOURCE_LIFECYCLE.md` / `SOURCE_RETIREMENT.md` |
+| v8.16.0~v8.16.1 | 构建口径收敛（esbuild `bundle:true` / `format:iife`） | `DEV_GUIDE.md` 构建节 |
+| v8.16.2 | **R-01 档位熔断随健康快照持久化丢失**、**R-02 真实交付音质未入账**（均 P0）；R-03~R-12 十条 | `archive/READTHROUGH_v8.16.1.md` |
+| v8.16.3 | **R-13 `skipReason` 只读查询却烧掉半开唯一名额**（P0）；`PLAYBACK_FAILED` 升一等码；Y16 两份源规格交叉断言 | `archive/READTHROUGH_v8.16.2.md` |
+| v8.16.4 | `playDead` 只按源不按档（疑-31）→ 高档解码失败连坐 128k 保底；补 `playDeadQuality` 归因 + RF21 | `CHANGELOG.md` v8.16.4 |
+| v9.0.0 | 6272 行单文件 → 1290 行装配层 + 33 个 `src/core` 模块（`bindDep/dep` 110 条）；ed25519 发布签名；`cross-repo-version` X1~X5；`schema-parity` | `V9_MODULE_MAP.md` / `DEV_GUIDE.md` |
+| v9.1.0 | 跨平台缓存命中前必须 `isAudioPlayable` 复验；日志脱敏 | `CHANGELOG.md` |
+| v9.1.1 | **探针把空串当有值** → `wyOuter`/`xinghaiBackend`/`suyin163` 探测 100% 假失败；RF24 | `CHANGELOG.md` |
+| v9.1.2 | 9 条门禁假绿（`docs-audit` 恒 exit 0、`--require-key` 缺省放行等） | `CHANGELOG.md` |
+| v9.1.3 | `oiapi` 返回 `data[]`→`data.items[]`，旧取值恒 `NOT_FOUND`；`huibq` 下线（onrender 503） | `SOURCE_REGISTRY.md` |
+| v9.1.4 | **巡检链口径三处断裂**：`ok` 只记 HTTP（历史 90 条 `ok:true`+`payload:false`）、三套成功率口径、param 类假绿；`consecutiveFail` 被 7 天窗口锁死；仅试听降级为「可用但受限」 | `CHANGELOG.md` v9.1.4 / `AUDIT_PLAN_v10.md` §2 |
+
+**口径结论（v9.1.4 后）**：`ok` = `httpOk && payload` 为唯一结论字段；`rateRaw` + `wilsonLow` 为唯一成功率口径（天级只留「可用天」）；param 类（含 `{id}`/`{level}` 模板）一律「⚪ 不适用」；legacy 记录只作证据、不参与统计。

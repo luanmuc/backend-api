@@ -27,7 +27,7 @@
 | `docs/DEV_GUIDE.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/V9_MODULE_MAP.md` | 当前态 | 机器生成（`scripts/ref-closure.js --write`） | 每次拆包迁移后 | 33 个 core 模块 → 依赖闭包与导出表 |
 | `docs/KNOWN_ISSUES.md` | 当前态 | 人 | 每次版本变更/每轮审计/发现新问题时 | 规则19 |
-| `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 当前态 | 人 | 音质策略方案变更时 | 规则19 |
+| `docs/archive/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 归档 | 人 | 只读，不再更新 | 规则19 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/ITERATION_ROADMAP.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
@@ -43,7 +43,7 @@
 | `docs/P2_TRIAGE.md` | 当前态（审计结论） | 人 | 新一轮 P2 定档时 | 规则19 |
 | `docs/SOURCE_AUDIT.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
 | `docs/TESTING.md` | 当前态 | 人 | 每次版本变更/每轮审计后 | 见下行专表 |
-| `docs/音源架构执行全过程-2026-11-12.md` | 当前态（专题纪要） | 人 | 架构阶段收口/版本发布后 | 规则19 登记 |
+| `docs/archive/音源架构执行全过程-2026-11-12.md` | 归档（专题纪要） | 人 | 只读，不再更新 | 规则19 登记 |
 | `docs/archive/AUDIT_HISTORY.md` | 归档 | 人 | 只读，不再更新（v9~第五轮计划合集） | — |
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 归档 | 人 | 只读，不再更新 | — |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 归档 | 人 | 只读，不再更新 | — |

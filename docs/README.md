@@ -12,10 +12,10 @@
 | 找某个脚本干什么、会不会改文件 | [`SCRIPTS.md`](./SCRIPTS.md) |
 | 要审计 / 想知道历史上审出过什么 | 计划 [`AUDIT_PLAN_v10.md`](./AUDIT_PLAN_v10.md)（v11 唯一入口）→ 结果 [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) → 覆盖矩阵 [`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md) |
 | 查某版本改了什么 | [`CHANGELOG.md`](./CHANGELOG.md) → 规划 [`ITERATION_ROADMAP.md`](./ITERATION_ROADMAP.md) |
-| 看音源架构从 v8.8 到 v8.13.0 的完整执行链 | [`音源架构执行全过程-2026-11-12.md`](./音源架构执行全过程-2026-11-12.md) |
+| 看音源架构从 v8.8 到 v8.13.0 的完整执行链 | [`音源架构执行全过程-2026-11-12.md`](./archive/音源架构执行全过程-2026-11-12.md) |
 | 源挂了 / 平台改接口 | [`INTERFACE_CHANGE_PLAYBOOK.md`](./INTERFACE_CHANGE_PLAYBOOK.md) |
 | 查当前源可用性基线 | [`SOURCE_AUDIT.md`](./SOURCE_AUDIT.md) |
-| 查已知问题 / 技术债 / 是否该重构 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) → [`QUALITY_POLICY_OPTIMIZATION_PLAN.md`](./QUALITY_POLICY_OPTIMIZATION_PLAN.md) |
+| 查已知问题 / 技术债 / 是否该重构 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) → [`QUALITY_POLICY_OPTIMIZATION_PLAN.md`](./archive/QUALITY_POLICY_OPTIMIZATION_PLAN.md) |
 | 文档改了怕不同步 | [`DOC_SEMANTIC_CHECKLIST.md`](./DOC_SEMANTIC_CHECKLIST.md)（机器管不了的靠人） |
 | 多账号协作 / 提交规范 | [`AGENTS.md`](./AGENTS.md) |
 | 查「哪些文件审过/没审、哪些数字已核查过时」 | [`READTHROUGH.md`](./READTHROUGH.md)（全仓通读台账 + 四类清单） |
@@ -30,12 +30,12 @@
 | `docs/ARCHITECTURE.md` | 手写 | 边界、8 段结构、调用链、4 个状态机、账本口径、跨仓契约 |
 | `docs/DEV_GUIDE.md` | 手写 | 逐段职责、机制细节、子源实测总表、已知缺陷 |
 | `docs/KNOWN_ISSUES.md` | 手写（**活文档**） | 已知问题/技术债/外部阻塞/设计取舍，K01~K20；判断是否重构先看这里 |
-| `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 手写（方案） | 音质能力备档与档位短路的优化方案、验证证据、P0/P1 + K08/K07、P2 |
+| `docs/archive/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 手写（方案） | 音质能力备档与档位短路的优化方案、验证证据、P0/P1 + K08/K07、P2 |
 | `docs/TESTING.md` | 手写 | 49 个测试入口、mock 四件事、隔离与新增断言流程 |
 | `docs/SCRIPTS.md` | 手写 | 14 脚本 + 3 hook 的职责/触发/副作用 |
 | `docs/archive/AUDIT_HISTORY.md` | 归档合集 | v9.0（96 维矩阵）到第五轮的历史计划原文合并成一份，只读；当前入口见 `AUDIT_PLAN_v10.md` |
 | `docs/AUDIT_PLAN_v10.md` | 手写（**六轮整合活文档**） | 以它为准：维度总表、G1~G12 缺口、待修清单、销项记录、门禁 14 项口径、已知取舍 |
-| `docs/音源架构执行全过程-2026-11-12.md` | 手写 | 当前态专题纪要：阶段时间线、八段架构、关键决策、缺陷主题、测试/发布证据、边界 |
+| `docs/archive/音源架构执行全过程-2026-11-12.md` | 手写 | 当前态专题纪要：阶段时间线、八段架构、关键决策、缺陷主题、测试/发布证据、边界 |
 | `docs/STRESS_PLAN.md` | 手写（**活文档**） | 压力测试计划，**每仓唯一一份**；维度、阈值、执行命令与历史承接 |
 | `docs/reports/*.md` | 手写（每轮一份） | 分轮审计报告：`v8.11.1-全面审计报告.md`、`-第五轮审计结算.md`、`-第六轮缺口审计.md` |
 | `docs/AUDIT_RESULTS.md` | 手写 | 三代审计总账 + **D-01~D-39** 缺陷编号 + 结论性事实 + 历轮过程 |

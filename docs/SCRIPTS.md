@@ -1,6 +1,6 @@
 # 脚本索引（scripts/）
 
-> 28 个脚本（含 1 条 shell runner `v9-gate.sh`，其余为 .js）+ `scripts/lib/` 4 个子库文件（不计入以上 24 个顶层台账）+ 4 个 git hook 相关文件。**改任何脚本前先看「副作用」列**——有的会改文件、有的会起定时器、有的会打网络。
+> 29 个脚本（含 1 条 shell runner `v9-gate.sh`，其余为 .js）+ `scripts/lib/` 4 个子库文件（不计入以上 24 个顶层台账）+ 4 个 git hook 相关文件。**改任何脚本前先看「副作用」列**——有的会改文件、有的会起定时器、有的会打网络。
 > 单一真相原则：端点清单只认 `endpoint-registry.js`，开关只认 `source-toggles.js`，日期只认 `cn-date.js`。别在别的脚本里再抄一份。
 > v8.15.1 起本文件纳入 `docs-audit.js` 规则 22：脚本数、每个脚本行数、幽灵条目都会被门禁校验（登记不全直接报红）。
 
@@ -38,7 +38,8 @@
 | `layer-check.js` (92) | 分层依赖检查：core 模块无环、不反向 require legacy、无同名顶层定义、不直读 globalThis.lx | `v9-gate --group fast/core` | 只读 |
 | `cross-repo-version.js` (55) | 跨仓版本闸门：用 App 的 `HEADER_VERSION_LINE_REGEX` 真实解析源仓产物，断言产物版本 = legacy 版本、形态合法、App 内置源不高于源仓 | `v9-gate --group core` | 只读 |
 | `schema-parity.js` (48) | probe/telemetry 同 schema 校验：源仓 probeRequests/probeSuccess/totalRequests/totalSuccess ↔ App DigestSourceCount{total,ok}，顶层 probe/play/chain/schema 齐备 | `v9-gate --group core` | 只读 |
-| `sign-release.js` (97) | ed25519 发布签名：`--gen-key` 生成密钥对；默认读 `LX_SIGNING_KEY` 签 `lx-source.js` → `.sig` + `.manifest.json`；`--verify --pub <b64>` 验签并比对 sha256 | 发布前 / CI | **会写 .sig 与 .manifest.json**；无密钥时跳过（不产坏签名） |
+| `sign-release.js` (97) | ed25519 发布签名：`--gen-key` 生成密钥对；默认读 `LX_SIGNING_KEY` 签 `lx-source.js` → `.sig` + `.manifest.json`；`--verify --pub <b64>` 验签并
+| `check-data-retention.js` (90) | 数据保留巡检（**只读，不删数据**）：`docs/probe-history.jsonl` 覆盖天数 > 30 则列出可归档区间；`docs/health-daily/` 日报数 > 14 则列出最老可归档日期 | 手动 / 定期巡检 | 只读；`--strict` 超限 exit 1 |比对 sha256 | 发布前 / CI | **会写 .sig 与 .manifest.json**；无密钥时跳过（不产坏签名） |
 
 
 **CI（ci.yml `sign-release` job）**：push master 且 test-fast 通过后重建产物 → 用 secret `LX_SIGNING_KEY` 签名 → 用内置公钥自校验 → 上传 artifact。**刻意不自动改 Release 资产**：Release 手工发版，CI 擅自覆盖会让「哪些包被签过」失去可审计性。缺 secret 时跳过签名（不产半成品）。| `doc-sync-map.js` (113) | 改动文件 → 必同步文档清单（hook 用），`--check` 硬触发拦截 | commit 时 hook | 无（被 hook 调用） |
