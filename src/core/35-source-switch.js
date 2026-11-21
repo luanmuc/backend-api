@@ -13,14 +13,22 @@ const SOURCE_TOGGLES = {
   xinghaiBackend: true, // 星海后端主域：kw 高音质双源 + 128k 兜底
   helloworldKw: true,   // helloworld(kw)：convert_url_with_sign 直链，kw 128k/320k/flac
   changqingVip: true,   // 长青：kw 128k 兜底
-  huibq: false,         // Huibq：2026-11-20 关闭——11-16 起上游 onrender 服务被 owner 主动暂停
+  huibq: false,         // Huibq：【保留，默认关闭】2026-11-20 关闭——11-16 起上游 onrender 服务被 owner 主动暂停
                         //（503「This service has been suspended by its owner.」，根路径同 503）；
                         // 11-04~11-15 曾连续 12 天全 200，属暂停而非冷启动；保留函数便于复活
+                        // 2026-11-21 复测：kw 1424ms / wy 915ms 双档均为 HTTP 503，与关闭时记录一致
   juheTx: true,         // Juhe 聚合(tx)：tx 第三源，7 天复核
   qingliangTx: true,    // 晴亮(tx)：tx 主用第二源（2026-11-15 实测 5/5 全曲 320k），3 天复核
   ikun: true,           // ikun：kw/wy 链尾兜底（公益版免卡密）
-  suyinQQ: false,       // 观察源：2026-11-11 实测 HTTP 403，只探测，不进链，复核 2026-11-19
-  suyinMigu: false      // 观察源：2026-11-11 实测上游 502，只探测，不进链，复核 2026-11-26
+  suyinQQ: false,       // 观察源 suyinQQ(tx)：【已退役端点，保留函数】
+                        // 2026-11-11 实测 HTTP 403；2026-11-21 复测升级结论：oiapi.net/api/QQ_Music
+                        // 返回 HTTP 404 + code -13001「接口不存在或已下线」，br=4/5/7 三档响应完全一致
+                        //（51~296ms）→ 这是端点级下线，不是歌级 404。接口若恢复，改回 true 即可复活
+  suyinMigu: false      // 观察源 suyinMigu(mg)：【保留，等复核】
+                        // 2026-11-11 实测上游 502；2026-11-21 复测真实上游 api.xcvts.cn/api/music/migu：
+                        // HTTP 200 但 body code 502「咪咕搜索接口均不可用（服务器 IP 可能被咪咕限制）」，
+                        //《海阔天空》《晴天》两首一致（140~162ms）→ 是上游中转 IP 被咪咕限，非我方问题。
+                        // 注意 oiapi.net/api/Migu 也已 404，但该端点不在本源链路上，不据此定案。复核 2026-11-26
 };
 
 const userEnabled = { ...SOURCE_TOGGLES };

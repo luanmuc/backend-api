@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v9.1.4 按平台音质上限（ikun kw=flac / wy=320k）+ juheTx flac 虚标下调 320k + wy 探测曲目修正为《海阔天空》（网易云无周杰伦版权，原用翻唱版冒充原版）；上一版 v9.1.3 为溯音163 接口兼容修复（data.items）+ 门禁与断言加固版（P1 修复：docs-audit 硬失败可退出非零 / verify-real 支持 --require-all-ok / 签名缺钥可拦 --require-key / X-P 跨仓校验接入 push CI / live 驱动清理 4 个退役源 / provider contract 三源口径与注册表同步 / a-static 异步拒绝必须结构化错误码 / C10 并发外呼上限断言；详见 CHANGELOG）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
- * @version 9.1.4
+ * @description v9.1.5 失效源退役标记版：suyinQQ 端点级下线（oiapi.net/api/QQ_Music 404 + code -13001「接口不存在或已下线」，br=4/5/7 三档一致）、suyinMigu 上游中转 IP 被咪咕限（api.xcvts.cn 返回 200 + code 502）、huibq 保留待复活（kw/wy 双档 503）；只改开关表注释、行为零变化；上一版 v9.1.4 为按平台音质上限版（ikun kw=flac / wy=320k、juheTx flac 虚标下调 320k、wy 探测曲目改《海阔天空》/Beyond）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
+ * @version 9.1.5
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -66,9 +66,10 @@ var __lxSourceBundle = (() => {
         changqingVip: true,
         // 长青：kw 128k 兜底
         huibq: false,
-        // Huibq：2026-11-20 关闭——11-16 起上游 onrender 服务被 owner 主动暂停
+        // Huibq：【保留，默认关闭】2026-11-20 关闭——11-16 起上游 onrender 服务被 owner 主动暂停
         //（503「This service has been suspended by its owner.」，根路径同 503）；
         // 11-04~11-15 曾连续 12 天全 200，属暂停而非冷启动；保留函数便于复活
+        // 2026-11-21 复测：kw 1424ms / wy 915ms 双档均为 HTTP 503，与关闭时记录一致
         juheTx: true,
         // Juhe 聚合(tx)：tx 第三源，7 天复核
         qingliangTx: true,
@@ -76,9 +77,16 @@ var __lxSourceBundle = (() => {
         ikun: true,
         // ikun：kw/wy 链尾兜底（公益版免卡密）
         suyinQQ: false,
-        // 观察源：2026-11-11 实测 HTTP 403，只探测，不进链，复核 2026-11-19
+        // 观察源 suyinQQ(tx)：【已退役端点，保留函数】
+        // 2026-11-11 实测 HTTP 403；2026-11-21 复测升级结论：oiapi.net/api/QQ_Music
+        // 返回 HTTP 404 + code -13001「接口不存在或已下线」，br=4/5/7 三档响应完全一致
+        //（51~296ms）→ 这是端点级下线，不是歌级 404。接口若恢复，改回 true 即可复活
         suyinMigu: false
-        // 观察源：2026-11-11 实测上游 502，只探测，不进链，复核 2026-11-26
+        // 观察源 suyinMigu(mg)：【保留，等复核】
+        // 2026-11-11 实测上游 502；2026-11-21 复测真实上游 api.xcvts.cn/api/music/migu：
+        // HTTP 200 但 body code 502「咪咕搜索接口均不可用（服务器 IP 可能被咪咕限制）」，
+        //《海阔天空》《晴天》两首一致（140~162ms）→ 是上游中转 IP 被咪咕限，非我方问题。
+        // 注意 oiapi.net/api/Migu 也已 404，但该端点不在本源链路上，不据此定案。复核 2026-11-26
       };
       var userEnabled = __spreadValues({}, SOURCE_TOGGLES);
       var autoOff = {};
@@ -492,7 +500,7 @@ var __lxSourceBundle = (() => {
   // src/core/02-config.js
   var require_config = __commonJS({
     "src/core/02-config.js"(exports, module) {
-      var SOURCE_VERSION = true ? "9.1.4" : "8.16.4";
+      var SOURCE_VERSION = true ? "9.1.5" : "8.16.4";
       var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
       function normalizeProbeSongPool(value) {
         if (!Array.isArray(value)) return null;
@@ -6541,7 +6549,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.4 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.5 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {

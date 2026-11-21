@@ -1,5 +1,26 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-21 · v9.1.5：失效源退役标记（suyinQQ / suyinMigu / huibq）
+
+**性质**：只改 `src/core/35-source-switch.js` 的注释，不改任何行为、不改链、不改阈值。产物因注释进包从 366678 变 367386 bytes，按发布口径升版本。
+
+**三条定案证据（2026-11-21 实测）**
+
+| 源 | 端点 | 结果 | 结论 |
+|---|---|---|---|
+| `suyinQQ` | `https://oiapi.net/api/QQ_Music` | `404` + `code -13001`「接口不存在或已下线」，`br=4/5/7` 三档响应完全一致（296/130/51ms） | **端点级下线**，不是歌级 404。原注释「11-11 实测 HTTP 403」已被上游演进覆盖 |
+| `suyinMigu` | `https://api.xcvts.cn/api/music/migu` | `200` + body `code 502`「咪咕搜索接口均不可用（服务器 IP 可能被咪咕限制）」，《海阔天空》《晴天》两首一致（162/140ms） | 上游中转 IP 被咪咕限，非我方问题。`reviewAt` 保持 2026-11-26 |
+| `huibq` | 同源 kw / wy | `HTTP 503`（1424ms / 915ms） | 与 11-20 关闭时一致，保留默认关闭；函数在，接口恢复改 `true` 即复活 |
+
+**一处必须澄清的误判路径**：`oiapi.net/api/Migu` 同样返 404 `-13001`，但 `suyinMigu` 的上游是 `api.xcvts.cn/api/music/migu`（`src/core/30-suyin-extra.js:60`），**两者不是同一条链路**。拿 `oiapi.net/api/Migu` 的 404 给 `suyinMigu` 定案会得出错误结论。
+
+**同域存活面**（用于判断是整站还是单端点）：`/api/Kuwo` 200 `code 1`、`/api/Music_163` 200 `code 0` 获取成功、`/api/QQ_Music` 404、`/api/Migu` 404。前两个是 `suyinKuwo` / `suyin163` 的现役上游，均健康。
+
+**为什么不加 `retired` 字段**：`SOURCE_TOGGLES` 只有布尔值，`effectiveEnabled`/`runtimeToggles`/健康快照消费方全部按布尔处理；新增字段会牵动 `schema-parity`、Y9/Y16 provider 契约与快照结构，风险远大于「注释表达清楚」的收益。故标记落在注释，代码保留。
+
+**验证**：`source-audit --quick` **15/15** 全可用；`probe` 三源状态与上表一致。
+
+
 ## 2026-11-21 · v9.1.4：按平台音质上限 + 探测曲目修正（阶段 3）
 
 阶段 3 动产物，所以必须先认一件事：**`lx-source.js` 是 `src/00-header.js` + esbuild 的构建产物**，直接改产物下次构建就被覆盖。三处改动都落在 `src/`，重建后才生效（366,678 bytes）。
