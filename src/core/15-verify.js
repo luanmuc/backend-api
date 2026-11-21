@@ -6,8 +6,8 @@ const { VERIFY_RANGE_BYTES } = require("./10-vendors.js");
 const { toBytes, mediaEnvelopeErrorCode, sniffAudioBytes, kindOf } = require("./08-media.js");
 const { HTTP_URL_REGEX, httpRequest, getMobileUserAgent } = require("./07-net.js");
 const { ERROR_CODES } = require("./02-error-codes.js");
-const { logDebug } = require("./01-log.js");
-const { durationHintByKey, durationHintKey, normalizeDurationSec } = require("./09-match.js");
+const { logDebug, logInfo } = require("./01-log.js");
+const { durationHintByKey, durationHintKey, normalizeDurationSec, normalizeKeyword } = require("./09-match.js");
 const { cfg } = require("./02-config.js");
 const { dep } = require("./06-binding.js");
 
@@ -52,6 +52,52 @@ function durationHintNameKey(songInfo) {
 
 const durationHints = new Map();
 
+/**
+ * v9.1.6（K31）：身份判据。
+ * 返回 null = 通过（含「无证据但源不要求」的情形）；返回对象 = 拒绝裁决。
+ * 规则：
+ *  ①拿到标签且歌名对不上 → MISMATCH（明确错歌，任何源都拒）
+ *  ②拿到标签且歌名对上 → 通过（强证据）
+ *  ③没标签：只有 `identityStrict` 源才拒（它无法证明交付的是这首歌）；其余源放行，
+ *    否则会误杀大量无标签的正常 CDN 直链。
+ */
+function checkDeliveryIdentity(info, ctx) {
+  const want = String(ctx.songInfo?.name || "").trim();
+  if (!want) return null;
+  const tagTitle = String(info?.tagTitle || "").trim();
+  const tagArtist = String(info?.tagArtist || "").trim();
+  if (tagTitle) {
+    const a = normalizeKeyword(tagTitle);
+    const b = normalizeKeyword(want);
+    if (a && b && a !== b) {
+      // 包含关系放行（「晴天」vs「晴天 (Live)」「平凡之路-巡演版」这类同曲不同版本很常见）
+      const contained = a.includes(b) || b.includes(a);
+      if (!contained) {
+        return {
+          ok: false, code: ERROR_CODES.MISMATCH,
+          reason: `交付音频自带标签为《${tagTitle}》${tagArtist ? ` / ${tagArtist}` : ""}，与请求《${want}》不符`,
+          evidence: "strong", info,
+        };
+      }
+    }
+    return null;
+  }
+  // 无标签：区分「整曲」与「片段」。实测（2026-11-21）星海对
+  //   · 无效 mid 999999999 → 裸 mp3 帧 181,521 字节（约 113s），对 180~300s 的请求必判片段
+  //   · 真实存在的现场版 182061798 → 同样是裸 mp3 帧、同样无标签
+  // 所以「无标签」本身不能当错歌证据，否则会误杀真实现场版。
+  // 但**片段兜底**是最危险的一条路：长度差一截的音频被包装成「试听版」交付，
+  // 用户点一首不存在的歌会听到别人的声音。故：要求身份的源，无标签时不许走片段兜底。
+  if (ctx.identityStrict === true && isFragmentInfo(info, ctx.songInfo)) {
+    return {
+      ok: false, code: ERROR_CODES.MISMATCH,
+      reason: `该源交付的片段没有任何身份标签，无法证明是《${want}》（源标记 identityStrict，拒绝片段兜底）`,
+      evidence: "weak", info,
+    };
+  }
+  return null;
+}
+
 async function verifyDelivery(audioUrl, ctx = {}, cancelToken = null) {
   if (!cfg("verifyDelivery", true)) return null;
   const probe = await probeAudioDelivery(audioUrl, cfg("verifyTimeoutMs", 3000), cancelToken);
@@ -69,6 +115,13 @@ async function verifyDelivery(audioUrl, ctx = {}, cancelToken = null) {
   }
   // 探针的返回值只有三种：ok=true / ok=false（必带 code）/ ok=null。
   // 上面已分别处理，此处不再留「!probe.ok 但无 code」的死分支（覆盖率实测 0 行）。
+  // v9.1.6（K31）：身份判据——交付的到底是不是这首歌。
+  // 背景：星海后端对任意 mid 都返回可播音频，旧的四条判据只看时长/体积比例，
+  // 一首 113s 的「别人的歌」对 180s 的请求比值 0.63 > 0.6 就能蒙过，被当「试听版」交付。
+  // 证据来源：音频自带标签（ID3 TIT2/TPE1、FLAC VORBIS TITLE/ARTIST），实测真曲目有标签、
+  // 星海对无效 mid 返回的是裸 mp3 帧（无标签）。
+  const ident = checkDeliveryIdentity(probe.info, ctx);
+  if (ident) return ident;
   const realDur = probe.info?.durationSec || null;
   const origDur = originalDurationSec(ctx.songInfo);
   // 四条同时满足才拒：真实时长可定 + 原曲可定且≥90s + <60% + 差>15s
@@ -129,7 +182,11 @@ function qualityFromDelivery(info, requestedQuality, durationSec) {
   }
   if (fmt === "mp3" || fmt === "audio") {
     if (br >= 256) return "320k";
-    return "128k";
+    if (br > 0) return "128k";
+    // 码率未知：走这条说明桥没透传字节、只剩响应头（headerEvidence 已不再硬编 128kbps）。
+    // 此时既看不见容器也看不见码率，凭空断言 128k 会把真 flac/320k 记成 128k，
+    // 再经 noteQualityCeiling 写成该源的降档备档，反向压住本来能出高质的源。保留请求档。
+    return requestedQuality || "128k";
   }
   // 其他未知格式：保留请求档
   return requestedQuality || "128k";
@@ -269,7 +326,10 @@ function headerEvidence(headers, totalBytes) {
   if (/audio|octet|mpeg|mp3|flac|ogg|aac/.test(ct)) {
     info.kind = "audio";
     info.format = ct.includes("flac") ? "flac" : (ct.includes("mpeg") || ct.includes("mp3") ? "mp3" : "audio");
-    if (totalBytes && info.format === "mp3") info.bitrateKbps = 128;
+    // 曾经这里写死 `if (totalBytes && info.format === "mp3") info.bitrateKbps = 128`，
+    // 等于把"只知道是 mpeg"当成"确定 128kbps"。实测反例：ikun 的 wy flac 档回真 flac
+    // （文件头 66 4c 61 43），content-type 却是 audio/mpeg；若只剩头信息，128kbps 会把
+    // 它记成 128k 并写成降档备档。码率改为留空（null），由调用方按"未知"处理。
     return { ok: true, info, evidence: "medium", reason: "仅头信息（桥未透传字节）" };
   }
   return { ok: null, code: ERROR_CODES.NETWORK_ERROR, reason: "响应头不足以判定", evidence: "weak", info };

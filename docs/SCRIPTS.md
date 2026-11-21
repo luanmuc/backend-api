@@ -21,7 +21,7 @@
 | `health-daily.js` (465) | 健康日报：变化检测 + 分级 + 动作出口，产出 `docs/health-daily/<日期>.md/.json`（90 天清理） | CI 每日 | 新增当日日报文件；不碰 README |
 | `pull-device-digests.js` (103) | 拉取公开仓 `lx-telemetry` 的真机摘要，写 `docs/device-digests.jsonl`（60 天滚动），供日报做 CI vs 真机对照 | CI 每日（日报前）；手动 | **覆写** `docs/device-digests.jsonl`；只读网络 |
 | `chain-sample.js` (77) | 每日出链抽样：调用 `source-audit.js --quick`，对**启用中的源**各测 1 首固定样例（128k），补「端点活着 ≠ 能出链」 | CI 每日（probe 之后）；手动 | **追加** `docs/chain-sample.jsonl`（同日同源覆盖、30 天滚动） |
-| `source-audit.js` (226) | 全源全接口深度巡检（比 probe 更细，逐源逐档真实取链 + Range 校验），`--include-probation` / `--strict` | 手动 | 只打日志 |
+| `source-audit.js` (224) | 全源全接口深度巡检（比 probe 更细，逐源逐档真实取链 + Range 校验），`--include-probation` / `--strict` | 手动 | 只打日志 |
 | `candidate-audit.js` (342) | 新候选源实证半自动化：mock 加载 + 静态提取 + 报告草案 | 手动 | 产出报告草案（不写仓库文件） |
 | `recheck-candidates.js` (202) | 判否候选恢复探测，**改** `docs/candidate-status.md` | CI 每日 | 覆写 candidate-status |
 | `ecosystem-scan.js` (165) | 抓 pdone 生态健康表，交叉验证本仓源状态（源列表由产物导出面读取，v8.15.1 起不再依赖正则） | CI 每周 | 只打日志 |

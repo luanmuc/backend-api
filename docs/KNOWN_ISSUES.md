@@ -21,11 +21,11 @@
 |---|---|---|---|---|---|
 | K01 | FIXED | 高 | 能力备档 TTL 会被重复低质交付刷新，可能事实永久降级 | `noteQualityCeiling()` 每次写 `ts: Date.now()`；2026-11-14 复现：两次 128k 记录相隔 20ms，`ts` 从 1794653669033 → 1794653669053 | P0：同档不续期，增加 `recordedAt/nextProbeAt` |
 | K02 | FIXED | 高 | 能力备档不区分临时失败与确定性失败 | v8.15 新增 `classifyQualityFailureCode`：business→6h、delivery/transient→10min、rate_limit→不记、unknown→30min；QP2 覆盖 |
-| K03 | OPEN | 中 | 能力备档粒度是“平台 + 歌曲”，一个源低质会压制同平台其他已恢复源 | `qualityCeilingMap` key = `${platform}|${mid}` | P1：评估按源记录，或保留平台级但加“探路优先” |
+| K03 | FIXED | 中 | 能力备档粒度是“平台 + 歌曲”，一个源低质会压制同平台其他已恢复源 | `qualityCeilingMap` key = `${platform}|${mid}`（`09-match.js:57`），`22-chain.js:209` 直接用它压低整条链起点 | **2026-11-21 修复（v9.1.6）**：新增 `qualityCeilingBySourceMap`（`${platform}|${sourceId}|${mid}`）与 `getQualityCeilingBySource()`；`noteQualityCeiling()` 增 `sourceId` 参数并先写源级；`buildSourceChain(platform, quality, songInfo)` 按源级备档剔候选；删除平台级压低起点的旧逻辑。`countActiveQualitySources`（K08）**故意不改**——它服务“唯一高质源 10min 探路”，属能力声明层语义，掺入临时降级会改变 K08 行为。红绿：旧产物 `buildSourceChain` 两参、`getQualityCeilingBySource` 0 处；新产物三参、7 处；QP13 13/0 |
 | K04 | FIXED | 中 | 高质档被短路/熔断跳过时，仍可能被记成“该歌没有高质” | `getUrlWithFallback()` 新增 `attemptedQualities`，只有 `attemptedQualities.has(reqQ)` 且未从 ceiling 起跑才记上限；QP1/QP3 覆盖 | P0：只有实际 attempted 的档才记录 |
 | K05 | FIXED | 高 | 档位短路把临时网络失败计入 `fail`，3 次超时就能压 1 小时 | `isQualityHopeless()` 改用 `definitiveFail + linkExpired`；QP4 断言 3 次超时不短路 | P1：只统计确定性失败，网络类交 breaker |
 | K06 | FIXED | 高 | 档位短路口径反向：404/NOT_AUDIO 等确定性失败走 `businessFail`，不进 `fail`；反而超时/5xx 进 `fail` | `recordBusinessFail` 对 delivery 类（NOT_AUDIO/STREAM_PLAYLIST/BAD_ENVELOPE/TRUNCATED_MEDIA）写 `definitiveFail`；`recordFailure` 的超时不写；QP5/QP6 覆盖 | P1：新增 `definitiveFail`，短路只看它 + `linkExpired` |
-| K07 | PARTIAL | 中 | 档位短路没有用户强制重试旁路 | 源侧已加 `forceQualityProbe(sourceId, quality)` 与 request action：把 `qualitySkipProbeAt` 标记为已到期，只放行一轮链构建；不改 breaker/健康账本。QP11 覆盖“放行一次后恢复短路”。App 可见入口仍未接（P2） |
+| K07 | FIXED | 中 | 档位短路没有用户强制重试旁路 | 源侧自 v8.14.1 起有 `forceQualityProbe(sourceId, quality)` 与 request action（把 `qualitySkipProbeAt` 置为到期、放行一轮链构建，不改 breaker/健康账本），QP11 覆盖“放行一次后恢复短路”。**2026-11-21 补完 App 侧入口（v9.1.6 配套）**：`healthSourceBinding` 的 `HealthSourceAction` 加 `'forceQualityProbe'`；`Health.tsx` 的 `getQuerier` 白名单同步，新增 `retryQuality` 按 `shortQualities` 逐档渲染「重试 {q} 档」，成功后 `loadHealth(true)`；三语各补 4 key；`check_cross_repo_linkage` 新增 **C9**（App 侧入口存在并透传，不依赖 `LX_SOURCE_ROOT`），9 通过 / 0 失败。App 提交 `1cd2b58c` |
 | K08 | FIXED | 中 | 唯一 flac 源连续临时失败时，1 小时窗口内没有高质可试 | 新增 `qualityShortCircuitUniqueProbeMs`（默认 600000=10min）与 `countActiveQualitySources(platform, quality)`；平台内该档 active 源 ≤1 时走 10min，否则仍走 1h；QP9/QP10 覆盖 kg 唯一 10min、tx 非唯一 1h |
 | K09 | WONTFIX | 低 | 源仓 `REPORT_QUALITIES` 五平台均无 `flac24bit`，设置 flac24bit 会落到 flac | `REPORT_QUALITIES = ["128k","320k","flac"]`；`PLATFORM_QUALITIES` 有 flac24bit 但上报裁剪 | 保持现状；App 设置 flac24bit 时按 flac 请求 |
 | K10 | WONTFIX | 低 | `fallbackOwner:"source"` 时 App 不跨源，源仓内部才有跨平台兜底 | `sourceConfig[platform].fallbackOwner = "source"`；App `shouldHostFallback` 为 false | 保持现状；跨源由源仓 `tx→wy→kw` 兜底 |
@@ -44,8 +44,8 @@
 
 | ID | 状态 | 严重度 | 问题 | 证据 / 位置 | 下一步 |
 |---|---|---|---|---|---|
-| K16 | BLOCKED | 中 | `check_source_ci_gate` 受 GitHub API 403 额度限制 | 2026-11-14 跑 `check_source_ci_gate` 403 | 需要有效凭据/额度；不把 403 当代码失败 |
-| K17 | OPEN | 中 | `source-audit` 14/16 可用，2 个外部源未通过 | 源仓 `source-audit` rc0，但外部源可用性 14/16 | 外部源恢复后复测；不要为了绿而删除源 |
+| K16 | **FIXED**（2026-11-21） | 中 | `check_source_ci_gate` 报 403，此前记为「需要有效凭据/额度」 | 定案：额度充足（认证配额 5000 / used 20），真因是全链路走**未认证** `api.github.com`，吃按出口 IP 的 60 次/小时 | ✅ 已修：该闸门脚本位于 App 仓（`mobile-app` 的 `check_source_ci_gate.js`），已让它在无 `GITHUB_TOKEN` 时自动从 `~/.config/gh/hosts.yml` 读 `oauth_token` 兜底；改后本机直跑即通过（`✅ 源仓 CI 闸门通过`） |
+| K17 | OPEN | 中 | `source-audit` 全量仍有外部源未通过 | **2026-11-21 全量实测：15/17 可用**，2 个失败均为 `huibq`（kw 1371ms / wy 942ms `HTTP 503`，已默认关闭待上游复活，见 K 表 §三与 `src/core/35-source-switch.js:16`）；`--quick` 抽样 **15/15**。旧记录「14/16」是 v9.1.3 阶段口径 | 外部源恢复后复测；不要为了绿而删除源。`huibq` 状态已由 v9.1.5 注释封存，无需再改 |
 | K18 | DEFERRED | 低 | Phase 5 host-owned 宽限窗未做；v1 App 四段竞速、v2 App 跨候选宽限窗已明确拒绝 | 用户决策；避免 App 与源仓双重重试 | 保持现状，不再引入 App 侧宽限窗 |
 | K25 | FIXED | 高 | **门禁假绿三件套**：`docs-audit.js` 恒 `exit 0`（B03-005）；`verify-real-*` 无条件 `exit 0`（B03-006）；`sign-release` 缺密钥 fail-open（B03-002） | 三条都由读源码 + 变异验证确认：删台账一行 → 旧版仍 exit 0 | 已改：`runAll()` 返回 🔴 数并 `process.exit(hard ? 1 : 0)`；`--require-all-ok` 开关；`--require-key` + CI `ALLOW_UNSIGNED` 双层 |
 | K26 | FIXED | 中 | **慢测试无本地入口且不随 push**：`stress-test` 不在 `npm test`（B05-002）；`mutation` job 只在 schedule/dispatch（B05-003） | `package.json` scripts 无 stress/mutation；`ci.yml:187` 的 `if` 只认 schedule/dispatch | 已改：补 `test:stress` / `test:mutation` 别名；mutation 在 push（src 变更）跑 `--fast` 子集，全量留给 schedule |
@@ -63,6 +63,8 @@
 |---|---|---|---|---|---|
 | K19 | FIXED | — | 四份计划与审计起点曾出现 hash/行数漂移 | App `AUDIT_PLAN`/`STRESS_PLAN`、源仓 `AUDIT_PLAN_v10`/`stress-round5` 已回填 | 每次审计/提交后同步 |
 | K20 | FIXED | 低 | `KNOWN_ISSUES` 曾被 `ITERATION_ROADMAP` 引用但文件不存在 | 本文档为本轮补建；K13 引用此前悬空 | 已补建；后续新增问题按 K 编号追加 |
+| K30 | OPEN | 中 | **聚合代表码被「源能力不足」的 PARAM_ERROR 盖掉**：整个平台的结论被写成「参数错误」，App 会把「上游限流」当「请求参数不对」而不重试 | 2026-11-21 `tools/live/run.js l1l4` 连跑 5 首复现两首：`七里香`/`平凡之路` 抛出 `PARAM_ERROR: 所有源均失败`，而 `err.detail` 是 `RATE_LIMIT/RATE_LIMIT/RATE_LIMIT/PARAM_ERROR/PARAM_ERROR`。根因两层：①`xinghaiBackendGetUrl` 这类「只按 mid 出链」的源在 `songInfo` 无 id（歌名搜索未命中）时抛 `PARAM_ERROR: 星海后端缺少 songmid/id`（`25-handlers.js:89-94`），它是**源自身能力不足**，不代表平台结论；②`05-verdict.js:92` 的 `CODE_RANK` 给 `PARAM_ERROR` 排 2、`RATE_LIMIT` 排 1，`admit({stage:'fallback'})` 取 rank 最高者，于是 PARAM_ERROR 胜出。单测已验证 `admit` 本身没错（只喂一条 RATE_LIMIT 时返回 RATE_LIMIT） | 待定方向：①给「源缺 id」引入独立码（`SOURCE_INCAPABLE`，rank 0），与用户传参错误的 PARAM_ERROR 区分；②或让 `buildSourceChain` 在 `songInfo` 无 id 时就不放该类源进链（资格层修法，更彻底但牵动面大）。注意新增码要同步 `schema-parity` / `ERROR_CODES` 白名单 / `y-provider-contract`。**未修** |
+| K31 | **FIXED**（2026-11-21） | 高 | 验真层**不校验身份**：星海后端对任意 mid 都返回真实音频，`tools/live` L4-5 的假 id `999999999` 实际落地 181,521 字节 `audio/mpeg`（约 113s），被当成可播交付并标「试听版」 | 2026-11-21 `node tools/live/run.js l1l4`：`L4-5` 交付 `kwplay.php?mid=999999999&q=128k`，`sub=星海后端 · 试听版`；直连实测 `mid=999999999`→206/181521B、`mid=1`→206/1047532B、`mid=228908`→206/4317292B，**三条都是 206 audio/mpeg** | 根因两层：①`xinghaiBackend` 只按 mid 中转，上游对无效 mid 也生成 play 链（handler 注释自己写过「必交付别人的音频」）；②`15-verify.js` 的四条判据只有时长/体积比例（`ratio<0.6 && gap>15s`），**没有任何歌名/歌手证据**，长度像样就放行。修法：①`08-media.js` 新增 `parseAudioTags`（ID3v2 TIT2/TPE1 + FLAC VORBIS TITLE/ARTIST），探针 Range 1KB→32KB；②`15-verify.js` 新增 `checkDeliveryIdentity`：有标签且歌名对不上→`MISMATCH`（任何源都拒），有标签且对得上→放行，无标签时 `identityStrict` 源**只在被判片段时**拒；③`provider()` 新增 `identityStrict`，星海标记开启。验证：`L4-5` 由「交付别人的音频」变 `NOT_FOUND`，`L4-1` 恢复如实降档，`l1l4` 14/0、`l5` 9/1、`npm test` V 组 133/0 |
 
 ## 关联文档
 

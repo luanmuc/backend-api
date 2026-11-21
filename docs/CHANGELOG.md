@@ -1,5 +1,108 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-21 · v9.1.6：源级能力备档（K03）
+
+**问题（代码路径可证，不需现场数据）**
+
+- 写入：`22-chain.js` 的 `noteQualityCeiling()` 用 `${platform}|${getHashOrMid(songInfo)}` 作 key（`09-match.js:57`），**不含源**。
+- 读取：`getUrlWithFallback()` 拿这个平台级值直接把 `effectiveQuality` 压到该档（原 `22-chain.js:209-214`），随后 `buildQualityChain(effectiveQuality)` 从低档起跑。
+- 结果：该平台该歌只有 `suyinKuwo` 交付过一次 128k（`fallbackRace` 命中即停，其它源根本没被请求），备档就记成平台级 128k，**下次请求 flac 整条链从 128k 起，同平台能给 flac 的源永远拿不到机会**。
+
+**修法**
+
+| 层 | 改动 |
+|---|---|
+| 存储 | 新增 `qualityCeilingBySourceMap`（`${platform}|${sourceId}|${mid}`）与 `getQualityCeilingBySource()`；`noteQualityCeiling()` 增第 5 参 `sourceId`，先写源级、再写平台级。源级同样遵守 K01「同档或更高档未过期不续期」，避免重复低质交付刷新 TTL |
+| 决策 | `buildSourceChain(platform, quality, songInfo)` 增第 3 参，在 `maxQuality` 过滤之后、资格裁决之前，按源级备档剔除候选。`songInfo` 缺省时不过滤（冷启动预热等内部调用行为不变） |
+| 起点 | **删除**平台级备档压低 `effectiveQuality` 的旧逻辑。`qualityCeilingApplied` 字段保留，值恒 `false`（App/巡检消费契约不变） |
+| 诊断 | 链空时的 skipped 列表补 `source-quality-ceiling` 原因，避免把「能力不足」误读成「网络全挂」 |
+| 观测 | 平台级 `qualityCeilingMap` 继续写，`17-health-check.js` 的 `qualityCeiling: qualityCeilingMap.size` 语义不变 |
+
+**为什么不改 `countActiveQualitySources`**：它服务 K08「平台内唯一高质源走 10min 探路」，语义是**能力声明层面**的可用源数。若掺入源级备档，唯一源判定会随临时降级抖动，改变 K08 的既有行为。暂保持原样，已在 K03 条目下注明。
+
+**验证**
+
+- 新增 `QP13`（`test/audit/quality-policy-v2.js`）：同歌同平台单源 128k 备档不得把该源剔出 flac 候选之外的判断、不得跨歌压制、128k 档不受影响、平台级条目仍写。
+- **红绿双向**：旧产物 `dd9e421` 的 `buildSourceChain` 是两参且 `getQualityCeilingBySource` 出现 **0** 次（`grep -c`），QP13 在旧代码上必红；新产物三参、出现 **7** 次，`quality-policy-v2` **13/0**。
+- `provider contract` **16/0**；`self-check` `@version=9.1.6`；`source-audit --quick` **15/15**。
+- 产物 367386 → **369670 bytes**。
+
+**同版附带：巡检「可播」列盲区（`scripts/source-audit.js`）**
+
+`isKwPlayDirect` 把 `.php` / `kwplay` 出链整体排除在 Range 验真之外（全量巡检里命中时 `playable` 直接留空串，抽样分支则标 `skipped`），理由是"签名直链可能不稳"。实测推翻了这个前提：
+
+| 环节 | 结果 |
+|---|---|
+| `https://yy.zddyr.top/lx/api/?source=kw&songmid=228908&quality=128k` | `HTTP 200`，383ms，返回 `kwplay.php?mid=228908&q=128k` 签名链 |
+| 该链带 `Range: bytes=0-1023` | `HTTP 206`，162ms，**1 跳**，`audio/mpeg`，`content-range: bytes 0-1023/4317292` |
+
+也就是说星海这条链**真能播**，只是巡检从未验证过它。改为出链一律 `rangeCheck`，删掉 `isKwPlayDirect`：假绿（`200 + text/html`）现在同样会被 `content-type` 暴露，不必再用"跳过"来兜。改后 `xinghaiBackend` 的可播列从空串变成 `206 audio/mpeg`；全量 **15/17**（两轮一致），失败的仍是 `huibq` 两平台 503。本轮 `wyOuter` 出现一次 `NOT_FOUND` 抖动，同平台连跑两次均 `206 audio/mpeg` 恢复，属上游试听判定波动，非本次改动影响。
+
+**同版附带：判据层不再把「只知道是 mpeg」当成「确定 128kbps」（`15-verify.js`）**
+
+探到真因：`ikun` 的 wy 通道三档全部 `200 code=200`，字节数 5,217,010 / 13,042,460 / 32,511,640（326s 对应约 128k / 320k / 800k），但 `content-type` 三档**一律** `audio/mpeg`。取文件头验证：
+
+| 档 | 前 16 字节 | 结论 |
+|---|---|---|
+| 128k | `49443304…` | `ID3` 标签头（mp3） |
+| 320k | `49443304…` | `ID3` 标签头（mp3） |
+| flac | `664c6143…` | **`fLaC` 魔数，真 FLAC** |
+
+也就是说"CDN 把 flac 标成 mpeg"是常态，不能靠 content-type 判档。而 `headerEvidence()` 原来有一行 `if (totalBytes && info.format === "mp3") info.bitrateKbps = 128`——把"只知道是 mpeg"硬编成"确定 128kbps"。App 桥不透传二进制时（只信响应头，证据降为 medium）就会走进这里，`qualityFromDelivery()` 随即返回 `128k`：真 flac 被记成 128k，再经 `noteQualityCeiling` 写成该源的降档备档，反过来压住本来能出高质的源——正好放大 K03 要修的症状。
+
+改法：删掉那行硬编码率（改为不设，由调用方按"未知"处理）；`qualityFromDelivery()` 的 `mp3/audio` 分支在 `br` 未知时不再无条件返回 `128k`，改为保留请求档。有字节时走 `sniffAudioBytes` 按魔数判容器，不受影响。
+
+**验证**：`npm test` **133 通过 / 0 失败**（V 组，含 V38 系列「实交付音质与请求档不符」正向用例）；`f-repo` 57/0（Z10 自动读到新 `size 369670 / sha 1293ec98`）。产物 369688 → **369670 bytes**。
+
+**同版附带：`anchors` 从死字段变成真约束（K30 · B 方案）**
+
+`anchors` 自 `provider()` 引入起**只被声明、从未被读取**。正因为没人读，它可以随便写错——实测查出七处与实现不符：`suyinKuwo` / `kuwoOfficial` / `suyinMigu` 的实现**完全按歌名搜索**却声明 `rid/songmid/id`；`huibq` / `ikun` 读 `hash ?? songmid ?? songId` 却声明 `rid`；tx 家族声明 `musicId`，而 `getQQSongId` 只认 `meta.mid/songmid/id`；`songId` 其实是**函数第二个参数**，不是 `songInfo.songId`。
+
+按 B 方案把它接进建链：锚点一个都拿不到的源不进链（不再到 handler 里才抛 `PARAM_ERROR` 白跑一次），`anchors: []` 表示按名搜索、照常进链。链空时明确抛 `PARAM_ERROR` 而不是裸 `NOT_FOUND`→`NETWORK_ERROR`（后者会让 App 以为网络抖动而无限重试）。
+
+配套两项：
+- **入口摊平 `meta`**：`flattenSongInfo`（`09-match.js`）在 `getUrlWithFallback` 入口生效，顶层优先、只补 `meta` 空缺，源不必各自猜 `hash`/`strMediaMid` 在哪。
+- **一致性门禁**（新脚本 `test/audit/anchors-contract.js`，已进 `npm test`）：对**每个声明的键单独验证**，只给该键仍报缺 id 就说明实现不认它；另查巡检样本是否带齐该平台 anchors 并集。负向注入 `rid` 到 `huibq` 会立即红。
+
+**同版附带（P0）：交付身份校验，不再交付「别人的歌」（K31）**
+
+`tools/live` 的 `L4-5` 实测暴露：一首不存在的歌（`id=999999999`）被交付了 `kwplay.php?mid=999999999` 并标「试听版」。直连三条 mid 全是 `206 audio/mpeg`：
+
+| mid | 落地字节 | ID3 |
+|---|---|---|
+| `999999999`（不存在） | 181,521 | 无（首字节 `fffb90c4`，裸 mp3 帧） |
+| `1`（不存在） | 1,047,532 | 无 |
+| `228908`（晴天） | 4,317,292 | `TIT2=晴天 TPE1=周杰伦` |
+
+根因两层：星海对任意 mid 都生成播放链；`15-verify.js` 的四条判据只有时长/体积比例，**没有任何身份证据**，113s 对 180s 的请求比值 0.63 > 0.6 就能蒙过。
+
+修法：新增 `parseAudioTags`（ID3v2 `TIT2`/`TPE1` + FLAC VORBIS `TITLE`/`ARTIST`，纯字节解码、**不用 `Buffer`**——QuickJS 宿主没有全局 `Buffer`，被 Q3 当场抓到）；探针 Range 从 1KB 提到 32KB（ID3 带封面时前 1KB 读不到 `TIT2`）；`checkDeliveryIdentity` 三段判据：
+1. 有标签且歌名对不上（归一化后不相等也不互相包含）→ `MISMATCH`，任何源都拒；
+2. 有标签且对得上 → 放行；
+3. 无标签：`identityStrict` 源**只在被判片段时**拒，整曲放行；其余源放行。
+
+第 3 条是实测逼出来的边界——**真实现场版 `182061798` 同样无标签**，若写成「无标签一律拒」会误杀真实曲目。
+
+`provider()` 新增 `identityStrict`，目前只有星海标记开启（它是唯一被证实「对任意 mid 都返回音频」的源）。
+
+**工具链补记**：`tools/live/run.js` 的 `kwRid` 原来只取搜索结果第一条，实测拿到的是「平凡之路-2018南昌…音乐节现场片段」（本身就是片段），于是「请求一首完整歌」的断言实际在拿片段当样本。改为取 10 条、剔掉片段/现场/翻唱/伴奏/DJ 等、再按歌手命中优先。
+
+**同版附带：`tools/live` 真宿主桩四红清零（`tools/live/run.js`）**
+
+云端无设备时 `tools/live` 是最接近端到端的路径，但它长期 `l1l4 = 10 通过 / 4 失败`，四个红里三个是断言自身过期：
+
+| 断言 | 原判据 | 为什么红 | 改法 |
+|---|---|---|---|
+| L1-2 | `meta.length === 3` | `health` 元信息键已从 3 增到 5（`_fallbackPlatform`、`_memory`） | 改为 `>= 3` 并打印实际键 |
+| L2-4 | 数外呼 `(ce - cd) > 0` | toggle 取到 `wyOuter`（只有 wy），`clearSourceLedger` 按源所属平台前缀删 `fail_${platform}`，`fail_kw` 天然留着；旧判据数外呼还会被 successCache 命中干扰 | 改为 ①只挑 `platforms` 含 kw 的源 ②直接看 `getFailCachedEntry(failKey)` 是否为 null |
+| L4-1 | 要求 `PREVIEW_FRAGMENT` 或含「试听版」 | 样本《八千里路明月照》无 id/hash，先撞 `PARAM_ERROR`，根本走不到片段判定 | 显式 `⏭` 跳过并写明原因（不冒充通过）；同时把「如实降档」也纳入合格 |
+| L4-5 | 不存在歌必须 `NOT_FOUND` | 样本无 id，handler 直接抛 `PARAM_ERROR`（缺 id），测不到「不能被交付」 | 补一个格式合法但查不到的 `id: '999999999'` |
+
+改完 `l1l4` **13 通过 / 0 失败**；`l5` **9/1**（唯一失败是 `huibq` 的 503，已知）；`l6l7` **5/0**。
+
+**顺带查出一个真缺陷（定金 K30，未修）**：`l1l4` 的 L3-4 连点 5 首，`七里香`/`平凡之路` 报 `PARAM_ERROR: 所有源均失败`，而 `err.detail` 是 `RATE_LIMIT/RATE_LIMIT/RATE_LIMIT/PARAM_ERROR/PARAM_ERROR`。根因：`xinghaiBackendGetUrl` 这类「只按 mid 出链」的源在 `songInfo` 无 id 时抛 `PARAM_ERROR`（源自身能力不足），而 `CODE_RANK` 给 `PARAM_ERROR` 排 2、`RATE_LIMIT` 排 1，`admit({stage:'fallback'})` 取 rank 最高 → 整个平台结论被写成「参数错误」，App 会把上游限流当参数问题而不重试。单测已验证 `admit` 本身正确（只喂一条 `RATE_LIMIT` 时返回 `RATE_LIMIT`）。修法方向记录在 `KNOWN_ISSUES` K30。
+
+
 ## 2026-11-21 · v9.1.5：失效源退役标记（suyinQQ / suyinMigu / huibq）
 
 **性质**：只改 `src/core/35-source-switch.js` 的注释，不改任何行为、不改链、不改阈值。产物因注释进包从 366678 变 367386 bytes，按发布口径升版本。

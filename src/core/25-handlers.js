@@ -54,6 +54,8 @@ function provider(id, name, fn, maxQuality, opts = {}) {
     // wy 只到 mp3）。maxQuality 保留全局声明供契约校验与上报，按平台的过滤
     // 走 chain 层，否则「请求 flac 时把 wy 通道也选进候选」是虚的。
     maxQualityByPlatform: opts.maxQualityByPlatform || null,
+    // v9.1.6（K31）：该源只按 id 中转、上游不校验 id 有效性时，必须要求交付音频自带身份标签。
+    identityStrict: opts.identityStrict === true,
     note: opts.note || "",
   };
 }
@@ -466,7 +468,10 @@ const SOURCE_HANDLERS = {
   // ---- 上链源：11 个 ----
   suyinKuwo: provider("suyinKuwo", "溯音酷我", (platform, songId, quality, songInfo, cancelToken) => suyinKuwoGetUrl(songInfo, quality, cancelToken), "flac", {
     platforms: ["kw", "wy", "tx", "mg", "kg"],
-    anchors: ["rid", "songmid", "id"],
+    // v9.1.6（K30，B 方案）：这个源**完全按歌名+歌手搜索**（实现签名只有 songInfo，不读 songId），
+    // 原来那句 anchors: ["rid","songmid","id"] 是错的——字段没人读，错声明就一直没被发现。
+    // 声明为空 = 不依赖任何 id 键，链构建阶段不会因为「没 id」把它剔掉。
+    anchors: [],
     chain: { kw: 1, wy: 6, tx: 1, mg: 1, kg: 1 },
     upstreamGroup: "oiapi-kuwo",
     verified: true,
@@ -477,36 +482,43 @@ const SOURCE_HANDLERS = {
     note: "官方 outer 直连，默认只做 128k",
   }),
   kuwoOfficial: provider("kuwoOfficial", "酷我官方直连", kuwoOfficialGetUrl, "128k", {
-    platforms: ["kw"], anchors: ["rid", "songmid", "id"], chain: { kw: 5 }, upstreamGroup: "kuwo-official",
+    platforms: ["kw"],
+    // v9.1.6（K30）：酷我官方是**按歌名搜索**（kuwoOfficialSearch + 歌名精确/包含/歌手时长辅助），
+    // 不读任何 id 键。原声明写好听的 rid/songmid/id，但字段没人读，错了好几年没暴露。
+    anchors: [],
+    chain: { kw: 5 }, upstreamGroup: "kuwo-official",
   }),
   suyin163: provider("suyin163", "溯音163", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("wy", songId, quality, songInfo, cancelToken), "128k", {
     platforms: ["wy"], anchors: ["songmid", "id"], chain: { wy: 3 }, upstreamGroup: "oiapi-163",
   }),
   xinghaiBackend: provider("xinghaiBackend", "星海后端", xinghaiBackendGetUrl, "flac", {
-    platforms: ["kw"], anchors: ["songmid", "id"], chain: { kw: 2 }, upstreamGroup: "xinghai-backend",
+    platforms: ["kw"], anchors: ["hash", "songmid", "id"], chain: { kw: 2 }, upstreamGroup: "xinghai-backend",
+    // v9.1.6（K31）：实测它对**任意 mid** 都返回可播音频（mid=999999999 落地 181KB 裸 mp3 帧、
+    // 无任何 ID3；真曲目 228908 才有 TIT2/TPE1）。它自己无法证明交付的是这首歌，故要求身份标签。
+    identityStrict: true,
   }),
   helloworldKw: provider("helloworldKw", "helloworld(kw)", helloworldKwGetUrl, "flac", {
     platforms: ["kw"], anchors: ["rid", "songmid", "id"], chain: { kw: 4 }, upstreamGroup: "kuwo-convert",
     note: "kw 128k/320k/flac；部分 VIP 歌可能只给片段，验真闸门兜底",
   }),
   changqingVip: provider("changqingVip", "长青kw", changqingGetUrl, "128k", {
-    platforms: ["kw"], anchors: ["rid", "songmid", "id"], chain: { kw: 6 }, upstreamGroup: "changqing-kw",
+    platforms: ["kw"], anchors: ["rid", "songmid", "songId", "hash", "id"], chain: { kw: 6 }, upstreamGroup: "changqing-kw",
   }),
   huibq: provider("huibq", "Huibq", huibqGetUrl, "320k", {
-    platforms: ["kw", "wy"], anchors: ["rid", "songmid", "id"], chain: { kw: 8, wy: 8 }, upstreamGroup: "huibq",
+    platforms: ["kw", "wy"], anchors: ["hash", "songmid", "id"], chain: { kw: 8, wy: 8 }, upstreamGroup: "huibq",
     coldStart: true,
     note: "onrender；**2026-11-16 起服务被 owner 主动暂停**（503 「This service has been suspended by its owner.」，根路径同样 503，0.8s 即返回）；11-04~11-15 连续 12 天 200 曾完全可用，冷启动只解释 11-01~11-03 的连接超时",
   }),
   juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "320k", {
-    platforms: ["tx"], anchors: ["songmid", "musicId", "id"], chain: { tx: 3 }, upstreamGroup: "juhe",
+    platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 3 }, upstreamGroup: "juhe",
     reviewAt: "2026-11-19", note: "2026-11-11 恢复；7 天复核，降为 tx 第三源（本轮 0% 成功率）。2026-11-21：flac 档实测实返 audio/mpeg，能力声明由 flac 下调为 320k",
   }),
   qingliangTx: provider("qingliangTx", "晴亮(tx)", qingliangTxGetUrl, "320k", {
-    platforms: ["tx"], anchors: ["songmid", "musicId", "id"], chain: { tx: 2 }, upstreamGroup: "qingliang-tx",
+    platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 2 }, upstreamGroup: "qingliang-tx",
     reviewAt: "2026-11-18", note: "2026-11-15 实测 5/5 全曲 320k；第三方单点，3 天复核",
   }),
   ikun: provider("ikun", "ikun", ikunGetUrl, "flac", {
-    platforms: ["kw", "wy"], anchors: ["rid", "songmid", "id"], chain: { kw: 7, wy: 5 }, upstreamGroup: "ikun",
+    platforms: ["kw", "wy"], anchors: ["hash", "songmid", "id"], chain: { kw: 7, wy: 5 }, upstreamGroup: "ikun",
     auth: PROVIDER_AUTH.OPTIONAL,
     // 2026-11-21 实测：kw 到 flac、wy 只到 mp3（320k 档返 audio/mpeg）。
     maxQualityByPlatform: { wy: "320k" },
@@ -514,11 +526,14 @@ const SOURCE_HANDLERS = {
   }),
   // ---- 观察源：2 个（probation，只探测、不进链） ----
   suyinQQ: provider("suyinQQ", "溯音QQ", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("tx", songId, quality, songInfo, cancelToken), "flac", {
-    platforms: ["tx"], anchors: ["songmid", "musicId", "id"], lifecycle: PROVIDER_LIFECYCLE.PROBATION,
+    platforms: ["tx"], anchors: ["songmid", "id"], lifecycle: PROVIDER_LIFECYCLE.PROBATION,
     upstreamGroup: "oiapi-qq", reviewAt: "2026-11-19", note: "2026-11-11 实测 HTTP 403；观察至 2026-11-19",
   }),
   suyinMigu: provider("suyinMigu", "溯音咪咕", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("mg", songId, quality, songInfo, cancelToken), "flac", {
-    platforms: ["mg"], anchors: ["copyrightId", "id"], lifecycle: PROVIDER_LIFECYCLE.PROBATION,
+    platforms: ["mg"],
+    // v9.1.6（K30）：溯音咪咕同样按歌名搜索（SUYIN_MIGU_API 传 gm=关键词），不读 copyrightId。
+    anchors: [],
+    lifecycle: PROVIDER_LIFECYCLE.PROBATION,
     upstreamGroup: "xcvts-migu", reviewAt: "2026-11-26", note: "2026-11-11 实测上游 502；观察至 2026-11-26",
     verified: true,
   }),

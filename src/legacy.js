@@ -4,7 +4,7 @@ const { CROSS_FALLBACK_CACHE_TTL_MS, crossFallbackCache, getCrossFallbackCached,
 /*!
  * @name 豆包定制[聚合音源]
  * @description v9.0.0 模块化拆包 + 发布签名版（v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；health 快照按版本区间判定；发布包支持 ed25519 验签）。上一版 v8.16.4 为播放摘除档位归因版。历史版本见 docs/CHANGELOG.md。
- * @version 9.1.5 失效源退役标记（suyinQQ 端点级下线 / suyinMigu 上游 IP 被限 / huibq 保留待复活，行为零变化）（旧版本账本可恢复 / 未来版本拒绝）
+ * @version 9.1.6 源级能力备档（K03：备档从平台下沉到源，不再一刀砍整条链起点）（旧版本账本可恢复 / 未来版本拒绝）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -610,7 +610,7 @@ bindDep("buildSearchKeywords", buildSearchKeywords);
 // v1.0 P0-4 (D4)：时长归一化到秒（兼容 ms/秒混用：>5000 视为毫秒）
 
 // ---------- v9.0 拆包：09-match 已迁至 src/core/09-match.js（原地引入）----------
-const { titleMatch, normalizeKeyword, QUALITY_TO_X, QUALITY_PRIORITY, PLATFORM_QUALITIES, getQualityCeiling, classifyQualityFailureCode, qualityCeilingMap } = require("./core/09-match.js");
+const { titleMatch, normalizeKeyword, QUALITY_TO_X, QUALITY_PRIORITY, PLATFORM_QUALITIES, getQualityCeiling, getQualityCeilingBySource, qualityCeilingBySourceMap, classifyQualityFailureCode, qualityCeilingMap } = require("./core/09-match.js");
 
 // v8.10.3：huibq 假成功判据单点化——上游对无版权/取链失败仍返回 code=0，但 msg 带失败词
 // （实测"无法获取播放链接！" + panspace 酷我链 206 可播 = 错歌）。v8.7 只把它用在取链路径，
@@ -1161,7 +1161,7 @@ send(EVENT_NAMES.inited, {
 // `/豆包定制聚合音源\s+v(\S+)/` 取第一个匹配并与 @version 比对，App 内置升级正则同理。
 // 因此：①不能改成模板变量；②本注释也不要写出被该正则命中的完整串（否则注释先于 logInfo
 // 被匹配到，会报「版本串不同步」）。升版本时这里和 `src/00-header.js` 的 @version 一起改。
-logInfo(`豆包定制聚合音源 v9.1.5 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v9.1.6 已加载（13 登记 / 11 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();
@@ -1213,6 +1213,10 @@ if (typeof module !== "undefined" && module.exports) {
       noteQualityCeiling,
       getQualityCeiling,
       qualityCeilingMap,
+      // v9.1.6（K03）：源级备档与链构建（供 K03 回归断言直接驱动）
+      getQualityCeilingBySource,
+      qualityCeilingBySourceMap,
+      buildSourceChain,
       classifyQualityFailureCode,
       forceQualityProbe,
       createCancelToken,

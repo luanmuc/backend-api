@@ -56,6 +56,24 @@ function qualityCeilingReasonForCodes(codes) {
 
 const qualityCeilingMap = new Map(); // 内存态：重启即丢（设计如此）    // `${platform}|${mid}` → { quality, ts }（能力备档：该歌实际最高可得档）
 
+// v9.1.6（K03）：源级能力备档。旧实现只有平台级 key，一个源在这首歌给过 128k
+// 就把整个平台的高档请求砍掉，同平台其它能给 flac 的源再没机会被请求到。
+// 源级表用于「把该源从它证明拿不到的档里剔掉」，平台级表保留给快照与统计。
+const qualityCeilingBySourceMap = new Map(); // `${platform}|${sourceId}|${mid}` → { quality, ts, ... }
+
+function getQualityCeilingBySource(platform, sourceId, songInfo) {
+  if (!platform || !sourceId || !songInfo) return "";
+  const key = `${platform}|${sourceId}|${getHashOrMid(songInfo)}`;
+  const entry = qualityCeilingBySourceMap.get(key);
+  if (!entry) return "";
+  const deadline = Number(entry.nextProbeAt || (Number(entry.ts || 0) + Number(entry.ttlMs || QUALITY_CEILING_TTL_MS)));
+  if (Date.now() >= deadline) {
+    qualityCeilingBySourceMap.delete(key);
+    return "";
+  }
+  return entry.quality || "";
+}
+
 const durationHintByKey = new Map();
 
 function durationHintKey(songInfo) {
@@ -88,6 +106,32 @@ function getQualityCeiling(platform, songInfo) {
     return "";
   }
   return entry.quality || "";
+}
+
+// v9.1.6（K30）：把 App 的 `meta` 摊平到顶层，供各源按自己的字段取 id。
+// 背景：App 侧的 `MusicInfoBase` 只有顶层 `id`（各平台语义不同：kw=rid / wy=数字id /
+// tx=songmid / mg=copyrightId / kg=hash），其余标识全在 `meta` 下（`meta.strMediaMid`、
+// `meta.copyrightId`、`meta.hash`、`meta.id`…）。源仓此前**没有任何摊平**，只有 juhe 一个源
+// 手工兜底读过 `songInfo.meta`，等于让每个源各自去猜字段在哪。
+// 规则：顶层已存在的键**绝不覆盖**（顶层是调用方显式意图）；只补 meta 里有、顶层没有的。
+const SONG_META_PASSTHROUGH_KEYS = [
+  "hash", "rid", "copyrightId", "musicId", "strMediaMid", "mediaMid",
+  "albumAudioId", "albumId", "albumMid", "songid", "songId", "albumName", "lrcUrl",
+];
+function flattenSongInfo(songInfo) {
+  if (!songInfo || typeof songInfo !== "object") return songInfo;
+  const meta = songInfo.meta;
+  if (!meta || typeof meta !== "object") return songInfo;
+  let out = null;
+  for (const k of SONG_META_PASSTHROUGH_KEYS) {
+    const v = meta[k];
+    if (v === undefined || v === null || v === "") continue;
+    const cur = songInfo[k];
+    if (cur !== undefined && cur !== null && cur !== "") continue;
+    if (!out) out = Object.assign({}, songInfo);
+    out[k] = v;
+  }
+  return out || songInfo;
 }
 
 function getHashOrMid(songInfo) {
@@ -213,11 +257,14 @@ module.exports = {
   strongestEvidence,
   EVIDENCE_ORDER,
   getQualityCeiling,
+  getQualityCeilingBySource,
   qualityCeilingReasonForCodes,
   QUALITY_CEILING_TTL_BY_REASON,
   QUALITY_CEILING_TTL_MS,
   classifyQualityFailureCode,
   getHashOrMid,
   qualityCeilingMap,
+  qualityCeilingBySourceMap,
   Q,
+  flattenSongInfo,
 };

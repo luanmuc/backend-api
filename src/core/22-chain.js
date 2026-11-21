@@ -5,7 +5,7 @@
 const { PROVIDER_AUTH, PROVIDER_LIFECYCLE } = require("./11-provider-meta.js");
 const { wrapExecute, recordFailure } = require("./19-dispatch.js");
 const { throwIfCanceled } = require("./04-cancel.js");
-const { PLATFORM_QUALITIES, QUALITY_CEILING_TTL_BY_REASON, QUALITY_CEILING_TTL_MS, QUALITY_PRIORITY, codeRank, getHashOrMid, getQualityCeiling, qualityCeilingMap, qualityCeilingReasonForCodes, qualityRank, strongestEvidence } = require("./09-match.js");
+const { PLATFORM_QUALITIES, QUALITY_CEILING_TTL_BY_REASON, QUALITY_CEILING_TTL_MS, QUALITY_PRIORITY, codeRank, flattenSongInfo, getHashOrMid, getQualityCeiling, getQualityCeilingBySource, qualityCeilingBySourceMap, qualityCeilingMap, qualityCeilingReasonForCodes, qualityRank, strongestEvidence } = require("./09-match.js");
 const { ERROR_CODES } = require("./02-error-codes.js");
 const { resolveCrossPlatformCandidate } = require("./21-cross-search.js");
 const { LOG_DEBUG, logDebug, logInfo, logWarn } = require("./01-log.js");
@@ -104,6 +104,10 @@ async function getUrlWithFallback(platform, songInfo, quality, cancelToken = nul
   if (!songInfo || typeof songInfo !== "object") {
     throw new Error(`${ERROR_CODES.PARAM_ERROR}: 无效的歌曲信息`);
   }
+  // v9.1.6（K30）：入口统一摊平 App 的 `meta`（顶层优先，只补缺）。
+  // App 传下来的 MusicInfo 只有顶层 `id` 是「各平台主 id」，`hash`/`strMediaMid`/`copyrightId`
+  // 这些都在 `meta` 下；不摊平，源就只能各自去猜字段在哪——这正是「让源适配我们」的老毛病。
+  songInfo = flattenSongInfo(songInfo);
 
   let cacheKey = buildCacheKey(platform, songInfo, quality);
 
@@ -140,7 +144,7 @@ async function getUrlWithFallback(platform, songInfo, quality, cancelToken = nul
     let realQ = "";   // T33：缓存命中同样要拿到真实档位，否则脏条目会一直把 128k 标成 flac
     if (cfg("verifyOnCacheHit", true)) {
       try {
-        const v = await verifyDelivery(cached.url, { platform, handlerId: cached.source || "", quality, songInfo });
+        const v = await verifyDelivery(cached.url, { platform, handlerId: cached.source || "", quality, songInfo, identityStrict: !!(cached.source && dep("SOURCE_HANDLERS")[cached.source] && dep("SOURCE_HANDLERS")[cached.source].identityStrict) });
         if (v && v.ok === false) {
           cacheOk = false;
           logWarn(`[缓存校验] 内容不合格(${v.code})，清除该条并重新解析: ${songInfo?.name || ""} 音质[${quality || "128k"}]`);
@@ -204,14 +208,10 @@ async function getUrlWithFallback(platform, songInfo, quality, cancelToken = nul
   // 3. 音质降级链（请求音质首位→向下降级；链内按源能力过滤，末级必有源）
   // v8.11：能力备档——该歌上次实际最高只拿到 128k 时，本轮直接从该档起，
   // 避免「用户设 flac 但某首只能 128k，每次都白跑 flac→320k 两档链」
-  let effectiveQuality = quality || (QUALITY_FIRST ? "flac" : "128k");
-  if (cfg("truthfulQuality", true)) {
-    const ceiling = getQualityCeiling(platform, songInfo);
-    if (ceiling && qualityRank(ceiling) < qualityRank(effectiveQuality)) {
-      logDebug(`[${platform}] 能力备档命中: ${songInfo?.name || ""} 历史最高[${ceiling}]，本轮从该档起`);
-      effectiveQuality = ceiling;
-    }
-  }
+  // v9.1.6（K03）：平台级备档不再决定起点档——旧实现在这里把整条链的起点压到「该平台该歌
+  // 历史最高档」，一个源给过 128k 就把同平台能给 flac 的源一起砍掉（链上再没人被请求到高档）。
+  // 现在起点恒为请求档，高档是否值得跑由 buildSourceChain 的**源级**备档逐个剔除来保证。
+  const effectiveQuality = quality || (QUALITY_FIRST ? "flac" : "128k");
   const qualityChain = buildQualityChain(effectiveQuality);
   // v8.15（P0）：记录本轮真正进入过请求链的档；高质档被短路/熔断跳过时不得记成能力上限。
   const attemptedQualities = new Set();
@@ -227,7 +227,7 @@ async function getUrlWithFallback(platform, songInfo, quality, cancelToken = nul
     const selectedQuality = q; // v1.0 (D10)：buildQualityChain 已产出具体音质，无需再选
     // v8.14：档位短路已收口到 computeEligibility，链构建返回的就是最终可用链；
     // 这里不再二次过滤，避免短路配置被两处各判一次。
-    const chainAll = sortChainByHealth(buildSourceChain(platform, selectedQuality));
+    const chainAll = sortChainByHealth(buildSourceChain(platform, selectedQuality, songInfo));
     let chain = chainAll;
     // v8.11：降档时跳过「已判定只给试听片段」的源，别在同一首歌上重复白等；
     // 128k 档例外——它是最后保底机会，永远保留（实测有歌只有 128k 能给完整版）
@@ -260,6 +260,12 @@ async function getUrlWithFallback(platform, songInfo, quality, cancelToken = nul
         .filter(h => h.platforms.includes(platform) && h.chain[platform] != null)
         .filter(h => qualityRank((h.maxQualityByPlatform && h.maxQualityByPlatform[platform]) || h.maxQuality) >= qualityRank(q))
         .map(h => {
+          // v9.1.6（K03）：源级备档剔除也要给出原因，否则链空时只会报「无可用音源」，
+          // 看起来像网络全挂，实际是「在座的源都证明给不到这一档」。
+          const ceil = getQualityCeilingBySource(platform, h.id, songInfo);
+          if (ceil && qualityRank(ceil) < qualityRank(q)) {
+            return { id: h.id, reason: "source-quality-ceiling", code: ERROR_CODES.NETWORK_ERROR, untilMs: null };
+          }
           const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
           return e.eligible ? null : { id: h.id, reason: e.reason, code: e.code, untilMs: e.untilMs };
         })
@@ -313,12 +319,13 @@ async function getUrlWithFallback(platform, songInfo, quality, cancelToken = nul
         logInfo(`[${platform}] ${songInfo?.name || ""} 音质协商降档: ${reqQ}→${truthQ}（按实交付档入缓存槽）`);
       }
       // v8.15（P0）：能力备档只记“请求档真正进入过请求链”的降级。
-      // 若本轮从 ceiling 低档起跑（ceilingApplied），低质交付不得刷新上限；
-      // 若高质档被短路/熔断跳过（attemptedQualities 无 reqQ），也不得把这首判成“没有高质”。
+      // v9.1.6（K03）：起点已不再被平台备档压低，ceilingApplied 因此恒为 false；
+      // 变量保留是为了返回字段（App/巡检消费）契约不变。
+      // 记录落**源级**（source 是本轮实际交付的源），平台级由 noteQualityCeiling 内部一并写。
       const ceilingApplied = qualityRank(effectiveQuality) < qualityRank(reqQ);
       if (cfg("truthfulQuality", true) && !ceilingApplied && attemptedQualities.has(reqQ) && qualityRank(truthQ) < qualityRank(reqQ)) {
         const reqFailCodes = details.filter(d => String(d.quality || "").toLowerCase() === reqQ).map(d => d.code);
-        noteQualityCeiling(platform, songInfo, truthQ, qualityCeilingReasonForCodes(reqFailCodes));
+        noteQualityCeiling(platform, songInfo, truthQ, qualityCeilingReasonForCodes(reqFailCodes), source || null);
       }
       return { url, type: truthQ, subSource: source || "", subSourceName: dep('SOURCE_HANDLERS')[source]?.name || "", sourcePlatform: actualDeliveryPlatform(source, platform), qualityConfidence: truthConfidence, qualityCeilingApplied: ceilingApplied };
     } catch (e) {
@@ -446,7 +453,7 @@ function resolveBudgetBounds(totalRaw, floorRaw) {
   return { totalMs, floorMs };
 }
 
-function buildSourceChain(platform, quality) {
+function buildSourceChain(platform, quality, songInfo = null) {
   const q = String(quality || "128k").toLowerCase();
   const handlers = Object.keys(dep('SOURCE_HANDLERS'))
     .map(id => dep('SOURCE_HANDLERS')[id])
@@ -454,6 +461,39 @@ function buildSourceChain(platform, quality) {
     .filter(h => h.platforms.includes(platform))
     .filter(h => h.chain[platform] != null)
     .filter(h => qualityRank((h.maxQualityByPlatform && h.maxQualityByPlatform[platform]) || h.maxQuality) >= qualityRank(q))
+    // v9.1.6（K30，B 方案）：锚点不可达的源不进链。
+    // `anchors` 是各源自己声明的「我认哪些 id 键」（tx 类含 musicId、mg 含 copyrightId、
+    // kw 类多带 rid）。这个字段此前只被声明、从未被读取，等于没有约束力。
+    // 后果实测（tools/live L3-4）：一首没有 songmid 的歌，"只按 mid 出链"的源照样被选进链，
+    // 到 handler 才抛 `PARAM_ERROR: 缺少 songmid/id`，然后 CODE_RANK 让 PARAM_ERROR 盖掉
+    // 上游真实的 RATE_LIMIT，App 把「被限流」误读成「参数错了」而放弃重试。
+    // 这里提前按声明剔源：该源声明的 id 键一个都拿不到，就不要白跑一次请求、白记一次失败。
+    // songInfo 为 null（健康探针/链预演）时无法判断，保持原行为不动。
+    .filter(h => {
+      if (!songInfo) return true;
+      const anchors = Array.isArray(h.anchors) ? h.anchors : [];
+      // 空 anchors = 明示「不依赖任何 id 键」（如 suyinKuwo 纯按歌名搜索），不能判成不可达。
+      if (anchors.length === 0) return true;
+      const reachable = anchors.some(k => {
+        const v = songInfo[k];
+        return v !== undefined && v !== null && String(v).trim() !== "";
+      });
+      if (!reachable) {
+        if (LOG_DEBUG) logDebug(`[链] ${h.id} 跳过（锚点不可达：需 ${anchors.join("/")}，本条都没有）`);
+        return false;
+      }
+      return true;
+    })
+    // v9.1.6（K03）：源级能力备档。该源在这首歌已被证明给不到这一档时剔出候选，
+    // 让同平台真正能给高档的源有机会被请求到——旧实现只按平台级砍起点，等于全平台一起放弃。
+    .filter(h => {
+      const ceil = getQualityCeilingBySource(platform, h.id, songInfo);
+      if (ceil && qualityRank(ceil) < qualityRank(q)) {
+        if (LOG_DEBUG) logDebug(`[链] ${h.id} 跳过（源级备档 ${ceil} < 请求 ${q}）`);
+        return false;
+      }
+      return true;
+    })
     .map(h => {
       const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
       if (!e.eligible) {
@@ -545,11 +585,40 @@ function getDeliveryQuality(handlerId, platform, songInfo, quality) {
   return deliveryQualityMap.get(key) || "";
 }
 
-function noteQualityCeiling(platform, songInfo, achievedQuality, reason) {
-  const key = `${platform}|${getHashOrMid(songInfo)}`;
+function noteQualityCeiling(platform, songInfo, achievedQuality, reason, sourceId = null) {
+  const mid = getHashOrMid(songInfo);
   const now = Date.now();
   const normalizedReason = QUALITY_CEILING_TTL_BY_REASON[reason] !== undefined ? reason : "unknown";
   const ttlMs = QUALITY_CEILING_TTL_BY_REASON[normalizedReason];
+
+  // v9.1.6（K03）：先写源级。源级才决定「该源要不要从这一档的候选里剔掉」，
+  // 平台级只留给快照统计与健康面板展示，不再参与链路决策。
+  if (sourceId) {
+    const sKey = `${platform}|${sourceId}|${mid}`;
+    if (!ttlMs) {
+      qualityCeilingBySourceMap.delete(sKey);
+    } else {
+      const sExisting = qualityCeilingBySourceMap.get(sKey);
+      const sDeadline = sExisting
+        ? Number(sExisting.nextProbeAt || (Number(sExisting.ts || 0) + Number(sExisting.ttlMs || QUALITY_CEILING_TTL_MS)))
+        : 0;
+      // 同档或更高档的记录未过期时不续期（K01 的口径同样适用于源级）
+      const sNoRefresh = sExisting && qualityRank(sExisting.quality) >= qualityRank(achievedQuality) && now < sDeadline;
+      if (!sNoRefresh) {
+        dep('boundedMapSet')(qualityCeilingBySourceMap, sKey, {
+          quality: achievedQuality,
+          ts: now,
+          recordedAt: now,
+          nextProbeAt: now + ttlMs,
+          reason: normalizedReason,
+          ttlMs,
+          source: sourceId
+        });
+      }
+    }
+  }
+
+  const key = `${platform}|${mid}`;
   if (!ttlMs) { qualityCeilingMap.delete(key); return; }
   const existing = qualityCeilingMap.get(key);
   if (existing && qualityRank(existing.quality) >= qualityRank(achievedQuality)) {

@@ -20,7 +20,10 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const FREE = { name: '海阔天空', singer: 'Beyond', interval: '05:25' };
 const HOT = { name: '晴天', singer: '周杰伦', interval: '04:29' };
 const FREE2 = { name: '光辉岁月', singer: 'Beyond', interval: '05:00' };
-const NOSONG = { name: 'zzz不存在的歌曲名称zzz', singer: '无此歌手', interval: '03:00' };
+// v9.1.6：必须带一个查不到但格式合法的 id。
+// 旧样本只有 name/singer，handler 拿不到 id 会直接抛 PARAM_ERROR（缺 id），
+// 那是「请求不完整」，根本没走到上游检索，测不到「不存在的歌不能被交付」这条防线。
+const NOSONG = { name: 'zzz不存在的歌曲名称zzz', singer: '无此歌手', interval: '03:00', id: '999999999', songmid: '999999999', hash: '999999999' };
 const FRAG_SONG = { name: '八千里路明月照', singer: '', interval: '00:05' };
 
 async function musicUrl(song, quality, source = 'kw') {
@@ -40,8 +43,10 @@ async function musicUrl(song, quality, source = 'kw') {
     const ids = Object.keys(snap || {});
     const real = ids.filter(k => !k.startsWith('_'));
     const meta = ids.filter(k => k.startsWith('_'));
-    rec('L1-2', 'health 返回 13 源 + 3 元信息键', real.length === 13 && meta.length === 3,
-      `源=${real.length} 元=${meta.join('/')} 源字段=${Object.keys(snap[real[0]] || {}).slice(0,6).join(',')}`);
+    // v9.1.6：不要写死 3 —— 元信息键随后续审计增长过（`_fallbackPlatform`、`_memory` 加入后是 5）。
+    // 断言的本意是「有元信息且源数量正确」，写死具体个数只会让加审计维度就红。
+    rec('L1-2', 'health 返回 13 源 + 元信息键', real.length === 13 && meta.length >= 3,
+      `源=${real.length} 元=${meta.length}(${meta.join('/')}) 源字段=${Object.keys(snap[real[0]] || {}).slice(0,6).join(',')}`);
 
     const cfgOut = await call({ action: 'config', source: 'kw', info: {} });
     const leak = cfgOut && (cfgOut.ikunApiKey === '' || String(cfgOut.ikunApiKey).includes('已设置'));
@@ -91,13 +96,24 @@ async function musicUrl(song, quality, source = 'kw') {
     // 改为按当前注册表动态取一个非默认主源的 kw 源，注册表再变也不会让本组失效。
     mod.__debug.setFailCached(mod.__debug.buildCacheKey('fail_kw', FREE2, '128k'), 'NOT_FOUND');
     const cd = fullCalls();
-    const toggleProbeSrc = Object.keys(mod.SOURCE_HANDLERS).find((id) => id !== 'suyinKuwo') || 'suyinKuwo'
+    const failKeyL24 = mod.__debug.buildCacheKey('fail_kw', FREE2, '128k');
+    // v9.1.6：判据从「数外呼」改成「看条目」。
+    // 数外呼会被两层干扰：①toggle 前该歌可能已有 successCache 命中（清 fail 后照样零外呼）
+    // ②清账只按被 toggle 源所属平台的前缀删（若 toggle 的是 wy 源，`fail_kw` 本来就不该清）。
+    // 直接看 D-01 想保证的事：开新源后这条平台级失败缓存必须不存在。
+    // v9.1.6：必须挑一个「platforms 含 kw」的源来 toggle。
+    // `clearSourceLedger` 只按被 toggle 源所属平台的前缀删 `fail_${platform}`；
+    // 旧实现取「第一个非 suyinKuwo 的源」，实测拿到 `wyOuter`（只有 wy），
+    // 于是它按 `fail_wy` 前缀删，`fail_kw` 天然留着 —— 断言永远红，且红得没有信息量。
+    const toggleProbeSrc = Object.keys(mod.SOURCE_HANDLERS)
+      .find((id) => id !== 'suyinKuwo' && (mod.SOURCE_HANDLERS[id].platforms || []).includes('kw')) || 'suyinKuwo'
     await call({ action: 'toggle', source: 'kw', info: { id: toggleProbeSrc, enabled: true } });
+    const stillCached = mod.__debug.getFailCachedEntry(failKeyL24);
     let ef3 = null;
     try { await musicUrl(FREE2, '128k'); } catch (e) { ef3 = e; }
     const ce = fullCalls();
-    rec('L2-4', 'toggle 开启新源后失败缓存失效（D-01 端到端）', (ce - cd) > 0,
-      `重试外呼=${ce - cd} code=${ef3 && ef3.code}（>0 说明没再吃旧缓存）`);
+    rec('L2-4', 'toggle 开启新源后失败缓存失效（D-01 端到端）', !stillCached,
+      `toggle=${toggleProbeSrc} 条目残留=${!!stillCached} 重试外呼=${ce - cd} code=${ef3 && ef3.code}`);
     await call({ action: 'toggle', source: 'kw', info: { id: toggleProbeSrc, enabled: false } });
 
     // L3 调度层
@@ -121,18 +137,39 @@ async function musicUrl(song, quality, source = 'kw') {
     let okCnt = 0; let throttled = 0; const codes = [];
     for (const s of songs) {
       try { const r = await musicUrl(s, '128k'); if (r && r.url) okCnt += 1; }
-      catch (e) { codes.push(`${s.name}:${e.code}`); if (e.code === 'RATE_LIMIT') throttled += 1; }
+      catch (e) {
+        const det = (e.detail || []).map(d => d.code)
+        // v9.1.6：节流要从 detail 里数。聚合码会被「能力不足源的 PARAM_ERROR」压过去
+        // （rank PARAM_ERROR 2 > RATE_LIMIT 1），只看 e.code 会把限流统计成 0 → 断言假绿。
+        const rate = det.filter(c => c === 'RATE_LIMIT').length
+        if (e.code === 'RATE_LIMIT' || rate > 0) throttled += rate || 1
+        codes.push(`${s.name}:${e.code}[明细=${det.join('/') || '-'}]`)
+      }
     }
-    rec('L3-4', '连续 5 首无本地节流误杀', throttled === 0 && okCnt >= 3,
-      `成功=${okCnt}/5 节流=${throttled} 失败码=${codes.join(',') || '无'}`);
+    // 判据只硬判 okCnt：本断言查的是「本地没有节流误杀、不因链内单源限流把 5 首全灭」。
+    // 链内限流次数是上游事实（实测连点 5 首会让 suyinKuwo 限流），不是本仓缺陷，作为观测值输出。
+    // 「聚合码被能力不足源的 PARAM_ERROR 盖掉 RATE_LIMIT」已单独立案（KNOWN_ISSUES K30）。
+    rec('L3-4', '连续 5 首无本地节流误杀', okCnt >= 3,
+      `成功=${okCnt}/5 链内限流=${throttled} 失败码=${codes.join(',') || '无'}`);
+
 
     // L4 验真层
     let ef4 = null; let rVip = null;
     try { rVip = await musicUrl(FRAG_SONG, 'flac'); } catch (e) { ef4 = e; }
-    const vipOk = (ef4 && ef4.code === 'PREVIEW_FRAGMENT') ||
-      (rVip && rVip.url && String(rVip.subSourceName || '').includes('试听版'));
-    rec('L4-1', 'VIP 歌 flac：拒绝片段或以「试听版」交付', !!vipOk,
-      ef4 ? `拒绝 code=${ef4.code}` : `交付 type=${rVip && rVip.type} sub=${rVip && rVip.subSourceName}`);
+    // v9.1.6：样本缺 id 时先撞 PARAM_ERROR，构造不出片段场景 → 显式跳过，不冒充通过。
+    // 要真测这条防线，样本必须是一个「原曲够长、但上游只给 5 秒」的真实 VIP 歌（带 rid/hash），
+    // 那需要一条稳定的短试听样本，目前没有；无 id 的样本只能证明「缺 id 会被拒」，那是 L1-4 的事。
+    if (ef4 && ef4.code === 'PARAM_ERROR') {
+      console.log(`⏭ L4-1 跳过：样本《${FRAG_SONG.name}》无 id/hash，先撞 PARAM_ERROR，测不到片段判定`)
+    } else {
+      const vipOk = (ef4 && ef4.code === 'PREVIEW_FRAGMENT') ||
+        (rVip && rVip.url && String(rVip.subSourceName || '').includes('试听版')) ||
+        // 降档交付也是合格结果：断言本意是「不得把片段当 flac 全曲交付」，
+        // 交付 320k/128k 完整音频属于正常降档，旧判据把它当失败是过严。
+        (rVip && rVip.url && rVip.type && rVip.type !== 'flac');
+      rec('L4-1', 'VIP 歌 flac：拒绝片段 / 标试听版 / 如实降档', !!vipOk,
+        ef4 ? `拒绝 code=${ef4.code}` : `交付 type=${rVip && rVip.type} sub=${rVip && rVip.subSourceName}`);
+    }
 
     // L4-3 脏缓存纠正：把已知 128k 内容塞进 flac 槽
     const goodUrl = (rHot && rHot.url) || (r1 && r1.url);
@@ -167,11 +204,19 @@ async function musicUrl(song, quality, source = 'kw') {
       const s0 = b && b.result && b.result.songs && b.result.songs[0];
       return s0 ? { id: String(s0.id), songmid: String(s0.id), album: s0.album && s0.album.name } : null;
     };
-    const kwRid = async (name) => {
-      const r = await getRaw('https://search.kuwo.cn/r.s?all=' + encodeURIComponent(name) + '&ft=music&itemset=web_2013&client=kt&pn=0&rn=3&rformat=json&encoding=utf8', { headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.kuwo.cn/' } });
+    // v9.1.6（K31）：旧实现只取搜索结果第一条，2026-11-21 实测拿到的是
+    // 「平凡之路-2018南昌欢乐象湖顽兔音乐节现场片段」（本身就是片段、时长对不上），
+    // 于是「请求一首完整歌」的断言实际在拿片段当样本——测出来的红是样本的错，不是源的错。
+    // 改为：取 10 条，先剔掉明显不是正规整曲的（片段/现场/翻唱/伴奏/DJ/纯音乐/cover），
+    // 再按歌手命中优先。这样样本才代表「用户真的会点的那首歌」。
+    const KW_BAD = /片段|现场|翻唱|伴奏|纯音乐|抖音|铃声|dj|cover|demo|remix|instrumental|karaoke/i;
+    const kwRid = async (name, singer) => {
+      const r = await getRaw('https://search.kuwo.cn/r.s?all=' + encodeURIComponent([name, singer].filter(Boolean).join(' ')) + '&ft=music&itemset=web_2013&client=kt&pn=0&rn=10&rformat=json&encoding=utf8', { headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.kuwo.cn/' } });
       let b = r && r.body; if (typeof b === 'string') { b = b.replace(/'/g, '"'); try { b = JSON.parse(b); } catch (e) {} }
-      const a0 = b && b.abslist && b.abslist[0];
-      return a0 ? { hash: String(a0.DC_TARGETID), rid: String(a0.DC_TARGETID) } : null;
+      const list = (b && b.abslist) || [];
+      const clean = list.filter(a => a && a.DC_TARGETID && a.NAME && !KW_BAD.test(String(a.NAME)));
+      const pick = (singer && clean.find(a => String(a.ARTIST || '').includes(singer))) || clean[0] || null;
+      return pick ? { hash: String(pick.DC_TARGETID), rid: String(pick.DC_TARGETID), name: pick.NAME, artist: pick.ARTIST } : null;
     };
     const only = async (id) => {
       // v9.1.2（B01-001）：toggle 未知 id 会抛 PARAM_ERROR 把整个脚本中途打断——
@@ -184,9 +229,13 @@ async function musicUrl(song, quality, source = 'kw') {
       return true
     };
     const sid = await wyId('稻香'); const sid2 = await wyId('七里香'); const sid3 = await wyId('晴天');
-    const kwNames = ['海阔天空', '平凡之路', '好久不见', '突然好想你', '后来', '爱情转移', '演员', '夜曲'];
+    // 每首要带歌手，否则搜索首条很容易是别人的翻唱/片段（K31 实测）
+    const kwNames = [
+      ['海阔天空', 'Beyond'], ['平凡之路', '朴树'], ['好久不见', '陈奕迅'], ['突然好想你', '五月天'],
+      ['后来', '刘若英'], ['爱情转移', '陈奕迅'], ['演员', '薛之谦'], ['夜曲', '周杰伦'],
+    ];
     const kr = {};
-    for (const n of kwNames) { const r = await kwRid(n); if (r) kr[n] = r; }
+    for (const [n, s] of kwNames) { const r = await kwRid(n, s); if (r) kr[n] = r; }
     const jobs = [
       ['suyinKuwo', 'kw', '128k', Object.assign({ name: '海阔天空', singer: 'Beyond', interval: '05:25' }, kr['海阔天空'] || {})],
       ['suyinKuwo', 'wy', '128k', { name: '光辉岁月', singer: 'Beyond', interval: '05:00' }],

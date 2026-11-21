@@ -180,6 +180,26 @@ check('QP12 健康快照只读判断不写入 1h 探路', () => {
   assert(left > 0 && left <= 11 * 60 * 1000, `快照不得抢先写 1h，实际 ${Math.round(left / 1000)}s`)
 })
 
+check('QP13 源级备档：一个源低质不再压制同平台其它源的高档（K03）', () => {
+  const m = fresh({ truthfulQuality: true })
+  const d = m.__debug
+  const song = { songmid: 'qp13' }
+  // same as real case：kw 平台该歌，suyinKuwo 只交付过 128k
+  d.noteQualityCeiling('kw', song, '128k', 'definitive', 'suyinKuwo')
+  assert(d.getQualityCeilingBySource('kw', 'suyinKuwo', song) === '128k', '源级条目应写入')
+  assert(d.getQualityCeilingBySource('kw', 'helloworldKw', song) === '', '未记录的源不应被压制')
+  const ids = d.buildSourceChain('kw', 'flac', song).map(h => h.id)
+  assert(!ids.includes('suyinKuwo'), `suyinKuwo 应被源级备档剔出 flac 候选，实际链=${ids.join('>') || '(空)'}`)
+  // 平台级条目仍写（供快照统计），但不再决定起点档
+  assert(d.qualityCeilingMap.get('kw|qp13') && d.qualityCeilingMap.get('kw|qp13').quality === '128k', '平台级条目应同步写入')
+  // 不同歌曲不得被跨歌压制
+  const other = d.buildSourceChain('kw', 'flac', { songmid: 'qp13b' }).map(h => h.id)
+  assert(other.includes('suyinKuwo'), `另一首歌不应被压制，实际链=${other.join('>') || '(空)'}`)
+  // 128k 档不受影响（该源在该档证明可交付）
+  const low = d.buildSourceChain('kw', '128k', song).map(h => h.id)
+  assert(low.includes('suyinKuwo'), '128k 档不得被 128k 备档剔出')
+})
+
 console.log(`\n${passed} passed, ${failures.length} failed`)
 if (failures.length) console.error(failures.join('\n'))
 // R29：原来两处 process.exit 都被 require.main 拦住 → 被 require 时失败既不退出也不置 exitCode，

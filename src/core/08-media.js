@@ -67,6 +67,113 @@ function parseFlacDuration(buf) {
   return null;
 }
 
+// ---- v9.1.6（K31）：音频自带的身份标签（ID3v2 / FLAC Vorbis） ----
+// 用途：交付前判断「这条音频到底是不是这首歌」。星海后端对任意 mid 都返回可播音频，
+// 验真层原来只比时长/体积比例，长度像样就放行 → 不存在的歌会交付别人的音频。
+// 实测三条（2026-11-21，32KB Range）：
+//   mid=999999999 → 首字节 fffb90c4（裸 mp3 帧）**无标签**
+//   mid=1        → fffb9064 **无标签**
+//   mid=228908   → 49443303(ID3v2.3) TIT2=晴天 TPE1=周杰伦
+// 即「有标签」本身就是强身份证据；无标签则是「无法证明是这首歌」。
+function id3Synchsafe(buf, o) {
+  return ((bAt(buf, o) & 0x7F) << 21) | ((bAt(buf, o + 1) & 0x7F) << 14) | ((bAt(buf, o + 2) & 0x7F) << 7) | (bAt(buf, o + 3) & 0x7F);
+}
+
+// Q3：QuickJS 宿主没有全局 Buffer，这里一律按字节手写解码，不许出现 Buffer.xxx。
+function utf8Decode(buf, s, e) {
+  let out = "";
+  let i = s;
+  while (i < e) {
+    const b0 = bAt(buf, i);
+    if (b0 < 0x80) { out += String.fromCharCode(b0); i += 1; continue; }
+    if (b0 >= 0xC0 && b0 < 0xE0) {
+      out += String.fromCharCode(((b0 & 0x1F) << 6) | (bAt(buf, i + 1) & 0x3F)); i += 2; continue;
+    }
+    if (b0 >= 0xE0 && b0 < 0xF0) {
+      out += String.fromCharCode(((b0 & 0x0F) << 12) | ((bAt(buf, i + 1) & 0x3F) << 6) | (bAt(buf, i + 2) & 0x3F)); i += 3; continue;
+    }
+    if (b0 >= 0xF0) {
+      const cp = ((b0 & 0x07) << 18) | ((bAt(buf, i + 1) & 0x3F) << 12) | ((bAt(buf, i + 2) & 0x3F) << 6) | (bAt(buf, i + 3) & 0x3F);
+      const v = cp - 0x10000;
+      out += String.fromCharCode(0xD800 + (v >> 10), 0xDC00 + (v & 0x3FF)); i += 4; continue;
+    }
+    i += 1;
+  }
+  return out;
+}
+
+function utf16leDecode(buf, s, e) {
+  let out = "";
+  for (let i = s; i + 1 < e; i += 2) out += String.fromCharCode(bAt(buf, i) | (bAt(buf, i + 1) << 8));
+  return out;
+}
+
+function decodeId3Text(buf, s, e, enc) {
+  const s0 = enc === 1 || enc === 2 ? utf16leDecode(buf, s, e) : utf8Decode(buf, s, e);
+  return String(s0).replace(/\u0000/g, "").trim();
+}
+
+function parseId3Tags(buf) {
+  if (!buf || buf.length < 10 || !asciiAt(buf, 0, "ID3")) return null;
+  const ver = bAt(buf, 3);
+  const tagSize = id3Synchsafe(buf, 6);
+  const limit = Math.min(buf.length, 10 + tagSize);
+  const tags = {};
+  let p = 10;
+  let guard = 0;
+  while (p + 10 <= limit && guard++ < 24) {
+    const id = String.fromCharCode(bAt(buf, p), bAt(buf, p + 1), bAt(buf, p + 2), bAt(buf, p + 3));
+    if (!/^[A-Z0-9]{4}$/.test(id)) break;
+    const fsz = ver >= 4 ? id3Synchsafe(buf, p + 4) : u32At(buf, p + 4);
+    if (fsz <= 0 || p + 10 + fsz > limit) break;
+    if (id === "TIT2" || id === "TPE1" || id === "TALB") {
+      tags[id] = decodeId3Text(buf, p + 11, p + 10 + fsz, bAt(buf, p + 10));
+    }
+    // 跳过帧头 10 字节 + 内容；ID3v2.3/2.4 的帧数据区不含额外头
+    p += 10 + fsz;
+  }
+  return { title: tags.TIT2 || "", artist: tags.TPE1 || "", album: tags.TALB || "" };
+}
+
+function parseFlacTags(buf) {
+  if (!buf || buf.length < 8 || !asciiAt(buf, 0, "fLaC")) return null;
+  let p = 4;
+  for (let g = 0; g < 8 && p + 4 <= buf.length; g++) {
+    const last = (bAt(buf, p) & 0x80) !== 0;
+    const type = bAt(buf, p) & 0x7F;
+    const len = (bAt(buf, p + 1) << 16) | (bAt(buf, p + 2) << 8) | bAt(buf, p + 3);
+    if (type === 4) {
+      const end = Math.min(p + 4 + len, buf.length);
+      let q = p + 4 + 4;                                  // 跳过 vendor 长度字段
+      const vendorLen = u32At(buf, q - 4) || 0;
+      q += vendorLen;
+      if (q + 4 > end) return { title: "", artist: "" };
+      const count = u32At(buf, q); q += 4;
+      const out = {};
+      for (let i = 0; i < count && q + 4 <= end; i++) {
+        const cl = u32At(buf, q); q += 4;
+        if (cl <= 0 || q + cl > end) break;
+        const kv = utf8Decode(buf, q, q + cl); q += cl;
+        const eq = kv.indexOf("=");
+        if (eq > 0) out[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
+      }
+      return { title: out.TITLE || "", artist: out.ARTIST || "" };
+    }
+    p += 4 + len;
+    if (last) break;
+  }
+  return { title: "", artist: "" };
+}
+
+/** 取音频自带的身份标签；没有标签返回 null（= 无法证明是这首歌） */
+function parseAudioTags(buf) {
+  const id3 = parseId3Tags(buf);
+  if (id3 && (id3.title || id3.artist)) return id3;
+  const flac = parseFlacTags(buf);
+  if (flac && (flac.title || flac.artist)) return flac;
+  return null;
+}
+
 function parseMp3Info(buf) {
   let off = 0;
   if ((buf.length || 0) >= 10 && asciiAt(buf, 0, "ID3")) {
@@ -115,6 +222,9 @@ function sniffAudioBytes(body, headers, totalBytes, fullBody = false) {
     out.kind = "empty";
     return out;
   }
+  // v9.1.6（K31）：先取一次自带标签，供后续身份校验（拿不到不算错，只代表「无证据」）
+  const tags = parseAudioTags(body);
+  if (tags) { out.tagTitle = tags.title; out.tagArtist = tags.artist; }
   // 1. 文本类优先判死
   if (asciiAt(body, 0, "#EXTM3U")) { out.kind = "playlist"; out.format = "m3u8"; return out; }
   let s = 0;
@@ -325,6 +435,7 @@ function totalBytesOf(delivery) {
 }
 
 module.exports = {
+  parseAudioTags,
   parseFlacDuration,
   parseMp3Info,
   parseMpegFrameHeader,

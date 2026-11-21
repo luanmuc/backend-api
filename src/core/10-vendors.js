@@ -7,7 +7,10 @@ const { httpRequestWithRetry, getMobileUserAgent, TIMEOUT_CONFIG } = require("./
 const { USER_CONFIG } = require("./02-config.js");
 const { getHashOrMid, QUALITY_TO_X } = require("./09-match.js");
 
-const VERIFY_RANGE_BYTES = 1023;        // Range 取 1KB
+// v9.1.6（K31）：从 1KB 提到 32KB。原因：ID3v2 标签（尤其带封面 APIC 的文件）前 1KB
+// 常常只够读到标签头、读不到 TIT2/TPE1，而验真要靠这两个字段判断「是不是这首歌」。
+// 代价是每次验真多下 ~31KB；音频本身是 MB 级，占比可忽略。
+const VERIFY_RANGE_BYTES = 32767;
 
 const GD_API = "https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light";
 

@@ -81,15 +81,10 @@ if (!QUICK) for (const k of Object.keys(mod.runtimeToggles)) mod.runtimeToggles[
 // 两个巡检用不同的歌，结论无法互相对照。
 const { songOf, idOf } = require('./lib/probe-songs.js');
 
-// v9.2：kwplay 直链判定只看 origin+path。旧实现在整串 URL 上搜 `kwplay`，
-// 而酷我 CDN 直链带 `source$kwplayerhd_ar_1.1.4.5_...` 参数，于是 helloworldKw /
-// changqingVip / ikun 返回的普通 CDN 链接全被判成"kwplay 直链"跳过 Range 验真——
-// 实测 2026-11-21 这三源出链抽样长期 playable=skipped，等于从未被验证过。
-function isKwPlayDirect(rawUrl) {
-  let needle = String(rawUrl);
-  try { const u = new URL(needle); needle = u.origin + u.pathname; } catch {}
-  return /\.php$|kwplay/.test(needle);
-}
+// v9.1.6：删掉 `isKwPlayDirect`。它原本用来把 ".php / kwplay 直链" 排除在 Range 验真之外，
+// 但两次收紧（先整串搜 `kwplay`、后只看 origin+path）都只是在猜"这类链不能验"，
+// 实测星海 `lx/api/kwplay.php` 带 Range 直接 206 + audio/mpeg，可播却常年被标 skipped。
+// 现在的口径是：出链一律验真，rangeCheck 回出状态码 + content-type，假绿天然暴露。
 
 function rangeCheck(url) {
   return new Promise((resolve) => {
@@ -143,9 +138,12 @@ if (require.main === module) (async () => {
           const url = await h.fn(plat, idVal, '128k', song);
           const host = (String(url).match(/^(https?:\/\/[^/]+)/) || [, ''])[1];
           let playable = '';
-          // B03-012：.php / kwplay 直链不做 Range 校验，但原来留空串，读起来像「未校验=不可播」。
-          // 显式标 skipped，避免假绿/假红两边误解。
-          if (/^https?:\/\//.test(String(url))) playable = isKwPlayDirect(String(url)) ? 'skipped' : await rangeCheck(String(url));
+          // B03-012：早期把 .php / kwplay 直链整体跳过 Range 校验，理由是"签名直链可能不稳"。
+          // v9.1.6 实测推翻了这个前提：星海 `lx/api/kwplay.php` 带 Range 直接 206 + audio/mpeg
+          // （bytes 0-1023/4317292，1 跳），本来可播却被标成 skipped → 「可播」列长期是空的，
+          // 等于这个源的可播性从未被验证。改为全部验真；rangeCheck 会回出状态码与 content-type，
+          // 若真是「200 + text/html」的假绿也照样能看出来。
+          if (/^https?:\/\//.test(String(url))) playable = await rangeCheck(String(url));
           rows.push({ src: h.id, plat, ok: true, code: 'OK', host, playable, ms: Date.now() - t0 });
         } catch (e) {
           const msg = String((e && e.message) || e);
@@ -176,8 +174,8 @@ if (require.main === module) (async () => {
         const url = await h.fn(plat, idVal, '128k', song);
         const host = (String(url).match(/^(https?:\/\/[^/]+)/) || [, ''])[1];
         let playable = '';
-        // 二次可播校验（识破"接口 200 但 CDN 死链"）
-        if (/^https?:\/\//.test(String(url)) && !isKwPlayDirect(String(url))) {
+        // 二次可播校验（识破"接口 200 但 CDN 死链"）。同上：不再按 .php / kwplay 跳过。
+        if (/^https?:\/\//.test(String(url))) {
           playable = await rangeCheck(String(url));
         }
         rows.push({ src: h.id, plat, ok: true, code: 'OK', host, playable, ms: Date.now() - t0 });

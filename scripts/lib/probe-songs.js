@@ -17,11 +17,15 @@
  * 代价是五平台不再同名同曲，所以期望时长必须按平台取，不能再用单一 EXPECT_SEC。
  */
 const SONGS = {
-  kw: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, hash: '228908', rid: 228908, songmid: '228908', id: '228908' },
+  // songId 也补上：changqingVip 的 getPlatformSongId 会读 songInfo.songId，并集一致性门禁要求样本带齐
+  kw: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, hash: '228908', rid: 228908, songmid: '228908', id: '228908', songId: '228908' },
   // wy 与其余四平台不同曲：原因见文件头「wy 不能用《晴天》」。改回《晴天》前请先确认
   // 网易云拿到了周杰伦版权，否则等于又拿翻唱版冒充原版。
-  wy: { name: '海阔天空', singer: 'Beyond', album: '', duration: 326000, interval: 326, id: 347230, songmid: '347230' },
-  tx: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, songmid: '004Z8Ihr0JIu5s' },
+  // hash 也补上：huibq/ikun 在 wy 上同样读 songInfo.hash（跨平台通用取法），并集门禁要求带齐
+  wy: { name: '海阔天空', singer: 'Beyond', album: '', duration: 326000, interval: 326, id: 347230, songmid: '347230', hash: '347230' },
+  // v9.1.6（K31 后续）：补 id。tx 家族的 anchors 是 songmid/id 两个键，样本只给 songmid 时
+  // 无法验证「只给 id」的路径，也无法覆盖将来把 id 优先读的实现。
+  tx: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, songmid: '004Z8Ihr0JIu5s', id: '004Z8Ihr0JIu5s' },
   mg: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, songmid: '228908', id: '228908' },
   kg: { name: '晴天', singer: '周杰伦', album: '叶惠美', duration: 271000, interval: 271, hash: '228908', songmid: '228908' },
 };

@@ -925,7 +925,9 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
   // ============ R5-B 源专属错误分支与参数校验 ============
   console.log('\n[V27] 源专属错误码：410/片段/搜索无结果/平台与ID校验');
   {
-    const S27 = { name: '晴天', singer: '周杰伦', duration: 269700, hash: 'H27ABC' };
+    // v9.1.6（K30）：helloworld 认的是 rid/songmid/songId/id，**不认 hash**。
+    // 旧样本只给 hash，靠「无锚点也照样进链、到源里再炸」才走到 410 分支——那是假测。
+    const S27 = { name: '晴天', singer: '周杰伦', duration: 269700, rid: 228908 };
 
     // 410 → LINK_EXPIRED（helloworld 通道①签名直链失效）
     const m1 = fresh(Object.assign({}, BASE_CFG), ['helloworldKw']);
@@ -947,7 +949,15 @@ const SONG = (i) => ({ name: `压力测试歌${i}`, singer: '周杰伦', duratio
     // 缺 ID：wy 官方无 id
     const m4 = fresh(Object.assign({}, BASE_CFG), ['wyOuter']);
     try { const r4 = await m4.getUrlWithFallback('wy', { name: '晴天', singer: '周杰伦', duration: 269700 }, '128k'); var r4ok = r4; } catch (e) { var e4 = e; }
-    rec('V27d', !!(e4 && String(e4.code) === 'PARAM_ERROR'), `wy 官方缺 ID 应 PARAM_ERROR，实测 ${e4 ? e4.code : '未报错(返回' + (r4ok && r4ok.url) + ')'}`);
+    // v9.1.6（K30，B 方案）改判：**缺 id 不再是一票否决**。
+    // 旧口径「wy 官方缺 ID 必须 PARAM_ERROR」是「源适配我们」的产物——它只看只认 id 的那个源，
+    // 把它抛的错当成整个平台的结论。现在的正确语义是：只认 id 的源被剔出链，但**按歌名搜索的源
+    // 照样会去试**（suyinKuwo 认 wy 且不依赖任何 id）。所以合格行为是二选一：
+    //   ①靠名字真搜到 → 交付（更好的结果，不该拦）
+    //   ②搜不到/外呼失败 → NOT_FOUND / NETWORK_ERROR 等真实原因
+    // 唯一不合格的是「因为缺 id 就直接判 PARAM_ERROR 而根本没试」。
+    const dOk = (r4ok && r4ok.url) || !!(e4 && String(e4.code) !== 'PARAM_ERROR');
+    rec('V27d', dOk, `wy 缺 ID 不应一票否决（可交付或真实失败），实测 ${e4 ? e4.code : '返回 ' + (r4ok && String(r4ok.url).slice(0, 34))}`);
   }
 
   // ============ R5-C 音频格式嗅探（ogg/m4a/wav/播放列表/html/空体） ============

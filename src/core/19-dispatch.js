@@ -185,7 +185,7 @@ async function wrapExecute(handler, platform, songInfo, quality, cancelToken) {
     // 成功率分子分母各被记一次，健康分失真；也掩盖了真失败）
     const finalUrl = validateUrl(url, handler.name);
     // v8.11：交付前真实性闸门——一次 Range(1KB) 拿真实字节判定「是不是音频 / 是不是只有试听片段」
-    const verdict = await verifyDelivery(finalUrl, { platform, handlerId: handler.id, quality, songInfo }, cancelToken);
+    const verdict = await verifyDelivery(finalUrl, { platform, handlerId: handler.id, quality, songInfo, identityStrict: handler.identityStrict === true }, cancelToken);
     if (verdict && verdict.ok === false) {
       const vErr = new Error(`${verdict.code}: ${CODE_HINT[verdict.code] || "交付校验未通过"}（${verdict.reason}）`);
       vErr.code = verdict.code;
@@ -264,7 +264,12 @@ function raceFirst(launchers, opts = {}) {
   const matchWaitMs = Math.max(0, Number(opts.matchWaitMs !== undefined ? opts.matchWaitMs : cfg('raceMatchWaitMs', 600)));
   const deadline = Number(opts.deadline || (Date.now() + cfg('raceBudgetMs', 12000)));
   if (!launchers || launchers.length === 0) {
-    return Promise.reject(new Error(`${ERROR_CODES.NOT_FOUND}: 无可竞速的音源`));
+    // v9.1.6（K30，B 方案）：链为空多半是「这条歌缺该源认的标识」，不是「歌不存在」。
+    // 旧实现抛裸 NOT_FOUND 且不设 code → 落到 NETWORK_ERROR → App 当网络抖动不停重试，
+    // 而真实情况是再怎么重试也不会好（缺 id 不会自己长出来）。明确标成 PARAM_ERROR。
+    const emptyErr = new Error(`${ERROR_CODES.PARAM_ERROR}: 无可竞速的音源（该平台所有源都缺少本首歌所需的标识）`);
+    emptyErr.code = ERROR_CODES.PARAM_ERROR;
+    return Promise.reject(emptyErr);
   }
   return new Promise((resolve, reject) => {
     const enteredAt = Date.now();
