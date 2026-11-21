@@ -22,7 +22,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | `docs/音源架构执行全过程-2026-11-12.md` | 143 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `.github/workflows/ci.yml` | 473 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
-| `.github/workflows/docs-audit.yml` | 48 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
+| `.github/workflows/docs-audit.yml` | 56 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `README.md` | 141 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `README_HEALTH.md` | 37 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/P2_TRIAGE.md` | 104 | .md | ✓ | ✓ | — | — | — | — | — | (P2 定档表) |
@@ -40,9 +40,9 @@
 | `docs/archive/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | .md | ✓ | ✓ | — | — | — | — | — | 音质策略优化方案（已执行 P0/P1，2026-11-20 归档） |
 | `docs/archive/音源架构执行全过程-2026-11-12.md` | 143 | .md | ✓ | ✓ | — | — | — | — | — | v8.6~v8.13 架构阶段纪要（2026-11-20 归档） |
 | `docs/candidate-status.md` | 8 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/health-daily/` | 317 | .md+.json | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8/U10 |
-| `docs/probe-history.jsonl` | 76 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
-| `lx-source.js` | 7368 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
+| `docs/health-daily/` | 340 | .md+.json | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8/U10 |
+| `docs/probe-history.jsonl` | 133 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
+| `lx-source.js` | 7375 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
 | `scripts/preflight-push.sh` | 53 | .sh | ✓ | — | — | — | — | — | — | (推送前校验) |
 | `scripts/candidate-audit.js` | 342 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/cn-date.js` | 17 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
@@ -72,7 +72,7 @@
 | `test/audit/q-dfix.js` | 142 | .js | — | — | ✓ | — | ✓ | — | ✓ | Q1~Q5/D-01/D-04/F-01 |
 | `test/audit/q2-dseries.js` | 84 | .js | — | — | ✓ | — | ✓ | — | ✓ | R1~R3/D-05/D-06/D-26 |
 | `test/audit/anchors-contract.js` | 154 | .js | — | — | ✓ | — | ✓ | — | ✓ | A1~A4 四条判据 + 逐键验证 + 并集覆盖 |
-| `test/audit/force-probe-contract.js` | 123 | .js | — | — | ✓ | — | ✓ | — | ✓ | FP1~FP10：`forceQualityProbe` action 契约（未知源 resolve 不 reject / 缺 id reject / 写入立即到期 / 不动 breaker） |
+| `test/audit/force-probe-contract.js` | 127 | .js | — | — | ✓ | — | ✓ | — | ✓ | FP1~FP10：`forceQualityProbe` action 契约（未知源 resolve 不 reject / 缺 id reject / 写入立即到期 / 不动 breaker） |
 | `test/audit/n-fixes.js` | 158 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | N1~N4/X (新增) |
 | `test/audit/quality-truth.js` | 123 | .js | — | — | ✓ | — | ✓ | — | ✓ | QT-1~QT-9 音质真实标签（m4a/ogg/wav/Range/200 全量/置信度） |
 | `test/audit/quality-policy-v2.js` | 214 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | QP1~QP8 音质策略 P0/P1（ceiling TTL / definitiveFail / 短路口径 / 旧快照兼容） |
@@ -95,15 +95,15 @@
 | `test/audit/health-snapshot-eta.js` | 169 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | F35/F45/F46/F06/F32/F17 ETA/限速/冷启/事件/计数 S1~S11 |
 | `test/audit/e-extra.js` | 966 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/candidate-audit-test.js` | 135 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
-| `test/lx-source-smoke-test.js` | 1647 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
+| `test/lx-source-smoke-test.js` | 1656 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `test/stress-test.js` | 228 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | U1/W1/Y1/H a~e |
 | `docs/ARCHITECTURE.md` | 93 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/README.md` | 72 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 99 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/TESTING.md` | 198 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/CHANGELOG.md` | 346 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/TESTING.md` | 199 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/CHANGELOG.md` | 389 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/archive/AUDIT_HISTORY.md` | 1441 | .md | ✓ | ✓ | — | — | — | — | — | 归档合集 |
-| `docs/AUDIT_MATRIX.md` | 262 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 263 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 517 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
 | `test/stress-round3.js` | 364 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
 | `test/audit/g-meta.js` | 451 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14/M9b/M9c |
@@ -125,13 +125,13 @@
 | `test/audit/x-media-envelope.js` | 161 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P2 X1~X12（64B/1B/1KB/1MiB/8MiB 信封还原 / kindOf audio / byteLength=BAD_ENVELOPE / 缺片=TRUNCATED_MEDIA / 旧 Buffer 兼容 / mediaEnvelope 能力声明 / 0 字节零长 / admit 错误码 / 1MiB JSON.parse≤10ms） |
 | `test/audit/readthrough-fixes.js` | 451 | .js | ✓ | — | — | ✓ | ✓ | — | ✓ | v8.16.2 RF1~RF18（R-01 档位熔断持久化 / R-02 真实音质入账 / R-03 播放分账 / R-04 快照运行期资格 / R-05 试探键清理 / R-06 半开名额后置 / R-07 gateErr 带码 / R-09 跨平台可取消 / R-10 兜底结构化 / R-11 ttl 死分支 / R-12 七项 / R-08 版本口径）；先红 0/18 → 绿 18/0 |
 | `docs/chain-sample.jsonl` | 15 | .jsonl | ✓ | — | — | — | — | — | — | 出链抽样数据（`scripts/chain-sample.js` 产出，日报消费） |
-| `docs/device-digests.jsonl` | 5 | .jsonl | ✓ | — | — | — | — | — | — | 真机摘要数据（`scripts/pull-device-digests.js` 产出） |
+| `docs/device-digests.jsonl` | 1 | .jsonl | ✓ | — | — | — | — | — | — | 真机摘要数据（`scripts/pull-device-digests.js` 产出） |
 | `test/audit/s-health-events.js` | 290 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | S 组 S1~S6 + S5b（事件白名单 27 条；S5b 白名单漂移加载即炸） |
 | `test/audit/t-health-events-stress.js` | 146 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | T 组 T1~T9（2.4 方案压力 12 条） |
 | `test/stress-round4.js` | 1343 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 348 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
-| `docs/READTHROUGH.md` | 316 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
+| `docs/READTHROUGH.md` | 317 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
 | `docs/archive/READTHROUGH_v8.16.1.md` | 337 | .md | ✓ | ✓ | — | — | — | — | — | 2026-11-17 `lx-source.js` 逐行通读结论（R-01~R-12 + 证伪记录） |
 | `docs/archive/READTHROUGH_v8.16.2.md` | 170 | .md | ✓ | ✓ | — | — | — | — | — | 8.16.2 产物 6045 行 7 段逐行通读（R-13 + 14 观察项 + 15 排除） |
 | `docs/DOC_INDEX.md` | 81 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
@@ -139,8 +139,8 @@
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | .md | ✓ | ✓ | — | — | — | — | — | 音质策略优化方案（含复现证据） |
 ## 汇总
 
-- 文件总数：**194**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**58104**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**196**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**58399**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_CAPABILITY.md` | 213 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | 13 源逐档实测矩阵（U2~U6/V2/Y1~Y6/Z3） |
@@ -156,7 +156,7 @@
 | `scripts/verify-real-platform-chains.js` | 106 | .js | ✓ | — | — | — | ✓ | ✓ | — | G7 平台 ID 链真实证据 |
 | `src/00-header.js` | 6 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/80-entry.js` | 10 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/legacy.js` | 1307 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/legacy.js` | 1320 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/55-probation.js` | 41 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/changqingVip.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/helloworldKw.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
@@ -212,7 +212,7 @@
 | `src/core/00-host.js` | 11 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/01-log.js` | 20 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/02-config.js` | 96 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
-| `src/core/02-error-codes.js` | 32 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
+| `src/core/02-error-codes.js` | 35 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/03-events.js` | 124 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/04-cancel.js` | 69 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/05-verdict.js` | 173 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
@@ -242,7 +242,7 @@
 | `src/core/33-cross-cache.js` | 47 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/34-breaker-state.js` | 60 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/35-source-switch.js` | 80 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
-| `test/fixtures/api-surface.json` | 172 | .json | ✓ | — | — | — | — | — | — | U1~U13 |
+| `test/fixtures/api-surface.json` | 173 | .json | ✓ | — | — | — | — | — | — | U1~U13 |
 | `test/fixtures/equiv-baseline.json` | 10830 | .json | ✓ | — | — | — | — | — | — | U1~U13 |
 | `scripts/cross-repo-version.js` | 55 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `scripts/layer-check.js` | 92 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
