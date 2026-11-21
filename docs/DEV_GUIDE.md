@@ -165,6 +165,23 @@ score = rateReal(置信度收缩 K=4) − min(avgTime/5000, 1) × 0.5 − min(fa
 | 真实现场版 `182061798` → mp3 | `fffb9064` | 无 |
 | 真实曲目 `228908` → 4,317,292B | `49443303` | `TIT2=晴天 TPE1=周杰伦` |
 
+**复现命令**（`scripts/probe-identity.js`，2026-11-21 实跑，上面三条全部原样复现）：
+
+```bash
+node scripts/probe-identity.js                        # 内置三条样本：999999999 / 1 / 228908
+node scripts/probe-identity.js --mid 182061798 --expect 平凡之路   # 现场版反证：481,198B 无标签
+node scripts/probe-identity.js --search 平凡之路 朴树              # 按名搜索取 mid 再取证
+node scripts/probe-identity.js --mid 228908 --quality flac        # flac 档看 VORBIS_COMMENT
+```
+
+输出形如：
+
+```
+[PD1] mid=228908 totalBytes=4317292 readBytes=32768 head=49443303 ct=audio/mpeg range=yes hops=1 title="晴天" artist="周杰伦" album="叶惠美" verdict=OK
+```
+
+`totalBytes` 取自 `content-range` 的尾巴（整曲大小），`readBytes` 是本次 Range 读到的长度。判定四态：`OK` / `MISMATCH` / `NO-TAG`（附提示：无标签不等于错歌）/ `FAIL`。脚本判据与本文件描述的三段规则同源，但独立实现（`lx-source.js` 产物里的 `parseAudioTags` 需要 `globalThis.lx` 桩，脱机取证跑不起来）。
+
 真实现场版同样没有标签，所以**「无标签」不能当错歌证据**。实际规则是三段：
 
 1. 有标签且歌名对不上（归一化后既不相等也不互相包含）→ `MISMATCH`，任何源都拒；

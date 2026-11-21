@@ -1,6 +1,6 @@
 # 脚本索引（scripts/）
 
-> 29 个脚本（含 1 条 shell runner `v9-gate.sh`，其余为 .js）+ `scripts/lib/` 4 个子库文件（不计入以上 24 个顶层台账）+ 4 个 git hook 相关文件。**改任何脚本前先看「副作用」列**——有的会改文件、有的会起定时器、有的会打网络。
+> 30 个脚本（含 1 条 shell runner `v9-gate.sh`，其余为 .js）+ `scripts/lib/` 4 个子库文件（不计入以上 24 个顶层台账）+ 4 个 git hook 相关文件。**改任何脚本前先看「副作用」列**——有的会改文件、有的会起定时器、有的会打网络。
 > 单一真相原则：端点清单只认 `endpoint-registry.js`，开关只认 `source-toggles.js`，日期只认 `cn-date.js`。别在别的脚本里再抄一份。
 > v8.15.1 起本文件纳入 `docs-audit.js` 规则 22：脚本数、每个脚本行数、幽灵条目都会被门禁校验（登记不全直接报红）。
 
@@ -18,6 +18,7 @@
 | 脚本 | 职责 | 触发 | 副作用 |
 |---|---|---|---|
 | `probe.js` (776) | 端点存活巡检：HTTP 探测 + 取链型端点做 Range 可播二次校验（`PAYLOAD_CHECKS`）+ mp3/flac 时长自检；输出 README 可用性表 | 手动 / CI dispatch | **改** `README.md`、`README_HEALTH.md`、追加 `docs/probe-history.jsonl` |
+| `probe-identity.js` (266) | **交付身份取证（K31 证据链）**：给定 mid 或按歌名搜索，走星海取链 → 跟 302 → `Range: bytes=0-32767` → 解 ID3v2 `TIT2`/`TPE1`/`TALB` 与 FLAC VORBIS `TITLE`/`ARTIST`，打印整曲总字节、首帧 hex、content-type 与判定（`OK`/`MISMATCH`/`NO-TAG`/`FAIL`）。判据与 `15-verify.js` 的 `checkDeliveryIdentity` 同源，但独立实现以便脱机取证 | 手动（需网络） | 只读网络，不写文件；**不进 `npm test`**（联网会抖） |
 | `health-daily.js` (465) | 健康日报：变化检测 + 分级 + 动作出口，产出 `docs/health-daily/<日期>.md/.json`（90 天清理） | CI 每日 | 新增当日日报文件；不碰 README |
 | `pull-device-digests.js` (103) | 拉取公开仓 `lx-telemetry` 的真机摘要，写 `docs/device-digests.jsonl`（60 天滚动），供日报做 CI vs 真机对照 | CI 每日（日报前）；手动 | **覆写** `docs/device-digests.jsonl`；只读网络 |
 | `chain-sample.js` (77) | 每日出链抽样：调用 `source-audit.js --quick`，对**启用中的源**各测 1 首固定样例（128k），补「端点活着 ≠ 能出链」 | CI 每日（probe 之后）；手动 | **追加** `docs/chain-sample.jsonl`（同日同源覆盖、30 天滚动） |
