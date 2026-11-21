@@ -441,10 +441,20 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lx-source.js.manifest.json
           git commit -m "chore(sign): 同步发布签名 manifest [skip ci]"
-          git push || {
-            echo "::error::manifest 同步失败：App 端「更新音源」会因缺同源 manifest 而验签失败，请手工提交 lx-source.js.manifest.json"
+          # R73：sign-release 与 docs-audit workflow 会同时写 master，直推必被拒。
+          # 实测 44924159855：docs-audit 先推了 bfdb804，本 job 的 push 报
+          # `! [rejected] master -> master (fetch first)`，整条 CI 变红、manifest 没更新。
+          # 与 probe 写回步骤（本文件 :296-302）同口径：rebase 到远端后再推，失败才判红。
+          if ! git fetch origin master || ! git rebase origin/master; then
+            echo "::error::manifest rebase 到 master 失败；本次 run 判失败"
+            echo "## ❌ manifest rebase 失败" >> "$GITHUB_STEP_SUMMARY"
             exit 1
-          }
+          fi
+          if ! git push origin "HEAD:master"; then
+            echo "::error::manifest 同步失败：App 端「更新音源」会因缺同源 manifest 而验签失败，请手工提交 lx-source.js.manifest.json"
+            echo "## ❌ manifest push 失败" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
   # ---------- v8.10.3：发版自动 purge jsDelivr CDN ----------
   # push master 或发版后立刻刷新 CDN 缓存，App 端检查更新马上能拉到最新版
