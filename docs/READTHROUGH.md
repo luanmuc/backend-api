@@ -9,7 +9,7 @@
 历史快照 `e9a2259`（v8.16.1 时期）；当前工作区 **v9.1.2**（HEAD `ddbcc44`，本地提交未推送），产物 `lx-source.js` **7,101 行 / `@version 9.1.2`**、`package.json` 9.1.1
 
 > 复核说明（2026-11-19）：`src/core/` 33 个模块的逐文件结论已由占位符补为实测结论（职责 + 导出面 + 已知缺陷编号）；文件数/总行数按当前 HEAD 实测刷新。
-文件数：**192**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**59683**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**192**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**59725**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -50,7 +50,7 @@
 
 | 文件 | 行 | 读法 | 结论 |
 |---|---|---|---|
-| `.github/workflows/ci.yml` | 454 | 全文 | 7 个 job（test-fast / stress-long / stress-short / mutation / probe / ecosystem / purge-cdn，2026-11-14 拆并行）；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
+| `.github/workflows/ci.yml` | 473 | 全文 | 10 个执行 job + `changes` 前置（test-fast / audit-a / audit-b / stress-long / stress-short / mutation / probe / ecosystem / sign-release / purge-cdn；2026-11-21 把 L3/L4 五个审计 step 从 `test-fast` 拆进 `audit-a`/`audit-b` 并行，墙钟 2m51 → 约 1m30）；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 48 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 8 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
 | `README.md` | 138 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
@@ -64,7 +64,7 @@
 | `docs/AUDIT_MATRIX.md` | 259 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/AUDIT_PLAN_v10.md` | 275 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 2019 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 157 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 164 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 561 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -81,10 +81,10 @@
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 295 | 归档 | 15 项修复 + §10.2 仍未做（L4 真网络 / F-12 第二方案 / 面板 raceBudgetMs 说明） |
 | `docs/STRESS_PLAN.md` | 136 | 当前态 | 压测唯一入口（v2 重构版，§6 负载设计 + §7 方法论承接） |
 | `docs/candidate-status.md` | 8 | 生成 | hyw 已恢复 / huanyin 需人工；依赖 recheck 是否真跑 |
-| `docs/health-daily/` | 2205 | 生成 | 整目录（每日 CI 自动生成，90 天滚动清理；当前 23 份已逐字读完） |
-| `docs/probe-history.jsonl` | 1452 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
+| `docs/health-daily/` | 2163 | 生成 | 整目录（每日 CI 自动生成，90 天滚动清理；当前 23 份已逐字读完） |
+| `docs/probe-history.jsonl` | 1509 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
 | `docs/chain-sample.jsonl` | 44 | 生成 | 出链抽样记录（2026-11-17 起），每行 src/plat/ok/code/playable/ms，供日报「出链抽样」段消费 |
-| `docs/device-digests.jsonl` | 4 | 生成 | 真机摘要（lx-telemetry 拉取落地），每行一天，只含次数与错误码 |
+| `docs/device-digests.jsonl` | 5 | 生成 | 真机摘要（lx-telemetry 拉取落地），每行一天，只含次数与错误码 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | 全文 | 五组账 + 5 次自我推翻；e-extra 82 / 3179 行 / 66 文件 过期 |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
 | `docs/reports/候选接入评审-2026-11-15.md` | 97 | 全文 | ecosystem 扫出 4 候选逐个评审：qingliang tx 线路实测 206 + 全曲 10,792,943 bytes；xinglan 主线路只给试听（RS0 / 960,887 bytes，差 11.2 倍）；feichangdao/suyin 与我方 oiapi/xcvts 同源重复 |

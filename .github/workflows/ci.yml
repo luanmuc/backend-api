@@ -87,6 +87,26 @@ jobs:
       # v5.0：发布前自检门——版本串同步/actions声明/README与ROADMAP同步，任一失败阻断
       - name: L2 发布前自检门（版本串/action声明/文档同步）
         run: node scripts/self-check.js
+      # v8.11.2（G2）：QuickJS 真引擎。此前该入口在本地因缺依赖 SKIP、且从未进 CI，
+      # QR 组 3 条断言长期空转（rec 里 id 未定义的 bug 也因此藏了很久）。
+      - name: L5.2 QuickJS 真引擎（宿主无 Buffer，模拟 App 运行环境）
+        run: |
+          npm i quickjs-emscripten --no-save --silent
+          NODE_PATH=./node_modules node test/audit/q-quickjs-real.js
+      - name: 巡检脚本语法（v8.10.5：覆盖 scripts 下全部脚本，新增脚本自动纳入）
+        run: |
+          for f in scripts/*.js; do node --check "$f" || exit 1; done
+
+  # ---------- 2026-11-21：审计门禁按「互不依赖」拆成两个并行 job ----------
+  # 原来 5 个 L3/L4 step 串在 test-fast 里，合计约 106s，把 test-fast 拖到 2m34。
+  # 它们彼此没有数据依赖（各自读源码跑断言），拆开后与 test-fast 并行，墙钟由最长者决定。
+  audit-a:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
       # v8.11.2（G1）：审计脚本接入 CI。此前 7 个审计脚本只在本地跑，
       # 22 条 A 级断言（注入能红）从未守过任何一次提交。
       - name: L3 审计门禁（静态/逻辑/功能/扩展）
@@ -95,22 +115,6 @@ jobs:
           node test/audit/b-logic.js
           node test/audit/d-func.js
           node test/audit/e-extra.js
-      - name: L4 审计门禁（仓库/元审计/开关）
-        run: |
-          node test/audit/f-repo.js
-          node test/audit/g-meta.js
-          node test/audit/h-toggles.js
-          node test/audit/n-fixes.js
-          node test/audit/p-gaps.js
-          node test/audit/q-dfix.js
-          node test/audit/q2-dseries.js
-          node test/audit/r-admission.js
-          node test/audit/s-health-events.js
-          node test/audit/t-health-events-stress.js
-          node test/audit/u-cross-platform.js
-          node test/audit/v-cross-platform-stress.js
-          node test/audit/w-fallback-owner.js
-          node test/audit/x-media-envelope.js
       # 2026-11-19：剩余 24 个 audit 脚本接入 CI。此前 test/audit 下 43 个脚本里只接了 19 个，
       # 24 个（含 14 个 health-* 与 readthrough-fixes / y-provider-contract 等）从未在流水线里跑过。
       # 实测：24 个在干净环境（node_modules 为空）全部 exit 0，断言合计 222 条。
@@ -132,6 +136,30 @@ jobs:
           node test/audit/health-scheduler-fake-clock.js
           node test/audit/health-snapshot-eta.js
           node test/audit/health-transition-events.js
+
+  audit-b:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: L4 审计门禁（仓库/元审计/开关）
+        run: |
+          node test/audit/f-repo.js
+          node test/audit/g-meta.js
+          node test/audit/h-toggles.js
+          node test/audit/n-fixes.js
+          node test/audit/p-gaps.js
+          node test/audit/q-dfix.js
+          node test/audit/q2-dseries.js
+          node test/audit/r-admission.js
+          node test/audit/s-health-events.js
+          node test/audit/t-health-events-stress.js
+          node test/audit/u-cross-platform.js
+          node test/audit/v-cross-platform-stress.js
+          node test/audit/w-fallback-owner.js
+          node test/audit/x-media-envelope.js
       - name: L4.3 审计门禁（质量/契约/生命周期/取消/预算/口径/通读回归）
         run: |
           node test/audit/quality-policy-v2.js
@@ -144,15 +172,6 @@ jobs:
           node test/audit/budget-admission.js
           node test/audit/tg-truth.js
           node test/audit/readthrough-fixes.js
-      # v8.11.2（G2）：QuickJS 真引擎。此前该入口在本地因缺依赖 SKIP、且从未进 CI，
-      # QR 组 3 条断言长期空转（rec 里 id 未定义的 bug 也因此藏了很久）。
-      - name: L5.2 QuickJS 真引擎（宿主无 Buffer，模拟 App 运行环境）
-        run: |
-          npm i quickjs-emscripten --no-save --silent
-          NODE_PATH=./node_modules node test/audit/q-quickjs-real.js
-      - name: 巡检脚本语法（v8.10.5：覆盖 scripts 下全部脚本，新增脚本自动纳入）
-        run: |
-          for f in scripts/*.js; do node --check "$f" || exit 1; done
 
   # ---------- v8.11.1：长跑压力测试（并行 job 2，约 11 分钟，真实超时等待） ----------
   stress-long:
@@ -361,8 +380,8 @@ jobs:
   # 缺 LX_SIGNING_KEY 时**跳过签名**而不是产半成品——带无效签名的包比不签更糟（App 会拒收且难排查）。
   sign-release:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' && needs.test-fast.result == 'success' }}
-    needs: [test-fast]
+    if: ${{ github.event_name == 'push' && needs.test-fast.result == 'success' && needs.audit-a.result == 'success' && needs.audit-b.result == 'success' }}
+    needs: [test-fast, audit-a, audit-b]
     permissions:
       contents: write   # B2：签好的 manifest 需提交回 master，App 双通道才能拉到同源的验签文件
     steps:
@@ -434,7 +453,7 @@ jobs:
     # always()：stress-long 在「只改 test/scripts/docs」时会被跳过，不能因此连带跳过 purge。
     # 真正的门槛写成 needs 结果判定——test-fast 与已跑的 stress 都必须 success。
     if: ${{ always() && (github.event_name == 'push' || github.event_name == 'release') && needs.test-fast.result == 'success' && (needs.stress-long.result == 'success' || needs.stress-long.result == 'skipped') && needs.stress-short.result == 'success' }}
-    needs: [test-fast, stress-long, stress-short]   # 测试通过才 purge，避免坏版本污染 CDN
+    needs: [test-fast, audit-a, audit-b, stress-long, stress-short]   # 测试通过才 purge，避免坏版本污染 CDN
     steps:
       - uses: actions/checkout@v4
         with:
