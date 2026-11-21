@@ -1,5 +1,5 @@
 {
-  "source": "src/legacy.js",
+  "source": "src/legacy.js,src/core/00-host.js,src/core/01-log.js,src/core/02-config.js,src/core/02-error-codes.js,src/core/03-events.js,src/core/04-cancel.js,src/core/05-verdict.js,src/core/06-binding.js,src/core/07-net.js,src/core/08-media.js,src/core/09-match.js,src/core/10-vendors.js,src/core/11-provider-meta.js,src/core/12-provider-contract.js,src/core/13-chain-helpers.js,src/core/14-lyric.js,src/core/15-verify.js,src/core/16-chain-misc.js,src/core/17-health-check.js,src/core/18-health-persist.js,src/core/19-dispatch.js,src/core/21-cross-search.js,src/core/22-chain.js,src/core/24-kuwo-official.js,src/core/25-handlers.js,src/core/27-sources-admin.js,src/core/28-health-export.js,src/core/29-search.js,src/core/30-suyin-extra.js,src/core/31-suyin-qq.js,src/core/33-cross-cache.js,src/core/34-breaker-state.js,src/core/35-source-switch.js",
   "exports": [
     "ERROR_CODES",
     "KNOWN_COVERAGE_GAPS",
@@ -41,6 +41,7 @@
     "buildCrossTargetInfo",
     "buildQualityChain",
     "buildSourceChain",
+    "buildSourceChain",
     "bumpPlayDead",
     "bumpResolveDead",
     "canExecute",
@@ -62,6 +63,7 @@
     "getHealthEvents",
     "getHealthSnapshot",
     "getQualityCeiling",
+    "getQualityCeilingBySource",
     "hasActiveWork",
     "healthHistory",
     "httpRequest",
@@ -86,6 +88,7 @@
     "probeSingleSource",
     "probeSongPool",
     "qingliangTxGetUrl",
+    "qualityCeilingBySourceMap",
     "qualityCeilingMap",
     "qualityConfidenceOf",
     "qualityFromDelivery",
@@ -160,10 +163,10 @@
   ],
   "counts": {
     "exports": 27,
-    "debug": 85,
+    "debug": 88,
     "errorCodes": 18,
     "healthEventFields": 12,
     "healthSnapshotKeys": 6
   },
-  "digest": "4bf41864d996bc88639e3ab62a755a53"
+  "digest": "36a20b3dc8233af0fee15aa65ea2e182"
 }
