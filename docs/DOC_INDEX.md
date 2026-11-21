@@ -36,6 +36,7 @@
 | `docs/archive/READTHROUGH_v8.16.1.md` | 归档（原历史快照，单轮通读结论） | 人 | 只读，不随版本更新（v9.5 整理归档；当时 8.16.1 产物） | 规则19 |
 | `docs/archive/READTHROUGH_v8.16.2.md` | 归档（原 8.16.2 单轮通读结论） | 人 | 只读，不随版本更新（v9.5 整理归档；8.16.2 产物 6045 行时代的 R-13 结论） | 规则19 
 | `docs/DOC_INDEX.md` | 当前态（本表自身） | 人 | 新增/删除任何 docs 文件时 | 规则19 自校验 |
+| `docs/SOURCE_CAPABILITY.md` | 当前态（实测快照） | 人 | 每次源侧变化或复测后 | 规则19 |
 | `docs/SOURCE_REGISTRY.md` | 当前态 | 人 | 增删源/版本变更时 | 规则19 |
 | `docs/SOURCE_LIFECYCLE.md` | 当前态 | 人 | 生命周期规则变更时 | 规则19 |
 | `docs/SOURCE_RETIREMENT.md` | 归档（退役记录） | 人 | 只追加，不改历史 | 规则19 |

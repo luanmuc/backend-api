@@ -1,3 +1,19 @@
+## 2026-11-21 · 新增 `docs/SOURCE_CAPABILITY.md`：13 源能力实测矩阵
+
+- 逐源逐档实测 46 组样本（13 源 × 平台 × 128k/320k/flac），对返回 URL 发 `Range: bytes=0-1023` 验真。可用 10 / 失效 3（`huibq` 503、`suyinQQ` 404、`suyinMigu` NOT_FOUND）。
+- 记录两处**音质虚标**：`juheTx`(tx) 与 `ikun`(wy) 的 flac 档实际返回 `audio/mpeg`。
+- 确认 `suyinKuwo` 是**按歌名搜索型**（`lx-source.js:2794` 无 platform 参数、缓存键固定 `"kw"`），实测三个不同平台 id 返回同一条 URL；其“5 平台”语义为兜底，非精确取链。
+- 记录 `xinghaiBackend` 三档全部 `302 → 206`，终点落 `bd-er.kuwo.cn`；证书正常（Let's Encrypt，`Verify return code: 0`）。
+- 记录 `PROBE_163_IDS`（`2652820720` / `347230`）与探测声明曲目（晴天/周杰伦）不符，实测分别返回「晴天(深情版)/Lucky小爱」与「海阔天空/Beyond」。
+- 附复现命令（单档用 `source-audit --quick --json`，多档用文档内附的临时 mock 脚本）。
+- 只新增文档，`lx-source.js` 产线与 `scripts/**` 零改动。
+
+## 2026-11-21 · 清空巡检与真机上报数据，重置观测基线
+
+- 删除 `docs/chain-sample.jsonl`、`docs/probe-history.jsonl`、`docs/device-digests.jsonl` 与 `docs/health-daily/`（33 份），同步清空 `lx-telemetry` 的 `digests/*.jsonl`。
+- 原因：历史数据横跨 b147~b185 五个 App 版本、两种采集口径，`PARAM_ERROR` 仅存于 b147/b156 却被算进当前状态（实测 48% 为跨版本混算产物）。
+- `scripts/docs-audit.js` 新增 `RUNTIME_DATA` 白名单，允许这四类运行时数据暂缺；只豁免正向检查，反向「存在但未登记」仍报红。清空后 `docs-audit` 硬失败由 1 转 0。
+
 ## 2026-11-21 · CI 并行化：审计门禁拆出 test-fast
 
 - `ci.yml`：把串在 `test-fast` 里的 5 个审计 step（L3 / L4 / L4.1 / L4.2 / L4.3，合计约 106s）拆成 `audit-a`（L3 + L4.1 + L4.2，本地实测 54s）与 `audit-b`（L4 + L4.3，实测 61s）两个并行 job，与 `test-fast` 同时跑。
