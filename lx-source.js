@@ -3183,7 +3183,7 @@ var __lxSourceBundle = (() => {
             continue;
           }
           if (!chain.length) {
-            const skipped = Object.keys(dep("SOURCE_HANDLERS")).map((id) => dep("SOURCE_HANDLERS")[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform) && h.chain[platform] != null).filter((h) => qualityRank(h.maxQuality) >= qualityRank(q)).map((h) => {
+            const skipped = Object.keys(dep("SOURCE_HANDLERS")).map((id) => dep("SOURCE_HANDLERS")[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform) && h.chain[platform] != null).filter((h) => qualityRank((h.maxQualityByPlatform && h.maxQualityByPlatform[platform]) || h.maxQuality) >= qualityRank(q)).map((h) => {
               const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
               return e.eligible ? null : { id: h.id, reason: e.reason, code: e.code, untilMs: e.untilMs };
             }).filter(Boolean);
@@ -3328,7 +3328,7 @@ var __lxSourceBundle = (() => {
       }
       function buildSourceChain(platform, quality) {
         const q = String(quality || "128k").toLowerCase();
-        const handlers = Object.keys(dep("SOURCE_HANDLERS")).map((id) => dep("SOURCE_HANDLERS")[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform)).filter((h) => h.chain[platform] != null).filter((h) => qualityRank(h.maxQuality) >= qualityRank(q)).map((h) => {
+        const handlers = Object.keys(dep("SOURCE_HANDLERS")).map((id) => dep("SOURCE_HANDLERS")[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform)).filter((h) => h.chain[platform] != null).filter((h) => qualityRank((h.maxQualityByPlatform && h.maxQualityByPlatform[platform]) || h.maxQuality) >= qualityRank(q)).map((h) => {
           const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
           if (!e.eligible) {
             if (LOG_DEBUG) logDebug(`[\u94FE] ${h.id} \u8DF3\u8FC7\uFF08${e.reason}${e.untilMs ? `\uFF0C\u81F3 ${e.untilMs}` : ""}\uFF09`);
@@ -3706,7 +3706,7 @@ var __lxSourceBundle = (() => {
       function countActiveQualitySources(platform, quality) {
         if (!platform) return 0;
         const q = String(quality || "128k").toLowerCase();
-        return Object.values(dep("SOURCE_HANDLERS")).filter((h) => h && h.lifecycle === "active" && h.platforms && h.platforms.includes(platform) && h.chain && h.chain[platform] != null && qualityRank(h.maxQuality) >= qualityRank(q)).length;
+        return Object.values(dep("SOURCE_HANDLERS")).filter((h) => h && h.lifecycle === "active" && h.platforms && h.platforms.includes(platform) && h.chain && h.chain[platform] != null && qualityRank((h.maxQualityByPlatform && h.maxQualityByPlatform[platform]) || h.maxQuality) >= qualityRank(q)).length;
       }
       module.exports = {
         tryCrossPlatformFallback,
@@ -3886,6 +3886,10 @@ var __lxSourceBundle = (() => {
           verified: !!opts.verified,
           coldStart: !!opts.coldStart,
           minQuality: opts.minQuality || null,
+          // 2026-11-21：同一源在不同平台的真实上限可以不同（ikun 实测 kw 到 flac、
+          // wy 只到 mp3）。maxQuality 保留全局声明供契约校验与上报，按平台的过滤
+          // 走 qualityCapFor()，否则「请求 flac 时把 wy 通道也选进候选」是虚的。
+          maxQualityByPlatform: opts.maxQualityByPlatform || null,
           note: opts.note || ""
         };
       }
@@ -4281,7 +4285,7 @@ var __lxSourceBundle = (() => {
           coldStart: true,
           note: "onrender\uFF1B**2026-11-16 \u8D77\u670D\u52A1\u88AB owner \u4E3B\u52A8\u6682\u505C**\uFF08503 \u300CThis service has been suspended by its owner.\u300D\uFF0C\u6839\u8DEF\u5F84\u540C\u6837 503\uFF0C0.8s \u5373\u8FD4\u56DE\uFF09\uFF1B11-04~11-15 \u8FDE\u7EED 12 \u5929 200 \u66FE\u5B8C\u5168\u53EF\u7528\uFF0C\u51B7\u542F\u52A8\u53EA\u89E3\u91CA 11-01~11-03 \u7684\u8FDE\u63A5\u8D85\u65F6"
         }),
-        juheTx: provider("juheTx", "Juhe\u805A\u5408(tx)", juheGetUrl, "flac", {
+        juheTx: provider("juheTx", "Juhe\u805A\u5408(tx)", juheGetUrl, "320k", {
           platforms: ["tx"],
           anchors: ["songmid", "musicId", "id"],
           chain: { tx: 3 },
@@ -4303,6 +4307,10 @@ var __lxSourceBundle = (() => {
           chain: { kw: 7, wy: 5 },
           upstreamGroup: "ikun",
           auth: PROVIDER_AUTH.OPTIONAL,
+          // 2026-11-21 实测：kw 到 flac，wy 只到 mp3（320k 档返 audio/mpeg）。
+          // 声明成统一 flac 会让 wy 的 flac 请求把 ikun 选进候选、必然降档，
+          // 上限虚高等于给用户一个假选项。
+          maxQualityByPlatform: { wy: "320k" },
           note: "\u516C\u76CA\u7248\u514D\u5361\u5BC6\uFF1B\u5361\u5BC6\u53EF\u9009"
         }),
         // ---- 观察源：2 个（probation，只探测、不进链） ----
@@ -6949,11 +6957,10 @@ var __lxSourceBundle = (() => {
         },
         "upstreamGroup": "juhe",
         "auth": "none",
-        "maxQuality": "flac",
+        "maxQuality": "320k",
         "qualitys": [
           "128k",
-          "320k",
-          "flac"
+          "320k"
         ],
         "coldStart": false,
         "reviewAt": "2026-11-19"

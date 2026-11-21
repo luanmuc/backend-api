@@ -41,7 +41,6 @@
         "huibq"
       ],
       "flac": [
-        "ikun",
         "suyinKuwo"
       ],
       "flac24bit": []
@@ -58,8 +57,7 @@
         "juheTx"
       ],
       "flac": [
-        "suyinKuwo",
-        "juheTx"
+        "suyinKuwo"
       ],
       "flac24bit": []
     },
