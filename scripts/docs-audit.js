@@ -385,8 +385,16 @@ function ruleDocIndex() {
   if (dirMiss.length) report.push(`🔴 [docs/DOC_INDEX.md] 自动生成目录未登记：${dirMiss.join(', ')}`);
   if (miss.length) report.push(`🔴 [docs/DOC_INDEX.md] ${miss.length} 个 docs 文件未登记：${miss.join(', ')}`);
   else report.push(`🟢 [docs/DOC_INDEX.md] docs 下 ${docs.length} 个文件全部登记`);
+  // 运行时数据文件：内容由 CI / 设备上报累积，允许整段时间为空（清空重置基线是合法操作）。
+  // 只豁免「登记了不存在」，不影响「存在但未登记」的反向检查。
+  const RUNTIME_DATA = [
+    'docs/health-daily/',
+    'docs/probe-history.jsonl',
+    'docs/chain-sample.jsonl',
+    'docs/device-digests.jsonl',
+  ];
   const stale = [...idx.matchAll(/^\| `(docs\/[^`]+)` \|/gm)].map((m) => m[1])
-    .filter((f) => dirRowOk(f) ? !docs.some((d) => d.startsWith(f)) : !docs.includes(f));
+    .filter((f) => RUNTIME_DATA.includes(f) ? false : (dirRowOk(f) ? !docs.some((d) => d.startsWith(f)) : !docs.includes(f)));
   if (stale.length) report.push(`🔴 [docs/DOC_INDEX.md] 登记了不存在的文件：${stale.join(', ')}`);
 }
 
