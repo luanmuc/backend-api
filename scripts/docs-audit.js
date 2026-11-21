@@ -283,6 +283,22 @@ function ruleReadmeCurrentVersion() {
   align('README.md', /内 `@version ([\d.]+)`/, () => `内 \`@version ${m[1]}\``, 'README 内 @version 标注');
 }
 
+// ── 规则 15b：README「当前版本」行的产物字节数 ↔ lx-source.js 实读 ──────
+// 背景：v9.1.6 里 K03 本体把产物推到 369670，同版又加 K31 标签解析 / 32KB 探针 /
+// flattenSongInfo / anchors-contract 入 npm test，产物两跳 369670→378819，
+// 但文档只停在第一跳，没任何门禁发现（规则 2/7/15 都不看字节数）。
+// 历史版本的字节数散落在同一行，故只锚定带 ** 加粗的当前值。
+function ruleReadmeArtifactSize() {
+  let size;
+  try {
+    size = execSync('wc -c < lx-source.js', { encoding: 'utf8', cwd: ROOT }).trim();
+  } catch (e) {
+    report.push('⚠️ 规则15b：读不到 lx-source.js 产物大小，跳过');
+    return;
+  }
+  align('README.md', /产物 \*\*(\d+) bytes\*\*/, () => `产物 **${size} bytes**`, 'README 当前版本行产物字节数');
+}
+
 // ── 规则 16：ci.yml 变异体数 ↔ MUTANTS 实读，且必须带 --strict ─────────
 function ruleMutationGate() {
   const r = read('test/mutation/run.js');
@@ -519,6 +535,7 @@ ruleCrossRepoAppDoc();
 ruleRoadmapVersion();
 ruleSourceAuditFacts();
 ruleReadmeCurrentVersion();
+ruleReadmeArtifactSize();
 ruleMutationGate();
 ruleMatrixCoverage();
 ruleReadThroughLedger();

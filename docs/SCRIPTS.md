@@ -34,7 +34,7 @@
 | 脚本 | 职责 | 触发 | 副作用 |
 |---|---|---|---|
 | `self-check.js` (128) | 发布自检门 L2：`@version` ↔ logInfo 串、各平台 actions 声明、README/ROADMAP 三向同步 | 手动 / CI | 只读 + 报错退出 |
-| `docs-audit.js` (544) | 文档一致性 L4：23 条规则（新增规则23：v9-gate 分组完整性），可自动修数字/版本/行数/脚本清单 | CI 每日 / `--dry-run` | **默认会改文档**；`--dry-run` 只报告 |
+| `docs-audit.js` (561) | 文档一致性 L4：23 条规则（新增规则23：v9-gate 分组完整性），可自动修数字/版本/行数/脚本清单 | CI 每日 / `--dry-run` | **默认会改文档**；`--dry-run` 只报告 |
 | `layer-check.js` (92) | 分层依赖检查：core 模块无环、不反向 require legacy、无同名顶层定义、不直读 globalThis.lx | `v9-gate --group fast/core` | 只读 |
 | `cross-repo-version.js` (55) | 跨仓版本闸门：用 App 的 `HEADER_VERSION_LINE_REGEX` 真实解析源仓产物，断言产物版本 = legacy 版本、形态合法、App 内置源不高于源仓 | `v9-gate --group core` | 只读 |
 | `schema-parity.js` (48) | probe/telemetry 同 schema 校验：源仓 probeRequests/probeSuccess/totalRequests/totalSuccess ↔ App DigestSourceCount{total,ok}，顶层 probe/play/chain/schema 齐备 | `v9-gate --group core` | 只读 |
