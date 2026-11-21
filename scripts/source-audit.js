@@ -81,6 +81,16 @@ if (!QUICK) for (const k of Object.keys(mod.runtimeToggles)) mod.runtimeToggles[
 // 两个巡检用不同的歌，结论无法互相对照。
 const { songOf, idOf } = require('./lib/probe-songs.js');
 
+// v9.2：kwplay 直链判定只看 origin+path。旧实现在整串 URL 上搜 `kwplay`，
+// 而酷我 CDN 直链带 `source$kwplayerhd_ar_1.1.4.5_...` 参数，于是 helloworldKw /
+// changqingVip / ikun 返回的普通 CDN 链接全被判成"kwplay 直链"跳过 Range 验真——
+// 实测 2026-11-21 这三源出链抽样长期 playable=skipped，等于从未被验证过。
+function isKwPlayDirect(rawUrl) {
+  let needle = String(rawUrl);
+  try { const u = new URL(needle); needle = u.origin + u.pathname; } catch {}
+  return /\.php$|kwplay/.test(needle);
+}
+
 function rangeCheck(url) {
   return new Promise((resolve) => {
     if (!url || !/^https?:\/\//.test(String(url))) return resolve('NO_URL');
@@ -121,23 +131,27 @@ if (require.main === module) (async () => {
       if (h.lifecycle === 'probation') continue;
       if (mod.runtimeToggles[h.id] !== true) continue;
       if (ONLY && !(h.platforms || []).includes(ONLY)) continue;
-      const plat = ONLY || (h.platforms || [])[0];
-      const song = songOf(plat);
-      if (!song) continue;
-      const idVal = idOf(plat);
-      const t0 = Date.now();
-      try {
-        const url = await h.fn(plat, idVal, '128k', song);
-        const host = (String(url).match(/^(https?:\/\/[^/]+)/) || [, ''])[1];
-        let playable = '';
-        // B03-012：.php / kwplay 直链不做 Range 校验，但原来留空串，读起来像「未校验=不可播」。
-        // 显式标 skipped，避免假绿/假红两边误解。
-        if (/^https?:\/\//.test(String(url))) playable = /\.php|kwplay/.test(String(url)) ? 'skipped' : await rangeCheck(String(url));
-        rows.push({ src: h.id, plat, ok: true, code: 'OK', host, playable, ms: Date.now() - t0 });
-      } catch (e) {
-        const msg = String((e && e.message) || e);
-        const code = (msg.match(/^([A-Z_]+):/) || [, 'ERR'])[1];
-        rows.push({ src: h.id, plat, ok: false, code, msg: msg.slice(0, 100), ms: Date.now() - t0 });
+      // v9.2：多平台源必须逐平台各测一条。旧实现只取 platforms[0]，
+      // 而 suyinKuwo 声明 kw/wy/tx/mg/kg、在 tx:1/mg:1/kg:1 都是链首位，
+      // 这三个平台的首选源此前从未被巡检覆盖（实测 2026-11-21）。
+      for (const plat of (ONLY ? [ONLY] : (h.platforms || []))) {
+        const song = songOf(plat);
+        const idVal = idOf(plat);
+        if (!song || !idVal) continue;
+        const t0 = Date.now();
+        try {
+          const url = await h.fn(plat, idVal, '128k', song);
+          const host = (String(url).match(/^(https?:\/\/[^/]+)/) || [, ''])[1];
+          let playable = '';
+          // B03-012：.php / kwplay 直链不做 Range 校验，但原来留空串，读起来像「未校验=不可播」。
+          // 显式标 skipped，避免假绿/假红两边误解。
+          if (/^https?:\/\//.test(String(url))) playable = isKwPlayDirect(String(url)) ? 'skipped' : await rangeCheck(String(url));
+          rows.push({ src: h.id, plat, ok: true, code: 'OK', host, playable, ms: Date.now() - t0 });
+        } catch (e) {
+          const msg = String((e && e.message) || e);
+          const code = (msg.match(/^([A-Z_]+):/) || [, 'ERR'])[1];
+          rows.push({ src: h.id, plat, ok: false, code, msg: msg.slice(0, 100), ms: Date.now() - t0 });
+        }
       }
     }
     if (JSON_OUT) realLog(JSON.stringify({ checkedAt: new Date().toISOString(), total: rows.length, ok: rows.filter(r => r.ok).length, rows }, null, 2));
@@ -163,7 +177,7 @@ if (require.main === module) (async () => {
         const host = (String(url).match(/^(https?:\/\/[^/]+)/) || [, ''])[1];
         let playable = '';
         // 二次可播校验（识破"接口 200 但 CDN 死链"）
-        if (/^https?:\/\//.test(String(url)) && !/\.php|kwplay/.test(String(url))) {
+        if (/^https?:\/\//.test(String(url)) && !isKwPlayDirect(String(url))) {
           playable = await rangeCheck(String(url));
         }
         rows.push({ src: h.id, plat, ok: true, code: 'OK', host, playable, ms: Date.now() - t0 });

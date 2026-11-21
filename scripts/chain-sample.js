@@ -47,6 +47,9 @@ function main() {
     code: r.code || (r.ok ? 'OK' : 'ERR'),
     playable: r.playable || '',
     ms: Number(r.ms) || 0,
+    // v9.2：保留上游原文。旧实现只留 code，实测 helloworldKw 连续五天 NOT_FOUND
+    // 却无法判断是"接口没返回"还是"链接不可播"——归因靠猜。
+    msg: r.msg ? String(r.msg).replace(/\s+/g, ' ').slice(0, 100) : '',
   }))
   if (!rows.length) throw new Error('出链抽样 0 行——source-audit --quick 没有返回任何源')
 

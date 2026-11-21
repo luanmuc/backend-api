@@ -128,6 +128,8 @@ function writeHistory(results) {
         ...(r.payload === undefined ? {} : { payload: r.payload }),
         // 仅试听：端点可用但交付会被验真拦截（见 runPayloadCheck 注释），单独留痕供日报单列
         ...(r.fragment ? { fragment: true, dur: r.dur, expect: r.expect } : {}),
+        // v9.2：高档位降档留痕（声明 flac 却拿到 audio/mpeg），供日报单列
+        ...(r.qualityMismatch && r.qualityMismatch.length ? { qualityMismatch: r.qualityMismatch } : {}),
       });
     }
   }
@@ -288,14 +290,18 @@ function parseDurationFromHead(rawBuf) {
   return null;
 }
 
-async function rangeOk(audioUrl, expectSec) {
+async function rangeOk(audioUrl, expectSec, expectQuality) {
   if (!audioUrl || !/^https?:\/\//.test(String(audioUrl))) return { state: 'NO_URL' };
   const probe = async () => {
     const r = await payloadFetch(String(audioUrl).replace(/^http:/, 'https:'), { headers: { Range: 'bytes=0-1023' } });
     const ct = String((r.headers || {})['content-type'] || '');
     const playable = r.statusCode === 206 || (r.statusCode === 200 && /audio|octet|mpeg|flac/i.test(ct));
+    // v9.2：206 也要看内容类型。旧实现只认状态码，flac 请求收到 audio/mpeg 照样判 PLAYABLE ——
+    // 实测 juheTx(tx) 与 ikun(wy) 的 flac 档都返回 audio/mpeg，巡检此前完全看不到这类降档。
+    // 只对 flac 档判，因为 128k/320k 同为 audio/mpeg 无法从 content-type 区分，强判会制造误报。
+    const downgraded = expectQuality === 'flac' && /audio\/mpeg|audio\/mp3|audio\/aac/i.test(ct);
     // v8.11：同一份字节顺手算真实时长（零额外流量）
-    return { playable, status: r.statusCode, dur: parseDurationFromHead(r.rawBuf) };
+    return { playable, status: r.statusCode, ct, downgraded, dur: parseDurationFromHead(r.rawBuf) };
   };
   let r = await probe();
   // v8.5：429/503 是上游 QPS 限流（尤其星海后端 kwplay 链），退避后重试一次；不算死链
@@ -304,12 +310,13 @@ async function rangeOk(audioUrl, expectSec) {
     r = await probe();
     if (!r.playable && (r.status === 429 || r.status === 503)) return { state: 'THROTTLED' };
   }
-  if (!r.playable) return { state: 'DEAD' };
+  if (!r.playable) return { state: 'DEAD', ct: r.ct };
+  if (r.downgraded) return { state: 'QUALITY_MISMATCH', dur: r.dur, ct: r.ct };
   // v8.11：能播 + 只有几秒 = 试听片段（实测酷我 VIP 歌统一 84972 字节 / 5.3 秒，206 全绿骗过状态码判定）
   if (r.dur && expectSec && expectSec >= 90 && r.dur / expectSec < 0.6 && expectSec - r.dur > 15) {
-    return { state: 'FRAGMENT', dur: r.dur };
+    return { state: 'FRAGMENT', dur: r.dur, ct: r.ct };
   }
-  return { state: 'PLAYABLE', dur: r.dur };
+  return { state: 'PLAYABLE', dur: r.dur, ct: r.ct };
 }
 
 // 每个取链型端点的真实调用 —— v9.1.4 起**直接调用源自己的 provider**。
@@ -332,30 +339,43 @@ const PAYLOAD_CHECKS = [
 async function runPayloadCheck(endpointUrl, liveMod) {
   const c = PAYLOAD_CHECKS.find(x => endpointUrl.includes(x.key));
   if (!c) return null;
-  try {
-    const song = songOf(c.plat);
-    const id = idOf(c.plat);
-    if (!song || !id) return { ok: false, reason: 'PAYLOAD_NO_SONG' };
-    // 取链走源自己的 provider（与 App 内置音源同一份实现）
-    const url = await resolveUrl(liveMod, { src: c.src, plat: c.plat, quality: '128k', id, song });
-    const expect = c.expectSec || EXPECT_SEC;
-    const { state, dur } = await rangeOk(url, expect);
-    if (state === 'PLAYABLE') return { ok: true, reason: 'OK', dur };
-    // v9.1.4（2026-11-20 用户口径）：只出试听片段**不是故障**。音源本体的交付验真
-    // （src/core/15-verify.js 的 PREVIEW_FRAGMENT + 3KB/s 体积下界）会拦下片段并继续换源，
-    // 用户根本听不到；巡检再把它记成"失败"只会每天刷一条假告警（实测 juheTx 对 VIP《晴天》
-    // 稳定返回 60.1s / 960887B，而它上游对 10 首免费歌全部 NOT_FOUND —— 换歌只会更糟）。
-    // 判"可用但受限"，单独标注实际时长，交给日报的「仅试听」段。
-    if (state === 'FRAGMENT') return { ok: true, fragment: true, reason: 'PAYLOAD_FRAGMENT', dur, expect };
-    if (state === 'THROTTLED') return { ok: true, reason: 'PAYLOAD_THROTTLED' }; // 限流非死链，不误判
-    return { ok: false, reason: 'PAYLOAD_DEAD' };
-  } catch (e) {
-    // 源自己的失败码（NOT_FOUND / SERVER_ERROR / NETWORK_ERROR / …）直接透传，
-    // 比笼统的 PAYLOAD_ERR 有诊断价值：一眼能看出是源不认这首歌，还是网络/上游挂了。
-    const msg = String((e && e.message) || e);
-    const code = (msg.match(/^([A-Z_]+)[:：]/) || [])[1];
-    return { ok: false, reason: code ? `PAYLOAD_${code}` : 'PAYLOAD_ERR' };
+  const song = songOf(c.plat);
+  const id = idOf(c.plat);
+  if (!song || !id) return { ok: false, reason: 'PAYLOAD_NO_SONG' };
+  // v9.2：逐档抽测。旧实现把 quality 写死 '128k'，声明了 320k/flac 的源高档位从未被验证 ——
+  // 实测 juheTx(tx) 与 ikun(wy) 的 flac 档交付 audio/mpeg，巡检此前恒绿。
+  // 主结论仍以 128k 为准（用户最终听到的保底档），高档只补充 qualityMismatch 标记。
+  const maxQ = (liveMod.SOURCE_HANDLERS && liveMod.SOURCE_HANDLERS[c.src] && liveMod.SOURCE_HANDLERS[c.src].maxQuality) || '128k';
+  const qualities = maxQ !== '128k' ? ['128k', maxQ] : ['128k'];
+  const probes = [];
+  for (const q of qualities) {
+    try {
+      // 取链走源自己的 provider（与 App 内置音源同一份实现）
+      const url = await resolveUrl(liveMod, { src: c.src, plat: c.plat, quality: q, id, song });
+      const expect = c.expectSec || EXPECT_SEC;
+      const { state, dur, ct } = await rangeOk(url, expect, q);
+      probes.push({ q, state, dur, ct });
+    } catch (e) {
+      // 源自己的失败码（NOT_FOUND / SERVER_ERROR / NETWORK_ERROR / …）直接透传，
+      // 比笼统的 PAYLOAD_ERR 有诊断价值：一眼能看出是源不认这首歌，还是网络/上游挂了。
+      const msg = String((e && e.message) || e);
+      const code = (msg.match(/^([A-Z_]+)[:：]/) || [])[1];
+      probes.push({ q, state: 'ERR', code });
+    }
   }
+  const base = probes.find(p => p.q === '128k') || { state: 'ERR' };
+  const qualityMismatch = probes.filter(p => p.q !== '128k' && p.state === 'QUALITY_MISMATCH').map(p => ({ q: p.q, ct: p.ct }));
+  const extra = { probes, qualityMismatch };
+  if (base.state === 'PLAYABLE') return { ok: true, reason: 'OK', dur: base.dur, ...extra };
+  // v9.1.4（2026-11-20 用户口径）：只出试听片段**不是故障**。音源本体的交付验真
+  // （src/core/15-verify.js 的 PREVIEW_FRAGMENT + 3KB/s 体积下界）会拦下片段并继续换源，
+  // 用户根本听不到；巡检再把它记成"失败"只会每天刷一条假告警（实测 juheTx 对 VIP《晴天》
+  // 稳定返回 60.1s / 960887B，而它上游对 10 首免费歌全部 NOT_FOUND —— 换歌只会更糟）。
+  // 判"可用但受限"，单独标注实际时长，交给日报的「仅试听」段。
+  if (base.state === 'FRAGMENT') return { ok: true, fragment: true, reason: 'PAYLOAD_FRAGMENT', dur: base.dur, expect: c.expectSec || EXPECT_SEC, ...extra };
+  if (base.state === 'THROTTLED') return { ok: true, reason: 'PAYLOAD_THROTTLED', ...extra }; // 限流非死链，不误判
+  if (base.state === 'ERR') return { ok: false, reason: base.code ? `PAYLOAD_${base.code}` : 'PAYLOAD_ERR', ...extra };
+  return { ok: false, reason: 'PAYLOAD_DEAD', ...extra };
 }
 
 // ---- 单端点探测（GET + Range 0-1023，4s 超时，失败重试 1 次）----
@@ -504,7 +524,11 @@ if (require.main === module) (async () => {
     const p = await runPayloadCheck(u, liveMod);
     if (!p) return rep;
     if (!p.ok) return { ...rep, ok: false, reason: p.reason, payload: false };
-    return { ...rep, payload: true, ...(p.fragment ? { fragment: true, dur: p.dur, expect: p.expect } : {}) };
+    return {
+      ...rep, payload: true,
+      ...(p.fragment ? { fragment: true, dur: p.dur, expect: p.expect } : {}),
+      ...(p.qualityMismatch && p.qualityMismatch.length ? { qualityMismatch: p.qualityMismatch } : {}),
+    };
   }), CONCURRENCY);
   // v9.1.4：param 类端点（真实调用必须带参）的裸探测 2xx **不代表**真实可用——
   // 带 {id}/{level} 模板的 URL 会被服务器当普通请求返回 200/302（实测两例），
@@ -583,10 +607,16 @@ if (require.main === module) (async () => {
     const reg = registryByUrl().get(r.url);
     if (reg && reg.kind === 'param') tag = '⚪ 不适用（需带参）';
     else if (r.fragment) tag = `🟡 可用（仅试听 ${r.dur || '?'}s / ${r.expect || EXPECT_SEC}s）`;
+    // v9.2：高档位降档但仍可播（实测 juheTx(tx)/ikun(wy) flac 档交付 audio/mpeg）。
+    // 不判失败，也不给绿——低档用户完全无感，高档用户听到的不是他要的档位。
+    else if (r.qualityMismatch && r.qualityMismatch.length) tag = `🟡 可用（${r.qualityMismatch.map(m => m.q).join('/')} 档实返非无损）`;
     // 仅试听不写 PAYLOAD_FRAGMENT 这种内部码，写人话并点明由谁兜底
+    const mismatchNote = r.qualityMismatch && r.qualityMismatch.length
+      ? `${r.qualityMismatch.map(m => `${m.q} 档实返 ${m.ct || '非无损'}`).join('；')}；交付验真会按实际 format 回填档位`
+      : '';
     const reason = r.fragment
-      ? `仅试听 ${r.dur || '?'}s（应 ${r.expect || EXPECT_SEC}s）；交付验真会拦截并换源`
-      : (r.reason.length > 40 ? r.reason.slice(0, 40) + '…' : r.reason);
+      ? `仅试听 ${r.dur || '?'}s（应 ${r.expect || EXPECT_SEC}s）；交付验真会拦截并换源${mismatchNote ? '；' + mismatchNote : ''}`
+      : (mismatchNote || (r.reason.length > 40 ? r.reason.slice(0, 40) + '…' : r.reason));
     // param 端点不参与可用判定，成功率/可用天也不再展示——否则 `music.163.com/song/media/outer`
     // 会以「100%（36/36 次）」出现在表里，与它同一行的「⚪ 不适用」直接矛盾，读者只会记住那个 100%。
     const isParamRow = !!(reg && reg.kind === 'param');

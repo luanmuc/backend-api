@@ -161,6 +161,24 @@ node _matrix.js; rm -f _matrix.js
 
 `xinghaiBackend` 不在待修列表内：证书正常（Let's Encrypt，`Verify return code: 0`），三档实测全部可出链。
 
+### 9.1 修复进度
+
+**阶段 1（2026-11-21，已完成，只动 `scripts/**`）**
+
+| 项 | 状态 | 验证 |
+|---|---|---|
+| 多平台源逐平台测（原只测 `platforms[0]`） | 已修 | `--quick` 由 11 → 15 行，`suyinKuwo` 五平台各一行 |
+| payload 按 `maxQuality` 逐档抽测 | 已修 | `probe --reps=1` 抓到 `api.music.lerd.dpdns.org` 的 `flac 档实返 audio/mpeg` |
+| 可播判定纳入 content-type | 已修 | 新增 `QUALITY_MISMATCH` 态，`README_HEALTH` 显示「flac 档实返 audio/mpeg」 |
+| `chain-sample` 保留上游 `msg` | 已修 | 产出记录含 `msg` 字段 |
+| `kwplay` 直链判定误伤（整串匹配） | 已修 | `helloworldKw`/`changqingVip`/`ikun` 由 `playable=skipped` 转 206 |
+
+**阶段 2（未开始，需动 App 仓）**：digest 加音质维度、加 `sourceVersion`、`recent_events` 窗口去重。
+
+**阶段 3（未开始，需动产物与升版本）**：`suyinKuwo` 首位策略、`ikun` 按平台拆 `qualitys`、`juheTx` flac 降档校验、`PROBE_163_IDS` 换 id。
+
+**阶段 4（未开始）**：`huibq` / `suyinQQ` / `suyinMigu` 退役与复核。
+
 ---
 
 > 本文件为实测快照，源侧接口随时可能变化。复测请按 §8 重跑后更新本文件，不要凭本文件断言当前可用性。

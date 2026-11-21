@@ -9,7 +9,7 @@
 历史快照 `e9a2259`（v8.16.1 时期）；当前工作区 **v9.1.2**（HEAD `ddbcc44`，本地提交未推送），产物 `lx-source.js` **7,101 行 / `@version 9.1.2`**、`package.json` 9.1.1
 
 > 复核说明（2026-11-19）：`src/core/` 33 个模块的逐文件结论已由占位符补为实测结论（职责 + 导出面 + 已知缺陷编号）；文件数/总行数按当前 HEAD 实测刷新。
-文件数：**189**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**56197**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**189**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**56277**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -64,7 +64,7 @@
 | `docs/AUDIT_MATRIX.md` | 260 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/AUDIT_PLAN_v10.md` | 275 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 2019 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 180 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 195 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 561 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -101,12 +101,12 @@
 | `scripts/hooks/pre-push` | 16 | 全文 | 推送前拦截 |
 | `scripts/hooks/prepare-commit-msg` | 13 | 全文 | 只打印摘要，不阻断（SCRIPTS.md 描述错） |
 | `scripts/install-hooks.sh` | 8 | 全文 | 安装三个 hook |
-| `scripts/probe.js` | 746 | 全文 | 写 README/README_HEALTH/history 三处；`parseDurationFromHead` 与 lx-source 双份实现 |
+| `scripts/probe.js` | 776 | 全文 | 写 README/README_HEALTH/history 三处；`parseDurationFromHead` 与 lx-source 双份实现 |
 | `scripts/recheck-candidates.js` | 202 | 全文 | 候选复检写 candidate-status |
 | `scripts/self-check.js` | 128 | 全文 | README 只查 `includes('v8.11.1')` → 当前版本行过期不被拦 |
 | `scripts/pull-device-digests.js` | 87 | 全文 | 匿名 API 403 时降级 0 行不阻断；只读公开仓，不写 telemetry |
-| `scripts/chain-sample.js` | 74 | 全文 | 只抽样启用源 1 首；失败不阻断（`--strict` 才红）；30 天滚动按 date+src 覆盖 |
-| `scripts/source-audit.js` | 212 | 全文 | 35 组逐源取链；`rangeCheck` 不解析时长 → 片段判可播 |
+| `scripts/chain-sample.js` | 77 | 全文 | 只抽样启用源 1 首；失败不阻断（`--strict` 才红）；30 天滚动按 date+src 覆盖 |
+| `scripts/source-audit.js` | 226 | 全文 | 35 组逐源取链；`rangeCheck` 不解析时长 → 片段判可播 |
 | `scripts/source-toggles.js` | 129 | 全文 | 剥注释+配平+行内多键；20 键 |
 | `test/audit/a-static.js` | 260 | 断言 | 10 条（A2~A7/B1~B6）；实跑 11/0 |
 | `test/audit/tg-truth.js` | 136 | 断言 | 7 条（G1/G2/G3/G4/G9/G13/G14）；实跑 7/0 |
@@ -196,7 +196,7 @@
 |---|---|---|---|
 | `scripts/dump-chain.js` | 75 | 全文 | 5×4 链序 golden 生成器，只导出 active；写完退出 |
 | `test/fixtures/chain-golden.json` | 91 | 全文 | v8.13.0 10 源 5×4 链序基线，Y9 逐项比对 |
-| `docs/SOURCE_CAPABILITY.md` | 166 | 全文 | 13 源能力实测矩阵与适配要求 |
+| `docs/SOURCE_CAPABILITY.md` | 184 | 全文 | 13 源能力实测矩阵与适配要求 |
 | `docs/SOURCE_LIFECYCLE.md` | 76 | 全文 | 当前态治理文档 |
 | `docs/SOURCE_REGISTRY.md` | 83 | 全文 | 当前态治理文档 |
 | `docs/SOURCE_RETIREMENT.md` | 108 | 全文 | 当前态治理文档 |
