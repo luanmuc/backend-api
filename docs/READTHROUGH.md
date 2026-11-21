@@ -120,6 +120,7 @@
 | `test/audit/q-dfix.js` | 142 | 断言 | 5 条：Q1 D-04 half-open 遇 429 收口回 open（删收口段立刻红）；Q2 closed 态 429 只退避不熔断；Q3（v8.11.3）D-01 toggle 开启后失败缓存失效，先红后绿；Q4 D-08 单链悬挂源预算内超时；Q5（v8.11.4，F-01）星海后端缺 songmid 必须 PARAM_ERROR，先红后绿；实跑 5/0 |
 | `test/audit/q2-dseries.js` | 84 | 断言 | 3 条：R1 D-06 布尔键 `??` 语义、R2 D-05 真键可写/死键忽略、R3 D-26 mg 链不含星海备；三条注入回退均变红，还原后 sha 一致 |
 | `test/audit/anchors-contract.js` | 154 | 断言 | 4 条判据（必须显式声明 / `[]` 源不因缺 id 报错 / 声明非空须逐键验证 / 巡检样本带齐平台并集）；mock 宿主直投 `ECONNREFUSED`，负向注入 `huibq` 加回 `rid` 立即 13→12/1；实跑 13/0 + 5/5 |
+| `test/audit/force-probe-contract.js` | 123 | 断言 | FP1~FP10（已知源 ok/写入立即到期/不动 breaker；未知源 resolve `{ok:false,UNKNOWN_SOURCE}` 不 reject；缺 id reject `PARAM_ERROR`；默认 flac 与大写归一）；红绿双向：产物改回 reject → FP4/FP5 立即红；实跑 10/0 |
 | `test/audit/n-fixes.js` | 158 | 断言 | 4 条（F13-a/F13-b/F12/F10 推断变实测）；先红 0/4 → 修后 4/0 |
 | `test/audit/quality-truth.js` | 123 | 断言 | 9 条（QT-1~QT-9：m4a/ogg 按总字节+时长估码率、wav→flac、未知总字节保留请求档、1KB Range 探针不得当全文件、200 全量响应采用 content-length、estimated/unknown 置信度）；实跑 9/0 |
 | `test/audit/quality-policy-v2.js` | 214 | 断言 | 8 条（QP1~QP8：能力备档不续期、reason TTL、到期探路、超时不短路、确定性短路、429 退避、旧快照兼容）；实跑 8/0 |
@@ -266,7 +267,7 @@
 | `src/core/00-host.js` | 11 | 逐行 | 宿主绑定唯一入口：`globalThis.lx` 全仓仅此一处读取，导出 `EVENT_NAMES/request/on/send/utils/env/version`；拆包后成为唯一注入点 |
 | `src/core/01-log.js` | 20 | 逐行 | console 宿主防御（官方移动版不保证有 console，缺失时降级空函数）+ 三档日志 `logInfo/logWarn/logDebug`；`logEnabled`/`logDebug` 走 `__lxSourceConfig`，默认 info 开、debug 关 |
 | `src/core/02-config.js` | 96 | 逐行 | `USER_CONFIG` 40 键 + `cfg()` 运行参数读取 + 探测歌单归一化（≤20 字、去重、上限 12）；`SOURCE_VERSION` 构建期 define 注入、非 bundle 回退 8.16.4；**`cfg` 仍用 `||` 读数值 → 配置 0 被默认值吞（B02-002，D-35 只修验真族）** |
-| `src/core/02-error-codes.js` | 32 | 逐行 | 18 个对外错误码（E0 直接校验）；`PLAYBACK_FAILED` 为 v8.16.3 新升一等码（本地拦截，禁止记账/失败缓存/跨平台惩罚）；`BUDGET_EXHAUSTED` 独立成码不计源健康 |
+| `src/core/02-error-codes.js` | 35 | 逐行 | 19 个对外错误码（E0 直接校验）；`UNSUPPORTED_ACTION` 为 R71d 新增的**业务否定码**（源存在但不支持该 action，上层据此走 miss 而非 failed）；`PLAYBACK_FAILED` 为 v8.16.3 新升一等码（本地拦截，禁止记账/失败缓存/跨平台惩罚）；`BUDGET_EXHAUSTED` 独立成码不计源健康 |
 | `src/core/03-events.js` | 124 | 逐行 | 健康事件环形缓冲 + 字段白名单/隐私正则校验 + trace 挂载（`HEALTH_TRACE_KEY`）；`assertEventFieldPolicy()` 的加载即守留在 legacy 原地以保加载顺序；**淘汰用线性 `findIndex` → 容量上限内 O(n²)（B02-009）** |
 | `src/core/04-cancel.js` | 69 | 逐行 | 协作式取消令牌（QuickJS 无 AbortController）：`cancel()` 幂等、`onCancel` 对已取消即时回调、`raceWithCancel` 保证竞速输家立即 CANCELED 且不再占预算/写健康账 |
 | `src/core/05-verdict.js` | 173 | 逐行 | 错误码→提示（`CODE_HINT`）/失败缓存 TTL（`FAIL_CACHE_TTL_BY_CODE`）/排序（`CODE_RANK`）、`ADMISSION_POLICY` 交付性与记账裁决、`crossFallbackPolicy` + `CROSS_NO_FALLBACK_CODES` 跨平台兜底判据 |

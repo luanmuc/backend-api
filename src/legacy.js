@@ -929,16 +929,29 @@ on(EVENT_NAMES.request, ({ action, source, info }) => {
   }
   if (action === "forceQualityProbe") {
     // v8.14.1（K07）：源侧强制探路，只解除一次档位短路；不改 breaker/健康账本。
+    // R71：未知源不再 reject——业务否定不是协议错误，且 reject 会让 34-breaker-state 的
+    //     `!SOURCE_HANDLERS[id]` 守卫永远是死代码（请求根本走不到那里）。
+    // R71d：补显式 code。此前语义靠「返回值里没有 error 字段」承载，任何人给这里补个
+    //     error 就会让上层归因从 miss 翻成 failed；现在由 code === UNSUPPORTED_ACTION 明说。
     const id = info && (info.sourceId || info.id);
-    if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
+    if (!id) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: missing source id`));
     const q = String((info && info.quality) || "flac").toLowerCase();
-    return Promise.resolve({ ok: forceQualityProbe(id, q), id, quality: q });
+    const ok = forceQualityProbe(id, q);
+    return Promise.resolve(ok
+      ? { ok: true, id, quality: q }
+      : { ok: false, id, quality: q, code: ERROR_CODES.UNSUPPORTED_ACTION, reason: "UNKNOWN_SOURCE" });
   }
   if (action === "reportPlayback") {
     // v8.14：真实播放回传。这是 playDead 的唯一“真实播放失败”入口；
     // App 播放器启动/失败/成功时调用，源侧不再把取链 HTTP 失败当播放失败。
     const id = info && (info.sourceId || info.source);
-    if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
+    if (!id) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: missing source id`));
+    if (!SOURCE_HANDLERS[id]) {
+      // R71e：未知源是业务否定，不记账、不写 playDead，也不 reject。
+      // 切换/卸载音源后播放器残留的播放回传会命中这里；reject 只会让包装层打一条
+      // 裸 console 噪音，用户侧什么也看不到（service.ts:75 早已静默 catch）。
+      return Promise.resolve({ ok: false, id, code: ERROR_CODES.UNSUPPORTED_ACTION, reason: "UNKNOWN_SOURCE" });
+    }
     const quality = (info && info.quality) || "128k";
     const ok = !!(info && info.ok === true);
     if (ok) {

@@ -288,8 +288,8 @@ const heap = () => { if (typeof global.gc === 'function') global.gc(); return pa
     // CODE_HINT 只有 3 条（PREVIEW_FRAGMENT/NOT_AUDIO/STREAM_PLAYLIST），是对最需要解释的 3 个码的补充说明，
     // 不是 14 码全表——14 个码的对外值本身就是稳定的英文标识，App 按 code 分类、按 message 展示。
     rec('T8', `${codes.length} 个错误码对外值齐备；网络/业务两类真实注入都带 code`,
-      // v8.16.3：PLAYBACK_FAILED 升为一等码后总数 17→18（与 r-admission A20 同步）
-      codes.length === 18 && vals.every(v => typeof v === 'string' && v.length > 0) && !!got.net && !!got.biz,
+      // R71d：新增 UNSUPPORTED_ACTION（业务否定码）后 18→19（与 api-surface E0 快照同步）
+      codes.length === 19 && vals.every(v => typeof v === 'string' && v.length > 0) && !!got.net && !!got.biz,
       `网=${got.net} 业务=${got.biz} 码数=${codes.length}`);
   }
 

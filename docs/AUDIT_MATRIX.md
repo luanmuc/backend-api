@@ -72,6 +72,7 @@
 | `test/audit/q-dfix.js` | 142 | .js | — | — | ✓ | — | ✓ | — | ✓ | Q1~Q5/D-01/D-04/F-01 |
 | `test/audit/q2-dseries.js` | 84 | .js | — | — | ✓ | — | ✓ | — | ✓ | R1~R3/D-05/D-06/D-26 |
 | `test/audit/anchors-contract.js` | 154 | .js | — | — | ✓ | — | ✓ | — | ✓ | A1~A4 四条判据 + 逐键验证 + 并集覆盖 |
+| `test/audit/force-probe-contract.js` | 123 | .js | — | — | ✓ | — | ✓ | — | ✓ | FP1~FP10：`forceQualityProbe` action 契约（未知源 resolve 不 reject / 缺 id reject / 写入立即到期 / 不动 breaker） |
 | `test/audit/n-fixes.js` | 158 | .js | — | — | ✓ | ✓ | ✓ | — | ✓ | N1~N4/X (新增) |
 | `test/audit/quality-truth.js` | 123 | .js | — | — | ✓ | — | ✓ | — | ✓ | QT-1~QT-9 音质真实标签（m4a/ogg/wav/Range/200 全量/置信度） |
 | `test/audit/quality-policy-v2.js` | 214 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | QP1~QP8 音质策略 P0/P1（ceiling TTL / definitiveFail / 短路口径 / 旧快照兼容） |

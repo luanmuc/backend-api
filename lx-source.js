@@ -196,6 +196,9 @@ var __lxSourceBundle = (() => {
         // v8.16.3（R-13）：本地拦截码——源/档位正在摘除期，或半开名额已被占用。
         // 它不是上游失败（请求根本没发出去），因此禁止记账、禁止写失败缓存、禁止触发跨平台重搜惩罚。
         PLAYBACK_FAILED: "PLAYBACK_FAILED",
+        // R71d：业务否定码——源存在但不支持该 action（如 forceQualityProbe 收到未注册源）。
+        // 与「协议错误」相对：它不是调用失败，是「这个能力这儿没有」，上层应显示 miss 而不是 failed。
+        UNSUPPORTED_ACTION: "UNSUPPORTED_ACTION",
         CANCELED: "CANCELED"
         // v8.13：竞速输家/预算耗尽后的协作式取消
       };
@@ -6522,13 +6525,17 @@ var __lxSourceBundle = (() => {
         }
         if (action === "forceQualityProbe") {
           const id = info && (info.sourceId || info.id);
-          if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
+          if (!id) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: missing source id`));
           const q = String(info && info.quality || "flac").toLowerCase();
-          return Promise.resolve({ ok: forceQualityProbe(id, q), id, quality: q });
+          const ok = forceQualityProbe(id, q);
+          return Promise.resolve(ok ? { ok: true, id, quality: q } : { ok: false, id, quality: q, code: ERROR_CODES.UNSUPPORTED_ACTION, reason: "UNKNOWN_SOURCE" });
         }
         if (action === "reportPlayback") {
           const id = info && (info.sourceId || info.source);
-          if (!id || !SOURCE_HANDLERS[id]) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: unknown source id`));
+          if (!id) return Promise.reject(new Error(`${ERROR_CODES.PARAM_ERROR}: missing source id`));
+          if (!SOURCE_HANDLERS[id]) {
+            return Promise.resolve({ ok: false, id, code: ERROR_CODES.UNSUPPORTED_ACTION, reason: "UNKNOWN_SOURCE" });
+          }
           const quality2 = info && info.quality || "128k";
           const ok = !!(info && info.ok === true);
           if (ok) {

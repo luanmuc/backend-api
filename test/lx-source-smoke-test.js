@@ -788,6 +788,15 @@ async function test(name, fn) {
   await requestHandler({ action: 'reportPlayback', source: 'kw', info: { sourceId: 'xinghaiBackend', ok: true, quality: '128k', latencyMs: 20 } }).catch(() => {});
   snap31 = modV31.getHealthSnapshot();
   assert.ok(snap31.suyinKuwo.playDead === false && snap31.xinghaiBackend.playDead === false, '真实播放成功应解除摘除');
+  // 4) R71e：未知源回传是业务否定——resolve 且带 code，不 reject、不记账、不写 playDead
+  const breakerBefore31 = modV31.__debug.breakerMap.size;
+  const unknown31 = await requestHandler({ action: 'reportPlayback', source: 'kw', info: { sourceId: '__nope__', ok: false, quality: 'flac', code: 'PLAYBACK_ERROR' } })
+    .then(v => ({ resolved: v }), e => ({ rejected: String(e && e.message) }));
+  assert.ok(!unknown31.rejected, '未知源不得 reject：业务否定不是协议错误，实际 ' + unknown31.rejected);
+  assert.strictEqual(unknown31.resolved.ok, false, '未知源应 resolve ok:false');
+  assert.strictEqual(unknown31.resolved.code, 'UNSUPPORTED_ACTION', '未知源应带 UNSUPPORTED_ACTION');
+  assert.strictEqual(unknown31.resolved.reason, 'UNKNOWN_SOURCE', '未知源应带 reason=UNKNOWN_SOURCE');
+  assert.strictEqual(modV31.__debug.breakerMap.size, breakerBefore31, '未知源不得写 breaker');
   delete globalThis.__lxSourceConfig;
 
   console.log('[T32] v7.0 helloworld 实证接入：kw 链注册 + convert_url 主通道端到端 + htw v1 备用通道');

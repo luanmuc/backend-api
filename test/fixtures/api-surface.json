@@ -137,7 +137,8 @@
     "RATE_LIMIT",
     "SERVER_ERROR",
     "STREAM_PLAYLIST",
-    "TRUNCATED_MEDIA"
+    "TRUNCATED_MEDIA",
+    "UNSUPPORTED_ACTION"
   ],
   "healthEventFields": [
     "traceId",
@@ -164,9 +165,9 @@
   "counts": {
     "exports": 27,
     "debug": 88,
-    "errorCodes": 18,
+    "errorCodes": 19,
     "healthEventFields": 12,
     "healthSnapshotKeys": 6
   },
-  "digest": "36a20b3dc8233af0fee15aa65ea2e182"
+  "digest": "ade9367e2ea003e277939fbc8c3362f7"
 }

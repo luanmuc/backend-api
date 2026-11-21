@@ -1,5 +1,46 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-21 · v9.1.6 同版收尾（R71e）：`reportPlayback` 未知源归一为业务否定
+
+**问题**：`forceQualityProbe` 已改成 resolve，但 `reportPlayback` 仍 `reject(PARAM_ERROR: unknown source id)`。切换/卸载音源后，播放器残留的播放回传必然命中这条——App 侧包装是 `.catch(err => { console.log(err.message); return Promise.reject(err) })`，于是每播一次就往控制台打一行 `PARAM_ERROR: unknown source id`；服务侧不记账、用户侧无感知，纯粹噪音。
+
+**改法**
+
+| 层 | 改动 |
+|---|---|
+| 音源 | 缺 `id` 仍 reject `missing source id`；未知源改 resolve `{ ok:false, id, code:UNSUPPORTED_ACTION, reason:'UNKNOWN_SOURCE' }`，不记账、不写 `playDead` |
+| App 包装 | `reportPlayback` 的 catch 先判 `code === 'UNSUPPORTED_ACTION'` 直接返回 `{ ok:false }`；其余才 `logger.warn` 并 reject。裸 `console.log` 去掉 |
+
+产物 379235 → **379380 bytes**（+145）。
+
+**验证**：`lx-source-smoke-test` T32 增 6 条断言（不 reject / `ok:false` / `code` / `reason` / 不写 breaker）；**红绿双向**：把产物改回 `reject(...)` → `AssertionError: 未知源不得 reject：业务否定不是协议错误，实际 PARAM_ERROR: unknown source id`，恢复后仍 379380。冒烟 67 组 rc 0。
+
+**未做**：`mobile-app/src/core/init/userApi/index.ts` 里还有 12 处裸 `console.log(err.message)`（各 action 的失败路径），属同一类噪音，留待 R72 统一改 `logger`。
+
+## 2026-11-21 · v9.1.6 同版收尾（R71d）：`UNSUPPORTED_ACTION` 显式业务否定码
+
+**先纠正 R71 的叙事（我写错了）**
+
+R71 的注释与文档写「未知源 reject 会让 App 的 `health_quality_retry_miss` 不可达」。取证后不成立：
+
+- `userApi/index.ts` 里每个 querier 的包装都是 `.then(res => unwrapSourceResult(res.data)).catch(err => ({ ok:false, reason }))`；
+- 源侧无论 reject 还是返回 v2 失败 envelope，到 App 都是 **已 resolve** 的 `{ ok:false }`；
+- `Health.tsx` 的 `try/catch` 只在 promise reject 时触发，所以 `health_quality_retry_failed` 才是那条永远打不出来的分支。
+
+真实结论：miss 文案在 R71 之前就可达。R71 的实际价值是「业务否定不再用 reject 表达」+「`34-breaker-state:42-47` 的 `!SOURCE_HANDLERS[id]` 守卫被执行到（此前是死代码，因为 reject 在调用前就返回了）」。
+
+**R71d 改了什么**
+
+| 层 | 改动 |
+|---|---|
+| 码表 | `02-error-codes.js` 新增 `UNSUPPORTED_ACTION`（对外值 18→19，`api-surface` 快照同步，digest `ade9367e`） |
+| 源侧 | `legacy.js` 的 `forceQualityProbe` 未知源返回值补 `code: UNSUPPORTED_ACTION`；语义不再靠「返回值里没有 error 字段」承载 |
+| 契约 | `E0` 契约面 `errorCodes` 18→19；`契约面` 校验现为「导出 27 / `__debug` 88 / 错误码 19 / 事件字段 12 / 快照键 6」 |
+
+产物 378885 → **379235 bytes**（+350）。
+
+**验证**：`force-probe-contract` 10/0（FP4 增 `code` 断言）、`api-surface` 一致、`npm test` rc 0。
+
 ## 2026-11-21 · v9.1.6：源级能力备档（K03）
 
 **问题（代码路径可证，不需现场数据）**
@@ -87,7 +128,9 @@
 
 **工具链补记**：`tools/live/run.js` 的 `kwRid` 原来只取搜索结果第一条，实测拿到的是「平凡之路-2018南昌…音乐节现场片段」（本身就是片段），于是「请求一首完整歌」的断言实际在拿片段当样本。改为取 10 条、剔掉片段/现场/翻唱/伴奏/DJ 等、再按歌手命中优先。
 
-**本版最终产物**：369670 → **378819 bytes**（sha `9681214e`）。增幅来自同版三项：`parseAudioTags`（ID3v2 `TIT2`/`TPE1` + FLAC VORBIS 解码）、`VERIFY_RANGE_BYTES` 1KB→32KB、`flattenSongInfo` 白名单 + `SONG_META_PASSTHROUGH_KEYS`、以及 `test/audit/anchors-contract.js` 进 `npm test`。manifest 由 CI `sign-release` 重签：`f79472e`，`version 9.1.6` / `size 378819` / `sha256 9681214e…` / ed25519 `keyId k1`。
+**R71（同版收尾）**：`forceQualityProbe` 的未知源从 `Promise.reject("PARAM_ERROR: unknown source id")` 改为 `Promise.resolve({ ok: false, id, quality, reason: "UNKNOWN_SOURCE" })`，只有缺 `id` 才 reject。原因（R71d 已纠正，原写法有误）：业务否定不该用 reject 表达，且只有走到 resolve 分支，`34-breaker-state.js:42-47` 的 `if (!SOURCE_HANDLERS[sourceId]) return false` 守卫才被执行到——reject 在调用前就返回，守卫是死代码。原文称「App 的 `health_quality_retry_miss` 永远不可达」是错的：App 侧每个 querier 的包装都会把一切失败归一成**已 resolve** 的 `{ok:false}`，miss 一直可达；真正打不出来的是 `health_quality_retry_failed`。`34-breaker-state.js:43` 的 `if (!SOURCE_HANDLERS[sourceId]) return false` 也从死代码变回真正的第二道防线（实测：`__nope__` → `ok:false/UNKNOWN_SOURCE`，`suyinKuwo` → `ok:true`，缺 id → `PARAM_ERROR: missing source id`）。
+
+**本版最终产物**：369670 → 378819（K31 标签解析 + 32KB 探针 + `flattenSongInfo` 白名单 + `anchors-contract` 入 `npm test`，sha `9681214e`）→ **378885 bytes**（R71，+66）。manifest 仍是 CI 已签的 `f79472e`（`size 378819` / sha `9681214e`），R71 推送后由 `sign-release` 重签。
 
 **同版附带：`tools/live` 真宿主桩四红清零（`tools/live/run.js`）**
 

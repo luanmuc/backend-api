@@ -17,7 +17,7 @@
 
 | 段 | 职责 |
 |---|---|
-| ① 常量配置 | `USER_CONFIG`（35 个数字键 + 9 个布尔键 + `probeSongPool` 数组 + 卡密/设备 ID 字符串 + `raceBudgetPerQuality` 对象；App 面板契约 39 键 = 30 数字 + 9 布尔）、`SOURCE_TOGGLES`（13 键）、18 个错误码、`CODE_HINT`、预算常量 |
+| ① 常量配置 | `USER_CONFIG`（35 个数字键 + 9 个布尔键 + `probeSongPool` 数组 + 卡密/设备 ID 字符串 + `raceBudgetPerQuality` 对象；App 面板契约 39 键 = 30 数字 + 9 布尔）、`SOURCE_TOGGLES`（13 键）、19 个错误码、`CODE_HINT`、预算常量 |
 | ② 开关与探测 | 三层开关真值（`userEnabled` / `autoOff` / `probeState.sleeping`）、`manualOff`、探测歌池、核心/次要轮次、并发 1~8、抖动、播放/取链在飞暂停、冷启动预热 |
 | ③ 日志/缓存/断路器 | `logInfo/logWarn`、`createLRUCache`（成功 500 / 失败 300）、源级+音质档级双层 `getBreaker`、限流退避、健康事件环形缓冲 500 |
 | ④ HTTP/判据/L0/L4 | `httpRequest` 自动 JSON、cancelToken、5xx→`SERVER_ERROR`、429→`RATE_LIMIT`、410→`LINK_EXPIRED`、4xx→`NETWORK_ERROR`，仅超时/网络/5xx 重试 1 次；1KB Range 字节嗅探（FLAC/MP3/OGG/M4A/WAV/m3u8/HTML/JSON/空体）、真实时长解析、`probeAudioDelivery`、`verifyDelivery`、`ADMISSION_POLICY` / `admit` / `applyAdmission` / `clearSourceLedger` |
@@ -88,6 +88,6 @@ App → lx.on(EVENT_NAMES.request)
 1. **版本唯一真相**：脚本 `@version` 首 token；`@description` / `logInfo` 不再作为版本识别依据。App 内置版本不可解析时不覆盖现有源，禁止降级。
 2. `sourceConfig` 每个平台必须声明 `actions`：`musicUrl`、`health`、`toggle`、`probe`、`probeSource`、`reportPlayback`、`config`、`trend`、`healthEvents`、`exportHealthState`、`restoreHealthState`、`forceQualityProbe`；wy 额外 `lyric`/`pic`，kw 额外 `pic`；`fallbackOwner:"source"`；`send(inited)` 声明 `mediaEnvelope:2`。
 3. `musicUrl` 返回 `{url, quality?}`：`quality` 必须是**实交付**音质，不能是请求档位。
-4. 错误对象必须有 `err.code`（18 个 `ERROR_CODES` 键名），App 按码分类；只有 message 会显示"未知错误"。
+4. 错误对象必须有 `err.code`（19 个 `ERROR_CODES` 键名），App 按码分类；只有 message 会显示"未知错误"。
 5. `config` 写只接受 35 个数字键 + 9 个布尔键 + `probeSongPool`；与 App 39 键对表（App 侧 30 数字 + 9 布尔），5 个 source-only 数字键为 `probeConcurrency`、`probeTierCoreInterval`、`probeTierSecondaryInterval`、`qualityShortCircuitUniqueProbeMs`、`crossPlatformGraceMs`。
 6. 健康态持久化 schema v2：完整态 7 天 TTL、controls-only 永久；导出源版本 9.1.2，恢复兼容不高于当前版本；禁止 URL/歌名/账号/设备。
