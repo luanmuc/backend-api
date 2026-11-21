@@ -130,7 +130,11 @@ R71 的注释与文档写「未知源 reject 会让 App 的 `health_quality_retr
 
 **R71（同版收尾）**：`forceQualityProbe` 的未知源从 `Promise.reject("PARAM_ERROR: unknown source id")` 改为 `Promise.resolve({ ok: false, id, quality, reason: "UNKNOWN_SOURCE" })`，只有缺 `id` 才 reject。原因（R71d 已纠正，原写法有误）：业务否定不该用 reject 表达，且只有走到 resolve 分支，`34-breaker-state.js:42-47` 的 `if (!SOURCE_HANDLERS[sourceId]) return false` 守卫才被执行到——reject 在调用前就返回，守卫是死代码。原文称「App 的 `health_quality_retry_miss` 永远不可达」是错的：App 侧每个 querier 的包装都会把一切失败归一成**已 resolve** 的 `{ok:false}`，miss 一直可达；真正打不出来的是 `health_quality_retry_failed`。`34-breaker-state.js:43` 的 `if (!SOURCE_HANDLERS[sourceId]) return false` 也从死代码变回真正的第二道防线（实测：`__nope__` → `ok:false/UNKNOWN_SOURCE`，`suyinKuwo` → `ok:true`，缺 id → `PARAM_ERROR: missing source id`）。
 
-**本版最终产物**：369670 → 378819（K31 标签解析 + 32KB 探针 + `flattenSongInfo` 白名单 + `anchors-contract` 入 `npm test`，sha `9681214e`）→ **378885 bytes**（R71，+66）。manifest 仍是 CI 已签的 `f79472e`（`size 378819` / sha `9681214e`），R71 推送后由 `sign-release` 重签。
+**本版最终产物**：369670 → 378819（K31 标签解析 + 32KB 探针 + `flattenSongInfo` 白名单 + `anchors-contract` 入 `npm test`，sha `9681214e`）→ 378885 bytes（R71，+66）→ 379235（R71d，+350）→ **379380 bytes**（R71e，+145）。
+
+**manifest 已重签到位**：推送后 `sign-release` 于 run `44925546101` 重签并自动提交 `754e996`，manifest 现为 `size 379380` / sha `487606a8` / `keyId k1`，与仓库产物逐字节一致。此前仓库内留的是 K31 时代旧签（`f79472e` / `378819` / `9681214e`）。
+
+**R73（CI 竞态）**：首次推送 run `44924159855` 的 `sign-release` 推送失败——`docs-audit` workflow 并发写了 master（`bfdb804`），`git push` 报 `! [rejected] master -> master (fetch first)`，整条 CI 红、manifest 没更新。修法与 probe 写回、`docs-audit.yml` 同口径：push 前 `git fetch origin master` + `git rebase origin/master`，失败才判红。修后 `963dbce` 触发的 `44925546101` 全绿。
 
 **同版附带：`tools/live` 真宿主桩四红清零（`tools/live/run.js`）**
 
