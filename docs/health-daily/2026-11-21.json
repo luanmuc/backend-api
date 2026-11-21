@@ -3,7 +3,7 @@
   "chainSample": {
     "date": "2026-11-21",
     "total": 15,
-    "ok": 15,
+    "ok": 12,
     "rows": [
       {
         "date": "2026-11-21",
@@ -12,18 +12,18 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 248,
+        "ms": 1183,
         "msg": ""
       },
       {
         "date": "2026-11-21",
         "src": "helloworldKw",
         "plat": "kw",
-        "ok": true,
-        "code": "OK",
-        "playable": "skipped",
-        "ms": 180,
-        "msg": ""
+        "ok": false,
+        "code": "NOT_FOUND",
+        "playable": "",
+        "ms": 4011,
+        "msg": "NOT_FOUND: helloworld convert_url未返回有效链接"
       },
       {
         "date": "2026-11-21",
@@ -32,7 +32,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 202,
+        "ms": 897,
         "msg": ""
       },
       {
@@ -41,19 +41,19 @@
         "plat": "wy",
         "ok": true,
         "code": "OK",
-        "playable": "206 audio/mpeg",
-        "ms": 127,
+        "playable": "206 audio/mpeg; charset=UTF-8",
+        "ms": 7643,
         "msg": ""
       },
       {
         "date": "2026-11-21",
         "src": "juheTx",
         "plat": "tx",
-        "ok": true,
-        "code": "OK",
-        "playable": "206 audio/mpeg",
-        "ms": 952,
-        "msg": ""
+        "ok": false,
+        "code": "RATE_LIMIT",
+        "playable": "",
+        "ms": 40,
+        "msg": "RATE_LIMIT: 被限流"
       },
       {
         "date": "2026-11-21",
@@ -62,7 +62,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 371,
+        "ms": 4197,
         "msg": ""
       },
       {
@@ -72,7 +72,7 @@
         "ok": true,
         "code": "OK",
         "playable": "206 audio/mpeg",
-        "ms": 590,
+        "ms": 1785,
         "msg": ""
       },
       {
@@ -81,8 +81,8 @@
         "plat": "wy",
         "ok": true,
         "code": "OK",
-        "playable": "206 audio/mpeg",
-        "ms": 89,
+        "playable": "206 application/octet-stream;charset=UTF-8",
+        "ms": 2375,
         "msg": ""
       },
       {
@@ -91,8 +91,8 @@
         "plat": "kw",
         "ok": true,
         "code": "OK",
-        "playable": "skipped",
-        "ms": 170,
+        "playable": "206 audio/x-flac",
+        "ms": 2073,
         "msg": ""
       },
       {
@@ -101,8 +101,8 @@
         "plat": "wy",
         "ok": true,
         "code": "OK",
-        "playable": "skipped",
-        "ms": 48,
+        "playable": "206 audio/x-flac",
+        "ms": 1265,
         "msg": ""
       },
       {
@@ -111,8 +111,8 @@
         "plat": "tx",
         "ok": true,
         "code": "OK",
-        "playable": "skipped",
-        "ms": 55,
+        "playable": "206 audio/x-flac",
+        "ms": 335,
         "msg": ""
       },
       {
@@ -121,8 +121,8 @@
         "plat": "mg",
         "ok": true,
         "code": "OK",
-        "playable": "skipped",
-        "ms": 47,
+        "playable": "206 audio/x-flac",
+        "ms": 334,
         "msg": ""
       },
       {
@@ -131,19 +131,19 @@
         "plat": "kg",
         "ok": true,
         "code": "OK",
-        "playable": "skipped",
-        "ms": 47,
+        "playable": "206 audio/x-flac",
+        "ms": 319,
         "msg": ""
       },
       {
         "date": "2026-11-21",
         "src": "wyOuter",
         "plat": "wy",
-        "ok": true,
-        "code": "OK",
-        "playable": "206 audio/mpeg",
-        "ms": 296,
-        "msg": ""
+        "ok": false,
+        "code": "NOT_FOUND",
+        "playable": "",
+        "ms": 2229,
+        "msg": "NOT_FOUND: 网易云该歌曲不可试听(可能需VIP)，跳过"
       },
       {
         "date": "2026-11-21",
@@ -151,13 +151,60 @@
         "plat": "kw",
         "ok": true,
         "code": "OK",
-        "playable": "skipped",
-        "ms": 435,
+        "playable": "206 audio/mpeg",
+        "ms": 1489,
         "msg": ""
       }
     ]
   },
-  "deviceDigest": null,
+  "deviceDigest": {
+    "date": "2026-11-21",
+    "devices": 1,
+    "probe": {
+      "total": 27,
+      "ok": 25
+    },
+    "play": {
+      "total": 17,
+      "ok": 17,
+      "bySource": {
+        "suyinKuwo": {
+          "total": 8,
+          "ok": 8,
+          "rate": 100
+        },
+        "helloworldKw": {
+          "total": 9,
+          "ok": 9,
+          "rate": 100
+        }
+      }
+    },
+    "bySource": {
+      "xinghaiBackend": {
+        "total": 6,
+        "ok": 4,
+        "rate": 66.7
+      },
+      "suyinKuwo": {
+        "total": 9,
+        "ok": 9,
+        "rate": 100
+      },
+      "suyin163": {
+        "total": 6,
+        "ok": 6,
+        "rate": 100
+      },
+      "wyOuter": {
+        "total": 6,
+        "ok": 6,
+        "rate": 100
+      }
+    },
+    "byQuality": {},
+    "sourceVersions": []
+  },
   "prevDate": null,
   "prevDateMode": "uniform",
   "prevDates": {
@@ -186,45 +233,21 @@
   "handle": [],
   "watch": [
     {
-      "label": "suyin163",
-      "url": "https://oiapi.net/api/Music_163",
-      "rate": 100,
-      "total": 2
-    },
-    {
-      "label": "suyinKuwo",
-      "url": "https://oiapi.net/api/Kuwo",
-      "rate": 100,
-      "total": 2
-    },
-    {
-      "label": "xinghaiBackend",
-      "url": "https://yy.zddyr.top/lx/api/",
-      "rate": 100,
-      "total": 2
-    },
-    {
-      "label": "kuwoOfficial",
-      "url": "http://antiserver.kuwo.cn/anti.s",
-      "rate": 100,
-      "total": 2
-    },
-    {
-      "label": "ikun",
-      "url": "https://c.wwwweb.top",
-      "rate": 100,
-      "total": 2
+      "label": "juheTx",
+      "url": "https://api.music.lerd.dpdns.org",
+      "rate": 57.1,
+      "total": 7
     }
   ],
   "limited": [
     {
-      "label": "juheTx",
-      "url": "https://api.music.lerd.dpdns.org",
+      "label": "suyin163",
+      "url": "https://oiapi.net/api/Music_163",
       "sources": [
-        "juheTx"
+        "suyin163"
       ],
       "rate": 100,
-      "total": 2
+      "total": 7
     }
   ],
   "fragment": [],
