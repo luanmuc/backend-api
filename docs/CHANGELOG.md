@@ -87,6 +87,8 @@
 
 **工具链补记**：`tools/live/run.js` 的 `kwRid` 原来只取搜索结果第一条，实测拿到的是「平凡之路-2018南昌…音乐节现场片段」（本身就是片段），于是「请求一首完整歌」的断言实际在拿片段当样本。改为取 10 条、剔掉片段/现场/翻唱/伴奏/DJ 等、再按歌手命中优先。
 
+**本版最终产物**：369670 → **378819 bytes**（sha `9681214e`）。增幅来自同版三项：`parseAudioTags`（ID3v2 `TIT2`/`TPE1` + FLAC VORBIS 解码）、`VERIFY_RANGE_BYTES` 1KB→32KB、`flattenSongInfo` 白名单 + `SONG_META_PASSTHROUGH_KEYS`、以及 `test/audit/anchors-contract.js` 进 `npm test`。manifest 由 CI `sign-release` 重签：`f79472e`，`version 9.1.6` / `size 378819` / `sha256 9681214e…` / ed25519 `keyId k1`。
+
 **同版附带：`tools/live` 真宿主桩四红清零（`tools/live/run.js`）**
 
 云端无设备时 `tools/live` 是最接近端到端的路径，但它长期 `l1l4 = 10 通过 / 4 失败`，四个红里三个是断言自身过期：
