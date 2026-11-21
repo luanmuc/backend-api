@@ -1,6 +1,14 @@
 name: L4 docs-audit
 
 on:
+  push:
+    branches: [master, main]
+    # v9.1.6 补：ci.yml 的 paths 是白名单（只含 lx-source.js / test / scripts / src / workflows），
+    # docs/** 不在其中 —— 意味着纯文档提交过去既不走 ci.yml、也不走本 workflow，
+    # 只能等每周一或人工手动触发。实测 cc26121→5c812c8 就是这么漏掉的（W2 红了一轮）。
+    # 本 workflow 只跑 docs-audit（分钟级），专治这个盲区。回写提交已带 [skip ci] 防自触发。
+    paths:
+      - 'docs/**'
   schedule:
     # 每周一凌晨巡检：UTC 周日 18:15 = 北京时间周一 02:15（错开 probe 的 UTC 20:00）
     - cron: '15 18 * * 0'
@@ -22,7 +30,7 @@ jobs:
           git clone --depth 1 --quiet https://github.com/luanmuc/mobile-app.git ../lx-music-mobile \
             || echo "::warning::兄弟仓 clone 失败，跨仓规则将跳过"
       - name: L4 文档一致性巡检（低风险自动修复）
-        # 规则见 scripts/docs-audit.js（22 条）：版本串/冒烟组数/行段/开关真值/矩阵与台账/文档登记/缺陷编号/脚本索引/测试入口覆盖等
+        # 规则见 scripts/docs-audit.js（24 条）：版本串/冒烟组数/行段/开关真值/矩阵与台账/文档登记/缺陷编号/脚本索引/测试入口覆盖/README 产物字节数等
         # 报告项（不修改）：README_HEALTH 与 candidate-status 新鲜度（>28h 告警）
         run: node scripts/docs-audit.js
       - name: 修复写回（自动提交，无变化跳过）
@@ -33,7 +41,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "::notice::无文档修复，跳过提交"
           else
-            git commit -m "chore(docs): L4 文档巡检自动修复（docs-audit） [自动]"
+            git commit -m "chore(docs): L4 文档巡检自动修复（docs-audit） [自动] [skip ci]"
             git pull --rebase origin ${GITHUB_REF_NAME}
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
