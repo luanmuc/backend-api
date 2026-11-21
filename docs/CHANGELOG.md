@@ -1,5 +1,17 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-21 · 阶段 2：上报数据补齐音质维度（App + telemetry + 云端聚合）
+
+先说被推翻的判断：之前把 `recent_events` 里的「历史事件重复出现」记成 App 的窗口过滤缺陷，**是错的**。每份摘要都是「最近 24h」滑动窗口，b171（01:25）与 b185（09:17）重叠 16 小时，8 条同时间戳事件同时落在两份里；App 侧 `buildDigest` 的去重一直正常，重复产生在云端把两份直接相加这一步。
+
+- **App 侧补三个维度**：`DigestEvent` 声明 `quality`（采集端本来就有 `quality`，只是接口没声明、聚合时被丢）；`probe`/`play` 各加 `by_quality`；顶层加 `source.version`（取 `active_source_version`，与设置页导出证据同一个键）；`recent_events` 每条加 `q`，去重键也补上档位。
+- **为什么要 `by_quality`**：只有 `by_source` 时，128k 通、flac 实返 mp3 这种降档虚标在源维度是 100% 成功，在档位维度才是 0%——混在一起等于把最该抓的问题藏起来。
+- **telemetry 侧不是"加字段就生效"**：`digest.schema.json` 顶层、`probe`/`play`、`recent_events` items 三处都是 `additionalProperties: false`，`ingest-digest.js` 另有 4 处白名单（顶层 / `validateCount` / `recent_events` 条目 / `source` 子结构）。只改 App 不改 telemetry，新包摘要会被以「含未知字段」拒收，且从回执看不出是版本不兼容。两处已同步，key 长上限按 `by_quality` 12 字符、`source.version` 32 字符设定。
+- **云端补齐两处缺口**：`health-daily.js` 原来只汇总 `probe.by_source`，**播放侧源维度从未被汇总**（放不出来时看不出是哪个源），新增 `play.bySource`；旧包缺 `by_quality` 只跳过、不补零，避免把「无音质信息」算成失败。
+- **窗口重叠重复计数**：`pull-device-digests.js` 原来只按 `设备|generated_at` 去重，同设备同日两份摘要直接相加。改为按「设备 + 北京日」只留当日最后一份——摘要无事件级明细，无法精确去重，这是可接受近似。
+
+**验证**：App 摘要契约 9 → **12 条，12/0**；14 个健康相关脚本全绿（含跨仓往返 4/0，需 `LX_SOURCE_ROOT` 强制跑）；`tsc --noEmit` rc=0；telemetry `node --test` **9/9**（旧格式仍通过）；四种样本实测「新格式通过 / 旧格式通过 / 多余键+超长 q 拒收 / `total=5000` 拒收」。
+
 ## 2026-11-21 · 巡检阶段 1：补三处盲区（只动 `scripts/**`，不改产物）
 
 上一轮 13 源实测（见 `docs/SOURCE_CAPABILITY.md`）暴露出巡检自身的三处盲区，本阶段全部修掉：

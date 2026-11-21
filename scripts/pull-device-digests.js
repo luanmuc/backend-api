@@ -75,11 +75,27 @@ async function main() {
     const k = r.device + '|' + r.digest.generated_at
     if (seen.has(k)) return false
     seen.add(k); return true
-  }).sort((a, b) => a.date.localeCompare(b.date) || a.device.localeCompare(b.device))
+  })
+
+  // v9.1.4：同一设备同一天可能上报多份摘要，而每份都是「最近 24h」的滑动窗口 ——
+  // 两份相隔 N 小时就有 24-N 小时重叠，直接相加会把同一批失败算两遍
+  // （11-20 的 b171/b185 两份里有 8 条时间戳完全相同，正是这种重叠）。
+  // 摘要里没有事件级明细，无法精确去重，因此按「设备 + 北京日」只保留当日最后一份：
+  // 它覆盖的窗口最新最全，代价是丢弃当日更早那份窗口前段的事件。
+  const latestByDay = new Map()
+  for (const r of uniq) {
+    const k = r.device + '|' + r.date
+    const prev = latestByDay.get(k)
+    if (!prev || String(r.digest.generated_at) > String(prev.digest.generated_at)) latestByDay.set(k, r)
+  }
+  const picked = [...latestByDay.values()]
+    .sort((a, b) => a.date.localeCompare(b.date) || a.device.localeCompare(b.device))
+  const dropped = uniq.length - picked.length
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true })
-  fs.writeFileSync(OUT, uniq.map(r => JSON.stringify(r)).join('\n') + (uniq.length ? '\n' : ''))
-  console.log(`✅ [device-digests] ${uniq.length} 条（${files.length} 个日文件，保留 ${days} 天窗口）`)
+  fs.writeFileSync(OUT, picked.map(r => JSON.stringify(r)).join('\n') + (picked.length ? '\n' : ''))
+  console.log(`✅ [device-digests] ${picked.length} 条（${files.length} 个日文件，保留 ${days} 天窗口）
+   ↳ 窗口重叠合并丢弃 ${dropped} 条（同设备同日多份只留最后一份）`)
 }
 
 if (require.main === module) main().catch(e => { console.error('❌ ' + e.message); process.exit(1) })

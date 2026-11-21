@@ -267,7 +267,8 @@ function loadDeviceDigests(date) {
     } catch {}
   }
   if (!byDevice.length) return null;
-  const agg = {};
+  const agg = {}, aggPlay = {}, aggQ = {};
+  const versions = new Set();
   let probeTotal = 0, probeOk = 0, playTotal = 0, playOk = 0;
   for (const r of byDevice) {
     const d = r.digest || {};
@@ -280,17 +281,33 @@ function loadDeviceDigests(date) {
       agg[src].total += v.total || 0;
       agg[src].ok += v.ok || 0;
     }
+    // 播放侧源维度此前从未被汇总（只加了 probe），导致「放不出来」时看不出是哪个源
+    for (const [src, v] of Object.entries((d.play && d.play.by_source) || {})) {
+      aggPlay[src] = aggPlay[src] || { total: 0, ok: 0 };
+      aggPlay[src].total += v.total || 0;
+      aggPlay[src].ok += v.ok || 0;
+    }
+    // 旧包（b195 之前）没有 by_quality：只跳过、不补零，避免把「无音质信息」算成失败
+    for (const [q, v] of Object.entries((d.probe && d.probe.by_quality) || {})) {
+      aggQ[q] = aggQ[q] || { total: 0, ok: 0 };
+      aggQ[q].total += v.total || 0;
+      aggQ[q].ok += v.ok || 0;
+    }
+    if (d.source && d.source.version) versions.add(String(d.source.version));
   }
+  const withRate = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, {
+    total: v.total,
+    ok: v.ok,
+    rate: v.total ? Math.round((v.ok / v.total) * 1000) / 10 : 0,
+  }]));
   return {
     date,
     devices: [...new Set(byDevice.map(r => r.device))].length,
     probe: { total: probeTotal, ok: probeOk },
-    play: { total: playTotal, ok: playOk },
-    bySource: Object.fromEntries(Object.entries(agg).map(([k, v]) => [k, {
-      total: v.total,
-      ok: v.ok,
-      rate: v.total ? Math.round((v.ok / v.total) * 1000) / 10 : 0,
-    }])),
+    play: { total: playTotal, ok: playOk, bySource: withRate(aggPlay) },
+    bySource: withRate(agg),
+    byQuality: withRate(aggQ),
+    sourceVersions: [...versions].sort(),
   };
 }
 

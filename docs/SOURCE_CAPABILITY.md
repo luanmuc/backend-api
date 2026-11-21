@@ -173,7 +173,23 @@ node _matrix.js; rm -f _matrix.js
 | `chain-sample` 保留上游 `msg` | 已修 | 产出记录含 `msg` 字段 |
 | `kwplay` 直链判定误伤（整串匹配） | 已修 | `helloworldKw`/`changqingVip`/`ikun` 由 `playable=skipped` 转 206 |
 
-**阶段 2（未开始，需动 App 仓）**：digest 加音质维度、加 `sourceVersion`、`recent_events` 窗口去重。
+**阶段 2（2026-11-21，已完成，动 App 仓 + telemetry 仓 + 云端聚合）**
+
+先说一个被推翻的判断：`recent_events` 里出现的「跨窗口重复」不是 App 的过滤 bug。每份摘要都是「最近 24h」的滑动窗口，两份相隔 N 小时就有 24−N 小时重叠；11-20 的 b171（01:25）与 b185（09:17）重叠 16 小时，于是有 8 条同时间戳事件同时出现在两份里。App 侧 `buildDigest` 的去重本来就正常，重复发生在**云端把两份直接相加**这一步。
+
+| 项 | 改在哪 | 状态 | 验证 |
+|---|---|---|---|
+| `DigestEvent` 补 `quality` 声明 | App `healthDigest.ts` | 已改 | 采集端本来就有 `quality`（`healthLog.ts:185`），只是接口没声明、聚合时被丢掉 |
+| `probe`/`play` 各加 `by_quality` | App + 云端 + schema + ingest | 已改 | 契约 A10：同源 128k 通、flac 挂能分开；不影响 `total` |
+| 顶层加 `source.version` | App + 云端 + schema + ingest | 已改 | 取 `active_source_version`（与设置页导出证据同一个键）；契约 A11 验证缺省时不伪造 |
+| `recent_events` 每条加 `q` | App + schema + ingest | 已改 | 契约 A12：同毫秒同源不同档**不合并**，同档重复仍去重 |
+| 播放侧源维度从未汇总 | 云端 `health-daily.js` | 已修 | 新增 `play.bySource`，此前只汇总 `probe.by_source` |
+| 旧包字段缺失兜底 | 云端 `health-daily.js` | 已改 | `by_quality` 缺省只跳过、不补零，避免把「无音质信息」算成失败 |
+| 窗口重叠重复计数 | 云端 `pull-device-digests.js` | 已改 | 同设备同日多份按 `generated_at` 只留最后一份；摘要无事件级明细，无法精确去重，这是可接受近似 |
+
+**改 schema 时踩到的硬约束**：telemetry 侧不是「加了字段自然生效」——`digest.schema.json` 的顶层、`probe`/`play`、`recent_events` items 三处都是 `additionalProperties: false`，且 `ingest-digest.js` 有 4 处独立白名单（顶层、`validateCount`、`recent_events` 条目、`source` 子结构）。**只改 App 不改 telemetry，新包的摘要会被原样拒收**，而且拒收理由是「含未知字段」，从 Issue 回执上看不出是版本不兼容。
+
+验证数字：App 摘要契约 **9 → 12 条**（12/0）；14 个健康相关脚本全绿（含跨仓往返 4/0，需 `LX_SOURCE_ROOT` 强制跑）；`tsc --noEmit` rc=0；telemetry `node --test` **9/9**（旧格式仍通过）；新格式、旧格式、坏样本（多余键/超长 `q`）、超限（`total=5000`）四种样本分别验证为「通过/通过/拒收/拒收」。
 
 **阶段 3（未开始，需动产物与升版本）**：`suyinKuwo` 首位策略、`ikun` 按平台拆 `qualitys`、`juheTx` flac 降档校验、`PROBE_163_IDS` 换 id。
 

@@ -1,0 +1,232 @@
+{
+  "date": "2026-11-21",
+  "chainSample": {
+    "date": "2026-11-21",
+    "total": 15,
+    "ok": 15,
+    "rows": [
+      {
+        "date": "2026-11-21",
+        "src": "changqingVip",
+        "plat": "kw",
+        "ok": true,
+        "code": "OK",
+        "playable": "206 audio/mpeg",
+        "ms": 248,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "helloworldKw",
+        "plat": "kw",
+        "ok": true,
+        "code": "OK",
+        "playable": "skipped",
+        "ms": 180,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "ikun",
+        "plat": "kw",
+        "ok": true,
+        "code": "OK",
+        "playable": "206 audio/mpeg",
+        "ms": 202,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "ikun",
+        "plat": "wy",
+        "ok": true,
+        "code": "OK",
+        "playable": "206 audio/mpeg",
+        "ms": 127,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "juheTx",
+        "plat": "tx",
+        "ok": true,
+        "code": "OK",
+        "playable": "206 audio/mpeg",
+        "ms": 952,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "kuwoOfficial",
+        "plat": "kw",
+        "ok": true,
+        "code": "OK",
+        "playable": "206 audio/mpeg",
+        "ms": 371,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "qingliangTx",
+        "plat": "tx",
+        "ok": true,
+        "code": "OK",
+        "playable": "206 audio/mpeg",
+        "ms": 590,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "suyin163",
+        "plat": "wy",
+        "ok": true,
+        "code": "OK",
+        "playable": "206 audio/mpeg",
+        "ms": 89,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "suyinKuwo",
+        "plat": "kw",
+        "ok": true,
+        "code": "OK",
+        "playable": "skipped",
+        "ms": 170,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "suyinKuwo",
+        "plat": "wy",
+        "ok": true,
+        "code": "OK",
+        "playable": "skipped",
+        "ms": 48,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "suyinKuwo",
+        "plat": "tx",
+        "ok": true,
+        "code": "OK",
+        "playable": "skipped",
+        "ms": 55,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "suyinKuwo",
+        "plat": "mg",
+        "ok": true,
+        "code": "OK",
+        "playable": "skipped",
+        "ms": 47,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "suyinKuwo",
+        "plat": "kg",
+        "ok": true,
+        "code": "OK",
+        "playable": "skipped",
+        "ms": 47,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "wyOuter",
+        "plat": "wy",
+        "ok": true,
+        "code": "OK",
+        "playable": "206 audio/mpeg",
+        "ms": 296,
+        "msg": ""
+      },
+      {
+        "date": "2026-11-21",
+        "src": "xinghaiBackend",
+        "plat": "kw",
+        "ok": true,
+        "code": "OK",
+        "playable": "skipped",
+        "ms": 435,
+        "msg": ""
+      }
+    ]
+  },
+  "deviceDigest": null,
+  "prevDate": null,
+  "prevDateMode": "uniform",
+  "prevDates": {
+    "https://oiapi.net/api/QQ_Music": null,
+    "https://oiapi.net/api/Music_163": null,
+    "https://oiapi.net/api/Kuwo": null,
+    "https://api.xcvts.cn/api/music/migu": null,
+    "https://lxmusicapi.onrender.com": null,
+    "https://api.music.lerd.dpdns.org": null,
+    "https://music.lzmhhh.com/api/music/url": null,
+    "https://yy.zddyr.top/lx/api/": null,
+    "http://antiserver.kuwo.cn/anti.s": null,
+    "https://c.wwwweb.top": null,
+    "http://nmobi.kuwo.cn/mobi.s": null,
+    "https://musicserver.haitangw.cc/v1/music/resolve-url": null,
+    "https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}": null,
+    "https://music.163.com/song/media/outer/url?id={id}.mp3": null,
+    "https://music.163.com/api/song/lyric": null,
+    "https://music.163.com/api/song/detail": null,
+    "http://search.kuwo.cn/r.s": null,
+    "https://c.y.qq.com/soso/fcgi-bin/client_search_cp": null,
+    "https://music.163.com/api/search/get/web": null
+  },
+  "registered": 19,
+  "judged": 9,
+  "handle": [],
+  "watch": [
+    {
+      "label": "suyin163",
+      "url": "https://oiapi.net/api/Music_163",
+      "rate": 100,
+      "total": 2
+    },
+    {
+      "label": "suyinKuwo",
+      "url": "https://oiapi.net/api/Kuwo",
+      "rate": 100,
+      "total": 2
+    },
+    {
+      "label": "xinghaiBackend",
+      "url": "https://yy.zddyr.top/lx/api/",
+      "rate": 100,
+      "total": 2
+    },
+    {
+      "label": "kuwoOfficial",
+      "url": "http://antiserver.kuwo.cn/anti.s",
+      "rate": 100,
+      "total": 2
+    },
+    {
+      "label": "ikun",
+      "url": "https://c.wwwweb.top",
+      "rate": 100,
+      "total": 2
+    }
+  ],
+  "limited": [
+    {
+      "label": "juheTx",
+      "url": "https://api.music.lerd.dpdns.org",
+      "sources": [
+        "juheTx"
+      ],
+      "rate": 100,
+      "total": 2
+    }
+  ],
+  "fragment": [],
+  "changes": []
+}
