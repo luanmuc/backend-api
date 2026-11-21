@@ -27,7 +27,7 @@ const { parseToggles } = require('./source-toggles.js'); // v8.10.5：死源建�
 // v9.1.4：探测歌与取链实现各收敛到一份共享库
 // —— 此前 probe 与 source-audit 各写一份探测歌、PAYLOAD_CHECKS 各写一份取链逻辑，
 //    与 lx-source.js 的 provider 形成第三、第四份实现，suyin163 修复后巡检仍报坏即由此而来。
-const { songOf, idOf, EXPECT_SEC } = require('./lib/probe-songs.js');
+const { songOf, idOf, EXPECT_SEC, expectSecOf } = require('./lib/probe-songs.js');
 const { loadSource, resolveUrl } = require('./lib/source-host.js');
 
 const SRC = path.join(__dirname, '..', 'lx-source.js');
@@ -352,7 +352,7 @@ async function runPayloadCheck(endpointUrl, liveMod) {
     try {
       // 取链走源自己的 provider（与 App 内置音源同一份实现）
       const url = await resolveUrl(liveMod, { src: c.src, plat: c.plat, quality: q, id, song });
-      const expect = c.expectSec || EXPECT_SEC;
+      const expect = c.expectSec || expectSecOf(c.plat);
       const { state, dur, ct } = await rangeOk(url, expect, q);
       probes.push({ q, state, dur, ct });
     } catch (e) {
@@ -372,7 +372,7 @@ async function runPayloadCheck(endpointUrl, liveMod) {
   // 用户根本听不到；巡检再把它记成"失败"只会每天刷一条假告警（实测 juheTx 对 VIP《晴天》
   // 稳定返回 60.1s / 960887B，而它上游对 10 首免费歌全部 NOT_FOUND —— 换歌只会更糟）。
   // 判"可用但受限"，单独标注实际时长，交给日报的「仅试听」段。
-  if (base.state === 'FRAGMENT') return { ok: true, fragment: true, reason: 'PAYLOAD_FRAGMENT', dur: base.dur, expect: c.expectSec || EXPECT_SEC, ...extra };
+  if (base.state === 'FRAGMENT') return { ok: true, fragment: true, reason: 'PAYLOAD_FRAGMENT', dur: base.dur, expect: c.expectSec || expectSecOf(c.plat), ...extra };
   if (base.state === 'THROTTLED') return { ok: true, reason: 'PAYLOAD_THROTTLED', ...extra }; // 限流非死链，不误判
   if (base.state === 'ERR') return { ok: false, reason: base.code ? `PAYLOAD_${base.code}` : 'PAYLOAD_ERR', ...extra };
   return { ok: false, reason: 'PAYLOAD_DEAD', ...extra };

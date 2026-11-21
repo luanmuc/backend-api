@@ -530,12 +530,14 @@ async function test(name, fn) {
     return { error: 'ECONNREFUSED' };
   };
   mockRoute = juheRoute;
-  const juheUrl = await requestUrl('tx', 'flac', { name: 'Juhe链路测试曲', singer: '测试', duration: 200000, songmid: '004Z8Ihr0JIu5s' });
+  // 2026-11-21：juheTx 能力声明由 flac 下调为 320k（flac 档实测实返 audio/mpeg），
+  // 请求档位跟着改成 320k，否则它会被 maxQuality 过滤掉、链里根本没有它。
+  const juheUrl = await requestUrl('tx', '320k', { name: 'Juhe链路测试曲', singer: '测试', duration: 200000, songmid: '004Z8Ihr0JIu5s' });
   assert.ok(typeof juheUrl === 'object' && juheUrl.url.includes('example.com/juhe-tx.flac'), `Juhe tx 应经303校验返回直链，实际 ${JSON.stringify(juheUrl)}`);
   assert.ok(juheUrl.subSource === 'juheTx', `Juhe 路径应透出子源(juheTx): ${JSON.stringify(juheUrl)}`);
   const snapV20 = mod.getHealthSnapshot();
   assert.ok(snapV20.juheTx, '快照应含 juheTx');
-  assert.ok(snapV20.juheTx.maxQuality === 'flac', 'juheTx 应支持 flac 音质');
+  assert.ok(snapV20.juheTx.maxQuality === '320k', 'juheTx 能力声明应为 320k（flac 档实测实返 mp3）');
 
   console.log('[T21] v4.0 健康分排序源链：verified 源附加优先，串行兜底按健康分降序');
   const fakeChain = [

@@ -50,6 +50,10 @@ function provider(id, name, fn, maxQuality, opts = {}) {
     verified: !!opts.verified,
     coldStart: !!opts.coldStart,
     minQuality: opts.minQuality || null,
+    // 2026-11-21：同一源在不同平台的真实上限可以不同（ikun 实测 kw 到 flac、
+    // wy 只到 mp3）。maxQuality 保留全局声明供契约校验与上报，按平台的过滤
+    // 走 chain 层，否则「请求 flac 时把 wy 通道也选进候选」是虚的。
+    maxQualityByPlatform: opts.maxQualityByPlatform || null,
     note: opts.note || "",
   };
 }
@@ -493,9 +497,9 @@ const SOURCE_HANDLERS = {
     coldStart: true,
     note: "onrender；**2026-11-16 起服务被 owner 主动暂停**（503 「This service has been suspended by its owner.」，根路径同样 503，0.8s 即返回）；11-04~11-15 连续 12 天 200 曾完全可用，冷启动只解释 11-01~11-03 的连接超时",
   }),
-  juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "flac", {
+  juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "320k", {
     platforms: ["tx"], anchors: ["songmid", "musicId", "id"], chain: { tx: 3 }, upstreamGroup: "juhe",
-    reviewAt: "2026-11-19", note: "2026-11-11 恢复；7 天复核，降为 tx 第三源（本轮 0% 成功率）",
+    reviewAt: "2026-11-19", note: "2026-11-11 恢复；7 天复核，降为 tx 第三源（本轮 0% 成功率）。2026-11-21：flac 档实测实返 audio/mpeg，能力声明由 flac 下调为 320k",
   }),
   qingliangTx: provider("qingliangTx", "晴亮(tx)", qingliangTxGetUrl, "320k", {
     platforms: ["tx"], anchors: ["songmid", "musicId", "id"], chain: { tx: 2 }, upstreamGroup: "qingliang-tx",
@@ -503,7 +507,10 @@ const SOURCE_HANDLERS = {
   }),
   ikun: provider("ikun", "ikun", ikunGetUrl, "flac", {
     platforms: ["kw", "wy"], anchors: ["rid", "songmid", "id"], chain: { kw: 7, wy: 5 }, upstreamGroup: "ikun",
-    auth: PROVIDER_AUTH.OPTIONAL, note: "公益版免卡密；卡密可选",
+    auth: PROVIDER_AUTH.OPTIONAL,
+    // 2026-11-21 实测：kw 到 flac、wy 只到 mp3（320k 档返 audio/mpeg）。
+    maxQualityByPlatform: { wy: "320k" },
+    note: "公益版免卡密；卡密可选",
   }),
   // ---- 观察源：2 个（probation，只探测、不进链） ----
   suyinQQ: provider("suyinQQ", "溯音QQ", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("tx", songId, quality, songInfo, cancelToken), "flac", {

@@ -258,7 +258,7 @@ async function getUrlWithFallback(platform, songInfo, quality, cancelToken = nul
         .map(id => dep('SOURCE_HANDLERS')[id])
         .filter(h => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE)
         .filter(h => h.platforms.includes(platform) && h.chain[platform] != null)
-        .filter(h => qualityRank(h.maxQuality) >= qualityRank(q))
+        .filter(h => qualityRank((h.maxQualityByPlatform && h.maxQualityByPlatform[platform]) || h.maxQuality) >= qualityRank(q))
         .map(h => {
           const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
           return e.eligible ? null : { id: h.id, reason: e.reason, code: e.code, untilMs: e.untilMs };
@@ -453,7 +453,7 @@ function buildSourceChain(platform, quality) {
     .filter(h => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE)
     .filter(h => h.platforms.includes(platform))
     .filter(h => h.chain[platform] != null)
-    .filter(h => qualityRank(h.maxQuality) >= qualityRank(q))
+    .filter(h => qualityRank((h.maxQualityByPlatform && h.maxQualityByPlatform[platform]) || h.maxQuality) >= qualityRank(q))
     .map(h => {
       const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
       if (!e.eligible) {
@@ -861,7 +861,7 @@ function countActiveQualitySources(platform, quality) {
   return Object.values(dep('SOURCE_HANDLERS')).filter(h => h && h.lifecycle === "active"
     && h.platforms && h.platforms.includes(platform)
     && h.chain && h.chain[platform] != null
-    && qualityRank(h.maxQuality) >= qualityRank(q)).length;
+    && qualityRank((h.maxQualityByPlatform && h.maxQualityByPlatform[platform]) || h.maxQuality) >= qualityRank(q)).length;
 }
 
 module.exports = {

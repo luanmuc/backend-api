@@ -139,14 +139,14 @@ function buildProbeConfig() {
       // 旧配置标了「songInfo 风格」→ 走两参调用 → hSong 被塞进 platform、songId=null，
       // 内层 suyin163GetUrl(songInfo=undefined) 必抛「缺少songmid/id」→ 探测 100% 假失败。
       handlerPlatform: "wy",
-      handlerSong: { id: probe163Id, songmid: probe163Id, name: "晴天", singer: "周杰伦", duration: 271000 },
+      handlerSong: { id: probe163Id, songmid: probe163Id, name: "海阔天空", singer: "Beyond", duration: 326000 },
     },
     wyOuter: {
       tier: "core",
       quality: "128k",
       useHandler: true,
       handlerPlatform: "wy",
-      handlerSong: { id: "2652820720", songmid: "2652820720", name: "晴天", singer: "周杰伦", duration: 271000 },
+      handlerSong: { id: "347230", songmid: "347230", name: "海阔天空", singer: "Beyond", duration: 326000 },
     },
     kuwoOfficial: {
       tier: "secondary",
@@ -671,7 +671,11 @@ const healthHistory = [];
 
 const HEALTH_HISTORY_MAX = 1008; // F07：历史快照上限 1008（10min/条 ≈ 7d，144≈24h 已不够 7d 趋势）
 
-const PROBE_163_IDS = ["2652820720", "347230"];
+// 2026-11-21 修正：原为 ["2652820720", "347230"]，其中 2652820720 经实测是
+// 「晴天(深情版)/Lucky小爱」翻唱版，不是周杰伦原版（网易云无周杰伦版权）。
+// 轮换一个不存在的曲目只会让 wy 探测在「翻唱 vs 原版」之间摆动，
+// 收敛到实测确认的《海阔天空》/ Beyond（326 秒）。
+const PROBE_163_IDS = ["347230"];
 
 function juheProbeCfg(platform, ids) {
   return {

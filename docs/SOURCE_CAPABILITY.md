@@ -191,7 +191,20 @@ node _matrix.js; rm -f _matrix.js
 
 验证数字：App 摘要契约 **9 → 12 条**（12/0）；14 个健康相关脚本全绿（含跨仓往返 4/0，需 `LX_SOURCE_ROOT` 强制跑）；`tsc --noEmit` rc=0；telemetry `node --test` **9/9**（旧格式仍通过）；新格式、旧格式、坏样本（多余键/超长 `q`）、超限（`total=5000`）四种样本分别验证为「通过/通过/拒收/拒收」。
 
-**阶段 3（未开始，需动产物与升版本）**：`suyinKuwo` 首位策略、`ikun` 按平台拆 `qualitys`、`juheTx` flac 降档校验、`PROBE_163_IDS` 换 id。
+**阶段 3（2026-11-21，已完成，动产物并升到 v9.1.4）**
+
+| 项 | 状态 | 验证 |
+|---|---|---|
+| `ikun` 按平台拆音质上限（kw=flac / wy=320k） | 已修 | `source-audit` 中 `ikun` wy 返 `206 audio/mpeg`，与新声明一致 |
+| `juheTx` 能力声明 flac → 320k | 已修 | 同源 flac 档实测 `audio/mpeg`；声明下调后 `tx/flac` 链只剩 `suyinKuwo` |
+| wy 探测曲目《晴天》→《海阔天空》 | 已修 | `probe` 期望值显示 326s；实测 `Music_163?id=2652820720` 是翻唱版「晴天(深情版)/Lucky小爱」 |
+| `PROBE_163_IDS` 收敛单 id + `buildProbeConfig` 同步 | 已修 | 契约 16/0；`expectSecOf('wy')=326` |
+
+**一个必须先认清的事实**：`lx-source.js` 是 `src/00-header.js` + esbuild 的构建产物，直接改产物会在下次 `build-source.js` 时被覆盖。三处改动全部落在 `src/providers/*.js` 与 `src/core/*.js`，重建后才生效（366,678 bytes）。
+
+**`juheTx` 那条要纠正之前的说法**：不是「交付验真不看 content-type」，而是**验到了却没改声明**。`wrapExecute` 的 `verifyDelivery`/`admit` 一直在跑，flac 档收到 mp3 会写 `deliveryQualityMap`、打「实交付音质与请求档不符」日志、并 `noteQualityDowngrade`，App 侧 `qualityFromDelivery` 也会显示真实档位。真正的问题是 `maxQuality` 写着 flac，于是它被排进 flac 候选却永远给不了——把能力声明下调才是对的，加校验只是重复已有能力。
+
+**wy 探测曲目**：`probe-songs.js` 原设计写「五平台统一用《晴天》271 秒版本」，这个前提在 wy 上从来就不成立——网易云没有周杰伦版权，原 `2652820720` 是翻唱版。现改为《海阔天空》/ Beyond（326 秒），并新增 `expectSecOf(platform)`，因为五平台已不再同名同曲。
 
 **阶段 4（未开始）**：`huibq` / `suyinQQ` / `suyinMigu` 退役与复核。
 

@@ -1,5 +1,18 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-21 · v9.1.4：按平台音质上限 + 探测曲目修正（阶段 3）
+
+阶段 3 动产物，所以必须先认一件事：**`lx-source.js` 是 `src/00-header.js` + esbuild 的构建产物**，直接改产物下次构建就被覆盖。三处改动都落在 `src/`，重建后才生效（366,678 bytes）。
+
+- **`ikun` 按平台拆音质上限**：新增 `maxQualityByPlatform`，kw 保持 flac、**wy 降到 320k**。实测 wy 三档全返 `audio/mpeg`，原来全局声明 flac 会让 wy 的 flac 请求把它选进候选、必然降档。`maxQuality` 仍保留全局值供契约校验与上报。链层三处按档位过滤（`22-chain.js` 建链 / 候选 / 计数）改为「平台上限优先、否则回落全局」。
+- **`juheTx` 从 flac 下调 320k**：这里要纠正一个此前的说法——**不是「没校验」，而是「校验到了但没改声明」**。交付闸门 `wrapExecute` 一直在验，flac 档收到 mp3 会写 `deliveryQualityMap`、打日志「实交付音质与请求档不符」、并 `noteQualityDowngrade`；App 侧 `qualityFromDelivery` 也会显示真实档位。真正的问题是能力声明写着 flac，于是它被排进 flac 候选却永远给不了。下调后 `tx/flac` 链只剩 `suyinKuwo`。
+- **wy 探测曲目换成《海阔天空》**：原 `PROBE_163_IDS = ["2652820720","347230"]`，实测第一个 id 在 `oiapi.net/api/Music_163` 返回的是「晴天(深情版)/Lucky小爱」**翻唱版**；用网易云官方搜索「晴天 周杰伦」出来的也全是翻唱——**网易云没有周杰伦版权**。也就是说，`probe-songs.js` 里「五平台统一用《晴天》271 秒」这个前提在 wy 上从来就不成立，一直拿翻唱版冒充原版在探测。改为实测确认的《海阔天空》/ Beyond（id 347230，326 秒），`PROBE_163_IDS` 收敛为单 id，`buildProbeConfig` 两处 `handlerSong` 同步，新增 `expectSecOf(platform)`（wy=326s、其余 271s）。
+- 连带同步：`chain-golden.json`（version→9.1.4、wy/flac 去 ikun、tx/flac 去 juheTx）、`package-lock.json`、`legacy.js` 加载日志版本号、冒烟测试 T21 与 QP10。
+
+**验证**：provider 契约 **16/0**；冒烟测试 **67 组**全过；`quality-policy-v2` **12/0**（QP10 原本测 `tx/flac` 的「非唯一源」，改后该链只剩一个源，已换到 `kw/flac`）；`f-repo` **57/0**；`docs-audit` 硬失败 0；`self-check` 通过（`@version=9.1.4`）；`npm test` 全量 exit 0（V 组 133/0、S 组 27/0）。实跑 `source-audit --quick` **15/15**，`ikun` wy 与 `juheTx` 均返 `audio/mpeg` 与新声明一致；`probe` 里 wy 期望值已是 326s（实际返 30s 试听是网易云免费链限制，判「仅试听」并由交付验真换源）。
+
+**签名**：本地无 `LX_SIGNING_KEY`，产物 sha 由 `b8144361` 变为 `82ac6458`，`Z10` 已标注「待 CI sign-release 重签回写」，推送后由 CI 补签。
+
 ## 2026-11-21 · 阶段 2：上报数据补齐音质维度（App + telemetry + 云端聚合）
 
 先说被推翻的判断：之前把 `recent_events` 里的「历史事件重复出现」记成 App 的窗口过滤缺陷，**是错的**。每份摘要都是「最近 24h」滑动窗口，b171（01:25）与 b185（09:17）重叠 16 小时，8 条同时间戳事件同时落在两份里；App 侧 `buildDigest` 的去重一直正常，重复产生在云端把两份直接相加这一步。

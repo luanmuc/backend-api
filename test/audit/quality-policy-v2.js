@@ -143,7 +143,10 @@ check('QP10 非唯一高质源仍走 1 小时探路', () => {
   const d = m.__debug
   d.toggleSource('suyinKuwo', true)
   for (let i = 0; i < 3; i++) m.recordFailure('suyinKuwo', 'flac', { playDead: false, code: m.ERROR_CODES.NOT_AUDIO })
-  const e = d.computeEligibility('suyinKuwo', 'tx', 'flac', { runtime: false, qualityShortCircuit: true })
+  // 2026-11-21：原用 tx/flac —— juheTx 能力声明下调为 320k 后，tx/flac 链只剩
+  // suyinKuwo 一个源，成了「唯一高质源」，与本节要验的「非唯一」前提相反。
+  // 换到 kw/flac（suyinKuwo / xinghaiBackend / helloworldKw / ikun 四个源）。
+  const e = d.computeEligibility('suyinKuwo', 'kw', 'flac', { runtime: false, qualityShortCircuit: true })
   assert(e.eligible === false && e.code === 'QUALITY_SHORT_CIRCUIT', `应短路，实际 ${e.code}`)
   const left = e.untilMs - Date.now()
   // R29：原来只有下界 —— 窗口真被写成 10 小时也照样绿；补上界。

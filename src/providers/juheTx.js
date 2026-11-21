@@ -11,11 +11,10 @@ module.exports = {
   },
   "upstreamGroup": "juhe",
   "auth": "none",
-  "maxQuality": "flac",
+  "maxQuality": "320k",
   "qualitys": [
     "128k",
-    "320k",
-    "flac"
+    "320k"
   ],
   "coldStart": false,
   "reviewAt": "2026-11-19"
