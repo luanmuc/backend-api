@@ -2,7 +2,9 @@
 
 > **重构说明**：原文件是第五轮压测的「覆盖率盲区清零」分册，标题与内容已不符。本文件重构为音源仓压测的**唯一入口**，覆盖三代压测脚本 + 本轮音质政策变更的压测关注点。
 >
-> **基线（唯一真值，2026-11-20）**：源仓 `master` **v9.1.4**（`297c88e` 巡检链重构，**脚本级、不改 `src/**` 与产物**，产物仍 `@version 9.1.3`）；`npm test` **46 个脚本** / 压测 **162 条** / 变异 **22 killed**；App **v1.9.2-b187**（`dadef6a1`，已推送）。
+> **基线（唯一真值，2026-11-22）**：源仓 `master` **v9.1.6**（`c38a2c1`，产物 **379380 bytes / 7375 行**，错误码 **19** 个，ed25519 keyId=**k1**）；`npm test` **47 个脚本** / 压测 **162 条**（S12 + T14 + V133 + D3）/ 变异 **22 killed**；App **v1.9.2-b199**（`b3ce7440`，已推送）。
+>
+> **R71~R74b 新增压测面（本轮并入）**：①`UNSUPPORTED_ACTION` 为**第 19 个**错误码（未知源 action 归一，`T8` 硬编码计数须同步）；②`sign-release` 裸 `git push` 被 `docs-audit` 并发提交顶掉（**R73**，已补 rebase，见 §3 表）；③App 侧全仓裸 console 归零后，音源侧 `logger` 相关跨仓断言无变化（音源自身不打 logger 通道）。
 >
 > **目标**：用可重复的纯 Node 压测，证明大并发、档位矩阵、跨平台、缓存上限、故障注入、边界输入下「不崩、不越界、不串歌、不假交付」。
 
@@ -65,25 +67,34 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | **通读缺陷回归（v8.16.2）** | R-01~R-12 逐条有可用断言：档位熔断跨重启保留、真实音质入账、播放分账、快照运行期资格、试探键清理、半开名额后置、gateErr 带码、跨平台可取消、兜底结构化、ttl 死分支、7 项静态确认 | `readthrough-fixes` 18/0 |
 | **巡检链口径单一真相（v9.1.4）** | `ok` 只认**端点级**最终结论（`httpOk && payload`），`httpOk`/`httpReason` 保留 HTTP 事实；成功率只有**探测级**一套（`rateRaw` + `wilsonLow`）；param 类端点一律不判可用；`legacy` 记录不参与统计；`consecutiveFail` 按全历史 | `probe --assert-samples`、`tg-truth` 口径一致、`f-repo` 57/0 |
 | **仅试听降级（v9.1.4，用户口径）** | juheTx《晴天》稳定 60.1s / 960887B 试听片段 → 判「可用但受限」（`ok:true` + `fragment:true` + 实际时长），README 显示 `🟡 可用（仅试听 60s/271s）`、日报单列且**不进「需处理」**；依据是源本体 `src/core/15-verify.js` 的 `PREVIEW_FRAGMENT` 会拦截并换源，用户听不到片段 | 真实 `probe --reps=1` 三轮（可用 10/12） |
+| **未知源 action 归一（R71d）** | `forceQualityProbe` / `reportPlayback` 对未注册源返回 `{ok:false, code:'UNSUPPORTED_ACTION', reason:'UNKNOWN_SOURCE'}`，不再抛裸异常；App `isBusinessRejection` 认这个码、不弹错误 | `force-probe-contract` FP4（带 code 断言）、`stress-round3` T8（19 码）、App `check_health_status_refactor` HS19 |
+| **`sign-release` 推送竞态（R73）** | 三个写 master 的点里只有 `sign-release` 是裸 `git push`，会被 `docs-audit` 并发提交顶掉（`! [rejected] master -> master (fetch first)`，run `44924159855`）；必须 `git fetch origin master` + `git rebase origin/master` + `git push origin HEAD:master` | 修后 run `44925546101` 1m39s 全绿；重签提交 `754e996` 把 manifest 刷为 379380 / `487606a8` / k1 |
 
-## 4. 本轮实测结果（2026-11-20 · v9.1.4）
+## 4. 本轮实测结果（2026-11-22 · v9.1.6 / `c38a2c1`）
 
 | 项 | 结果 |
 |---|---|
-| `npm test`（**46 个脚本**，含压测 2 条 + 冒烟 1 条） | **RC=0**；V 组 133/0 |
-| `stress-test`（S） | 12/0 |
-| `stress-round3`（T） | 14/0（链内） |
-| `stress-round4`（V） | 133/0（链内） |
-| **压测合计** | **159/0**（S12+T14+V133） |
-| 变异 `--full --strict` | **22 killed / 0 survived / 100%**（修复 MU15/MU22 拆包后失效锚点） |
-| `v9-gate.sh --group core` | **通过 35s**（E0/L/C2/E1/E3/X/C1 全绿） |
-| `layer-check` | ✅ 33 个 core 模块，无环/无反向引用/无同名定义/无直读 lx |
-| `cross-repo-version` | ✅ 产物 9.0.0 = legacy 9.0.0，App 解析器兼容 |
-| `schema-parity` | ✅ 4 组计数语义对齐，顶层 probe/play/chain/schema 齐备 |
-| `verify:bundle` | **8 passed / 0 failed**（7071 行 / 362008 bytes 可审计） |
-| `self-check` / `docs-audit --dry-run` | 自检通过（@version 9.0.0）；文档 0 红 0 黄 |
+| `npm test`（**47 个脚本** = 冒烟 1 + 审计 44 + 压测 2） | **RC=0**；T 14/0、V 133/0 |
+| `stress-test`（S，**不在 `npm test` 链上**，须单跑） | **12/0** |
+| `stress-round3`（T，链内） | **14/0** |
+| `stress-round4`（V，链内） | **133/0** |
+| **压测合计** | **159/0**（S12 + T14 + V133） |
+| 变异 `--full --strict` | **22 killed / 0 survived / 100%** |
+| `v9-gate.sh --group core` | **通过 34s**（E0/L/C2/E1/E3/X/P/C1 全绿） |
+| `layer-check` | ✅ 33 个 core 模块，无环 / 无反向引用 / 无同名定义 / 无直读 lx |
+| `cross-repo-version` | ✅ 产物 **9.1.6** = legacy 9.1.6，App 解析器兼容 |
+| `schema-parity` | ✅ 4 组计数语义对齐（probe/play ↔ by_source），顶层 probe/play/chain/schema 齐备 |
+| `verify:bundle` | **8 passed / 0 failed**（**7375 行 / 379380 bytes**） |
+| `self-check` | ✅ `@version=9.1.6`，actions 齐全，README/ROADMAP 同步 |
+| `docs-audit --dry-run` | **待处理 0 项 · 报告 44 项 · 硬失败 0 项** |
+| `api-surface` | ✅ 导出 27 / `__debug` 88 / **错误码 19** / 事件字段 12 / 快照键 6 |
+| `f-repo`（U~Z 全仓覆盖） | **57/0** |
+| 冒烟 `lx-source-smoke-test` | **67 组**（V3 自校验 `max=67`） |
+| 元审计 M1~M14 + M9b/M9c | **16/0** |
+| `force-probe-contract`（FP1~FP10） | **10/0** |
+| anchors 声明一致性 | **13/13 源** |
 
-> **本轮修掉的真实缺陷**：`MU15` / `MU22` 两个变异锚点在 v9 拆包后失效（`qualitySkipProbeAt` 改走 `dep()`、直写 `songInfo.duration` 改 `setDurationHint`），原本被静默 skipped、strict 下本应红。已按当前真实文本更新锚点，单点 2/2 与全量 22/22 均 killed。
+> **本轮无红。** `stress-test.js`（S 组 12 条）不在 `npm test` 链上——它是按需档，不是漏跑；`npm test` 只带 `stress-round3` + `stress-round4`。压测总数 162 仍按 S+T+V+D 计，与实跑口径分开记账。
 
 ## 5. 失败处置与外部阻塞
 
@@ -121,7 +132,7 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | ID | 不变量 | 违反后果 |
 |---|---|---|
 | I1 | 交付 URL 必为 http(s) 且非空 | 用户拿到死链 |
-| I2 | 失败必为 12 个 `ERROR_CODES` 之一 | 上层无法分类重试 |
+| I2 | 失败必为 **19** 个 `ERROR_CODES` 之一（R71d 增 `UNSUPPORTED_ACTION` 后由 18 增至 19） | 上层无法分类重试 |
 | I3 | 绝不 `ok:true` 但 `url` 空 | 静默失败，最难查 |
 | I4 | 健康分 ∈ [0,100] | 调度被误伤或永久跳过 |
 | I5 | 同歌同档并发合并成 1 次外呼 | 打爆第三方 / 触发限流 |
@@ -134,3 +145,11 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | V19 超时阈值 | 绝对阈值 `tSlow>500` 在写死 timeout 的变异下仍绿 | 改相对比较 `tSlow>tFast*3 && tSlow>600` |
 | V20 脏缓存标签 | 命中路径只判 `ok` 不回填音质，请求 flac 会留 128k 脏槽 | 命中返回用验真结果回填 `type`，**不改写槽位**（写点唯一） |
 | V21 兜底档 | 末级 `strict:false` 跳过歌手校验，会交付错歌（D-31） | 兜底档放行必须落日志，并断言 stdout 有该条 |
+
+---
+
+## 8. 维护记录（只记基线变更，不堆历史）
+
+| 日期 | 变更 | 实跑证据 |
+|---|---|---|
+| 2026-11-22 | 基线升到 **v9.1.6 / `c38a2c1`**（产物 7375 行 / 379380 bytes）；`npm test` **46→47 脚本**；错误码 **18→19**；并入 R71d（未知源 action 归一）与 R73（`sign-release` 推送竞态）两个压测面；§7.1 I2 由「12 个错误码」校正为 **19** | `stress-test` S **12/0**、`stress-round3` T **14/0**、`stress-round4` V **133/0**（合计 **159/0**）；`npm test` rc0；变异 **22 killed / 0 survived**；`v9-gate[core]` 34s；`verify:bundle` 8/0 |

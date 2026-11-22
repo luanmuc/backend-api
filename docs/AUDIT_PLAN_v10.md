@@ -2,12 +2,12 @@
 
 > **重构说明**：本文件由 v10.0 重构而来，文件名保留 `AUDIT_PLAN_v10.md` 以兼容既有引用。历史 round1~5 分册、v9.0、以及各轮审计报告全部归档，不再叠加进本文件；「当前要审什么、缺口在哪」只以本文件为准。
 >
-> **基线（唯一真值，2026-11-20）**：
-> - 源仓：`luanmuc/backend-api` @ `master`，**v9.1.4**（`297c88e`「巡检链重构：口径单一真相」，**脚本级改动、不改 `src/**` 与产物**，故未升版本号）；产物仍 **@version 9.1.3 / 7071 行 / 362008 bytes**，ed25519 签名 keyId=**k1**
-> - App 仓：`luanmuc/mobile-app`，**v1.9.2-b187**（`dadef6a1`，已推送；CI run `44713838456` 四 job 全绿）
-> - track-player：`3f8546d`（v2 分支，音频焦点 5 条 P1 收口）
-> - 硬数字：`test/` 下 **49 个 `.js` 入口**；`npm test` 链上 **46 个脚本**（冒烟 1 + 审计 43 + 压测 2；v9.1.4 新增 `readthrough-fixes` 后由 45 增至 46）；`test/audit/` 下 **43 个脚本全部进 CI**（L3/L4/L4.1~L4.3）；冒烟 67 组；压测 162 条（S12 + T14 + V133）；变异 22 killed / 0 survived
-> - **v9.1.4 实跑**：`npm test` **rc=0**（V 组 **133/0**，S 12/0，T 14/0）；`f-repo` **57/0**（较 v9.0.0 的 56 多 1 条）；`docs-audit` 0 待处理；`self-check` 通过；`v9-gate[fast]` 通过；`tg-truth` 口径全一致
+> **基线（唯一真值，2026-11-22）**：
+> - 源仓：`luanmuc/backend-api` @ `master`，**v9.1.6**（`c38a2c1`）；产物 **@version 9.1.6 / 7375 行 / 379380 bytes**，ed25519 签名 keyId=**k1**，manifest `487606a8`
+> - App 仓：`luanmuc/mobile-app`，**v1.9.2-b199**（`b3ce7440`，已推送；`preflight` **48/0 · 124.0s**）
+> - track-player：`669d2ab`（v2 分支，音频焦点 **67** 条 + 代次簿记 **24** 条）
+> - 硬数字：`test/` 下 **52 个 `.js` 入口**；`npm test` 链上 **48 个脚本**（冒烟 1 + 审计 45 + 压测 2）；`test/audit/` 下 **46 个脚本**（45 进 `npm test`，`q-quickjs-real` 按需）；冒烟 **67 组**；压测 **162 条**（S12 + T14 + V133 + D3）；**错误码 19 个**（R71d 增 `UNSUPPORTED_ACTION`）；变异 **22 killed / 0 survived**
+> - **v9.1.6 实跑（2026-11-22）**：`npm test` **rc=0**（V **133/0**、T **14/0**、元审计 16/0、`f-repo` 57/0）；`stress-test` S **12/0**（不在 `npm test` 链上，须单跑）；变异 **22 killed / 0 survived / 100%**；`docs-audit --dry-run` **待处理 0 / 报告 44 / 硬失败 0**；`self-check` 通过（9.1.6）；`v9-gate[core]` **通过 34s**；`verify:bundle` **8/0**；`api-surface` 一致（导出 27 / `__debug` 88 / 错误码 **19** / 事件字段 12 / 快照键 6）；`tg-truth` 口径全一致
 > - **v9 新增防线（本轮新增审计面）**：`layer-check.js`（L1~L6 拆包分层，legacy 不得回长、core 模块依赖只能走 `dep()`）、`cross-repo-version.js`（X1~X5 用 App 真实 `HEADER_VERSION_LINE_REGEX` 解析产物）、`schema-parity.js`（4 组计数语义 + App `HealthDigest` 四顶层键）、`sign-release.js`（ed25519 签名/验签/篡改检测）、`v9-gate.sh --group fast|core|stress`
 > - 本文件对应变更：v9.0「6272 行单文件 → 1290 行装配层 + 33 个 `src/core` 模块（`bindDep/dep` 110 条注册）」；`18-health-persist` 改纯区间判定（撤 7 元素白名单）；`02-config` 增 `SOURCE_VERSION`；RF18 去硬编码改「package.json 与产物 `@version` 一致」
 
@@ -42,7 +42,7 @@
 
 | 域 | 覆盖内容 | 落地脚本 | 断言 | 证据级 |
 |---|---|---|---|---|
-| 静态与语法 | 语法、编码、TODO、密钥、调试残留、导出面 | `a-static.js` + `f-repo.js` | 10 + 52 | A |
+| 静态与语法 | 语法、编码、TODO、密钥、调试残留、导出面 | `a-static.js` + `f-repo.js` | 10 + **57** | A |
 | 框架与宿主 | lx 宿主契约、action 声明、EVENT 收发、生命周期 | `b-logic.js` + `s-source-lifecycle.js` | 30 + 14 | A |
 | 核心逻辑 | 取链、降档、竞速、短路、预算 | `b-logic.js` | 30 | A |
 | 功能与异常 | 歌词/封面/管理 action、异常归一 | `d-func.js` + `e-extra.js` | 30 + 90 | A |
@@ -66,6 +66,7 @@
 | 降级所有权 | `fallbackOwner` host/source | `w-fallback-owner.js` | 2 | A |
 | QuickJS 真引擎 | 宿主无 Buffer 环境 | `q-quickjs-real.js` | 3 | A |
 | 候选源审计 | 候选接入证据链 | `candidate-audit-test.js` | 6 | A |
+| **非法 URL 防线（R75）** | `javascript:`/`file://`/`data:`/`//evil` 伪协议、空与超长入参、http→https 升级边界 | `security-url-guard.js` | 12 | A |
 | **音质真实标签** | `qualityFromDelivery`、`sniffAudioBytes` 总字节、`qualityConfidence`、片段语义 | `quality-truth.js` | 9 | A |
 | **音质政策优化** | 能力备档不续期、`definitiveFail` 分类、短路改判据、唯一源探路、强制探路、旧快照兼容 | `quality-policy-v2.js` | 12 | A |
 
@@ -78,7 +79,7 @@
 | **巡检链口径单一真相（v9.1.4 新增）** | `ok` = 端点级最终结论（`httpOk && payload`），新增 `httpOk`/`httpReason` 保留 HTTP 层原始事实（修 90 条 `ok:true`+`payload:false` 矛盾记录）；成功率统一**探测级** `rateRaw` + `wilsonLow`，天级只留「可用天」；param 类（`{id}`/`{level}` 模板）端点**一律不判可用**且不显示成功率；旧口径记录标 `legacy` 不参与统计；`consecutiveFail` 改**全历史**；仅试听降级为「可用但受限」（`ok:true` + `fragment:true` + 实际时长） | `tg-truth` + `f-repo` X 组 + `health-*.js` + `probe --assert-samples` | 口径一致 | A |
 | **巡检共享库收敛（v9.1.4 新增）** | `scripts/lib/history.js`（归一化/读写/窗口/Wilson 单一实现，probe 与日报共用，删两边各约 80 行重复）、`probe-songs.js`（五平台《晴天》271s 单一真相，替代 4 份手写歌单）、`source-host.js`（provider 驱动取链，`PAYLOAD_CHECKS` 由 9 条手写 `getUrl` 降为 9 条 `{key,src,plat,expectSec}` 声明） | `f-repo` + `docs-audit` | 无重复实现 | A |
 
-**当前总数**：冒烟 **67 组** + 审计 **567 条**（健康域 102 + 其余 455 + 口径 10）+ 压测 **162 条** + 变异 **22 killed / 0 survived**。计数真值以 `docs/TESTING.md` 与 `docs/AUDIT_MATRIX.md` 为准；`npm test` rc=0 覆盖 **46 个脚本**（v9.1.4 实跑，较 v9.0.0 的 42 增至 46；`f-repo` 57/0、`readthrough-fixes` 18/0 已计入）。
+**当前总数**：冒烟 **67 组** + 审计 **589 条**（健康域 102 + 其余 455 + 口径 10 + **R71d 新增 `force-probe-contract` 10** + **R75 新增 `security-url-guard` 12**）+ 压测 **162 条** + 变异 **22 killed / 0 survived**。计数真值以 `docs/TESTING.md` 与 `docs/AUDIT_MATRIX.md` 为准；`npm test` rc=0 覆盖 **48 个脚本**（v9.1.6 + R75 实跑；`f-repo` 57/0、`force-probe-contract` 10/0、`security-url-guard` 12/0、`readthrough-fixes` 18/0 均已计入）。
 
 ---
 
@@ -146,11 +147,11 @@
 
 ## 5. 执行清单（本轮必跑，不接受「上次绿过」）
 
-> 2026-11-16 起：**`npm test` 就是 CI 判据**（42 脚本），不再先跑 19 个本地子集再看云端。压测与变异单独串行（计时类断言不能被抢占）。
+> 2026-11-16 起：**`npm test` 就是 CI 判据**，不再先跑本地子集再看云端（当前 **48 脚本**）。压测与变异单独串行（计时类断言不能被抢占）。
 
 
 ```bash
-npm test                                   # 46 脚本 / 567 条审计断言（= CI 的 L3+L4+L4.1~L4.3 全量清单）
+npm test                                   # 48 脚本（= CI 的 L3+L4+L4.1~L4.3 全量清单）
 node --expose-gc test/stress-test.js        # S 12
 node --expose-gc test/stress-round3.js      # T 14
 node --expose-gc test/stress-round4.js      # V 133
@@ -165,13 +166,13 @@ node scripts/schema-parity.js               # 4 组计数语义 + App HealthDige
 node scripts/sign-release.js --verify --pub "$LX_PUBKEY"   # 发布签名可验
 ```
 
-### 5b. 全量脚本台账（49 入口 = 46 进 `npm test` + 3 按需）
+### 5b. 全量脚本台账（52 入口 = 48 进 `npm test` + 4 按需）
 
 | 脚本 | 条数 | 归属 |
 |---|---:|---|
 | `test/lx-source-smoke-test.js` | 67 组 | 冒烟（进 npm test） |
 | `a-static` / `b-logic` / `d-func` / `e-extra` | 10 / 30 / 30 / 90 | 静态/逻辑/功能/扩展 |
-| `f-repo` / `g-meta` / `h-toggles` | 56 / 16 / 8 | 仓库/元审计/开关 |
+| `f-repo` / `g-meta` / `h-toggles` | **57** / 16 / 8 | 仓库/元审计/开关 |
 | `n-fixes` / `p-gaps` / `q-dfix` / `q2-dseries` | 4 / 4 / 5 / 3 | 缺陷回归/零覆盖补测/D 系列 |
 | `r-admission` / `s-health-events` / `t-health-events-stress` | 24 / 27 / 12 | 裁决层/健康事件/压力 |
 | `u-cross-platform` / `v-cross-platform-stress` / `w-fallback-owner` / `x-media-envelope` | 15 / 13 / 2 / 12 | 跨平台/降级所有权/媒体信封 |
@@ -181,6 +182,7 @@ node scripts/sign-release.js --verify --pub "$LX_PUBKEY"   # 发布签名可验
 | `tg-truth` | 9 规则 | 口径门禁（含 G14 计划唯一、G15 双口径、G17 空跑守卫） |
 | `health-*.js`（14 个） | 102 | 健康域（探测/资格/断路器/快照/事件/版本） |
 | `candidate-audit-test.js` | 6 | 候选源接入 |
+| `security-url-guard.js` | 12 | **R75**：非法 URL 防线（三处运行时校验 + 协议白名单） |
 | `q-quickjs-real.js` | 3 | **按需**：需 `npm i quickjs-emscripten`（CI L5.2 单独装） |
 | `test/stress-test.js` / `stress-round3` / `stress-round4` | 12 / 14 / 133 | **按需**：压测，见 `STRESS_PLAN.md` |
 | `test/mutation/run.js` | 22 | **按需**：变异，不可与压测同跑 |
@@ -201,7 +203,7 @@ node scripts/sign-release.js --verify --pub "$LX_PUBKEY"   # 发布签名可验
 | G7 | 性能无基线 | 实测加载/探针/单请求耗时 | 记录数字，超预算有解释 |
 | QP-L1~L3 | 音质政策 App 消费面（见 §4） | App 侧跟进 | 见 §4 处置 |
 | G8 | 冷启动预热与短路 5 项（原 round2 §O，O1~O5 全部【未测】） | `coldStartTimeoutMs` 内完成或放弃、`coldStartWarmTtlMs` 内复用、`qualityShortCircuit` 采样达标短路且采样不足不短路、`playDeadReviveMs` 内重复失败不放大 | 补 `coldStart-*` 断言 5 条并双向验证，或记 blocked |
-| G9 | 预览冷却/缓存 key 边界（原 round5 EDGE6/EDGE7、TTL ±1ms、`songmid` 含 `\|`） | 同歌同档 duration 差 2 分钟须区分 key、冷却到期前 1ms/后 1ms、`platform\|mid\|quality` 拼接不粘连 | 见 §7 取舍；补断言前先确认现有行为是否正确 |
+| G9 | 预览冷却/缓存 key 边界（原 round5 EDGE6/EDGE7、TTL ±1ms、`songmid` 含 `\|`） | 同歌同档 duration 差 2 分钟须区分 key、冷却到期前 1ms/后 1ms、`platform\|mid\|quality` 拼接不粘连 | **已定性（R75）**：`07-net.js:197` `buildCacheKey` 只拼 `prefix_id_name_singer_album_quality`，**不含 duration**——同 id 不同版本（现场版/原版同时长档）会撞同一槽位。修它会改动产物字节、必须重签 manifest，属发布窗口动作，本轮不改，留作 P2。 |
 
 ---
 
@@ -269,6 +271,8 @@ node scripts/sign-release.js --verify --pub "$LX_PUBKEY"   # 发布签名可验
 
 | 日期 | 变更 | 实跑证据 |
 |---|---|---|
+| 2026-11-22 | **R75 补 G6**：新增 `test/audit/security-url-guard.js`（12 条）覆盖 `validateUrl` / `probeAudioDelivery` / `upgradeToHttps` 三处运行时校验；`npm test` **47→48 脚本**、`test/` 入口 **51→52**、`test/audit` **45→46**、审计合计 **577→589** | 12/0；红绿双向（把 `HTTP_URL_REGEX` 放宽成 `/^[a-z]+:/i` → 5 条红）；`npm test` rc0 |
+| 2026-11-22 | 基线升到 **v9.1.6 / `c38a2c1`**（产物 9.1.6 / 7375 行 / 379380 bytes / manifest `487606a8`）；App **b199 / `b3ce7440`**；`npm test` **46→47 脚本**（新增 `force-probe-contract` 10 条，审计合计 **567→577**）；`test/` 入口 **49→51**（按需 **3→4**）；错误码 **18→19**（`UNSUPPORTED_ACTION`，R71d） | `npm test` **rc=0**（V **133/0**、T **14/0**、元审计 16/0、`f-repo` **57/0**、`FP` **10/0**）；`stress-test` S **12/0**；变异 **22 killed / 0 survived**；`docs-audit` 待处理 0 / 报告 44 / 硬失败 0；`v9-gate[core]` 34s；`verify:bundle` **8/0**；`api-surface` 错误码 **19** |
 | 2026-11-20 | 基线升到 **v9.1.4 / `297c88e`**（巡检链重构，脚本级、产物仍 9.1.3）；App 基线 b151→**b187**、RNTP 88b062b→**3f8546d**；`npm test` **45→46 脚本**；新增两个审计面（**巡检链口径单一真相**、**巡检共享库收敛**）；§2b 补「巡检链口径」定制行 | `npm test` **rc=0**（V **133/0**、S 12/0、T 14/0）；`f-repo` **57/0**；`docs-audit` 0 待处理；`self-check` 通过；`v9-gate[fast]` 通过；`tg-truth` 口径全一致 |
 | 2026-11-18 | 基线升到 **v9.0.0**（7071 行 / 362008B / ed25519 k1）；新增 4 个审计面（layer-check L1~L6、cross-repo-version X1~X5、schema-parity、sign-release 验签）；`npm test` 42→**45 条命令**；修 MU15/MU22 拆包后失效锚点 | `npm test` RC=0；V 133/0；S 12/0；变异 22 killed/0 survived；`v9-gate core` 35s 通过；`verify:bundle` 8/0；`docs-audit` 0 红 |
 | 2026-11-17 | 巡检升级第一阶段：probe 每次 3 次探测 + `--assert-samples` 空跑守卫；日报加 Wilson 95% 下限与出链抽样段；告警改滚动 Issue；`tg-truth` 加 G15/G17（口径 7→9） | `npm test` rc0 42 脚本 / 567 条；`probe --reps=3 --assert-samples` 当日 51 样本；`source-audit --quick` 8/11 出链 |
