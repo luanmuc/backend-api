@@ -6,7 +6,7 @@
 >
 > **时效说明**：以下逐文件结论是 2026-11-10 通读时的历史快照，保留作为审计证据；当前版本号、断言数、行数以 `README.md`、`docs/TESTING.md` 与 `scripts/docs-audit.js` 的实测为准。
 
-历史快照 `e9a2259`（v8.16.1 时期）；当前工作区 **v9.1.2**（HEAD `ddbcc44`，本地提交未推送），产物 `lx-source.js` **7,101 行 / `@version 9.1.2`**、`package.json` 9.1.1
+历史快照 `e9a2259`（v8.16.1 时期）。**当前工作区的版本号 / 行数 / 字节数一律以机器口径为准**（`README.md`「当前版本」行、`docs/AUDIT_MATRIX.md` 的 `lx-source.js` 行、`docs/TESTING.md` 的入口清单，均由 `scripts/docs-audit.js` 自动对齐）；本行不再手写具体版本，避免每次发版后成为一条固定漂移（R78 修：此前手写 v9.1.2 / 7,101 行 / package 9.1.1 已落后 5 个版本）。产物 `@version` 与真实行数以 `lx-source.js` 文件头注释为准
 
 > 复核说明（2026-11-19）：`src/core/` 33 个模块的逐文件结论已由占位符补为实测结论（职责 + 导出面 + 已知缺陷编号）；文件数/总行数按当前 HEAD 实测刷新。
 文件数：**199**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**59552**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
