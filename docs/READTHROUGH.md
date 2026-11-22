@@ -87,6 +87,7 @@
 | `docs/device-digests.jsonl` | 1 | 生成 | 真机摘要（lx-telemetry 拉取落地），每行一天，只含次数与错误码 |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 122 | 全文 | 五组账 + 5 次自我推翻；e-extra 82 / 3179 行 / 66 文件 过期 |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 480 | 全文 | G1~G11 + §12.5 端到端 10/10 + D-27/28；尾部 6 条遗漏自查 |
+| `docs/reports/R76-音源全量通读-2026-11-23.md` | 86 | 全文 | v9.1.6 产物逐行通读：P1-01 restore 丢 playDead.quality（18-health-persist.js:105/149）、P1-02 FLAC 小端长度被大端读（08-media.js:148/151/154）、P2×6；对已发布产物复现 6 通过/4 失败；架构评估成立，弱点在往返等价/二进制夹具/快照纯度/跨仓字段契约 |
 | `docs/reports/候选接入评审-2026-11-15.md` | 97 | 全文 | ecosystem 扫出 4 候选逐个评审：qingliang tx 线路实测 206 + 全曲 10,792,943 bytes；xinglan 主线路只给试听（RS0 / 960,887 bytes，差 11.2 倍）；feichangdao/suyin 与我方 oiapi/xcvts 同源重复 |
 | `scripts/preflight-push.sh` | 53 | 当前态 | 推送前一键全量校验（v9-gate core + npm test 43 audit + docs-audit + 产物幂等），新增 |
 | `scripts/candidate-audit.js` | 342 | 全文 | mockLoadScript 同步化定时器 → 递归 setTimeout 脚本会栈溢出（仅候选用，风险低） |

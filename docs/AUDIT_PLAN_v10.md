@@ -203,6 +203,9 @@ node scripts/sign-release.js --verify --pub "$LX_PUBKEY"   # 发布签名可验
 | G7 | 性能无基线 | 实测加载/探针/单请求耗时 | 记录数字，超预算有解释 |
 | QP-L1~L3 | 音质政策 App 消费面（见 §4） | App 侧跟进 | 见 §4 处置 |
 | G8 | 冷启动预热与短路 5 项（原 round2 §O，O1~O5 全部【未测】） | `coldStartTimeoutMs` 内完成或放弃、`coldStartWarmTtlMs` 内复用、`qualityShortCircuit` 采样达标短路且采样不足不短路、`playDeadReviveMs` 内重复失败不放大 | 补 `coldStart-*` 断言 5 条并双向验证，或记 blocked |
+| G12 | export→restore 全字段等价（R76 P1-01 漏网根因） | 导出含 `playDead.quality` 的快照→恢复→逐字段比对 | 全字段等价断言入 `test/audit/`，红绿双向 |
+| G13 | 二进制解析真实格式夹具（R76 P1-02 漏网根因） | 合法 FLAC（小端长度）/ID3v2.3/2.4/2.2 字节夹具喂 `parseAudioTags` | 标签解析断言入 `test/audit/`，红绿双向 |
+| G14 | 快照纯度（R76 P2-01） | `getHealthSnapshot` 调用前后 `qualitySkipProbeAt`/熔断器指纹不变 | 纯度断言入 `test/audit/` |
 | G9 | 预览冷却/缓存 key 边界（原 round5 EDGE6/EDGE7、TTL ±1ms、`songmid` 含 `\|`） | 同歌同档 duration 差 2 分钟须区分 key、冷却到期前 1ms/后 1ms、`platform\|mid\|quality` 拼接不粘连 | **已定性（R75）**：`07-net.js:197` `buildCacheKey` 只拼 `prefix_id_name_singer_album_quality`，**不含 duration**——同 id 不同版本（现场版/原版同时长档）会撞同一槽位。修它会改动产物字节、必须重签 manifest，属发布窗口动作，本轮不改，留作 P2。 |
 
 ---
@@ -271,6 +274,7 @@ node scripts/sign-release.js --verify --pub "$LX_PUBKEY"   # 发布签名可验
 
 | 日期 | 变更 | 实跑证据 |
 |---|---|---|
+| 2026-11-23 | **R76 全量通读**：v9.1.6 产物 7375 行逐行只读通读；定案 P1×2 + P2×6（报告 `docs/reports/R76-音源全量通读-2026-11-23.md`）；§6 新增 G12~G14 三个覆盖面 | 对已发布产物复现 6 通过 / 4 失败（失败=缺陷坐实）；`verify:bundle` 8/0；未改代码 |
 | 2026-11-22 | **R75 补 G6**：新增 `test/audit/security-url-guard.js`（12 条）覆盖 `validateUrl` / `probeAudioDelivery` / `upgradeToHttps` 三处运行时校验；`npm test` **47→48 脚本**、`test/` 入口 **51→52**、`test/audit` **45→46**、审计合计 **577→589** | 12/0；红绿双向（把 `HTTP_URL_REGEX` 放宽成 `/^[a-z]+:/i` → 5 条红）；`npm test` rc0 |
 | 2026-11-22 | 基线升到 **v9.1.6 / `c38a2c1`**（产物 9.1.6 / 7375 行 / 379380 bytes / manifest `487606a8`）；App **b199 / `b3ce7440`**；`npm test` **46→47 脚本**（新增 `force-probe-contract` 10 条，审计合计 **567→577**）；`test/` 入口 **49→51**（按需 **3→4**）；错误码 **18→19**（`UNSUPPORTED_ACTION`，R71d） | `npm test` **rc=0**（V **133/0**、T **14/0**、元审计 16/0、`f-repo` **57/0**、`FP` **10/0**）；`stress-test` S **12/0**；变异 **22 killed / 0 survived**；`docs-audit` 待处理 0 / 报告 44 / 硬失败 0；`v9-gate[core]` 34s；`verify:bundle` **8/0**；`api-surface` 错误码 **19** |
 | 2026-11-20 | 基线升到 **v9.1.4 / `297c88e`**（巡检链重构，脚本级、产物仍 9.1.3）；App 基线 b151→**b187**、RNTP 88b062b→**3f8546d**；`npm test` **45→46 脚本**；新增两个审计面（**巡检链口径单一真相**、**巡检共享库收敛**）；§2b 补「巡检链口径」定制行 | `npm test` **rc=0**（V **133/0**、S 12/0、T 14/0）；`f-repo` **57/0**；`docs-audit` 0 待处理；`self-check` 通过；`v9-gate[fast]` 通过；`tg-truth` 口径全一致 |

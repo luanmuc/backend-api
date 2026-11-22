@@ -57,6 +57,7 @@
 | `docs/device-digests.jsonl` | 自动追加 | scripts/pull-device-digests.js | 真机摘要每次一行 | — |
 | `docs/reports/v8.11.1-第五轮审计结算.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
 | `docs/reports/v8.11.1-第六轮缺口审计.md` | 历史快照 | 人 | 冻结：只记录当时结论 | — |
+| `docs/reports/R76-音源全量通读-2026-11-23.md` | 本轮通读 | 人 | v9.1.6 产物 7375 行逐行通读定案：P1×2（restore 丢 playDead.quality / FLAC 字节序）+ P2×6 + 治理项；复现 6/4 | 2026-11-23 |
 | `docs/reports/候选接入评审-2026-11-15.md` | 本轮评审 | 人 | 4 候选接入结论（含真实取链证据），结论变更时重写 | 2026-11-15 |
 
 ## 当前态文档的「机器看住哪些字段」
