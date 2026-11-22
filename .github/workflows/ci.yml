@@ -9,6 +9,11 @@ on:
       - 'scripts/**'
       - 'src/**'
       - '.github/workflows/**'
+  # R75：docs-only 提交不触发本 workflow，但 App 的「源仓 HEAD CI 闸门」要求
+  # 「最近一次 push CI」为绿——docs 修完 CI 不会自动重跑，闸门就卡在旧的失败 run 上。
+  # 给一个手动重跑入口（App 构建被阻断时 dispatch 一次即可，不必空推代码）。
+  workflow_dispatch:
+
   schedule:
     # v8.10.4：改到 UTC 20:00（北京次日 04:00）。GitHub schedule 排队实测延迟 6–8 小时
     # （原 UTC 06:00 设定的实际落地是北京 20:14 / 21:25 / 21:33 / 21:49 / 22:26），
