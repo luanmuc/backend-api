@@ -43,7 +43,7 @@
 | `check-data-retention.js` (99) | 数据保留巡检（**只读，不删数据**）：`docs/probe-history.jsonl` 覆盖天数 > 30 则列出可归档区间；`docs/health-daily/` 日报数 > 14 则列出最老可归档日期 | 手动 / 定期巡检 | 只读；`--strict` 超限 exit 1 |比对 sha256 | 发布前 / CI | **会写 .sig 与 .manifest.json**；无密钥时跳过（不产坏签名） |
 
 
-**CI（ci.yml `sign-release` job）**：push master 且 test-fast 通过后重建产物 → 用 secret `LX_SIGNING_KEY` 签名 → 用内置公钥自校验 → 上传 artifact。**刻意不自动改 Release 资产**：Release 手工发版，CI 擅自覆盖会让「哪些包被签过」失去可审计性。缺 secret 时跳过签名（不产半成品）。| `doc-sync-map.js` (113) | 改动文件 → 必同步文档清单（hook 用），`--check` 硬触发拦截 | commit 时 hook | 无（被 hook 调用） |
+**CI（ci.yml `sign-release` job）**：push master 且 test-fast 通过后重建产物 → 用 secret `LX_SIGNING_KEY` 签名 → 用内置公钥自校验 → 上传 artifact。**刻意不自动改 Release 资产**：Release 手工发版，CI 擅自覆盖会让「哪些包被签过」失去可审计性。缺 secret 时跳过签名（不产半成品）。| `doc-sync-map.js` (125) | 改动文件 → 必同步文档清单（hook 用），`--check` 硬触发拦截 | commit 时 hook | 无（被 hook 调用） |
 
 ## 四、单一真相模块（被其他脚本 require）
 

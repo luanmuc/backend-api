@@ -25,9 +25,20 @@ const RULES = [
     'docs:docs/AGENTS.md（命令段如有涉及）',
     'action:若涉及 actions/健康分/字段/音质能力变更 → 跨仓库：mobile 侧需按 docs/SYNC_POINTS.md 核对 userApi / Health.tsx / lang 三语言 / MUSIC_SOURCE_GUIDE',
   ]},
+  // 源码模块（v9.0 拆包后的真实改动面）：R78 前只匹配产物 `lx-source.js`，
+  // 改 src/core/*.js 或 src/providers/*.js 时清单为空、--check 也不拦 —— 等于规则空转。
+  { match: 'src/', docs: [
+    'docs:docs/DEV_GUIDE.md（对应模块小节 / 机制说明）',
+    'docs:docs/KNOWN_ISSUES.md（缺陷修复登记：状态+证据+下一步；新取舍登记为 DEFERRED）',
+    'docs:docs/CHANGELOG.md（行为/能力变化记一行；纯内部重构可只写「行为不变」）',
+    'docs:README.md（能力/默认开关/版本口径有变化时更新）',
+    'action:若改了 actions / 健康分 / 字段 / 音质能力 → 跨仓库：mobile 侧按 docs/SYNC_POINTS.md 核对',
+  ]},
   // 测试用例：补用例需同步测试覆盖说明
   { match: 'test/', docs: [
     'docs:docs/DEV_GUIDE.md（D 系列测试覆盖说明，如用例数变化）',
+    'docs:docs/AUDIT_MATRIX.md（新脚本或断言数变化）',
+    'docs:docs/TESTING.md（入口清单与断言数）',
   ]},
   // 工程脚本：改脚本需同步命令段与版本历史
   { match: 'scripts/', docs: [
@@ -43,7 +54,8 @@ const RULES = [
 
 // ── 硬触发：这些文件被改、而提交不含任何 docs/README 更新 → --check 拒绝 ──
 const HARD_TRIGGER = [
-  'lx-source.js',        // 音源代码
+  'lx-source.js',        // 音源产物
+  'src/',                // 音源源码（v9.0 拆包后真正被改的是这里）
   'test/',               // 测试
   'scripts/',            // 工程脚本（排除本脚本自身所在 hooks 安装提交，见下）
 ];

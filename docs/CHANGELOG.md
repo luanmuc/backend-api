@@ -1,5 +1,20 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-23 · 工具链（不改产物）：文档同步闸门从「只在文档里」变成「每次提交都拦」
+
+**问题**：`docs/AGENTS.md` §文档同步规范写着「强制、无需提醒」，`scripts/hooks/` 与 `scripts/doc-sync-map.js` 也都在库，但两处失效——① 本机 `core.hooksPath` 未设置，`.git/hooks/` 只有 sample，提交时既不打印清单也不拦截；② `RULES` 只匹配产物 `lx-source.js`，v9.0 拆包后真正被改的是 `src/core/*`、`src/providers/*`，改源码时清单为空、`--check` 也不拒（R77 改了 15 个 src 文件，全部静默通过）。
+
+**改法**
+
+| 位置 | 改动 |
+|---|---|
+| `scripts/doc-sync-map.js` | `RULES` 补 `src/` → DEV_GUIDE / KNOWN_ISSUES / CHANGELOG / README + 跨仓 action；`test/` 补 AUDIT_MATRIX / TESTING；`HARD_TRIGGER` 补 `src/` |
+| `scripts/install-hooks.sh` | 两仓各执行一次（`core.hooksPath=scripts/hooks`），装后 `prepare-commit-msg` 打印清单、`commit-msg` 拒绝「改代码不带文档」 |
+| `docs/AGENTS.md` | 第 3 条补 `src/` 触发面；新增第 7 条「安装自检」（`git config core.hooksPath` 为空即未生效） |
+| `docs/KNOWN_ISSUES.md` | 登记 K36（规则空转，FIXED）、K37（App 侧 `getStagedFiles` 静默放行，FIXED） |
+
+**验证（红绿双向）**：暂存 `src/core/02-error-codes.js` 单文件改动 → `doc-sync-map --check` rc=**1**（打印「本次改动包含代码/脚本，但未包含任何文档更新」）；再叠加文档改动 → rc=**0** 且清单正确列出 7 条（含跨仓 action）。`lx-source.js` 产物零改动，不升版本号。
+
 ## 2026-11-21 · v9.1.6 同版收尾（R71e）：`reportPlayback` 未知源归一为业务否定
 
 **问题**：`forceQualityProbe` 已改成 resolve，但 `reportPlayback` 仍 `reject(PARAM_ERROR: unknown source id)`。切换/卸载音源后，播放器残留的播放回传必然命中这条——App 侧包装是 `.catch(err => { console.log(err.message); return Promise.reject(err) })`，于是每播一次就往控制台打一行 `PARAM_ERROR: unknown source id`；服务侧不记账、用户侧无感知，纯粹噪音。

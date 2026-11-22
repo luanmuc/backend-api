@@ -96,11 +96,16 @@ git add lx-source.js && git commit -m "feat(vX.Y): <变更摘要>" && git push o
 
 1. **新账号 clone 后安装一次**：`sh scripts/install-hooks.sh`（等价 `git config core.hooksPath scripts/hooks`）；
 2. **prepare-commit-msg**：每次 `git commit` 自动打印「📋 必同步文档清单」+ 文档巡检红/黄项摘要——照单在同提交内更新文档；
-3. **commit-msg 强制校验**：改动含代码/脚本（lx-source.js、test/、scripts/）但提交不含任何文档更新 → 拒绝提交（确认无需文档时 `git commit --no-verify` 绕过）；
+3. **commit-msg 强制校验**：改动含代码/脚本（`lx-source.js`、**`src/`**、`test/`、`scripts/`）但提交不含任何文档更新 → 拒绝提交（确认无需文档时 `git commit --no-verify` 绕过）；**R78 前 `src/` 不在触发面**——v9.0 拆包后真正被改的是 `src/core/*` 与 `src/providers/*`，规则只在 `lx-source.js`（产物）上生效，等于改源码时清单为空、也不拦（登记 K36，现已补）；
 4. **pre-push 闸门**：推送前自动跑 `node scripts/docs-audit.js --dry-run`，存在 🔴（机器修不了的不一致）→ 拒绝推送（`git push --no-verify` 可绕）；
    - **v9.0 追加（台账 HEAD 与本地 amend 收敛）**：未推送前每仓保持单提交，任一 `commit --amend` 都会把旧 HEAD 从历史上摘掉。规则现区分「对象不存在（真漂移，🟡 重置）」与「对象存在但被本地重写（🟢 只校验不改写）」，避免「改台账→再 amend→又失配」的死循环。**台账不再因 amend 产生待提交改动**。
 5. 清单中的「跨仓库 action」提示（如音源能力变更 → mobile 按 SYNC_POINTS 核对）同样要处理：通知 mobile 侧账号或自己到对方仓库同步；
-6. 规则表维护：新增映射在 `scripts/doc-sync-map.js` 的 `RULES` 加一行即可（活文档原则）。
+6. 规则表维护：新增映射在 `scripts/doc-sync-map.js` 的 `RULES` 加一行即可（活文档原则）；
+7. **安装自检（R78 补）**：`git config core.hooksPath` 为空 = hook 根本没生效（规则文本再全也只在文档里躺着）。自查一条命令：
+   ```sh
+   git config core.hooksPath   # 应输出 scripts/hooks；为空就 sh scripts/install-hooks.sh
+   ```
+   提交时没看到「📋 [doc-sync] 本次改动触发的必同步文档清单」这段输出，同样说明没装或没生效。
 
 ## 文档同步规范（强制，无需提醒）
 
