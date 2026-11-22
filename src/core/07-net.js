@@ -199,7 +199,11 @@ function buildCacheKey(prefix, songInfo, quality = "") {
   const name = songInfo?.name || "";
   const singer = songInfo?.singer || "";
   const album = songInfo?.albumName || songInfo?.album || "";
-  return `${prefix}_${id}_${name}_${singer}_${album}_${quality}`;
+  // R77（G9 定性收口）：旧 key 不含时长，同 id 不同版本（现场版/原版）会撞同一槽位。
+  // 只在携带时长时追加 duration 段（未携带时 key 与旧版完全一致，测试与存量槽位不受扰动）。
+  const rawDur = songInfo?.duration ?? songInfo?.interval ?? "";
+  const durSeg = rawDur !== "" ? `_${String(rawDur)}` : "";
+  return `${prefix}_${id}_${name}_${singer}_${album}${durSeg}_${quality}`;
 }
 
 function getCachedUrl(cacheKey) {

@@ -1,6 +1,6 @@
 # 测试基建索引（test/）
 
-> **52 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集已全部并进 `npm test` 的 **48 个脚本**（冒烟 1 + 审计 **45** + 压测 2；2026-11-16 把 CI 的 L3/L4 审计清单全量并入，此前本地只跑 26 个，`f-repo` 这类文档死链门禁本地根本不跑；**2026-11-17 把 `stress-round3/4` 并入本地 `npm test`**——此前这两条只在云端 `stress-short` 跑，导致「本地全绿、推送后云端红」（T8 硬编码错误码数 17）的盲区反复出现；**2026-11-19 起 `test/audit/` 下 44 个脚本全部进 CI**——此前只接 19 个，24 个（含 14 个 `health-*`）零执行点，新增 L4.1/L4.2/L4.3 三个 step 补齐，实测 222 条断言在干净环境全绿），其余 4 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
+> **53 个入口**，**没有统一 runner**，逐条跑；CI 必跑子集已全部并进 `npm test` 的 **49 个脚本**（冒烟 1 + 审计 **46** + 压测 2；2026-11-16 把 CI 的 L3/L4 审计清单全量并入，此前本地只跑 26 个，`f-repo` 这类文档死链门禁本地根本不跑；**2026-11-17 把 `stress-round3/4` 并入本地 `npm test`**——此前这两条只在云端 `stress-short` 跑，导致「本地全绿、推送后云端红」（T8 硬编码错误码数 17）的盲区反复出现；**2026-11-19 起 `test/audit/` 下 44 个脚本全部进 CI**——此前只接 19 个，24 个（含 14 个 `health-*`）零执行点，新增 L4.1/L4.2/L4.3 三个 step 补齐，实测 222 条断言在干净环境全绿），其余 4 个按需执行（**`test/` 下每个 `.js`（含 `audit/`、根级压测、`mutation/run.js`）至少被 `npm test` 或 CI 引用一次**，且 `npm test` 登记的路径必须真实存在，否则由 `docs-audit` 规则 20 报红）。
 > **QuickJS 3 条（QR）需 `NODE_PATH` 指向装了 `quickjs-emscripten` 的目录**（CI 在 L66-67 自装）；
 > 缺依赖时脚本以**退出码 3** 报「未验证」——**跳过不等于通过，不得计入 363**。
 > 断言实测（2026-11-13 当前工作树）：冒烟 **67 组** + 压测 **159 条**（12/14/**133**）+ 审计断言按各脚本输出汇总（本轮新增 health-snapshot **11/0**、health-probe-batch2 **9/0**、health-eligibility-batch3 **9/0**）；历史 429/655 是旧口径，不再作为当前总数。逐入口明细见下方「入口总表」。变异体 **22 个**（`--full --strict` 全量 **22 killed / 0 survived**，2026-11-13 实测）。
@@ -16,7 +16,7 @@
 | L4 | `node test/audit/r-admission.js` / `node test/audit/u-cross-platform.js` / `node test/audit/v-cross-platform-stress.js` | 23 + 15 + 13（L4 裁决层 + 跨平台兜底 + 跨平台压力） |
 | L4.1 | 7 个 `health-*`（状态机/资格/权威/熔断/不变量/摘除/清账） | 44（10+9+9+5+5+4+2） |
 | L4.2 | 7 个 `health-*`（探测/持久化/调度/快照/事件） | 58（9+10+9+10+2+11+7） |
-| L4.3 | `quality-policy-v2` / `quality-truth` / `y-provider-contract` / `s-source-lifecycle` / `v-eligibility` / `z-cancel` / `aa-p3-persist` / `budget-admission` / `tg-truth` / `readthrough-fixes` / `security-url-guard` | 132（12+9+16+14+7+11+10+7+10+24+12） |
+| L4.3 | `quality-policy-v2` / `quality-truth` / `y-provider-contract` / `s-source-lifecycle` / `v-eligibility` / `z-cancel` / `aa-p3-persist` / `budget-admission` / `tg-truth` / `readthrough-fixes` / `security-url-guard` / `force-probe-contract` / `anchors-contract` / `r77-fixes` | 185（12+9+16+14+7+11+10+7+10+24+12+10+18+27） |
 | L1.3 | `node --expose-gc test/stress-test.js` | 12（S 组，压量） |
 | L5 | `node --expose-gc test/stress-round3.js` | 14（T 组，压态） |
 | L5.1 | `node --expose-gc test/stress-round4.js` | 133（V 组，压判据） |
@@ -47,6 +47,7 @@
 | `test/audit/anchors-contract.js` | 3 | v9.1.6（K30 后续）：`anchors` 声明一致性——声明与实现交叉验证（逐键单给、`[]` 源不许报缺 id）+ 巡检样本并集覆盖 | mock 宿主（零联网） | `node test/audit/anchors-contract.js` |
 | `test/audit/force-probe-contract.js` | 10 | R71：`forceQualityProbe` action 契约——已知源 ok/写立即到期标记/不动 breaker；未知源 resolve `{ok:false,UNKNOWN_SOURCE}` 且不 reject；缺 id reject；默认 flac 与大写归一 | mock 宿主（零联网） | `node test/audit/force-probe-contract.js` |
 | `test/audit/g-meta.js` | 16 | 四轮元审计：恒真断言/空壳断言/自指/导出面真实性/死键回流/入口登记/退出码链路/require 安全/顶层环境侧依赖/口径统一/输出可定位 | 读文件 + 子进程 | `node test/audit/g-meta.js` |
+| `test/audit/r77-fixes.js` | **27** | **R77**：R76 通读缺陷修复回归（v9.1.7）——G12 导出→恢复全字段等价（quality 白名单 + "*" 多档 + 非法拒整包）/ G13 FLAC 小端与 ID3v2.2/2.3/2.4 真实字节夹具 / G14 快照纯度（不布防）+ gate setProbe 静态锚点 / P2-06 档位复位 / G9 缓存 key 含时长 / 契约复核新鲜度（时间注入）/ interval 回退 / 解析顺序 / 预热锚点 / 探针元数据；红绿双向逐点验证 | mock 宿主 + `__debug` + src 层夹具 | `node test/audit/r77-fixes.js` |
 | `test/audit/security-url-guard.js` | 12 | **R75**：运行时非法 URL 防线——`validateUrl` / `probeAudioDelivery` / `upgradeToHttps` 三入口对 `javascript:`、`file://`、`data:`、`//evil.com`、空/null、100KB 超长必须拒绝；`http:` 可升级 `https:` 但不得降级 | mock 宿主（零联网） | `node test/audit/security-url-guard.js` |
 | `test/audit/readthrough-fixes.js` | **21** | v8.16.2~v8.16.3 逐行通读缺陷回归（RF1~RF20）：RF1 档位熔断跨重启保留 / RF2 真实交付音质入账 + 降级样本不进请求分母 / RF3 播放与取链分账 / RF4 快照 eligible 反映运行时 / RF5 试探键清理命中 / RF6 preGate 不提前消耗半开名额 / RF7 gateErr 带 code 与 sourceId / RF8 跨平台 fallback 可取消 / RF9 兜底控制流结构化（静态）/ RF10 删除 ttl=0 死分支（静态）/ RF11 取链摘除持久化 / RF12 平台不支持码语义 / RF13 多平台逐平台资格可见 / RF14 kwoff 死读清除（静态）/ RF15 provider 不写调用方对象（静态）/ RF16 206 也校验 content-type / RF17 cacheTtlMs 热更新生效（静态）/ RF18 版本与口径一致（静态）/ **RF19 `skipReason` 只读：冷却已满的 open 档不被推进 half-open、`trialInFlight` 不被占用、JSON 前后一致、名额仍可被 `canExecute` 放行（R-13）** / **RF21 播放摘除按档位归因（疑-31）：触发档仍拦、其他有成功史的档不连坐、无成功史档不豁免、跨档失败不豁免、快照 `playDead.quality` 必须存在** / **RF20 `PLAYBACK_FAILED` 为一等码：`ERROR_CODES` 有键、`admit` 判 `PLAYBACK_DEAD`、`ttlMs=0`、`health=skip`、资格层不再裸写字面量** | mock 宿主 + `__debug` 钩子 + 产物文本断言（非 ASCII 先解码 \u 转义） | `node test/audit/readthrough-fixes.js` |
 | `test/audit/tg-truth.js` | 6 | 口径门禁：源数断言 vs provider 实数 / 入口数 / 脚本数 / 旧会话绝对路径 / 版本串 / ci.yml 是否覆盖 `src/**`（读不到按红处理） | 读文件 | `node test/audit/tg-truth.js` |

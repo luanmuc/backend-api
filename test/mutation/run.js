@@ -92,6 +92,7 @@ const MUTANTS = [
   {
     id: 'MU10',
     name: '配置校验不防 NaN（NaN 可绕过 <=0 与上下限）',
+    file: 'src/legacy.js', // build 入口 src/80-entry.js require 的是 src/legacy.js；src/core/legacy.js 是死副本
     from: 'if (typeof value !== "number" || !Number.isFinite(value)) continue;',
     to: 'if (typeof value !== "number") continue;',
   },
@@ -196,8 +197,11 @@ function sourceFiles() {
   return out;
 }
 
-function findAnchor(files, text) {
+function findAnchor(files, text, onlyFile) {
   for (const file of files) {
+    // R77：锚点默认遍历全部源文件，命中即返回；双份同内容文件（如 src/core/legacy.js 迁移残留）
+    // 会让变异落在构建不引用的死文件上 → 产物不变 → 假存活。可用 file 字段钉死落点。
+    if (onlyFile && !file.endsWith(onlyFile)) continue;
     const body = fs.readFileSync(file, 'utf8');
     const hits = body.split(text).length - 1;
     if (hits) return { file, body, hits };
@@ -264,7 +268,7 @@ function main() {
   try {
     for (const m of MUTANTS) {
       if (only.length && !only.includes(m.id)) continue;
-      const hit = findAnchor(files, m.from);
+      const hit = findAnchor(files, m.from, m.file);
       if (hit.hits !== 1) {
         rows.push({ id: m.id, name: m.name, status: 'SKIPPED', killers: [`锚点命中 ${hit.hits} 次`] });
         continue;

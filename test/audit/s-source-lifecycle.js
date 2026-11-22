@@ -50,9 +50,9 @@ rec('S4', '观察源默认关闭且只探测不进链', () => {
   }
 });
 rec('S5', '观察源 reviewAt 到期可追踪', () => {
-  assert.strictEqual(H.suyinQQ.reviewAt, '2026-11-19');
-  assert.strictEqual(H.suyinMigu.reviewAt, '2026-11-26');
-  assert.strictEqual(H.juheTx.reviewAt, '2026-11-19');
+  assert.strictEqual(H.suyinQQ.reviewAt, '2026-11-23'); // R78 真实复核（接口已下线）
+  assert.strictEqual(H.suyinMigu.reviewAt, '2026-11-23'); // R78 真实复核
+  assert.strictEqual(H.juheTx.reviewAt, '2026-11-23'); // R78 真实复核（全域 429）
 });
 rec('S6', '上游族唯一，禁止同族多开', () => {
   const seen = new Set();

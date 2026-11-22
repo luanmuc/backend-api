@@ -98,6 +98,18 @@ const HEALTH_CHECK_INITIAL_DELAY_MS = 60 * 1000; // 加载后1分钟开始第一
 
 const inflightUrl = new Map();
 
+// R77（治理项-探针元数据）：池轮换覆盖歌名时同步清除 singer/duration/interval——
+// 旧实现只改 name，严格源（name+duration 匹配）会拿「新歌名+旧歌手/旧时长」的错配身份去匹配，
+// 探测结果建立在错误身份上（假 FAIL / 假 PASS）。id/songmid 型定位字段保留（id 型源按 id 取歌）。
+function withProbeSong(handlerSong, song) {
+  if (!handlerSong) return handlerSong;
+  const hs = Object.assign({}, handlerSong, { name: song });
+  delete hs.singer;
+  delete hs.duration;
+  delete hs.interval;
+  return hs;
+}
+
 function buildProbeConfig() {
   const probePool = USER_CONFIG.probeSongPool;
   const probeSong = probePool[(globalThis.__probeRound || 0) % probePool.length];
@@ -257,7 +269,7 @@ function buildProbeConfig() {
     const targets = pc.probes || [pc];
     targets.forEach((t, i) => {
       const song = pool[(roundNo + i) % pool.length];
-      if (t.handlerSong) t.handlerSong = Object.assign({}, t.handlerSong, { name: song });
+      if (t.handlerSong) t.handlerSong = withProbeSong(t.handlerSong, song);
       else t.songName = song;
     });
   }
@@ -306,12 +318,12 @@ async function probeSingleSource(id, pc) {
     const songAt = (i) => pool[(round + i) % pool.length];
     if (probes.length < 2) {
       const second = songAt(1);
-      probes = [Object.assign({}, probes[0], { songName: second, handlerSong: probes[0].handlerSong ? Object.assign({}, probes[0].handlerSong, { name: second }) : probes[0].handlerSong })];
-      probes.unshift(Object.assign({}, probes[0], { songName: songAt(0), handlerSong: probes[0].handlerSong ? Object.assign({}, probes[0].handlerSong, { name: songAt(0) }) : probes[0].handlerSong }));
+      probes = [Object.assign({}, probes[0], { songName: second, handlerSong: withProbeSong(probes[0].handlerSong, second) })];
+      probes.unshift(Object.assign({}, probes[0], { songName: songAt(0), handlerSong: withProbeSong(probes[0].handlerSong, songAt(0)) }));
     } else {
       probes = probes.map((p, i) => {
         const song = songAt(i);
-        return Object.assign({}, p, { songName: song, handlerSong: p.handlerSong ? Object.assign({}, p.handlerSong, { name: song }) : p.handlerSong });
+        return Object.assign({}, p, { songName: song, handlerSong: withProbeSong(p.handlerSong, song) });
       });
     }
   }
@@ -431,6 +443,23 @@ function applyProbeResult(id, usable, detail = {}) {
       br.rateLimitUntil = 0; br.rateLimited = false; br.rateLimitCount = 0;
       logInfo(`健康探测: [${id}] 探测通过，断路器与限流退避已复位`);
     }
+    // R77（R76-P2-06）：旧实现只复位源级，档位 breaker 仍 open → 快照 state=closed 而
+    // 各档 eligible=false，展示与资格口径分叉。可达性通过是「上游恢复」的强证据，
+    // 与 clearSourceLedger(authority) 同语义复位档位（保留统计计数字段）。
+    if (br.byQuality) {
+      for (const qs of Object.values(br.byQuality)) {
+        if (!qs || typeof qs !== "object") continue;
+        if (qs.breaker && typeof qs.breaker === "object") {
+          qs.breaker.state = "closed";
+          qs.breaker.failureCount = 0;
+          qs.breaker.lastFailureTime = 0;
+          qs.breaker.trialInFlight = false;
+        }
+        qs.rateLimitCount = 0;
+        qs.rateLimitUntil = 0;
+        qs.rateLimited = false;
+      }
+    }
     dep('probeState').failCount[id] = 0;
     dep('probeState').passCount[id] = (dep('probeState').passCount[id] || 0) + 1;
     dep('probeState').passStreak[id] = (dep('probeState').passStreak[id] || 0) + 1;
@@ -506,11 +535,11 @@ function getHealthSnapshot() {
     // open→half-open、不消费半开 trial。
     const gatePlatforms = (h.platforms || []).filter(p => h.chain && h.chain[p] != null);
     const gatePlatform = gatePlatforms[0] || (h.platforms || [])[0] || null;
-    const gate = dep('computeEligibility')(id, gatePlatform, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
+    const gate = dep('computeEligibility')(id, gatePlatform, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false, setProbe: false }); // R77（R76-P2-01）：快照只读，不得布防短路探路
     // R-12④：多平台源只测首个有链平台 → 逐平台只读资格另发一份，面板不再把「kw 可用」当成全平台可用。
     const platformEligibility = {};
     for (const p of gatePlatforms) {
-      const pe = p === gatePlatform ? gate : dep('computeEligibility')(id, p, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
+      const pe = p === gatePlatform ? gate : dep('computeEligibility')(id, p, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false, setProbe: false });
       platformEligibility[p] = { eligible: pe.eligible, reason: pe.reason, code: pe.code };
     }
     const offState = getHealthOffState(id, h);
@@ -603,7 +632,7 @@ function getHealthSnapshot() {
     const all = new Set();
     const eligible = new Set();
     for (const q of ["128k", "320k", "flac", "flac24bit"]) {
-      for (const h of dep('buildSourceChain')(p, q)) eligible.add(h.id);
+      for (const h of dep('buildSourceChain')(p, q, null, { setProbe: false })) eligible.add(h.id); // R77（R76-P2-01）：快照只读
     }
     for (const id of Object.keys(dep('SOURCE_HANDLERS'))) if (dep('SOURCE_HANDLERS')[id] && (dep('SOURCE_HANDLERS')[id].platforms || []).includes(p)) all.add(id);
     PLATFORM_GROUPS[p] = [...all];

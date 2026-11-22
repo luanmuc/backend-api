@@ -228,7 +228,8 @@ function songInfoMatch(responseData, songInfo) {
   if (songInfo?.singer && singer && !artistMatch(songInfo.singer, singer)) return false;
   if ((songInfo?.albumName || songInfo?.album) && album && !titleMatch(album, songInfo.albumName || songInfo.album)) return false;
   // v1.0 P0-4 (D4)：双方时长已知且差>5s → 拒绝（片段版时长明显短于完整版）
-  const tDur = normalizeDurationSec(songInfo?.duration);
+  // R77（R76-P2-02）：App 只发 interval（格式化字符串），不发 duration——旧实现恒得 0，时长闸门生产从不生效。
+  const tDur = normalizeDurationSec(songInfo?.duration ?? songInfo?.interval);
   const rDur = normalizeDurationSec(responseData?.duration || responseData?.data?.duration || responseData?.musicInfo?.duration);
   if (tDur && rDur && !durationMatch(tDur, rDur, 5)) return false;
   return true;

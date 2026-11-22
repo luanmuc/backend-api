@@ -80,6 +80,13 @@ function restoreHealthState(state) {
       const pd = item.playDead || {};
       if (!isHealthPlainObject(pd)) return { ok: false, reason: `${id}.playDead 非法` };
       if (!healthNumber(pd.streak || 0, true) || !healthNumber(pd.deadline || 0, true)) return { ok: false, reason: `${id}.playDead 非法` };
+      // R77（R76-P1-01）：v8.16.4 疑-31 修复只做了一半——导出侧带 playDead.quality，
+      // sanitized 却不携带，恢复时读恒 undefined → 跨档豁免重启后退化源级。
+      // 这里把 quality 带进 sanitized（白名单：档位枚举或 "*" 多档归因），恢复侧才能原样回填。
+      const pdQuality = (pd.quality === undefined || pd.quality === null || pd.quality === '') ? null : String(pd.quality).toLowerCase();
+      if (pdQuality !== null && pdQuality !== "*" && !dep('HEALTH_QUALITIES').includes(pdQuality)) {
+        return { ok: false, reason: `${id}.playDead.quality 非法` };
+      }
       // v8.16.2（R-12⑤）：resolveDead 与 playDead 同校验；旧快照没有该字段时按 0 兼容。
       const rd = item.resolveDead || { streak: 0, deadline: 0 };
       if (!isHealthPlainObject(rd)) return { ok: false, reason: `${id}.resolveDead 非法` };
@@ -102,7 +109,7 @@ function restoreHealthState(state) {
           lastQuality: b.lastQuality === null ? null : String(b.lastQuality).toLowerCase()
         },
         byQuality,
-        playDead: { streak: Number(pd.streak || 0), deadline: Number(pd.deadline || 0) },
+        playDead: { streak: Number(pd.streak || 0), deadline: Number(pd.deadline || 0), quality: pdQuality },
         resolveDead: { streak: Number(rd.streak || 0), deadline: Number(rd.deadline || 0) }
       };
     }

@@ -17,5 +17,5 @@ module.exports = {
     "320k"
   ],
   "coldStart": false,
-  "reviewAt": "2026-11-18"
+  "reviewAt": "2026-11-23"
 };

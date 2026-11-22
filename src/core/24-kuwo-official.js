@@ -58,8 +58,13 @@ async function kuwoOfficialSearch(keyword, rn = 10, cancelToken = null) {
   // 兼容三种形态：已经是对象 / Python repr 单引号串 / 合法 JSON 串。
   let parsed = (res.body && typeof res.body === "object") ? res.body : null;
   if (!parsed) {
-    const cleaned = raw.replace(/'/g, '"');
-    try { parsed = JSON.parse(cleaned); } catch (e) { /* 解析失败走正则兜底 */ }
+    // R77（R76-P2-05）：先按原串解析——含撇号歌名（如 Don't Stop）被 '→" 清洗会破坏 JSON；
+    // 原串失败再退清洗版，避免把合法条目判 MISMATCH。
+    try { parsed = JSON.parse(raw); } catch (e) { /* 继续 */ }
+    if (!parsed) {
+      const cleaned = raw.replace(/'/g, '"');
+      try { parsed = JSON.parse(cleaned); } catch (e) { /* 解析失败走正则兜底 */ }
+    }
   }
   if (parsed && Array.isArray(parsed.abslist)) {
     return parsed.abslist.map(item => ({

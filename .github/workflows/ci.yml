@@ -173,6 +173,10 @@ jobs:
           node test/audit/budget-admission.js
           node test/audit/tg-truth.js
           node test/audit/readthrough-fixes.js
+          node test/audit/security-url-guard.js
+          node test/audit/force-probe-contract.js
+          node test/audit/anchors-contract.js
+          node test/audit/r77-fixes.js
 
   # ---------- v8.11.1：长跑压力测试（并行 job 2，约 11 分钟，真实超时等待） ----------
   stress-long:

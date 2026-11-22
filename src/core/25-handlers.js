@@ -19,7 +19,7 @@ const { wrapExecute } = require("./19-dispatch.js");
 const { getUrlWithFallback } = require("./22-chain.js");
 const { ERROR_CODES } = require("./02-error-codes.js");
 const { HTTP_URL_REGEX, TIMEOUT_CONFIG, getMobileUserAgent, httpRequest, httpRequestWithRetry, upgradeToHttps } = require("./07-net.js");
-const { getHashOrMid, isPreviewFragmentUrl } = require("./09-match.js");
+const { getHashOrMid, isPreviewFragmentUrl, normalizeDurationSec } = require("./09-match.js");
 const { HELLOWORLD_KW_CONVERT_API, IKUN_API, JUHE_API, XINGHAI_BACKEND_API } = require("./10-vendors.js");
 const { USER_CONFIG, cfg } = require("./02-config.js");
 const { createTemplateVipSource } = require("./16-chain-misc.js");
@@ -251,7 +251,8 @@ async function juheGetUrl(platform, songId, quality, songInfo, cancelToken = nul
       singer: songInfo?.singer || "",
       album: songInfo?.album || "",
       duration: songInfo?.duration || 0,
-      interval: Math.round((songInfo?.duration || 0) / 1000),
+      // R77（R76-P2-02）：App 只发 interval（"mm:ss"），旧实现只读 duration → 恒发 interval=0。
+      interval: normalizeDurationSec(songInfo?.duration ?? songInfo?.interval),
       source: platform === "kw" ? "kw" : String(platform || "kw"),
       ...idFields,
       quality: juheQ
@@ -511,11 +512,11 @@ const SOURCE_HANDLERS = {
   }),
   juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "320k", {
     platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 3 }, upstreamGroup: "juhe",
-    reviewAt: "2026-11-19", note: "2026-11-11 恢复；7 天复核，降为 tx 第三源（本轮 0% 成功率）。2026-11-21：flac 档实测实返 audio/mpeg，能力声明由 flac 下调为 320k",
+    reviewAt: "2026-11-23", note: "2026-11-11 恢复；7 天复核，降为 tx 第三源。2026-11-21：flac 档实测实返 audio/mpeg，能力声明由 flac 下调为 320k。R78（11-23 真实复核）：上游全域 HTTP 429（根路径同样 429，CF 层限流/维护页），tx 与 kw 均不可用",
   }),
   qingliangTx: provider("qingliangTx", "晴亮(tx)", qingliangTxGetUrl, "320k", {
     platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 2 }, upstreamGroup: "qingliang-tx",
-    reviewAt: "2026-11-18", note: "2026-11-15 实测 5/5 全曲 320k；第三方单点，3 天复核",
+    reviewAt: "2026-11-23", note: "2026-11-15 实测 5/5 全曲 320k；第三方单点，3 天复核。R78（11-23 真实复核）：200 code=1 出 aqqmusic 直链，tx 链上当前唯一可用源",
   }),
   ikun: provider("ikun", "ikun", ikunGetUrl, "flac", {
     platforms: ["kw", "wy"], anchors: ["hash", "songmid", "id"], chain: { kw: 7, wy: 5 }, upstreamGroup: "ikun",
@@ -527,14 +528,14 @@ const SOURCE_HANDLERS = {
   // ---- 观察源：2 个（probation，只探测、不进链） ----
   suyinQQ: provider("suyinQQ", "溯音QQ", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("tx", songId, quality, songInfo, cancelToken), "flac", {
     platforms: ["tx"], anchors: ["songmid", "id"], lifecycle: PROVIDER_LIFECYCLE.PROBATION,
-    upstreamGroup: "oiapi-qq", reviewAt: "2026-11-19", note: "2026-11-11 实测 HTTP 403；观察至 2026-11-19",
+    upstreamGroup: "oiapi-qq", reviewAt: "2026-11-23", note: "2026-11-11 实测 HTTP 403。R78（11-23 真实复核）：接口已下线，404 code -13001「接口不存在或已下线」（oiapi 的 QQ_Music 路由已移除）",
   }),
   suyinMigu: provider("suyinMigu", "溯音咪咕", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("mg", songId, quality, songInfo, cancelToken), "flac", {
     platforms: ["mg"],
     // v9.1.6（K30）：溯音咪咕同样按歌名搜索（SUYIN_MIGU_API 传 gm=关键词），不读 copyrightId。
     anchors: [],
     lifecycle: PROVIDER_LIFECYCLE.PROBATION,
-    upstreamGroup: "xcvts-migu", reviewAt: "2026-11-26", note: "2026-11-11 实测上游 502；观察至 2026-11-26",
+    upstreamGroup: "xcvts-migu", reviewAt: "2026-11-23", note: "2026-11-11 实测上游 502。R78（11-23 真实复核）：200 code=1 能出直链，是 mg 平台当前唯一可用候选（suyinKuwo 已下线）",
     verified: true,
   }),
 };

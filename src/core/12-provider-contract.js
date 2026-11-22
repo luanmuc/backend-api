@@ -9,7 +9,27 @@ const { PLATFORM_QUALITIES } = require("./09-match.js");
 const { ERROR_CODES } = require("./02-error-codes.js");
 const { dep } = require("./06-binding.js");
 
-function validateProviderContracts() {
+// R77（R76 治理项）：复核日期必须新鲜。过期超过宽限天数未复核 → 契约失败，
+// 逼人工复核或显式顺延（顺延本身同样受窗口约束，不会无限拖）。
+const REVIEW_GRACE_DAYS = 14;
+// R78（R77 顺延留下的洞）：reviewAt 语义是「上一次真实复核的日期」，写未来日期等于用
+// 日历绕过上面那道过期判定（nowMs - ts 变负永远不超窗）。这里反向卡死：晚于当前超过
+// FUTURE_TOLERANCE 判非法。容差 1 天是因为 reviewAt 只到日历日精度、按 UTC 零点解析，
+// 北京凌晨（00:00~08:00）时 UTC 仍是前一日，今天的日期会算成 +4~8h。
+const REVIEW_FUTURE_TOLERANCE_MS = 24 * 3600 * 1e3;
+function validateProviderContracts(nowMs = Date.now()) {
+  const checkFresh = (owner, reviewAt) => {
+    if (!reviewAt) return;
+    const ts = Date.parse(`${String(reviewAt)}T00:00:00Z`);
+    if (!Number.isFinite(ts)) { errors.push(`${owner}: reviewAt 非法 ${reviewAt}`); return; }
+    if (ts - nowMs > REVIEW_FUTURE_TOLERANCE_MS) {
+      errors.push(`${owner}: reviewAt ${reviewAt} 是未来日期，必须填真实复核日（不得用未来日期绕过宽限）`);
+      return;
+    }
+    if (nowMs - ts > REVIEW_GRACE_DAYS * 24 * 3600 * 1e3) {
+      errors.push(`${owner}: reviewAt ${reviewAt} 过期超 ${REVIEW_GRACE_DAYS} 天，需复核或显式顺延`);
+    }
+  };
   const errors = [];
   const ids = Object.keys(SOURCE_HANDLERS);
   const toggleIds = Object.keys(dep('SOURCE_TOGGLES'));
@@ -41,6 +61,7 @@ function validateProviderContracts() {
       if (Object.keys(h.chain).length) errors.push(`${id}: probation 源不得有链位次`);
       if (dep('SOURCE_TOGGLES')[id] !== false) errors.push(`${id}: probation 源默认必须关闭`);
       if (!h.reviewAt) errors.push(`${id}: probation 源必须有 reviewAt`);
+      else checkFresh(`${id} 复核日`, h.reviewAt);
     } else if (!Object.keys(h.chain).length) {
       errors.push(`${id}: active 源必须有链位次`);
     }
@@ -53,6 +74,7 @@ function validateProviderContracts() {
     if (new Set(ranks).size !== ranks.length) errors.push(`${platform}: 链位次重复`);
   }
   for (const gap of KNOWN_COVERAGE_GAPS) {
+    checkFresh(`覆盖缺口 ${gap.platform}`, gap.reviewAt);
     const count = active.filter(id => SOURCE_HANDLERS[id].platforms.includes(gap.platform) && SOURCE_HANDLERS[id].chain[gap.platform] != null).length;
     if (gap.platform === "mg" || gap.platform === "kg") {
       if (count !== 1) errors.push(`${gap.platform}: 覆盖缺口登记为单源，实际 ${count} 源`);
@@ -69,12 +91,18 @@ function validateProviderContracts() {
 }
 
 const KNOWN_COVERAGE_GAPS = Object.freeze([
-  Object.freeze({ platform: "mg", reason: "仅 suyinKuwo 单源；suyinMigu 处于 probation 不进链", risk: "high", reviewAt: "2026-11-26" }),
-  Object.freeze({ platform: "kg", reason: "仅 suyinKuwo 单源；无第二源", risk: "high", reviewAt: "2026-11-19" }),
+  // R78（2026-11-23 真实复核，把 R77 顺延到未来的日期改回真实复核日；顺延不等于复核已做）：
+  // 本轮实测结论 —— oiapi 的 Kuwo_Music / QQ_Music / 163_Music 三接口均 `404 code -13001
+  // 接口不存在或已下线`；Migu_Music 仍活（`200 code=1` 能出直链）；juhe 全域 `429`（根路径也
+  // 429，CF 层限流/挂维护页）；qingliangTx `200 code=1` 能出直链。故 mg/kg 的「单源」已变成
+  // 「零可用源」，tx 的「三源」实际只剩 qingliangTx 单点，风险档与文案随之改写。
+  Object.freeze({ platform: "mg", reason: "suyinKuwo 接口已下线（R78 404 -13001），当前零上链源；唯一可用候选是观察源 suyinMigu（R78 实测 200 code=1 可出链，默认关闭不进链）", risk: "high", reviewAt: "2026-11-23" }),
+  Object.freeze({ platform: "kg", reason: "suyinKuwo 接口已下线（R78 404 -13001），当前零上链源，无第二源", risk: "high", reviewAt: "2026-11-23" }),
   // v9.1.2（B04-001）：原写「suyinKuwo + juheTx 双源」漏记了链位次更靠前的 qingliangTx，
   // 且 reviewAt 与 docs/SOURCE_REGISTRY.md 的「覆盖缺口」表（2026-11-18）不一致。
   // 现按登记表对齐为三源 + 同日期，两处口径必须同步改。
-  Object.freeze({ platform: "tx", reason: "suyinKuwo + qingliangTx + juheTx 三源；qingliangTx 第三方单点、juheTx 受基础设施限流", risk: "medium", reviewAt: "2026-11-18" }),
+  // R78：三源里 juheTx 全域 429、suyinKuwo 与 suyinQQ 已下线，实际只剩 qingliangTx 一个点。
+  Object.freeze({ platform: "tx", reason: "登记三源，R78 实测实际仅 qingliangTx 可用（200 code=1 出直链）；juheTx 全域 429、suyinKuwo/suyinQQ 接口下线", risk: "high", reviewAt: "2026-11-23" }),
 ]);
 
 module.exports = {

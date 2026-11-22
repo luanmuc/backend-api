@@ -431,15 +431,26 @@ function actualDeliveryPlatform(sourceId, requestedPlatform) {
   return DELIVERY_PLATFORM_OVERRIDE[sourceId] || requestedPlatform;
 }
 
+// R77（R76 治理项）：预热锚点按平台分表。旧实现写死 kw/228908——若新增 tx/mg 冷启动源，
+// 预热请求会打错平台（tx 源拿 kw songmid 必然失败，预热永远无效甚至被记 PARAM_ERROR）。
+// 锚点与健康探测的探针歌同源，均为可长期播的经典曲目。
+const COLD_START_ANCHORS = {
+  kw: { songmid: "228908", name: "晴天", singer: "周杰伦", duration: 271000 },
+  wy: { songmid: "347230", name: "海阔天空", singer: "Beyond", duration: 326000 },
+  tx: { songmid: "0039MnYb0qxYhV", name: "晴天", singer: "周杰伦", duration: 269000 }
+};
 function warmUpColdStartSources(platform) {
   for (const h of Object.values(dep('SOURCE_HANDLERS'))) {
     if (!h || !h.coldStart || !dep('effectiveEnabled')(h.id)) continue;
     if (Date.now() - (coldStartWarmAt.get(h.id) || 0) < cfg('coldStartWarmTtlMs', 300000)) continue;
     if (!buildSourceChain(platform, "128k").some(x => x.id === h.id)) continue;
+    const anchorPlatform = h.platforms.includes(platform) ? platform : (h.platforms[0] || "kw");
+    const anchor = COLD_START_ANCHORS[anchorPlatform] || COLD_START_ANCHORS.kw;
+    if (!anchor) continue;
     coldStartWarmAt.set(h.id, Date.now());
-    logDebug(`[预热] ${h.id} 冷启动预热已发出`);
+    logDebug(`[预热] ${h.id} 冷启动预热已发出（${anchorPlatform}）`);
     Promise.resolve()
-      .then(() => h.fn("kw", "228908", "128k", { name: "晴天", singer: "周杰伦", duration: 269000, songmid: "228908" }))
+      .then(() => h.fn(anchorPlatform, anchor.songmid, "128k", { ...anchor }, null))
       .catch(() => {});
   }
 }
@@ -453,7 +464,11 @@ function resolveBudgetBounds(totalRaw, floorRaw) {
   return { totalMs, floorMs };
 }
 
-function buildSourceChain(platform, quality, songInfo = null) {
+function buildSourceChain(platform, quality, songInfo = null, opts = null) {
+  // R77（R76-P2-01）：允许只读路径透传 { setProbe: false }——快照/面板的「只读资格」不得给
+  // qualitySkipProbeAt 布防（否则打开健康面板即写入短路探路窗口、污染导出状态）。
+  // 生产取链调用不传 opts，行为与旧版一致（setProbe 默认 true）。
+  const chainOpts = opts || {};
   const q = String(quality || "128k").toLowerCase();
   const handlers = Object.keys(dep('SOURCE_HANDLERS'))
     .map(id => dep('SOURCE_HANDLERS')[id])
@@ -495,7 +510,7 @@ function buildSourceChain(platform, quality, songInfo = null) {
       return true;
     })
     .map(h => {
-      const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
+      const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false, ...chainOpts });
       if (!e.eligible) {
         if (LOG_DEBUG) logDebug(`[链] ${h.id} 跳过（${e.reason}${e.untilMs ? `，至 ${e.untilMs}` : ""}）`);
         return null;
@@ -567,7 +582,7 @@ function computeEligibility(source, platform, quality, opts) {
     qbNow.state === 'half-open' ||
     (qbNow.state === 'open' && Date.now() - (qbNow.lastFailureTime || 0) >= cfg('breakerCooldownMs', BREAKER_COOLDOWN_MS))
   ));
-  if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg('qualityShortCircuit', true) && isQualityHopeless(id, q, platform)) {
+  if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg('qualityShortCircuit', true) && isQualityHopeless(id, q, platform, { setProbe: o.setProbe })) {
     return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: dep('qualitySkipProbeAt').get(dep('qualityShortCircuitKey')(id, q)) || null };
   }
   if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };

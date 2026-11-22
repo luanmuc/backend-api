@@ -30,6 +30,19 @@ function u32At(buf, o) {
   return (((bAt(buf, o) << 24) >>> 0) + (bAt(buf, o + 1) << 16) + (bAt(buf, o + 2) << 8) + bAt(buf, o + 3));
 }
 
+// R77（R76-P1-02）：FLAC VORBIS_COMMENT 的 vendor_length / comment_count / comment_length
+// 按 FLAC 规范是**小端**；旧实现用大端 u32At 读 → vendorLen 被字节序反转成天文数字 → 标签恒空。
+function u32Le(buf, o) {
+  return (bAt(buf, o) + (bAt(buf, o + 1) << 8) + (bAt(buf, o + 2) << 16) + ((bAt(buf, o + 3) << 24) >>> 0));
+}
+
+// R77（R76-P2-03）：ID3v2.2 文本帧是 latin1 且无编码字节。
+function latin1Decode(buf, s, e) {
+  let out = "";
+  for (let i = s; i < e; i++) out += String.fromCharCode(bAt(buf, i));
+  return out;
+}
+
 function parseMpegFrameHeader(buf, off) {
   if (off + 4 > (buf.length || 0)) return null;
   const b0 = bAt(buf, off), b1 = bAt(buf, off + 1), b2 = bAt(buf, off + 2);
@@ -121,6 +134,20 @@ function parseId3Tags(buf) {
   const tags = {};
   let p = 10;
   let guard = 0;
+  if (ver === 2) {
+    // R77（R76-P2-03）：ID3v2.2 帧头 = 3 字符 ID + 3 字节大端尺寸；文本帧 latin1、无编码字节。
+    const MAP = { TT2: "TIT2", TP1: "TPE1", TAL: "TALB" };
+    while (p + 6 <= limit && guard++ < 24) {
+      const fid = String.fromCharCode(bAt(buf, p), bAt(buf, p + 1), bAt(buf, p + 2));
+      if (!/^[A-Z0-9]{3}$/.test(fid)) break;
+      const fsz = (bAt(buf, p + 3) << 16) | (bAt(buf, p + 4) << 8) | bAt(buf, p + 5);
+      if (fsz <= 0 || p + 6 + fsz > limit) break;
+      const mapped = MAP[fid];
+      if (mapped) tags[mapped] = latin1Decode(buf, p + 6, p + 6 + fsz).replace(/\u0000/g, "").trim();
+      p += 6 + fsz;
+    }
+    return { title: tags.TIT2 || "", artist: tags.TPE1 || "", album: tags.TALB || "" };
+  }
   while (p + 10 <= limit && guard++ < 24) {
     const id = String.fromCharCode(bAt(buf, p), bAt(buf, p + 1), bAt(buf, p + 2), bAt(buf, p + 3));
     if (!/^[A-Z0-9]{4}$/.test(id)) break;
@@ -145,13 +172,13 @@ function parseFlacTags(buf) {
     if (type === 4) {
       const end = Math.min(p + 4 + len, buf.length);
       let q = p + 4 + 4;                                  // 跳过 vendor 长度字段
-      const vendorLen = u32At(buf, q - 4) || 0;
+      const vendorLen = u32Le(buf, q - 4) || 0;           // R77（R76-P1-02）：小端
       q += vendorLen;
       if (q + 4 > end) return { title: "", artist: "" };
-      const count = u32At(buf, q); q += 4;
+      const count = u32Le(buf, q); q += 4;                // R77（R76-P1-02）：小端
       const out = {};
       for (let i = 0; i < count && q + 4 <= end; i++) {
-        const cl = u32At(buf, q); q += 4;
+        const cl = u32Le(buf, q); q += 4;                 // R77（R76-P1-02）：小端
         if (cl <= 0 || q + cl > end) break;
         const kv = utf8Decode(buf, q, q + cl); q += cl;
         const eq = kv.indexOf("=");
@@ -436,6 +463,8 @@ function totalBytesOf(delivery) {
 
 module.exports = {
   parseAudioTags,
+  parseId3Tags,
+  parseFlacTags,
   parseFlacDuration,
   parseMp3Info,
   parseMpegFrameHeader,

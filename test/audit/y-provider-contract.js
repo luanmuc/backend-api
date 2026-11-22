@@ -83,8 +83,8 @@ rec('Y8', 'probation 无链位次 / 默认关闭 / 有 reviewAt', () => {
     assert.strictEqual(mod.SOURCE_TOGGLES[id], false, `${id}: 观察源默认必须关闭`);
     assert.match(String(H[id].reviewAt), /^\d{4}-\d{2}-\d{2}$/, `${id}: reviewAt 缺失`);
   }
-  assert.strictEqual(H.suyinQQ.reviewAt, '2026-11-19');
-  assert.strictEqual(H.suyinMigu.reviewAt, '2026-11-26');
+  assert.strictEqual(H.suyinQQ.reviewAt, '2026-11-23'); // R78 真实复核
+  assert.strictEqual(H.suyinMigu.reviewAt, '2026-11-23'); // R78 真实复核
 });
 rec('Y9', 'chain-golden.json 11 源 5×4 逐项一致，且不含观察源', () => {
   // 2026-11-20：huibq 默认关闭后，链里会被 default-off 过滤掉。
@@ -103,16 +103,18 @@ rec('Y9', 'chain-golden.json 11 源 5×4 逐项一致，且不含观察源', () 
     }
   }
 });
-rec('Y10', '覆盖缺口显式登记（mg/kg 单源、tx 双源）', () => {
+rec('Y10', '覆盖缺口显式登记（mg/kg 零源、tx 实际单点，R78 复核后三平台 risk=high）', () => {
   const gaps = mod.KNOWN_COVERAGE_GAPS;
   assert.ok(gaps.some(g => g.platform === 'mg' && g.risk === 'high'));
   assert.ok(gaps.some(g => g.platform === 'kg' && g.risk === 'high'));
-  assert.ok(gaps.some(g => g.platform === 'tx' && g.risk === 'medium'));
+  // R78：suyinKuwo 下线 + juhe 全域 429 后，tx 的可用源只剩 qingliangTx 单点，
+  // 原来按「三源登记」给的 medium 档已不成立，随实际可用源数升 high。
+  assert.ok(gaps.some(g => g.platform === 'tx' && g.risk === 'high'));
   const snap = mod.getHealthSnapshot();
   assert.ok(snap._coverageGaps.length >= 3, '健康快照缺 _coverageGaps');
   assert.strictEqual(snap._platformRisk.mg.risk, 'high');
   assert.strictEqual(snap._platformRisk.kg.risk, 'high');
-  assert.strictEqual(snap._platformRisk.tx.risk, 'medium');
+  assert.strictEqual(snap._platformRisk.tx.risk, 'high');
 });
 rec('Y11', 'validateProviderContracts 正常返回预算', () => {
   const c = mod.validateProviderContracts();

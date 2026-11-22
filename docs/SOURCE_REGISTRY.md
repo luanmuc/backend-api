@@ -18,19 +18,19 @@
 
 | # | id | 名称 | 生命周期 | 平台 | 链位次 | 上游族 | 鉴权 | maxQuality | 备注 |
 |---:|---|---|---|---|---|---|---|---|---|
-| 1 | `suyinKuwo` | 溯音酷我 | active | kw/wy/tx/mg/kg | kw1, wy6, tx1, mg1, kg1 | oiapi-kuwo | none | flac | 五平台入口但只搜酷我；非 kw 交付回填 `sourcePlatform=kw`；128k 用 br=9 |
+| 1 | `suyinKuwo` | 溯音酷我 | active | kw/wy/tx/mg/kg | kw1, wy6, tx1, mg1, kg1 | oiapi-kuwo | none | flac | 五平台入口但只搜酷我；非 kw 交付回填 `sourcePlatform=kw`；128k 用 br=9。**R78（2026-11-23 真实复核）：`/api/Kuwo_Music` 返回 `404 code -13001`「接口不存在或已下线」（`okhttp` 各路径变体同 404），五平台入口实际全部失效** |
 | 2 | `wyOuter` | 网易云官方 | active | wy | wy4 | wy-official | none | 128k | 官方 outer 直连 |
 | 3 | `kuwoOfficial` | 酷我官方直连 | active | kw | kw5 | kuwo-official | none | 128k | 官方接口 |
-| 4 | `suyin163` | 溯音163 | active | wy | wy3 | oiapi-163 | none | 128k | 网易云 128k；**2026-11-20 修 `data.items` 兼容**（上游返回从 `data[]` 变 `data.items[]`，旧取值恒 `NOT_FOUND`，v9.1.3 已兼容三形态，本地实测 206 audio/mpeg） |
+| 4 | `suyin163` | 溯音163 | active | wy | wy3 | oiapi-163 | none | 128k | 网易云 128k；**2026-11-20 修 `data.items` 兼容**（上游返回从 `data[]` 变 `data.items[]`，旧取值恒 `NOT_FOUND`，v9.1.3 已兼容三形态）。**R78（2026-11-23 真实复核）：`/api/163_Music` 返回 `404 code -13001`「接口不存在或已下线」，wy 链第 1 位失效** |
 | 5 | `xinghaiBackend` | 星海后端 | active | kw | kw2 | xinghai-backend | none | flac | kw 高音质主力；**2026-11-20 实测服务端完全正常**（`?source=kw&songmid=228908` → `code:200` + url，追 302 到酷我 CDN → **206 audio/mpeg** 真音频；连打 5 次全 200/0.35s；DNS 阿里+腾讯 DoH 均正常；证书 Let's Encrypt 有效至 2027-02-10）。`auth.trusted:false` 照样放行（notice 只要求标注来源）。真机 `NETWORK_ERROR` 287ms 疑似运营商对 SNI 的阻断（`07-net.js:130` 把任何 4xx 都归 `NETWORK_ERROR`），待手机侧验证 |
 | 6 | `helloworldKw` | helloworld(kw) | active | kw | kw4 | kuwo-convert | none | flac | 可能只给片段，靠验真闸门 |
 | 7 | `changqingVip` | 长青kw | active | kw | kw6 | changqing-kw | none | 128k | 与已砍 `nianxinVip` 同质 |
 | 8 | `huibq` | Huibq | active | kw/wy | kw8, wy8 | huibq | none | 320k | 唯一 `coldStart`；取链超时由 `resolveColdStartTimeout(coldStartTimeoutMs, raceBudgetMs)` 决定，无独立 provider timeout。**2026-11-20 实测：服务已死**——`HTTP 503 + 「This service has been suspended by its owner.」`，根路径同 503，0.8s 即返回；probe-history 显示 **11-16 起连续 5 天全 503**（此前 11-04~11-15 连续 12 天全 200） |
-| 9 | `juheTx` | Juhe聚合(tx) | active | tx | tx3 | juhe | none | flac | 7 天复核 `2026-11-19`；本轮 0% 成功率，降为 tx 第三源 |
-| 10 | `qingliangTx` | 晴亮(tx) | active | tx | tx2 | qingliang-tx | none | 320k | 2026-11-15 实测 5/5 全曲 320k（206 + audio/mpeg）；第三方单点，3 天复核 `2026-11-18` |
+| 9 | `juheTx` | Juhe聚合(tx) | active | tx | tx3 | juhe | none | 320k | 7 天复核 `2026-11-23`（R78 真实复核）。**R78：上游全域 HTTP 429**（`/tx`、`/kw`、根路径均 429 + HTML 维护页，CF 层限流），当前 0% 可用 |
+| 10 | `qingliangTx` | 晴亮(tx) | active | tx | tx2 | qingliang-tx | none | 320k | 2026-11-15 实测 5/5 全曲 320k（206 + audio/mpeg）；第三方单点，3 天复核 `2026-11-23`。**R78 复核：`200 code=1` 出 `aqqmusic.tc.qq.com` 直链（768ms），是 tx 链上当前唯一可用源** |
 | 11 | `ikun` | ikun | active | kw/wy | kw7, wy5 | ikun | optional | flac | 公益版免卡密，卡密可选 |
-| 12 | `suyinQQ` | 溯音QQ | probation | tx | 无 | oiapi-qq | none | flac | 2026-11-11 实测 403；复核 `2026-11-19` |
-| 13 | `suyinMigu` | 溯音咪咕 | probation | mg | 无 | xcvts-migu | none | flac | 2026-11-11 实测上游 502；复核 `2026-11-26` |
+| 12 | `suyinQQ` | 溯音QQ | probation | tx | 无 | oiapi-qq | none | flac | 2026-11-11 实测 403；复核 `2026-11-23`。**R78：`404 code -13001`「接口不存在或已下线」（路由已移除，非 403）** |
+| 13 | `suyinMigu` | 溯音咪咕 | probation | mg | 无 | xcvts-migu | none | flac | 2026-11-11 实测上游 502；复核 `2026-11-23`。**R78：`200 code=1` 能出直链（911ms），mg 平台当前唯一可用候选** |
 
 ## 平台链
 
@@ -39,16 +39,16 @@
 | kw | suyinKuwo → xinghaiBackend → helloworldKw → kuwoOfficial → changqingVip → ikun → huibq | 7 |
 | wy | suyin163 → wyOuter → ikun → suyinKuwo → huibq | 5 |
 | tx | suyinKuwo → qingliangTx → juheTx | 3 |
-| mg | suyinKuwo | 1 |
-| kg | suyinKuwo | 1 |
+| mg | suyinKuwo | 1（R78 实测该单源已下线 → 零可用） |
+| kg | suyinKuwo | 1（R78 实测该单源已下线 → 零可用） |
 
 ## 显式覆盖缺口（`KNOWN_COVERAGE_GAPS`）
 
 | 平台 | 风险 | 原因 | 复核 |
 |---|---|---|---|
-| mg | high | 仅 `suyinKuwo` 单源；`suyinMigu` 观察中不进链 | 2026-11-26 |
-| kg | high | 仅 `suyinKuwo` 单源，无第二源 | 2026-11-19 |
-| tx | medium | `suyinKuwo` + `qingliangTx` + `juheTx` 三源；`qingliangTx` 第三方单点、`juheTx` 受基础设施限流 | 2026-11-18 |
+| mg | high | `suyinKuwo` 已下线（R78 404 -13001）→ 零上链源；唯一可用候选是观察源 `suyinMigu`（R78 实测 200 code=1，默认关闭不进链） | 2026-11-23 |
+| kg | high | `suyinKuwo` 已下线（R78 404 -13001）→ 零上链源，无第二源 | 2026-11-23 |
+| tx | high | 登记三源，R78 实测仅 `qingliangTx` 可用；`juheTx` 全域 429、`suyinKuwo`/`suyinQQ` 已下线 | 2026-11-23 |
 
 ## 默认开关
 

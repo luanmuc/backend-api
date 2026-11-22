@@ -136,7 +136,8 @@ async function verifyDelivery(audioUrl, ctx = {}, cancelToken = null) {
   // medium 证据（无字节、只有体积）：按 3KB/s 下界估「明显短于目标曲目」的试听片段。
   // 依据：128kbps≈16KB/s，5 秒片段≈80KB；180 秒整曲≈2.8MB。保守取 3KB/s×60% 作下界，只拦明显偏小。
   if (!realDur && origDur && origDur >= cfg("verifyMinOriginalSec", VERIFY_MIN_ORIGINAL_SEC) && probe.totalBytes) {
-    const minFull = Math.max(128000, origDur * 3000 * VERIFY_DUR_RATIO);
+    // R77（R76-P2-04）：字节保底启发式与比例分支同吃 verifyDurRatio 配置（旧实现用常量，面板旋钮只影响一半判据）。
+      const minFull = Math.max(128000, origDur * 3000 * cfg('verifyDurRatio', VERIFY_DUR_RATIO));
     if (probe.totalBytes < minFull) {
       return {
         ok: false, code: ERROR_CODES.PREVIEW_FRAGMENT,

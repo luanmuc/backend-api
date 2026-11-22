@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v9.1.6 源级能力备档版（K03）：能力备档从「平台+歌曲」下沉到「平台+源+歌曲」，buildSourceChain(platform, quality, songInfo) 按源级备档把「已证明给不到该档的源」剔出候选，不再由平台级备档一刀降低整条链的起点档（旧实现等于一个源给过 128k 就让同平台能给 flac 的源再没机会被请求到）；平台级表保留供健康快照统计；新增 QP13 回归；上一版 v9.1.5 为失效源退役标记版（suyinQQ 端点下线 / suyinMigu 上游 IP 被限 / huibq 保留待复活）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
- * @version 9.1.6
+ * @description v9.1.7 R77 全量通读修复版（restore 携带 playDead.quality / FLAC 小端与 ID3v2.2 标签 / 快照只读化 / 时长字段 interval 回退 / G9 缓存 key 含时长 / 复核日期新鲜度门禁）；上一版 v9.1.6 源级能力备档版（K03）：能力备档从「平台+歌曲」下沉到「平台+源+歌曲」，buildSourceChain(platform, quality, songInfo) 按源级备档把「已证明给不到该档的源」剔出候选，不再由平台级备档一刀降低整条链的起点档（旧实现等于一个源给过 128k 就让同平台能给 flac 的源再没机会被请求到）；平台级表保留供健康快照统计；新增 QP13 回归；上一版 v9.1.5 为失效源退役标记版（suyinQQ 端点下线 / suyinMigu 上游 IP 被限 / huibq 保留待复活）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
+ * @version 9.1.7
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -503,7 +503,7 @@ var __lxSourceBundle = (() => {
   // src/core/02-config.js
   var require_config = __commonJS({
     "src/core/02-config.js"(exports, module) {
-      var SOURCE_VERSION = true ? "9.1.6" : "8.16.4";
+      var SOURCE_VERSION = true ? "9.1.7" : "8.16.4";
       var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
       function normalizeProbeSongPool(value) {
         if (!Array.isArray(value)) return null;
@@ -815,11 +815,14 @@ var __lxSourceBundle = (() => {
         return url.replace(/^http:\/\//i, "https://");
       }
       function buildCacheKey(prefix, songInfo, quality = "") {
+        var _a, _b;
         const id = (songInfo == null ? void 0 : songInfo.id) || (songInfo == null ? void 0 : songInfo.songmid) || (songInfo == null ? void 0 : songInfo.hash) || (songInfo == null ? void 0 : songInfo.rid) || "";
         const name = (songInfo == null ? void 0 : songInfo.name) || "";
         const singer = (songInfo == null ? void 0 : songInfo.singer) || "";
         const album = (songInfo == null ? void 0 : songInfo.albumName) || (songInfo == null ? void 0 : songInfo.album) || "";
-        return `${prefix}_${id}_${name}_${singer}_${album}_${quality}`;
+        const rawDur = (_b = (_a = songInfo == null ? void 0 : songInfo.duration) != null ? _a : songInfo == null ? void 0 : songInfo.interval) != null ? _b : "";
+        const durSeg = rawDur !== "" ? `_${String(rawDur)}` : "";
+        return `${prefix}_${id}_${name}_${singer}_${album}${durSeg}_${quality}`;
       }
       function getCachedUrl(cacheKey) {
         const entry = successCache.get(cacheKey);
@@ -1048,7 +1051,7 @@ var __lxSourceBundle = (() => {
         return v > 5e3 ? Math.floor(v / 1e3) : Math.round(v);
       }
       function songInfoMatch(responseData, songInfo) {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f;
         const song = (responseData == null ? void 0 : responseData.song) || ((_a = responseData == null ? void 0 : responseData.data) == null ? void 0 : _a.song) || "";
         const singer = (responseData == null ? void 0 : responseData.singer) || ((_b = responseData == null ? void 0 : responseData.data) == null ? void 0 : _b.singer) || "";
         const album = (responseData == null ? void 0 : responseData.album) || ((_c = responseData == null ? void 0 : responseData.data) == null ? void 0 : _c.album) || "";
@@ -1057,8 +1060,8 @@ var __lxSourceBundle = (() => {
         if (targetName && song && !FRAGMENT_RE.test(targetName) && FRAGMENT_RE.test(String(song))) return false;
         if ((songInfo == null ? void 0 : songInfo.singer) && singer && !artistMatch(songInfo.singer, singer)) return false;
         if (((songInfo == null ? void 0 : songInfo.albumName) || (songInfo == null ? void 0 : songInfo.album)) && album && !titleMatch(album, songInfo.albumName || songInfo.album)) return false;
-        const tDur = normalizeDurationSec(songInfo == null ? void 0 : songInfo.duration);
-        const rDur = normalizeDurationSec((responseData == null ? void 0 : responseData.duration) || ((_d = responseData == null ? void 0 : responseData.data) == null ? void 0 : _d.duration) || ((_e = responseData == null ? void 0 : responseData.musicInfo) == null ? void 0 : _e.duration));
+        const tDur = normalizeDurationSec((_d = songInfo == null ? void 0 : songInfo.duration) != null ? _d : songInfo == null ? void 0 : songInfo.interval);
+        const rDur = normalizeDurationSec((responseData == null ? void 0 : responseData.duration) || ((_e = responseData == null ? void 0 : responseData.data) == null ? void 0 : _e.duration) || ((_f = responseData == null ? void 0 : responseData.musicInfo) == null ? void 0 : _f.duration));
         if (tDur && rDur && !durationMatch(tDur, rDur, 5)) return false;
         return true;
       }
@@ -1239,6 +1242,14 @@ var __lxSourceBundle = (() => {
       function u32At(buf, o) {
         return (bAt(buf, o) << 24 >>> 0) + (bAt(buf, o + 1) << 16) + (bAt(buf, o + 2) << 8) + bAt(buf, o + 3);
       }
+      function u32Le(buf, o) {
+        return bAt(buf, o) + (bAt(buf, o + 1) << 8) + (bAt(buf, o + 2) << 16) + (bAt(buf, o + 3) << 24 >>> 0);
+      }
+      function latin1Decode(buf, s, e) {
+        let out = "";
+        for (let i = s; i < e; i++) out += String.fromCharCode(bAt(buf, i));
+        return out;
+      }
       function parseMpegFrameHeader(buf, off) {
         if (off + 4 > (buf.length || 0)) return null;
         const b0 = bAt(buf, off), b1 = bAt(buf, off + 1), b2 = bAt(buf, off + 2);
@@ -1324,6 +1335,19 @@ var __lxSourceBundle = (() => {
         const tags = {};
         let p = 10;
         let guard = 0;
+        if (ver === 2) {
+          const MAP = { TT2: "TIT2", TP1: "TPE1", TAL: "TALB" };
+          while (p + 6 <= limit && guard++ < 24) {
+            const fid = String.fromCharCode(bAt(buf, p), bAt(buf, p + 1), bAt(buf, p + 2));
+            if (!/^[A-Z0-9]{3}$/.test(fid)) break;
+            const fsz = bAt(buf, p + 3) << 16 | bAt(buf, p + 4) << 8 | bAt(buf, p + 5);
+            if (fsz <= 0 || p + 6 + fsz > limit) break;
+            const mapped = MAP[fid];
+            if (mapped) tags[mapped] = latin1Decode(buf, p + 6, p + 6 + fsz).replace(/\u0000/g, "").trim();
+            p += 6 + fsz;
+          }
+          return { title: tags.TIT2 || "", artist: tags.TPE1 || "", album: tags.TALB || "" };
+        }
         while (p + 10 <= limit && guard++ < 24) {
           const id = String.fromCharCode(bAt(buf, p), bAt(buf, p + 1), bAt(buf, p + 2), bAt(buf, p + 3));
           if (!/^[A-Z0-9]{4}$/.test(id)) break;
@@ -1346,14 +1370,14 @@ var __lxSourceBundle = (() => {
           if (type === 4) {
             const end = Math.min(p + 4 + len, buf.length);
             let q = p + 4 + 4;
-            const vendorLen = u32At(buf, q - 4) || 0;
+            const vendorLen = u32Le(buf, q - 4) || 0;
             q += vendorLen;
             if (q + 4 > end) return { title: "", artist: "" };
-            const count = u32At(buf, q);
+            const count = u32Le(buf, q);
             q += 4;
             const out = {};
             for (let i = 0; i < count && q + 4 <= end; i++) {
-              const cl = u32At(buf, q);
+              const cl = u32Le(buf, q);
               q += 4;
               if (cl <= 0 || q + cl > end) break;
               const kv = utf8Decode(buf, q, q + cl);
@@ -1641,6 +1665,8 @@ var __lxSourceBundle = (() => {
       }
       module.exports = {
         parseAudioTags,
+        parseId3Tags,
+        parseFlacTags,
         parseFlacDuration,
         parseMp3Info,
         parseMpegFrameHeader,
@@ -1765,7 +1791,7 @@ var __lxSourceBundle = (() => {
           }
         }
         if (!realDur && origDur && origDur >= cfg("verifyMinOriginalSec", VERIFY_MIN_ORIGINAL_SEC) && probe.totalBytes) {
-          const minFull = Math.max(128e3, origDur * 3e3 * VERIFY_DUR_RATIO);
+          const minFull = Math.max(128e3, origDur * 3e3 * cfg("verifyDurRatio", VERIFY_DUR_RATIO));
           if (probe.totalBytes < minFull) {
             return {
               ok: false,
@@ -3509,14 +3535,22 @@ var __lxSourceBundle = (() => {
       function actualDeliveryPlatform(sourceId, requestedPlatform) {
         return DELIVERY_PLATFORM_OVERRIDE[sourceId] || requestedPlatform;
       }
+      var COLD_START_ANCHORS = {
+        kw: { songmid: "228908", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 271e3 },
+        wy: { songmid: "347230", name: "\u6D77\u9614\u5929\u7A7A", singer: "Beyond", duration: 326e3 },
+        tx: { songmid: "0039MnYb0qxYhV", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 269e3 }
+      };
       function warmUpColdStartSources(platform) {
         for (const h of Object.values(dep("SOURCE_HANDLERS"))) {
           if (!h || !h.coldStart || !dep("effectiveEnabled")(h.id)) continue;
           if (Date.now() - (coldStartWarmAt.get(h.id) || 0) < cfg("coldStartWarmTtlMs", 3e5)) continue;
           if (!buildSourceChain(platform, "128k").some((x) => x.id === h.id)) continue;
+          const anchorPlatform = h.platforms.includes(platform) ? platform : h.platforms[0] || "kw";
+          const anchor = COLD_START_ANCHORS[anchorPlatform] || COLD_START_ANCHORS.kw;
+          if (!anchor) continue;
           coldStartWarmAt.set(h.id, Date.now());
-          logDebug(`[\u9884\u70ED] ${h.id} \u51B7\u542F\u52A8\u9884\u70ED\u5DF2\u53D1\u51FA`);
-          Promise.resolve().then(() => h.fn("kw", "228908", "128k", { name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 269e3, songmid: "228908" })).catch(() => {
+          logDebug(`[\u9884\u70ED] ${h.id} \u51B7\u542F\u52A8\u9884\u70ED\u5DF2\u53D1\u51FA\uFF08${anchorPlatform}\uFF09`);
+          Promise.resolve().then(() => h.fn(anchorPlatform, anchor.songmid, "128k", __spreadValues({}, anchor), null)).catch(() => {
           });
         }
       }
@@ -3527,7 +3561,8 @@ var __lxSourceBundle = (() => {
         const floorMs = Math.min(floorBase, Math.max(0, BUDGET_TOTAL_HARD_LIMIT_MS - totalMs));
         return { totalMs, floorMs };
       }
-      function buildSourceChain(platform, quality, songInfo = null) {
+      function buildSourceChain(platform, quality, songInfo = null, opts = null) {
+        const chainOpts = opts || {};
         const q = String(quality || "128k").toLowerCase();
         const handlers = Object.keys(dep("SOURCE_HANDLERS")).map((id) => dep("SOURCE_HANDLERS")[id]).filter((h) => h && h.lifecycle === PROVIDER_LIFECYCLE.ACTIVE).filter((h) => h.platforms.includes(platform)).filter((h) => h.chain[platform] != null).filter((h) => qualityRank(h.maxQualityByPlatform && h.maxQualityByPlatform[platform] || h.maxQuality) >= qualityRank(q)).filter((h) => {
           if (!songInfo) return true;
@@ -3550,7 +3585,7 @@ var __lxSourceBundle = (() => {
           }
           return true;
         }).map((h) => {
-          const e = computeEligibility(h.id, platform, q, { runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false });
+          const e = computeEligibility(h.id, platform, q, __spreadValues({ runtime: true, peekRuntime: true, qualityShortCircuit: true, consumePlayDeadTrial: false }, chainOpts));
           if (!e.eligible) {
             if (LOG_DEBUG) logDebug(`[\u94FE] ${h.id} \u8DF3\u8FC7\uFF08${e.reason}${e.untilMs ? `\uFF0C\u81F3 ${e.untilMs}` : ""}\uFF09`);
             return null;
@@ -3605,7 +3640,7 @@ var __lxSourceBundle = (() => {
         const brNow = dep("getBreaker")(id);
         const qbNow = brNow.byQuality[q] && brNow.byQuality[q].breaker;
         const breakerTrialReady = !!(o.runtime && qbNow && (qbNow.state === "half-open" || qbNow.state === "open" && Date.now() - (qbNow.lastFailureTime || 0) >= cfg("breakerCooldownMs", BREAKER_COOLDOWN_MS)));
-        if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg("qualityShortCircuit", true) && isQualityHopeless(id, q, platform)) {
+        if (!breakerTrialReady && (o.runtime || o.qualityShortCircuit) && cfg("qualityShortCircuit", true) && isQualityHopeless(id, q, platform, { setProbe: o.setProbe })) {
           return { eligible: false, reason: "quality-short-circuit", code: "QUALITY_SHORT_CIRCUIT", untilMs: dep("qualitySkipProbeAt").get(dep("qualityShortCircuitKey")(id, q)) || null };
         }
         if (!o.runtime) return { eligible: true, reason: null, code: "ELIGIBLE", untilMs: null };
@@ -4042,10 +4077,16 @@ var __lxSourceBundle = (() => {
         const raw = typeof res.body === "string" ? res.body : String(res.body || "");
         let parsed = res.body && typeof res.body === "object" ? res.body : null;
         if (!parsed) {
-          const cleaned = raw.replace(/'/g, '"');
           try {
-            parsed = JSON.parse(cleaned);
+            parsed = JSON.parse(raw);
           } catch (e) {
+          }
+          if (!parsed) {
+            const cleaned = raw.replace(/'/g, '"');
+            try {
+              parsed = JSON.parse(cleaned);
+            } catch (e) {
+            }
           }
         }
         if (parsed && Array.isArray(parsed.abslist)) {
@@ -4101,7 +4142,7 @@ var __lxSourceBundle = (() => {
       var { getUrlWithFallback } = require_chain();
       var { ERROR_CODES } = require_error_codes();
       var { HTTP_URL_REGEX, TIMEOUT_CONFIG, getMobileUserAgent, httpRequest, httpRequestWithRetry, upgradeToHttps } = require_net();
-      var { getHashOrMid, isPreviewFragmentUrl } = require_match();
+      var { getHashOrMid, isPreviewFragmentUrl, normalizeDurationSec } = require_match();
       var { HELLOWORLD_KW_CONVERT_API, IKUN_API, JUHE_API, XINGHAI_BACKEND_API } = require_vendors();
       var { USER_CONFIG, cfg } = require_config();
       var { createTemplateVipSource } = require_chain_misc();
@@ -4285,7 +4326,7 @@ var __lxSourceBundle = (() => {
         return body.url;
       }
       async function juheGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
-        var _a, _b, _c, _d, _e, _f, _g, _h;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i;
         const juheQ = String(quality || "128k").toLowerCase();
         const mid = (songInfo == null ? void 0 : songInfo.songmid) || (songInfo == null ? void 0 : songInfo.id) || songId || "";
         const idFields = platform === "kg" ? { hash: (songInfo == null ? void 0 : songInfo.hash) || mid, songmid: mid, id: mid } : platform === "wy" ? { id: mid, songmid: mid } : { songmid: mid, id: mid };
@@ -4305,7 +4346,8 @@ var __lxSourceBundle = (() => {
             singer: (songInfo == null ? void 0 : songInfo.singer) || "",
             album: (songInfo == null ? void 0 : songInfo.album) || "",
             duration: (songInfo == null ? void 0 : songInfo.duration) || 0,
-            interval: Math.round(((songInfo == null ? void 0 : songInfo.duration) || 0) / 1e3),
+            // R77（R76-P2-02）：App 只发 interval（"mm:ss"），旧实现只读 duration → 恒发 interval=0。
+            interval: normalizeDurationSec((_b = songInfo == null ? void 0 : songInfo.duration) != null ? _b : songInfo == null ? void 0 : songInfo.interval),
             source: platform === "kw" ? "kw" : String(platform || "kw")
           }), idFields), {
             quality: juheQ
@@ -4320,21 +4362,21 @@ var __lxSourceBundle = (() => {
         }, 1);
         const d = res.body;
         const dCode = d && d.code !== void 0 && d.code !== null ? String(d.code) : "";
-        if (dCode === "200" && typeof ((_b = d.data) == null ? void 0 : _b.url) === "string") return upgradeToHttps(d.data.url);
-        if (dCode === "303" && ((_c = d.data) == null ? void 0 : _c.request)) {
+        if (dCode === "200" && typeof ((_c = d.data) == null ? void 0 : _c.url) === "string") return upgradeToHttps(d.data.url);
+        if (dCode === "303" && ((_d = d.data) == null ? void 0 : _d.request)) {
           const r = d.data.request;
           const resp = await httpRequest(r.url, {
-            method: String(((_d = r.options) == null ? void 0 : _d.method) || "GET").toUpperCase(),
-            headers: ((_e = r.options) == null ? void 0 : _e.headers) || {},
+            method: String(((_e = r.options) == null ? void 0 : _e.method) || "GET").toUpperCase(),
+            headers: ((_f = r.options) == null ? void 0 : _f.headers) || {},
             timeout: 1e4,
             cancelToken
           });
-          const check = (_f = d.data.response) == null ? void 0 : _f.check;
-          if (check && ((_g = check.key) == null ? void 0 : _g.length)) {
+          const check = (_g = d.data.response) == null ? void 0 : _g.check;
+          if (check && ((_h = check.key) == null ? void 0 : _h.length)) {
             const got = check.key.reduce((acc, k) => acc && typeof acc === "object" ? acc[k] : void 0, resp);
             if (got === void 0 || got === null || String(got) !== String(check.value)) throw new Error(`${ERROR_CODES.NOT_FOUND}: Juhe\u91CD\u5B9A\u5411\u6821\u9A8C\u5931\u8D25`);
           }
-          const u = (((_h = d.data.response) == null ? void 0 : _h.url) || []).reduce((acc, k) => acc && typeof acc === "object" ? acc[k] : void 0, resp);
+          const u = (((_i = d.data.response) == null ? void 0 : _i.url) || []).reduce((acc, k) => acc && typeof acc === "object" ? acc[k] : void 0, resp);
           if (typeof u === "string" && /^https?:/.test(u)) return upgradeToHttps(u);
           throw new Error(`${ERROR_CODES.NOT_FOUND}: Juhe\u91CD\u5B9A\u5411\u672A\u53D6\u5230\u76F4\u94FE`);
         }
@@ -4543,16 +4585,16 @@ var __lxSourceBundle = (() => {
           anchors: ["songmid", "id"],
           chain: { tx: 3 },
           upstreamGroup: "juhe",
-          reviewAt: "2026-11-19",
-          note: "2026-11-11 \u6062\u590D\uFF1B7 \u5929\u590D\u6838\uFF0C\u964D\u4E3A tx \u7B2C\u4E09\u6E90\uFF08\u672C\u8F6E 0% \u6210\u529F\u7387\uFF09\u30022026-11-21\uFF1Aflac \u6863\u5B9E\u6D4B\u5B9E\u8FD4 audio/mpeg\uFF0C\u80FD\u529B\u58F0\u660E\u7531 flac \u4E0B\u8C03\u4E3A 320k"
+          reviewAt: "2026-11-23",
+          note: "2026-11-11 \u6062\u590D\uFF1B7 \u5929\u590D\u6838\uFF0C\u964D\u4E3A tx \u7B2C\u4E09\u6E90\u30022026-11-21\uFF1Aflac \u6863\u5B9E\u6D4B\u5B9E\u8FD4 audio/mpeg\uFF0C\u80FD\u529B\u58F0\u660E\u7531 flac \u4E0B\u8C03\u4E3A 320k\u3002R78\uFF0811-23 \u771F\u5B9E\u590D\u6838\uFF09\uFF1A\u4E0A\u6E38\u5168\u57DF HTTP 429\uFF08\u6839\u8DEF\u5F84\u540C\u6837 429\uFF0CCF \u5C42\u9650\u6D41/\u7EF4\u62A4\u9875\uFF09\uFF0Ctx \u4E0E kw \u5747\u4E0D\u53EF\u7528"
         }),
         qingliangTx: provider("qingliangTx", "\u6674\u4EAE(tx)", qingliangTxGetUrl, "320k", {
           platforms: ["tx"],
           anchors: ["songmid", "id"],
           chain: { tx: 2 },
           upstreamGroup: "qingliang-tx",
-          reviewAt: "2026-11-18",
-          note: "2026-11-15 \u5B9E\u6D4B 5/5 \u5168\u66F2 320k\uFF1B\u7B2C\u4E09\u65B9\u5355\u70B9\uFF0C3 \u5929\u590D\u6838"
+          reviewAt: "2026-11-23",
+          note: "2026-11-15 \u5B9E\u6D4B 5/5 \u5168\u66F2 320k\uFF1B\u7B2C\u4E09\u65B9\u5355\u70B9\uFF0C3 \u5929\u590D\u6838\u3002R78\uFF0811-23 \u771F\u5B9E\u590D\u6838\uFF09\uFF1A200 code=1 \u51FA aqqmusic \u76F4\u94FE\uFF0Ctx \u94FE\u4E0A\u5F53\u524D\u552F\u4E00\u53EF\u7528\u6E90"
         }),
         ikun: provider("ikun", "ikun", ikunGetUrl, "flac", {
           platforms: ["kw", "wy"],
@@ -4570,8 +4612,8 @@ var __lxSourceBundle = (() => {
           anchors: ["songmid", "id"],
           lifecycle: PROVIDER_LIFECYCLE.PROBATION,
           upstreamGroup: "oiapi-qq",
-          reviewAt: "2026-11-19",
-          note: "2026-11-11 \u5B9E\u6D4B HTTP 403\uFF1B\u89C2\u5BDF\u81F3 2026-11-19"
+          reviewAt: "2026-11-23",
+          note: "2026-11-11 \u5B9E\u6D4B HTTP 403\u3002R78\uFF0811-23 \u771F\u5B9E\u590D\u6838\uFF09\uFF1A\u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF0C404 code -13001\u300C\u63A5\u53E3\u4E0D\u5B58\u5728\u6216\u5DF2\u4E0B\u7EBF\u300D\uFF08oiapi \u7684 QQ_Music \u8DEF\u7531\u5DF2\u79FB\u9664\uFF09"
         }),
         suyinMigu: provider("suyinMigu", "\u6EAF\u97F3\u54AA\u5495", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("mg", songId, quality, songInfo, cancelToken), "flac", {
           platforms: ["mg"],
@@ -4579,8 +4621,8 @@ var __lxSourceBundle = (() => {
           anchors: [],
           lifecycle: PROVIDER_LIFECYCLE.PROBATION,
           upstreamGroup: "xcvts-migu",
-          reviewAt: "2026-11-26",
-          note: "2026-11-11 \u5B9E\u6D4B\u4E0A\u6E38 502\uFF1B\u89C2\u5BDF\u81F3 2026-11-26",
+          reviewAt: "2026-11-23",
+          note: "2026-11-11 \u5B9E\u6D4B\u4E0A\u6E38 502\u3002R78\uFF0811-23 \u771F\u5B9E\u590D\u6838\uFF09\uFF1A200 code=1 \u80FD\u51FA\u76F4\u94FE\uFF0C\u662F mg \u5E73\u53F0\u5F53\u524D\u552F\u4E00\u53EF\u7528\u5019\u9009\uFF08suyinKuwo \u5DF2\u4E0B\u7EBF\uFF09",
           verified: true
         })
       };
@@ -4810,6 +4852,14 @@ var __lxSourceBundle = (() => {
       }
       var HEALTH_CHECK_INITIAL_DELAY_MS = 60 * 1e3;
       var inflightUrl = /* @__PURE__ */ new Map();
+      function withProbeSong(handlerSong, song) {
+        if (!handlerSong) return handlerSong;
+        const hs = Object.assign({}, handlerSong, { name: song });
+        delete hs.singer;
+        delete hs.duration;
+        delete hs.interval;
+        return hs;
+      }
       function buildProbeConfig() {
         const probePool = USER_CONFIG.probeSongPool;
         const probeSong = probePool[(globalThis.__probeRound || 0) % probePool.length];
@@ -4972,7 +5022,7 @@ var __lxSourceBundle = (() => {
           const targets = pc.probes || [pc];
           targets.forEach((t, i) => {
             const song = pool[(roundNo + i) % pool.length];
-            if (t.handlerSong) t.handlerSong = Object.assign({}, t.handlerSong, { name: song });
+            if (t.handlerSong) t.handlerSong = withProbeSong(t.handlerSong, song);
             else t.songName = song;
           });
         }
@@ -5009,12 +5059,12 @@ var __lxSourceBundle = (() => {
           const songAt = (i) => pool[(round + i) % pool.length];
           if (probes.length < 2) {
             const second = songAt(1);
-            probes = [Object.assign({}, probes[0], { songName: second, handlerSong: probes[0].handlerSong ? Object.assign({}, probes[0].handlerSong, { name: second }) : probes[0].handlerSong })];
-            probes.unshift(Object.assign({}, probes[0], { songName: songAt(0), handlerSong: probes[0].handlerSong ? Object.assign({}, probes[0].handlerSong, { name: songAt(0) }) : probes[0].handlerSong }));
+            probes = [Object.assign({}, probes[0], { songName: second, handlerSong: withProbeSong(probes[0].handlerSong, second) })];
+            probes.unshift(Object.assign({}, probes[0], { songName: songAt(0), handlerSong: withProbeSong(probes[0].handlerSong, songAt(0)) }));
           } else {
             probes = probes.map((p, i) => {
               const song = songAt(i);
-              return Object.assign({}, p, { songName: song, handlerSong: p.handlerSong ? Object.assign({}, p.handlerSong, { name: song }) : p.handlerSong });
+              return Object.assign({}, p, { songName: song, handlerSong: withProbeSong(p.handlerSong, song) });
             });
           }
         }
@@ -5119,6 +5169,20 @@ var __lxSourceBundle = (() => {
             br.rateLimitCount = 0;
             logInfo(`\u5065\u5EB7\u63A2\u6D4B: [${id}] \u63A2\u6D4B\u901A\u8FC7\uFF0C\u65AD\u8DEF\u5668\u4E0E\u9650\u6D41\u9000\u907F\u5DF2\u590D\u4F4D`);
           }
+          if (br.byQuality) {
+            for (const qs of Object.values(br.byQuality)) {
+              if (!qs || typeof qs !== "object") continue;
+              if (qs.breaker && typeof qs.breaker === "object") {
+                qs.breaker.state = "closed";
+                qs.breaker.failureCount = 0;
+                qs.breaker.lastFailureTime = 0;
+                qs.breaker.trialInFlight = false;
+              }
+              qs.rateLimitCount = 0;
+              qs.rateLimitUntil = 0;
+              qs.rateLimited = false;
+            }
+          }
           dep("probeState").failCount[id] = 0;
           dep("probeState").passCount[id] = (dep("probeState").passCount[id] || 0) + 1;
           dep("probeState").passStreak[id] = (dep("probeState").passStreak[id] || 0) + 1;
@@ -5184,10 +5248,10 @@ var __lxSourceBundle = (() => {
           const score = computeHealthScore(id);
           const gatePlatforms = (h.platforms || []).filter((p) => h.chain && h.chain[p] != null);
           const gatePlatform = gatePlatforms[0] || (h.platforms || [])[0] || null;
-          const gate = dep("computeEligibility")(id, gatePlatform, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
+          const gate = dep("computeEligibility")(id, gatePlatform, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false, setProbe: false });
           const platformEligibility = {};
           for (const p of gatePlatforms) {
-            const pe = p === gatePlatform ? gate : dep("computeEligibility")(id, p, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false });
+            const pe = p === gatePlatform ? gate : dep("computeEligibility")(id, p, "128k", { runtime: true, peekRuntime: true, consumePlayDeadTrial: false, setProbe: false });
             platformEligibility[p] = { eligible: pe.eligible, reason: pe.reason, code: pe.code };
           }
           const offState = getHealthOffState(id, h);
@@ -5276,7 +5340,7 @@ var __lxSourceBundle = (() => {
           const all = /* @__PURE__ */ new Set();
           const eligible = /* @__PURE__ */ new Set();
           for (const q of ["128k", "320k", "flac", "flac24bit"]) {
-            for (const h of dep("buildSourceChain")(p, q)) eligible.add(h.id);
+            for (const h of dep("buildSourceChain")(p, q, null, { setProbe: false })) eligible.add(h.id);
           }
           for (const id of Object.keys(dep("SOURCE_HANDLERS"))) if (dep("SOURCE_HANDLERS")[id] && (dep("SOURCE_HANDLERS")[id].platforms || []).includes(p)) all.add(id);
           PLATFORM_GROUPS[p] = [...all];
@@ -5767,9 +5831,19 @@ var __lxSourceBundle = (() => {
           timeout: TIMEOUT_CONFIG.search
         });
         const raw = typeof res.body === "string" ? res.body : String(res.body || "");
-        const cleaned = raw.replace(/'/g, '"');
+        let parsed = null;
         try {
-          const parsed = JSON.parse(cleaned);
+          parsed = JSON.parse(raw);
+        } catch (e) {
+        }
+        if (!parsed) {
+          const cleaned = raw.replace(/'/g, '"');
+          try {
+            parsed = JSON.parse(cleaned);
+          } catch (e) {
+          }
+        }
+        try {
           const item = (_a = parsed == null ? void 0 : parsed.abslist) == null ? void 0 : _a[0];
           if (item) {
             const pic = item.hts_MVPIC || (item.MVPIC ? `https://img2.kuwo.cn/${item.MVPIC}` : null);
@@ -5882,7 +5956,24 @@ var __lxSourceBundle = (() => {
       var { PLATFORM_QUALITIES } = require_match();
       var { ERROR_CODES } = require_error_codes();
       var { dep } = require_binding();
-      function validateProviderContracts() {
+      var REVIEW_GRACE_DAYS = 14;
+      var REVIEW_FUTURE_TOLERANCE_MS = 24 * 3600 * 1e3;
+      function validateProviderContracts(nowMs = Date.now()) {
+        const checkFresh = (owner, reviewAt) => {
+          if (!reviewAt) return;
+          const ts = Date.parse(`${String(reviewAt)}T00:00:00Z`);
+          if (!Number.isFinite(ts)) {
+            errors.push(`${owner}: reviewAt \u975E\u6CD5 ${reviewAt}`);
+            return;
+          }
+          if (ts - nowMs > REVIEW_FUTURE_TOLERANCE_MS) {
+            errors.push(`${owner}: reviewAt ${reviewAt} \u662F\u672A\u6765\u65E5\u671F\uFF0C\u5FC5\u987B\u586B\u771F\u5B9E\u590D\u6838\u65E5\uFF08\u4E0D\u5F97\u7528\u672A\u6765\u65E5\u671F\u7ED5\u8FC7\u5BBD\u9650\uFF09`);
+            return;
+          }
+          if (nowMs - ts > REVIEW_GRACE_DAYS * 24 * 3600 * 1e3) {
+            errors.push(`${owner}: reviewAt ${reviewAt} \u8FC7\u671F\u8D85 ${REVIEW_GRACE_DAYS} \u5929\uFF0C\u9700\u590D\u6838\u6216\u663E\u5F0F\u987A\u5EF6`);
+          }
+        };
         const errors = [];
         const ids = Object.keys(SOURCE_HANDLERS);
         const toggleIds = Object.keys(dep("SOURCE_TOGGLES"));
@@ -5915,6 +6006,7 @@ var __lxSourceBundle = (() => {
             if (Object.keys(h.chain).length) errors.push(`${id}: probation \u6E90\u4E0D\u5F97\u6709\u94FE\u4F4D\u6B21`);
             if (dep("SOURCE_TOGGLES")[id] !== false) errors.push(`${id}: probation \u6E90\u9ED8\u8BA4\u5FC5\u987B\u5173\u95ED`);
             if (!h.reviewAt) errors.push(`${id}: probation \u6E90\u5FC5\u987B\u6709 reviewAt`);
+            else checkFresh(`${id} \u590D\u6838\u65E5`, h.reviewAt);
           } else if (!Object.keys(h.chain).length) {
             errors.push(`${id}: active \u6E90\u5FC5\u987B\u6709\u94FE\u4F4D\u6B21`);
           }
@@ -5926,6 +6018,7 @@ var __lxSourceBundle = (() => {
           if (new Set(ranks).size !== ranks.length) errors.push(`${platform}: \u94FE\u4F4D\u6B21\u91CD\u590D`);
         }
         for (const gap of KNOWN_COVERAGE_GAPS) {
+          checkFresh(`\u8986\u76D6\u7F3A\u53E3 ${gap.platform}`, gap.reviewAt);
           const count = active.filter((id) => SOURCE_HANDLERS[id].platforms.includes(gap.platform) && SOURCE_HANDLERS[id].chain[gap.platform] != null).length;
           if (gap.platform === "mg" || gap.platform === "kg") {
             if (count !== 1) errors.push(`${gap.platform}: \u8986\u76D6\u7F3A\u53E3\u767B\u8BB0\u4E3A\u5355\u6E90\uFF0C\u5B9E\u9645 ${count} \u6E90`);
@@ -5940,12 +6033,18 @@ var __lxSourceBundle = (() => {
         return { ok: true, registered, active: active.length, probation: probation.length, platforms: Object.keys(PLATFORM_QUALITIES) };
       }
       var KNOWN_COVERAGE_GAPS = Object.freeze([
-        Object.freeze({ platform: "mg", reason: "\u4EC5 suyinKuwo \u5355\u6E90\uFF1BsuyinMigu \u5904\u4E8E probation \u4E0D\u8FDB\u94FE", risk: "high", reviewAt: "2026-11-26" }),
-        Object.freeze({ platform: "kg", reason: "\u4EC5 suyinKuwo \u5355\u6E90\uFF1B\u65E0\u7B2C\u4E8C\u6E90", risk: "high", reviewAt: "2026-11-19" }),
+        // R78（2026-11-23 真实复核，把 R77 顺延到未来的日期改回真实复核日；顺延不等于复核已做）：
+        // 本轮实测结论 —— oiapi 的 Kuwo_Music / QQ_Music / 163_Music 三接口均 `404 code -13001
+        // 接口不存在或已下线`；Migu_Music 仍活（`200 code=1` 能出直链）；juhe 全域 `429`（根路径也
+        // 429，CF 层限流/挂维护页）；qingliangTx `200 code=1` 能出直链。故 mg/kg 的「单源」已变成
+        // 「零可用源」，tx 的「三源」实际只剩 qingliangTx 单点，风险档与文案随之改写。
+        Object.freeze({ platform: "mg", reason: "suyinKuwo \u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF08R78 404 -13001\uFF09\uFF0C\u5F53\u524D\u96F6\u4E0A\u94FE\u6E90\uFF1B\u552F\u4E00\u53EF\u7528\u5019\u9009\u662F\u89C2\u5BDF\u6E90 suyinMigu\uFF08R78 \u5B9E\u6D4B 200 code=1 \u53EF\u51FA\u94FE\uFF0C\u9ED8\u8BA4\u5173\u95ED\u4E0D\u8FDB\u94FE\uFF09", risk: "high", reviewAt: "2026-11-23" }),
+        Object.freeze({ platform: "kg", reason: "suyinKuwo \u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF08R78 404 -13001\uFF09\uFF0C\u5F53\u524D\u96F6\u4E0A\u94FE\u6E90\uFF0C\u65E0\u7B2C\u4E8C\u6E90", risk: "high", reviewAt: "2026-11-23" }),
         // v9.1.2（B04-001）：原写「suyinKuwo + juheTx 双源」漏记了链位次更靠前的 qingliangTx，
         // 且 reviewAt 与 docs/SOURCE_REGISTRY.md 的「覆盖缺口」表（2026-11-18）不一致。
         // 现按登记表对齐为三源 + 同日期，两处口径必须同步改。
-        Object.freeze({ platform: "tx", reason: "suyinKuwo + qingliangTx + juheTx \u4E09\u6E90\uFF1BqingliangTx \u7B2C\u4E09\u65B9\u5355\u70B9\u3001juheTx \u53D7\u57FA\u7840\u8BBE\u65BD\u9650\u6D41", risk: "medium", reviewAt: "2026-11-18" })
+        // R78：三源里 juheTx 全域 429、suyinKuwo 与 suyinQQ 已下线，实际只剩 qingliangTx 一个点。
+        Object.freeze({ platform: "tx", reason: "\u767B\u8BB0\u4E09\u6E90\uFF0CR78 \u5B9E\u6D4B\u5B9E\u9645\u4EC5 qingliangTx \u53EF\u7528\uFF08200 code=1 \u51FA\u76F4\u94FE\uFF09\uFF1BjuheTx \u5168\u57DF 429\u3001suyinKuwo/suyinQQ \u63A5\u53E3\u4E0B\u7EBF", risk: "high", reviewAt: "2026-11-23" })
       ]);
       module.exports = {
         validateProviderContracts,
@@ -6147,6 +6246,10 @@ var __lxSourceBundle = (() => {
             const pd = item.playDead || {};
             if (!isHealthPlainObject(pd)) return { ok: false, reason: `${id}.playDead \u975E\u6CD5` };
             if (!healthNumber(pd.streak || 0, true) || !healthNumber(pd.deadline || 0, true)) return { ok: false, reason: `${id}.playDead \u975E\u6CD5` };
+            const pdQuality = pd.quality === void 0 || pd.quality === null || pd.quality === "" ? null : String(pd.quality).toLowerCase();
+            if (pdQuality !== null && pdQuality !== "*" && !dep("HEALTH_QUALITIES").includes(pdQuality)) {
+              return { ok: false, reason: `${id}.playDead.quality \u975E\u6CD5` };
+            }
             const rd = item.resolveDead || { streak: 0, deadline: 0 };
             if (!isHealthPlainObject(rd)) return { ok: false, reason: `${id}.resolveDead \u975E\u6CD5` };
             if (!healthNumber(rd.streak || 0, true) || !healthNumber(rd.deadline || 0, true)) return { ok: false, reason: `${id}.resolveDead \u975E\u6CD5` };
@@ -6168,7 +6271,7 @@ var __lxSourceBundle = (() => {
                 lastQuality: b.lastQuality === null ? null : String(b.lastQuality).toLowerCase()
               },
               byQuality,
-              playDead: { streak: Number(pd.streak || 0), deadline: Number(pd.deadline || 0) },
+              playDead: { streak: Number(pd.streak || 0), deadline: Number(pd.deadline || 0), quality: pdQuality },
               resolveDead: { streak: Number(rd.streak || 0), deadline: Number(rd.deadline || 0) }
             };
           }
@@ -6799,7 +6902,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.6 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.7 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {
@@ -7223,7 +7326,7 @@ var __lxSourceBundle = (() => {
           "320k"
         ],
         "coldStart": false,
-        "reviewAt": "2026-11-19"
+        "reviewAt": "2026-11-23"
       };
     }
   });
@@ -7249,7 +7352,7 @@ var __lxSourceBundle = (() => {
           "320k"
         ],
         "coldStart": false,
-        "reviewAt": "2026-11-18"
+        "reviewAt": "2026-11-23"
       };
     }
   });
@@ -7309,7 +7412,7 @@ var __lxSourceBundle = (() => {
             "flac"
           ],
           "coldStart": false,
-          "reviewAt": "2026-11-19"
+          "reviewAt": "2026-11-23"
         },
         "suyinMigu": {
           "id": "suyinMigu",
@@ -7328,7 +7431,7 @@ var __lxSourceBundle = (() => {
             "flac"
           ],
           "coldStart": false,
-          "reviewAt": "2026-11-26"
+          "reviewAt": "2026-11-23"
         }
       };
     }

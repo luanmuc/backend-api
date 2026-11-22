@@ -63,9 +63,14 @@ async function kuwoPicSearch(keyword) {
     timeout: TIMEOUT_CONFIG.search
   });
   const raw = typeof res.body === "string" ? res.body : String(res.body || "");
-  const cleaned = raw.replace(/'/g, '"');
+  // R77（R76-P2-05 同族）：先按原串解析，失败再退 '→" 清洗版（含撇号歌名不会被洗坏）。
+  let parsed = null;
+  try { parsed = JSON.parse(raw); } catch (e) { /* 继续 */ }
+  if (!parsed) {
+    const cleaned = raw.replace(/'/g, '"');
+    try { parsed = JSON.parse(cleaned); } catch (e) { /* 继续 */ }
+  }
   try {
-    const parsed = JSON.parse(cleaned);
     const item = parsed?.abslist?.[0];
     if (item) {
       // hts_MVPIC 为完整 https 封面；MVPIC 为短路径需拼 img2.kuwo.cn 前缀
