@@ -123,6 +123,7 @@
 | `test/audit/v-cross-platform-stress.js` | 447 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | V 组 V1~V13（20 并发同歌 / 缓存上限 / 总开关 / 关源重开 / remix-only / 慢主平台 / 事件隐私 / 同名同歌手时长差 199s 拒绝） |
 | `test/audit/w-fallback-owner.js` | 54 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P1 W1~W2（inited 已上报 / 5 平台 fallbackOwner=source） |
 | `test/audit/x-media-envelope.js` | 161 | .js | ✓ | — | ✓ | — | ✓ | — | ✓ | P2 X1~X12（64B/1B/1KB/1MiB/8MiB 信封还原 / kindOf audio / byteLength=BAD_ENVELOPE / 缺片=TRUNCATED_MEDIA / 旧 Buffer 兼容 / mediaEnvelope 能力声明 / 0 字节零长 / admit 错误码 / 1MiB JSON.parse≤10ms） |
+| `test/audit/security-url-guard.js` | 128 | .js | — | — | ✓ | — | ✓ | — | ✓ | G6 非法 URL 防线：`validateUrl`/`probeAudioDelivery`/`upgradeToHttps` 三入口 × `javascript:`/`file://`/`data:`/`//evil.com`/空/100KB，12 条；先红 5/12 → 绿 12/0（放宽 `HTTP_URL_REGEX`） |
 | `test/audit/readthrough-fixes.js` | 451 | .js | ✓ | — | — | ✓ | ✓ | — | ✓ | v8.16.2 RF1~RF18（R-01 档位熔断持久化 / R-02 真实音质入账 / R-03 播放分账 / R-04 快照运行期资格 / R-05 试探键清理 / R-06 半开名额后置 / R-07 gateErr 带码 / R-09 跨平台可取消 / R-10 兜底结构化 / R-11 ttl 死分支 / R-12 七项 / R-08 版本口径）；先红 0/18 → 绿 18/0 |
 | `docs/chain-sample.jsonl` | 15 | .jsonl | ✓ | — | — | — | — | — | — | 出链抽样数据（`scripts/chain-sample.js` 产出，日报消费） |
 | `docs/device-digests.jsonl` | 1 | .jsonl | ✓ | — | — | — | — | — | — | 真机摘要数据（`scripts/pull-device-digests.js` 产出） |
