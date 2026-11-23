@@ -28,3 +28,18 @@
 {"date":"2026-11-22","src":"suyinKuwo","plat":"kg","ok":true,"code":"OK","playable":"206 audio/x-flac","ms":325,"msg":""}
 {"date":"2026-11-22","src":"wyOuter","plat":"wy","ok":false,"code":"NOT_FOUND","playable":"","ms":2267,"msg":"NOT_FOUND: 网易云该歌曲不可试听(可能需VIP)，跳过"}
 {"date":"2026-11-22","src":"xinghaiBackend","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1485,"msg":""}
+{"date":"2026-11-23","src":"changqingVip","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1374,"msg":""}
+{"date":"2026-11-23","src":"helloworldKw","plat":"kw","ok":false,"code":"NETWORK_ERROR","playable":"","ms":1995,"msg":"NETWORK_ERROR: "}
+{"date":"2026-11-23","src":"ikun","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":844,"msg":""}
+{"date":"2026-11-23","src":"ikun","plat":"wy","ok":true,"code":"OK","playable":"206 audio/mpeg; charset=UTF-8","ms":1519,"msg":""}
+{"date":"2026-11-23","src":"juheTx","plat":"tx","ok":false,"code":"NOT_FOUND","playable":"","ms":775,"msg":"NOT_FOUND: Juhe重定向校验失败"}
+{"date":"2026-11-23","src":"kuwoOfficial","plat":"kw","ok":false,"code":"NETWORK_ERROR","playable":"","ms":1275,"msg":"NETWORK_ERROR: "}
+{"date":"2026-11-23","src":"qingliangTx","plat":"tx","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1457,"msg":""}
+{"date":"2026-11-23","src":"suyin163","plat":"wy","ok":true,"code":"OK","playable":"206 application/octet-stream;charset=UTF-8","ms":1733,"msg":""}
+{"date":"2026-11-23","src":"suyinKuwo","plat":"kw","ok":true,"code":"OK","playable":"206 audio/x-flac","ms":1175,"msg":""}
+{"date":"2026-11-23","src":"suyinKuwo","plat":"wy","ok":true,"code":"OK","playable":"206 audio/x-flac","ms":720,"msg":""}
+{"date":"2026-11-23","src":"suyinKuwo","plat":"tx","ok":true,"code":"OK","playable":"206 audio/x-flac","ms":284,"msg":""}
+{"date":"2026-11-23","src":"suyinKuwo","plat":"mg","ok":true,"code":"OK","playable":"206 audio/x-flac","ms":293,"msg":""}
+{"date":"2026-11-23","src":"suyinKuwo","plat":"kg","ok":true,"code":"OK","playable":"206 audio/x-flac","ms":298,"msg":""}
+{"date":"2026-11-23","src":"wyOuter","plat":"wy","ok":false,"code":"NOT_FOUND","playable":"","ms":2554,"msg":"NOT_FOUND: 网易云该歌曲不可试听(可能需VIP)，跳过"}
+{"date":"2026-11-23","src":"xinghaiBackend","plat":"kw","ok":true,"code":"OK","playable":"206 audio/mpeg","ms":1204,"msg":""}
