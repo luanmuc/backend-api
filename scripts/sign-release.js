@@ -64,23 +64,37 @@ function sign() {
 }
 
 function verify(pubB64) {
-  if (!fs.existsSync(SIG_FILE)) { console.log('❌ 缺少 lx-source.js.sig'); return 1 }
-  const sig = fs.readFileSync(SIG_FILE, 'utf8').trim()
   const body = fs.readFileSync(ARTIFACT)
+  let mf = null
+  if (fs.existsSync(MANIFEST)) {
+    try { mf = JSON.parse(fs.readFileSync(MANIFEST, 'utf8')) }
+    catch (e) { console.log('❌ manifest 解析失败：' + e.message); return 1 }
+  }
+  // .sig 是 Release 资产；仓库里通常只提交 manifest（App 的 CDN 兜底通道也读它）。
+  // 因此允许从 manifest 内嵌 sig 验签，但仍要求 manifest 存在；两者都存在时必须一致。
+  let sig = ''
+  if (fs.existsSync(SIG_FILE)) sig = fs.readFileSync(SIG_FILE, 'utf8').trim()
+  else if (mf && typeof mf.sig === 'string') sig = mf.sig.trim()
+  if (!sig) {
+    console.log(fs.existsSync(MANIFEST) ? '❌ 缺少 lx-source.js.sig，且 manifest 没有内嵌 sig' : '❌ 缺少 lx-source.js.sig 与 lx-source.js.manifest.json')
+    return 1
+  }
   let pub
   try { pub = crypto.createPublicKey({ key: Buffer.from(pubB64, 'base64'), type: 'spki', format: 'der' }) }
   catch (e) { console.log('❌ 公钥解析失败：' + e.message); return 1 }
-  const ok = crypto.verify(null, body, pub, Buffer.from(sig, 'base64'))
+  let ok = false
+  try { ok = crypto.verify(null, body, pub, Buffer.from(sig, 'base64')) }
+  catch (e) { console.log('❌ 签名格式非法：' + e.message); return 1 }
   if (!ok) { console.log('❌ 验签失败：产物与签名不匹配（可能被替换）'); return 1 }
   // B03-007：manifest 是 sha256 + 版本的锁定层。原来缺失时直接当成验签通过，
   // 等于把 sha 锁定变成可选 —— 整个 manifest 可被剥离而不报错。缺失必须算失败。
-  if (!fs.existsSync(MANIFEST)) { console.log('❌ 缺少 lx-source.js.manifest.json（sha256/版本锁定层不可缺失）'); return 1 }
-  const mf = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'))
+  if (!mf) { console.log('❌ 缺少 lx-source.js.manifest.json（sha256/版本锁定层不可缺失）'); return 1 }
+  if (typeof mf.sig === 'string' && mf.sig.trim() !== sig) { console.log('❌ manifest 内嵌 sig 与 lx-source.js.sig 不一致'); return 1 }
   if (mf.sha256 !== sha256(body)) { console.log('❌ manifest sha256 与产物不符'); return 1 }
   // B03-007：还要交叉核对版本，避免 manifest 与产物版本错配（例如换了产物没更新 manifest）。
   const ver = versionOf(body.toString('utf8'))
   if (mf.version !== ver) { console.log(`❌ manifest 版本(${mf.version}) 与产物 @version(${ver}) 不一致`); return 1 }
-  console.log(`✅ 验签通过（v${mf.version} / sha256 ${mf.sha256.slice(0, 12)}…）`)
+  console.log(`✅ 验签通过（v${mf.version} / sha256 ${mf.sha256.slice(0, 12)}…${fs.existsSync(SIG_FILE) ? '' : ' / manifest 内嵌 sig'}）`)
   return 0
 }
 

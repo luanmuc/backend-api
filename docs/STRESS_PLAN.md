@@ -2,7 +2,7 @@
 
 > **重构说明**：原文件是第五轮压测的「覆盖率盲区清零」分册，标题与内容已不符。本文件重构为音源仓压测的**唯一入口**，覆盖三代压测脚本 + 本轮音质政策变更的压测关注点。
 >
-> **基线（唯一真值，2026-11-22）**：源仓 `master` **v9.1.6**（`c38a2c1`，产物 **379380 bytes / 7375 行**，错误码 **19** 个，ed25519 keyId=**k1**）；`npm test` **47 个脚本** / 压测 **162 条**（S12 + T14 + V133 + D3）/ 变异 **22 killed**；App **v1.9.2-b199**（`b3ce7440`，已推送）。
+> **基线（唯一真值，2026-11-23）**：源仓 `master` **v9.3.3**（`ae13b6d`，产物 **400561 bytes / 7725 行**，错误码 **19** 个，ed25519 keyId=**k1**）；`npm test` **51 个脚本** / 压测 **162 条**（S12 + T14 + V133 + D3）/ 变异 **22 killed**；App **v1.9.2-b207**（`1f9d62c3`，当前 HEAD；发布点 `8adc5d46`，已推送）。
 >
 > **R71~R74b 新增压测面（本轮并入）**：①`UNSUPPORTED_ACTION` 为**第 19 个**错误码（未知源 action 归一，`T8` 硬编码计数须同步）；②`sign-release` 裸 `git push` 被 `docs-audit` 并发提交顶掉（**R73**，已补 rebase，见 §3 表）；③App 侧全仓裸 console 归零后，音源侧 `logger` 相关跨仓断言无变化（音源自身不打 logger 通道）。
 >
@@ -70,31 +70,32 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 | **未知源 action 归一（R71d）** | `forceQualityProbe` / `reportPlayback` 对未注册源返回 `{ok:false, code:'UNSUPPORTED_ACTION', reason:'UNKNOWN_SOURCE'}`，不再抛裸异常；App `isBusinessRejection` 认这个码、不弹错误 | `force-probe-contract` FP4（带 code 断言）、`stress-round3` T8（19 码）、App `check_health_status_refactor` HS19 |
 | **`sign-release` 推送竞态（R73）** | 三个写 master 的点里只有 `sign-release` 是裸 `git push`，会被 `docs-audit` 并发提交顶掉（`! [rejected] master -> master (fetch first)`，run `44924159855`）；必须 `git fetch origin master` + `git rebase origin/master` + `git push origin HEAD:master` | 修后 run `44925546101` 1m39s 全绿；重签提交 `754e996` 把 manifest 刷为 379380 / `487606a8` / k1 |
 
-## 4. 本轮实测结果（2026-11-22 · v9.1.6 / `c38a2c1`）
+## 4. 本轮实测结果（2026-11-23 · v9.3.3 / `ae13b6d`）
 
 | 项 | 结果 |
 |---|---|
-| `npm test`（**47 个脚本** = 冒烟 1 + 审计 44 + 压测 2） | **RC=0**；T 14/0、V 133/0 |
+| `npm test`（**51 个脚本** = 冒烟 1 + 审计 48 + 压测 2） | **RC=0**；T 14/0、V 133/0 |
 | `stress-test`（S，**不在 `npm test` 链上**，须单跑） | **12/0** |
 | `stress-round3`（T，链内） | **14/0** |
 | `stress-round4`（V，链内） | **133/0** |
 | **压测合计** | **159/0**（S12 + T14 + V133） |
 | 变异 `--full --strict` | **22 killed / 0 survived / 100%** |
-| `v9-gate.sh --group core` | **通过 34s**（E0/L/C2/E1/E3/X/P/C1 全绿） |
+| `v9-gate.sh --group core` | **通过 35s**（E0/L/C2/E1/E3/X/P/C1 全绿） |
 | `layer-check` | ✅ 33 个 core 模块，无环 / 无反向引用 / 无同名定义 / 无直读 lx |
-| `cross-repo-version` | ✅ 产物 **9.1.6** = legacy 9.1.6，App 解析器兼容 |
+| `cross-repo-version` | ✅ 产物 **9.3.3** = legacy 9.3.3，App 解析器兼容 |
 | `schema-parity` | ✅ 4 组计数语义对齐（probe/play ↔ by_source），顶层 probe/play/chain/schema 齐备 |
-| `verify:bundle` | **8 passed / 0 failed**（**7375 行 / 379380 bytes**） |
-| `self-check` | ✅ `@version=9.1.6`，actions 齐全，README/ROADMAP 同步 |
-| `docs-audit --dry-run` | **待处理 0 项 · 报告 44 项 · 硬失败 0 项** |
+| `verify:bundle` | **8 passed / 0 failed**（**7725 行 / 400561 bytes**） |
+| `self-check` | ✅ `@version=9.3.3`，actions 齐全，README/ROADMAP 同步 |
+| `docs-audit --dry-run` | **待处理 0 项 · 报告 43 项 · 硬失败 0 项** |
 | `api-surface` | ✅ 导出 27 / `__debug` 88 / **错误码 19** / 事件字段 12 / 快照键 6 |
+| 发布签名 | `--verify` **true**（无独立 `.sig` 时读 manifest 内嵌 `sig`），sha256/version/size 三者一致；错误公钥 **rc1** |
 | `f-repo`（U~Z 全仓覆盖） | **57/0** |
-| 冒烟 `lx-source-smoke-test` | **67 组**（V3 自校验 `max=67`） |
+| 冒烟 `lx-source-smoke-test` | **67 组** |
 | 元审计 M1~M14 + M9b/M9c | **16/0** |
 | `force-probe-contract`（FP1~FP10） | **10/0** |
-| anchors 声明一致性 | **13/13 源** |
+| anchors 声明一致性 | **15/15 源** |
 
-> **本轮无红。** `stress-test.js`（S 组 12 条）不在 `npm test` 链上——它是按需档，不是漏跑；`npm test` 只带 `stress-round3` + `stress-round4`。压测总数 162 仍按 S+T+V+D 计，与实跑口径分开记账。
+> **本轮无红。** `stress-test.js`（S 组 12 条）不在 `npm test` 链上——它是按需档，不是漏跑；`npm test` 只带 `stress-round3` + `stress-round4`。压测总数 162 仍按 S+T+V+D 计，与实跑 159 分开记账。R85b 起 `sign-release --verify` 不再强依赖独立 `.sig`：仓库无该文件时从 manifest 内嵌 `sig` 验签（真公钥 **true**、错误公钥 **rc1**）；两者并存时必须一致。
 
 ## 5. 失败处置与外部阻塞
 
@@ -152,4 +153,6 @@ node test/mutation/run.js --full --strict  # 变异 22 killed/0 survived（不�
 
 | 日期 | 变更 | 实跑证据 |
 |---|---|---|
+| 2026-11-23 | **R85b `sign-release --verify` 解耦独立 `.sig`**：无 `lx-source.js.sig` 时读 manifest 内嵌 `sig`；两签并存必须一致；manifest 缺失/错误公钥/篡改仍失败 | 真公钥 `--verify` **true**；错误公钥 **rc1**；`npm test` 与 docs-audit 见 AUDIT_PLAN |
+| 2026-11-23 | **R85 基线刷新与实跑**：v9.3.3 / `ae13b6d`（400561 bytes / 7725 行），`npm test` **51 脚本**；App b207 / `1f9d62c3` | S **12/0**、T **14/0**、V **133/0**（合计 159/0）；变异 **22 killed / 0 survived**；`v9-gate[core]` **35s**；`verify:bundle` **8/0**；`docs-audit` 0/43/0 |
 | 2026-11-22 | 基线升到 **v9.1.6 / `c38a2c1`**（产物 7375 行 / 379380 bytes）；`npm test` **46→47 脚本**；错误码 **18→19**；并入 R71d（未知源 action 归一）与 R73（`sign-release` 推送竞态）两个压测面；§7.1 I2 由「12 个错误码」校正为 **19** | `stress-test` S **12/0**、`stress-round3` T **14/0**、`stress-round4` V **133/0**（合计 **159/0**）；`npm test` rc0；变异 **22 killed / 0 survived**；`v9-gate[core]` 34s；`verify:bundle` 8/0 |

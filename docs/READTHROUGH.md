@@ -9,7 +9,7 @@
 历史快照 `e9a2259`（v8.16.1 时期）。**当前工作区的版本号 / 行数 / 字节数一律以机器口径为准**（`README.md`「当前版本」行、`docs/AUDIT_MATRIX.md` 的 `lx-source.js` 行、`docs/TESTING.md` 的入口清单，均由 `scripts/docs-audit.js` 自动对齐）；本行不再手写具体版本，避免每次发版后成为一条固定漂移（R78 修：此前手写 v9.1.2 / 7,101 行 / package 9.1.1 已落后 5 个版本）。产物 `@version` 与真实行数以 `lx-source.js` 文件头注释为准
 
 > 复核说明（2026-11-19）：`src/core/` 33 个模块的逐文件结论已由占位符补为实测结论（职责 + 导出面 + 已知缺陷编号）；文件数/总行数按当前 HEAD 实测刷新。
-文件数：**203**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**63148**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**203**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**63169**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 > 台账 HEAD `8b2e4a0`（v9.3.3）：R83 提交前远端自动文档巡检的锚点；此后每次提交 HEAD 前进 1 条，lag≤20 由规则 18 判为同步（不再因审计改写台账反复产生待提交改动）。
 
@@ -64,7 +64,7 @@
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
 | `docs/archive/AUDIT_HISTORY.md` | 1441 | 归档合集 | v9~第五轮历史计划原文，只读 |
 | `docs/AUDIT_MATRIX.md` | 270 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
-| `docs/AUDIT_PLAN_v10.md` | 288 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
+| `docs/AUDIT_PLAN_v10.md` | 292 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 2019 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
 | `docs/CHANGELOG.md` | 550 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 621 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
@@ -81,7 +81,7 @@
 | `docs/archive/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | 归档 | 音质策略方案；P0/P1 与 K08/K07 已落地，K07 的 App 入口仍 P2；2026-11-20 归档 |
 | `docs/archive/音源架构执行全过程-2026-11-12.md` | 143 | 归档 | v8.6~v8.13 架构阶段纪要；随 v8.13.0 收口，2026-11-20 归档 |
 | `docs/archive/AUDIT_REPORT-2026-11-07.md` | 295 | 归档 | 15 项修复 + §10.2 仍未做（L4 真网络 / F-12 第二方案 / 面板 raceBudgetMs 说明） |
-| `docs/STRESS_PLAN.md` | 155 | 当前态 | 压测唯一入口（v2 重构版，§6 负载设计 + §7 方法论承接） |
+| `docs/STRESS_PLAN.md` | 158 | 当前态 | 压测唯一入口（v2 重构版，§6 负载设计 + §7 方法论承接） |
 | `docs/candidate-status.md` | 8 | 生成 | hyw 已恢复 / huanyin 需人工；依赖 recheck 是否真跑 |
 | `docs/health-daily/` | 998 | 生成 | 整目录（每日 CI 自动生成，90 天滚动清理；当前 23 份已逐字读完） |
 | `docs/probe-history.jsonl` | 247 | 生成 | 664 条全可解析；10-28→11-08；25 distinct url（registry 20）；11-08 单日 215 条异常 |
@@ -311,7 +311,7 @@
 | `scripts/cross-repo-version.js` | 55 | 逐行 | 跨仓版本闸门：用 App 正则解析源仓产物，产物版本必须等于 legacy 版本 |
 | `scripts/layer-check.js` | 92 | 逐行 | 分层依赖检查：core 无环/无反向 require/无同名定义/不直读 lx |
 | `scripts/schema-parity.js` | 48 | 逐行 | 静态核对（U 组） |
-| `scripts/sign-release.js` | 97 | 逐行 | ed25519 发布签名：生成密钥/签名产物/验签 |
+| `scripts/sign-release.js` | 111 | 逐行 | ed25519 发布签名：生成密钥/签名产物/验签 |
 | `lx-source.js.manifest.json` | 9 | 全文 | ed25519 发布签名清单（artifact/version/size/sha256/sigAlg/keyId/sig）；B2 起入库以支撑 App 的 CDN 兜底通道验签 |
 
 ## 七、验证债清算（2026-11-10，只清「能查实的」）
