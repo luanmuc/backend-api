@@ -53,16 +53,16 @@ function main() {
       assert.ok(k in mod, `缺少导出 ${k}`);
     }
   });
-  rec('B3', '契约 14/12/2', () => {
+  rec('B3', '契约 15/13/2', () => {
     const ids = Object.keys(mod.SOURCE_HANDLERS);
-    assert.strictEqual(ids.length, 14);
-    assert.strictEqual(ids.filter(id => mod.SOURCE_HANDLERS[id].lifecycle === 'active').length, 12);
+    assert.strictEqual(ids.length, 15);
+    assert.strictEqual(ids.filter(id => mod.SOURCE_HANDLERS[id].lifecycle === 'active').length, 13);
     assert.strictEqual(ids.filter(id => mod.SOURCE_HANDLERS[id].lifecycle === 'probation').length, 2);
-    assert.strictEqual(mod.PROVIDER_CONTRACT.registered, 14);
+    assert.strictEqual(mod.PROVIDER_CONTRACT.registered, 15);
   });
   rec('B4', 'PROVIDER_SPECS 与运行时契约逐源一致', () => {
     const all = mod.PROVIDER_SPECS.all;
-    assert.strictEqual(all.length, 14);
+    assert.strictEqual(all.length, 15);
     for (const s of all) {
       const h = mod.SOURCE_HANDLERS[s.id];
       assert.ok(h, `规格源未登记: ${s.id}`);

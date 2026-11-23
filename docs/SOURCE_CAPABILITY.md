@@ -1,6 +1,6 @@
 # 音源能力矩阵与适配要求
 
-> 实测日期：2026-11-21（R79 增量 2026-11-23）　基线：`lx-source.js` v9.2.0（14 登记源 / 12 上链 / 2 观察）
+> 实测日期：2026-11-21（R79 增量 2026-11-23；R80 增量 2026-11-23）　基线：`lx-source.js` v9.3.0（15 登记源 / 13 上链 / 2 观察）
 > 方法：mock `lx` 宿主后逐个源调用 `SOURCE_HANDLERS[id].fn`，对返回 URL 发 `Range: bytes=0-1023` 验真
 > 出口网络：本机直连（`yy.zddyr.top` 经代理会 TLS 中断，直连正常）
 
@@ -23,6 +23,7 @@
 | `juheTx` | Juhe聚合(tx) | tx | 128k·320k·flac | active | tx:4 |
 | `qingliangTx` | 晴亮(tx) | tx | 128k·320k | active | tx:2 |
 | `luoyueTx` | 落月(tx) | tx | 128k·320k·flac | active | tx:3 |
+| `audius` | Audius | au | 128k·320k（同文件） | active | au:1 |
 | `ikun` | ikun | kw/wy | 128k·320k·flac | active | kw:7 / wy:5 |
 | `suyinQQ` | 溯音QQ | tx | 128k·320k·flac | probation | — |
 | `suyinMigu` | 溯音咪咕 | mg | 128k·320k·flac | probation | — |
@@ -47,12 +48,15 @@
 | `juheTx` | tx | 206 mpeg | 206 mpeg | **206 mpeg** | `ws.stream.qqmusic.qq.com` |
 | `qingliangTx` | tx | 206 mpeg | 206 mpeg | — | `aqqmusic.tc.qq.com` |
 | `luoyueTx` | tx | 206 mpeg | 206 mpeg | **206 flac** | `ws.stream.qqmusic.qq.com` |
+| `audius` | au | 206 mpeg | 206 mpeg | — | `creatornode.audius.co` |
 | `ikun` | kw | 206 mpeg | 206 mpeg | 206 flac | `car-er.kuwo.cn` |
 | `ikun` | wy | 206 mpeg | 206 mpeg | **206 mpeg** | `m701.music.126.net` |
 | `suyinQQ` | tx | 404 | 404 | 404 | — |
 | `suyinMigu` | mg | NOT_FOUND | NOT_FOUND | NOT_FOUND | — |
 
-可用 11 / 失效 3。所有可用档位都满足 `HTTP 206` 且 `content-type` 命中音频。
+可用 12 / 失效 3。所有可用档位都满足 `HTTP 206` 且 `content-type` 命中音频。
+
+R80 实测（2026-11-23）：`audius` 两档（128k/320k）交付同一 `/stream` 链，跟随 302 → `creatornode.audius.co`，`Range: bytes=0-4095` → `206 audio/mpeg` 4096 字节 `ID3`；原文件多为 320k mp3，低档拿到原文件不低于声明。`is_streamable=false` 的曲（如 qRgvP）`/stream` 直接 404，handler 已按此拒收。中文歌能搜到但多为翻唱/不可流式。
 
 R79 复核（2026-11-23）：`luoyueTx` 三档均 `Range: bytes=0-4095` → `206`，128k 4.31MB / 320k 10.79MB / flac 55.39MB（`fLaC` 命中），落 QQ 官方 CDN（M500/M800/F000 前缀）；同站 `/v2/music/tencent/geturl` 只给 960,887 字节试听片段，故只接 v3 `song/link`。mg 侧：`suyinMigu` 两首仍 `code 502`，`xinghaiBackend` mg 分支对任意 mid 恒定返回同一首（`name=晴天`/`name=演员` URL 完全相同、3.9MB `ID3v2.3`）→ **mg 仍无可用源**。
 

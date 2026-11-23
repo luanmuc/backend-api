@@ -1,5 +1,35 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-23 · v9.3.0：接入 Audius 作为第 6 个平台 au（R80）
+
+**背景**：R79 全网测评里 Audius 是唯一「免 key + 合规 + 全曲 + Range」的国外源，当时列为待决策。R80 按用户「单开一轮」落地。
+
+**改动**
+
+| # | 项 | 落地 |
+|---|---|---|
+| 1 | 新平台 au | `src/core/09-match.js` 的 `PLATFORM_QUALITIES` 加 `au: ["128k","320k"]`（只有 mp3，无 flac 档）；`CROSS_PLATFORM_ORDER`（tx/wy/kw）不含 au，互不兜底 |
+| 2 | 新源 audius | `src/providers/audius.js`（id `audius`、platforms `["au"]`、chain `{au:1}`、maxQuality `320k`、qualitys 128k/320k、upstreamGroup `audius`）；`src/core/25-handlers.js` 加 `AUDIUS_API`/`AUDIUS_APP_NAME`/`AUDIUS_TIMEOUT_MS` 与 `audiusGetUrl` |
+| 3 | handler 判定 | `GET /v1/tracks/{id}?app_name=LxSource`（小 JSON）→ `data.id === id` 且 `is_streamable === true` 才交付；否则 `NOT_FOUND`。通过后返回 `GET /v1/tracks/{id}/stream?app_name=LxSource`（302 → `creatornode.audius.co`，播放器/探针各自跟随），音源侧不下载 8MB 音频 |
+| 4 | 严格档位 | 未知档位（flac/flac24bit）`PARAM_ERROR`，不回落；非 au 平台 `PARAM_ERROR` |
+
+**逐项证据（2026-11-23 实测）**
+
+- `GET /v1/tracks/QJpGKw` → `200`，`{"title":"🖤YAN MI - HELLO","is_streamable":true,"duration":192}`；`/stream` 跟随 302 → **`206 audio/mpeg` / 4096B / `ID3`**。
+- `GET /v1/tracks/qRgvP`（周杰伦翻唱）→ `200` 但 `is_streamable:false`；`/stream` → **`404`**，handler 按此拒收（`NOT_FOUND: audius 曲目不可流式`）。
+- 搜索 `GET /v1/tracks/search?query=`（hello/adele/周杰伦均 `200`，中文能出结果但多为翻唱/不可流式）；`/v1/tracks/trending` `200`。
+- 端到端（mock 宿主加载产物）：`contract 15/13/2`；`QJpGKw` 320k/128k 均 `206 audio/mpeg ID3`；qRgvP → NOT_FOUND；flac 档 → PARAM_ERROR；`kw` 平台 → PARAM_ERROR。
+
+**连带同步（15 登记 / 13 上链 / 2 观察）**
+
+契约预算 14/12 → 15/13；`SOURCE_TOGGLES` 加 `audius: true`（默认开启 11 → 12）；`buildProbeConfig` 加 `audius` 探针段（`handlerPlatform: au`、`handlerSong: QJpGKw / HELLO / 192s`）；`scripts/endpoint-registry.js` 19 → 23 条（+元数据 +stream）；`source-inventory` BUDGET 15/13/2；`verify-bundle` B3/B4；`dump-chain.js` PLATFORMS 加 au（golden 6×4）；`tools/live/run.js` L1-2；smoke 与 8 个审计脚本断言（Y/S/Z/F/D1/health-snapshot-eta/r77-fixes/readthrough-fixes）；`package.json` description。
+
+**文档**：SOURCE_REGISTRY（15 源 + au 链 + HostKeeper 19 条含 `*.audius.co`）、SOURCE_CAPABILITY（+audius 行，可用 12）、SOURCE_LIFECYCLE、SOURCE_AUDIT、KNOWN_ISSUES（K40）、CHANGELOG、README、DEV_GUIDE、ARCHITECTURE、ITERATION_ROADMAP、AUDIT_PLAN_v10、AUDIT_MATRIX、READTHROUGH、SCRIPTS、V9_MODULE_MAP。
+
+**真机 P0 修复（R80 期间定位，同日）**：App 真机加载 v9.2.0 报「初始化失败」，日志栈 `proxy: inconsistent get → checkFresh → validateProviderContracts → src/legacy.js → <eval>`。根因在 `src/core/35-source-switch.js` 的 `runtimeToggles`：原先用 `new Proxy({}, {...})` 做运行时视图，QuickJS（Android quickjs-android）对 Proxy 做严格一致性校验，`Object.keys(SOURCE_TOGGLES)` 抛 `proxy: inconsistent get`；V8/Node 不报，故本地门禁全绿、真机必挂（v9.1.6 无该路径，故那台机正常）。修法：**彻底移除 Proxy**，改为普通对象 + 对每个登记 id `Object.defineProperty` 动态 getter/setter（`get → effectiveEnabled(id)`，`set → userEnabled[id]/autoOff`），`Object.keys` 走真实自有属性，任何引擎行为一致。验证：`runtimeToggles` 15 键（含 audius）、描述符 get/set 均为函数、读写双向生效、全仓 `new Proxy` 仅剩注释。
+
+**产物**：`lx-source.js` **395916 bytes**（396028 − 112：移除 Proxy 改 defineProperty）（v9.2.0 392277 → +3364 = Audius handler + au 平台维度 + 探针段），manifest 待 CI `sign-release` 重签。
+
 ## 2026-11-23 · v9.2.0：落月 tx 接入 + 星海主备双域 + mg 零源结论纠正（R79 产物版）
 
 **与同日「调研（不改产物）」条目的关系**：上一条只做测评、不动代码；本条是用户拍板「4 个全部执行」后的落地产物。四个待办里 3 个落地、1 个被实测证否。

@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v9.2.0 R79 新源与主备双域版（接入落月 tx 第三源——v3 song/link 实测 128k/320k/flac 三档真音频，flac 55.39MB 真 fLaC；xinghaiBackend 改主备双域 yy1 主 + yy 备，仅网络·超时·5xx 切换，4xx 不切；统计口径 14 登记源 / 12 上链 / 2 观察）；上一版 v9.1.7 R77 全量通读修复版（restore 携带 playDead.quality / FLAC 小端与 ID3v2.2 标签 / 快照只读化 / 时长字段 interval 回退 / G9 缓存 key 含时长 / 复核日期新鲜度门禁）；上一版 v9.1.6 源级能力备档版（K03）：能力备档从「平台+歌曲」下沉到「平台+源+歌曲」，buildSourceChain(platform, quality, songInfo) 按源级备档把「已证明给不到该档的源」剔出候选，不再由平台级备档一刀降低整条链的起点档（旧实现等于一个源给过 128k 就让同平台能给 flac 的源再没机会被请求到）；平台级表保留供健康快照统计；新增 QP13 回归；上一版 v9.1.5 为失效源退役标记版（suyinQQ 端点下线 / suyinMigu 上游 IP 被限 / huibq 保留待复活）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
- * @version 9.2.0 R79 新源与主备双域（落月 tx + 星海主备域）
+ * @description v9.3.0 R80 Audius 新平台版（接入 Audius 作为第 6 个平台 au：GET /v1/tracks/{id} 校验 is_streamable（false 的曲 /stream 实测 404），通过后返回 /stream 链，跟随 302 → creatornode.audius.co 得 206 audio/mpeg；au 只有 mp3，128k/320k 两档同文件，不参与 tx/wy/kw 跨平台兜底；预算 15 登记源 / 13 上链 / 2 观察）；上一版 v9.2.0 R79 新源与主备双域版（接入落月 tx 第三源——v3 song/link 实测 128k/320k/flac 三档真音频，flac 55.39MB 真 fLaC；xinghaiBackend 改主备双域 yy1 主 + yy 备，仅网络·超时·5xx 切换，4xx 不切；统计口径 14 登记源 / 12 上链 / 2 观察）；上一版 v9.1.7 R77 全量通读修复版（restore 携带 playDead.quality / FLAC 小端与 ID3v2.2 标签 / 快照只读化 / 时长字段 interval 回退 / G9 缓存 key 含时长 / 复核日期新鲜度门禁）；上一版 v9.1.6 源级能力备档版（K03）：能力备档从「平台+歌曲」下沉到「平台+源+歌曲」，buildSourceChain(platform, quality, songInfo) 按源级备档把「已证明给不到该档的源」剔出候选，不再由平台级备档一刀降低整条链的起点档（旧实现等于一个源给过 128k 就让同平台能给 flac 的源再没机会被请求到）；平台级表保留供健康快照统计；新增 QP13 回归；上一版 v9.1.5 为失效源退役标记版（suyinQQ 端点下线 / suyinMigu 上游 IP 被限 / huibq 保留待复活）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
+ * @version 9.3.0 R80 Audius 新平台（au 平台 + 15 登记 / 13 上链 / 2 观察）
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -76,6 +76,8 @@ var __lxSourceBundle = (() => {
         // 晴亮(tx)：tx 主用第二源（2026-11-15 实测 5/5 全曲 320k），3 天复核
         luoyueTx: true,
         // 落月(tx)：tx 第三源（R79 实测 128k/320k/flac 三档真音频，flac 55.39MB fLaC），3 天复核
+        audius: true,
+        // Audius：第 6 平台 au（R80 实测 is_streamable 校验 + /stream 302→206 audio/mpeg），au 只有 mp3 128k/320k
         ikun: true,
         // ikun：kw/wy 链尾兜底（公益版免卡密）
         suyinQQ: false,
@@ -103,27 +105,20 @@ var __lxSourceBundle = (() => {
       function effectiveEnabled(id) {
         return isUserEnabled(id) && !isAutoOff(id);
       }
-      var runtimeToggles = new Proxy({}, {
-        get(_t, id) {
-          if (typeof id !== "string") return void 0;
-          return effectiveEnabled(id);
-        },
-        set(_t, id, value) {
-          if (typeof id !== "string") return false;
-          userEnabled[id] = !!value;
-          if (value) delete autoOff[id];
-          return true;
-        },
-        has(_t, id) {
-          return typeof id === "string" && id in userEnabled;
-        },
-        ownKeys() {
-          return Object.keys(userEnabled);
-        },
-        getOwnPropertyDescriptor() {
-          return { enumerable: true, configurable: true };
-        }
-      });
+      var runtimeToggles = {};
+      for (const id of Object.keys(SOURCE_TOGGLES)) {
+        Object.defineProperty(runtimeToggles, id, {
+          enumerable: true,
+          configurable: true,
+          get() {
+            return effectiveEnabled(id);
+          },
+          set(value) {
+            userEnabled[id] = !!value;
+            if (value) delete autoOff[id];
+          }
+        });
+      }
       var manualOff = {};
       var manualOffAt = {};
       module.exports = {
@@ -505,7 +500,7 @@ var __lxSourceBundle = (() => {
   // src/core/02-config.js
   var require_config = __commonJS({
     "src/core/02-config.js"(exports, module) {
-      var SOURCE_VERSION = true ? "9.2.0" : "8.16.4";
+      var SOURCE_VERSION = true ? "9.3.0" : "8.16.4";
       var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
       function normalizeProbeSongPool(value) {
         if (!Array.isArray(value)) return null;
@@ -887,7 +882,7 @@ var __lxSourceBundle = (() => {
       var { extractErrorCode, CODE_RANK, QUALITY_BUSINESS_CODES, QUALITY_DELIVERY_CODES, QUALITY_TRANSIENT_CODES } = require_verdict();
       var QUALITY_CEILING_TTL_MS = 216e5;
       var Q = ["128k", "320k", "flac", "flac24bit"];
-      var PLATFORM_QUALITIES = { wy: Q, tx: Q, kw: Q, kg: Q, mg: Q };
+      var PLATFORM_QUALITIES = { wy: Q, tx: Q, kw: Q, kg: Q, mg: Q, au: ["128k", "320k"] };
       var QUALITY_TO_X = {
         // 通用 br 参考（星海 level 语义 / 长青念心 level）：flac24bit/hires 均 999
         br: { "128k": "128", "192k": "192", "320k": "320", flac: "740", flac24bit: "999", "24bit": "999" },
@@ -4143,6 +4138,9 @@ var __lxSourceBundle = (() => {
       var LUOYUE_TX_API = "https://api.vkeys.cn/music/tencent/song/link";
       var LUOYUE_TX_QUALITY = { "128k": "6", "320k": "8", flac: "10" };
       var LUOYUE_TX_TIMEOUT_MS = 8e3;
+      var AUDIUS_API = "https://api.audius.co/v1";
+      var AUDIUS_APP_NAME = "LxSource";
+      var AUDIUS_TIMEOUT_MS = 8e3;
       var WY_OUTER_API = "https://music.163.com/song/media/outer/url?id={id}.mp3";
       var HELLOWORLD_KW_BR = { "128k": "128kmp3", "320k": "320kmp3", flac: "2000kflac", flac24bit: "4000kflac" };
       var { wrapExecute } = require_dispatch();
@@ -4469,6 +4467,26 @@ var __lxSourceBundle = (() => {
         }
         return u;
       }
+      async function audiusGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
+        var _a;
+        if (platform !== "au") throw new Error(`${ERROR_CODES.PARAM_ERROR}: audius \u53EA\u6CE8\u518C au \u5E73\u53F0`);
+        const id = String(songInfo && ((_a = songInfo.songmid) != null ? _a : songInfo.id) || songId || "").trim();
+        if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: audius \u7F3A songmid`);
+        const selectedQuality = String(quality || "320k").toLowerCase();
+        if (selectedQuality !== "128k" && selectedQuality !== "320k") {
+          throw new Error(`${ERROR_CODES.PARAM_ERROR}: audius \u4E0D\u652F\u6301\u97F3\u8D28 ${selectedQuality}`);
+        }
+        const res = await httpRequestWithRetry(`${AUDIUS_API}/tracks/${encodeURIComponent(id)}?app_name=${AUDIUS_APP_NAME}`, {
+          method: "GET",
+          headers: { "User-Agent": getMobileUserAgent() },
+          timeout: AUDIUS_TIMEOUT_MS,
+          cancelToken
+        }, 1);
+        const t = res && res.body && res.body.data;
+        if (!t || t.id !== id) throw new Error(`${ERROR_CODES.NOT_FOUND}: audius \u66F2\u76EE\u4E0D\u5B58\u5728(${id})`);
+        if (t.is_streamable !== true) throw new Error(`${ERROR_CODES.NOT_FOUND}: audius \u66F2\u76EE\u4E0D\u53EF\u6D41\u5F0F(${id})`);
+        return `${AUDIUS_API}/tracks/${encodeURIComponent(id)}/stream?app_name=${AUDIUS_APP_NAME}`;
+      }
       async function ikunGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
         var _a, _b;
         if (platform !== "kw" && platform !== "wy") throw new Error(`${ERROR_CODES.PARAM_ERROR}: ikun\u4EC5\u652F\u6301kw/wy\u5E73\u53F0`);
@@ -4639,6 +4657,14 @@ var __lxSourceBundle = (() => {
           reviewAt: "2026-11-23",
           note: "R79\uFF082026-11-23 \u5B9E\u6D4B\uFF09\uFF1A`api.vkeys.cn` \u843D\u6708\u7EBF\u8DEF\uFF0C128k 4.31MB / 320k 10.79MB / flac 55.39MB\uFF08\u771F `fLaC`\uFF09\uFF0C\u4E09\u6863\u5747\u4E3A QQ \u5B98\u65B9 CDN `ws.stream.qqmusic.qq.com`\uFF08M500/M800/F000 \u524D\u7F00\uFF09\u3002\u53EA\u63A5 v3 `song/link`\u2014\u2014\u540C\u7AD9 `/v2/music/tencent/geturl` \u53EA\u7ED9 960KB \u8BD5\u542C\u7247\u6BB5\u3002\u7B2C\u4E09\u65B9\u5355\u70B9\uFF0C3 \u5929\u590D\u6838"
         }),
+        audius: provider("audius", "Audius", audiusGetUrl, "320k", {
+          platforms: ["au"],
+          anchors: ["songmid", "id"],
+          chain: { au: 1 },
+          upstreamGroup: "audius",
+          reviewAt: "2026-11-23",
+          note: "R80\uFF082026-11-23 \u5B9E\u6D4B\uFF09\uFF1A\u56FD\u5916\u5F00\u6E90\u66F2\u5E93\uFF0C\u514D key\u3002`/v1/tracks/{id}` 200 + `is_streamable` \u5224\u5B9A\uFF08false \u7684\u66F2 /stream \u5B9E\u6D4B 404\uFF09\uFF1B`/stream` 302 \u2192 `creatornode.audius.co`\uFF0C\u8DDF\u968F\u5F97 `206 audio/mpeg` 8.49MB `ID3v2.4`\u3002\u4E2D\u6587\u6B4C\u80FD\u641C\u5230\u4F46\u591A\u4E3A\u7FFB\u5531/\u4E0D\u53EF\u6D41\u5F0F\uFF1Bau \u4E3A\u72EC\u7ACB\u5E73\u53F0\u7EF4\u5EA6\uFF0C\u4E0D\u53C2\u4E0E tx/wy/kw \u8DE8\u5E73\u53F0\u515C\u5E95"
+        }),
         juheTx: provider("juheTx", "Juhe\u805A\u5408(tx)", juheGetUrl, "320k", {
           platforms: ["tx"],
           anchors: ["songmid", "id"],
@@ -4696,6 +4722,7 @@ var __lxSourceBundle = (() => {
         juheGetUrl,
         qingliangTxGetUrl,
         luoyueTxGetUrl,
+        audiusGetUrl,
         ikunGetUrl,
         providerQualitys,
         WY_OUTER_API,
@@ -5005,6 +5032,14 @@ var __lxSourceBundle = (() => {
             useHandler: true,
             handlerPlatform: "tx",
             handlerSong: { songmid: "0039MnYb0qxYhV", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 269e3 }
+          },
+          audius: {
+            tier: "secondary",
+            quality: "128k",
+            useHandler: true,
+            handlerPlatform: "au",
+            // QJpGKw 为 R80 实测可流式曲（YAN MI - HELLO，192s）；qRgvP 那条 is_streamable=false，不可当探针
+            handlerSong: { songmid: "QJpGKw", name: "HELLO", singer: "YAN MI", duration: 192e3 }
           },
           ikun: {
             tier: "secondary",
@@ -6047,8 +6082,8 @@ var __lxSourceBundle = (() => {
         const registered = ids.length;
         const active = ids.filter((id) => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.ACTIVE);
         const probation = ids.filter((id) => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.PROBATION);
-        if (registered !== 14) errors.push(`\u767B\u8BB0\u6E90\u5FC5\u987B\u4E3A 14\uFF0C\u5B9E\u9645 ${registered}`);
-        if (active.length !== 12) errors.push(`\u4E0A\u94FE\u6E90\u5FC5\u987B\u4E3A 12\uFF0C\u5B9E\u9645 ${active.length}`);
+        if (registered !== 15) errors.push(`\u767B\u8BB0\u6E90\u5FC5\u987B\u4E3A 15\uFF0C\u5B9E\u9645 ${registered}`);
+        if (active.length !== 13) errors.push(`\u4E0A\u94FE\u6E90\u5FC5\u987B\u4E3A 13\uFF0C\u5B9E\u9645 ${active.length}`);
         if (probation.length !== 2) errors.push(`\u89C2\u5BDF\u6E90\u5FC5\u987B\u4E3A 2\uFF0C\u5B9E\u9645 ${probation.length}`);
         if (toggleIds.length !== registered) errors.push(`dep('SOURCE_TOGGLES') \u5FC5\u987B\u4E0E SOURCE_HANDLERS \u7B49\u91CF\uFF0Ctoggles=${toggleIds.length}, handlers=${registered}`);
         for (const id of toggleIds) if (!SOURCE_HANDLERS[id]) errors.push(`dep('SOURCE_TOGGLES') \u5B58\u5728\u672A\u767B\u8BB0\u6E90 ${id}`);
@@ -6974,7 +7009,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.2.0 \u5DF2\u52A0\u8F7D\uFF0814 \u767B\u8BB0 / 12 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.3.0 \u5DF2\u52A0\u8F7D\uFF0815 \u767B\u8BB0 / 13 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {
@@ -7456,6 +7491,32 @@ var __lxSourceBundle = (() => {
     }
   });
 
+  // src/providers/audius.js
+  var require_audius = __commonJS({
+    "src/providers/audius.js"(exports, module) {
+      module.exports = {
+        "id": "audius",
+        "name": "Audius",
+        "lifecycle": "active",
+        "platforms": [
+          "au"
+        ],
+        "chain": {
+          "au": 1
+        },
+        "upstreamGroup": "audius",
+        "auth": "none",
+        "maxQuality": "320k",
+        "qualitys": [
+          "128k",
+          "320k"
+        ],
+        "coldStart": false,
+        "reviewAt": "2026-11-23"
+      };
+    }
+  });
+
   // src/providers/ikun.js
   var require_ikun = __commonJS({
     "src/providers/ikun.js"(exports, module) {
@@ -7551,6 +7612,7 @@ var __lxSourceBundle = (() => {
         require_juheTx(),
         require_qingliangTx(),
         require_luoyueTx(),
+        require_audius(),
         require_ikun()
       ];
       var probation = require_probation();

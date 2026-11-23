@@ -53,9 +53,9 @@ const GOOD = { name: '晴天', singer: '周杰伦', duration: 271000, songmid: '
   const kinds = Object.keys(boot.runtimeToggles).filter(k => boot.SOURCE_HANDLERS[k].lifecycle === 'active');
 
   // ---------- D1 每个源都能被真正调用（不漏源、不崩） ----------
-  console.log('\n[D1] 12 个登记源逐个开启：handler 是否真的跑起来');
+  console.log('\n[D1] 13 个登记源逐个开启：handler 是否真的跑起来');
   const dead = [];
-  const platforms = ['kw', 'wy', 'tx', 'mg', 'kg'];
+  const platforms = ['kw', 'wy', 'tx', 'mg', 'kg', 'au'];
   for (const k of kinds) {
     let alive = false;
     for (const pf of platforms) {

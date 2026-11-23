@@ -49,7 +49,7 @@
 
 | 脚本 | 职责 | 关键出口 |
 |---|---|---|
-| `endpoint-registry.js` (82) | 21 条端点登记表（源端点 16 + 工具端点 5；按 kind 分 10 payload + 8 param + 3 endpoint），探测与巡检的唯一来源 | `ENDPOINTS`/`urls`/`sourcesOf`/`EXCLUDE_DOMAINS` |
+| `endpoint-registry.js` (84) | 21 条端点登记表（源端点 16 + 工具端点 5；按 kind 分 10 payload + 8 param + 3 endpoint），探测与巡检的唯一来源 | `ENDPOINTS`/`urls`/`sourcesOf`/`EXCLUDE_DOMAINS` |
 | `source-toggles.js` (129) | 单遍字符扫描解析 `SOURCE_TOGGLES` 真值（health-daily 与 probe 共用） | `parseToggles`/`stripLineComment`/`matchBrace` |
 | `cn-date.js` (17) | 北京日期（CI cron 是 UTC，直接 `new Date()` 会差一天） | `todayCN` |
 | `lib/history.js` (v9.1.4) | 巡检历史（`probe-history.jsonl`）的唯一读写口：归一化旧 schema、原子追加、30 天清理、探测级/天级聚合、Wilson 下限、全历史连续失败天数 | `load`/`append`/`windowStats`/`dailyAggregate`/`consecutiveFailDays`/`prevDataDate` |

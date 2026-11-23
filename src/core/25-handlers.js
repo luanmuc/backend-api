@@ -18,6 +18,12 @@ const LUOYUE_TX_API = "https://api.vkeys.cn/music/tencent/song/link";
 const LUOYUE_TX_QUALITY = { "128k": "6", "320k": "8", flac: "10" };
 const LUOYUE_TX_TIMEOUT_MS = 8000;
 
+// R80：Audius（国外开源曲库，免 key）。`/v1/tracks/{id}` 只用来校验 `is_streamable`（小 JSON），
+// 通过后返回 `/stream` 链，由播放器与探针各自跟随 302 到 creatornode CDN（实测 206 audio/mpeg）。
+const AUDIUS_API = "https://api.audius.co/v1";
+const AUDIUS_APP_NAME = "LxSource";
+const AUDIUS_TIMEOUT_MS = 8000;
+
 const WY_OUTER_API = "https://music.163.com/song/media/outer/url?id={id}.mp3";
 
 const HELLOWORLD_KW_BR = { "128k": "128kmp3", "320k": "320kmp3", flac: "2000kflac", flac24bit: "4000kflac" };
@@ -391,6 +397,30 @@ async function luoyueTxGetUrl(platform, songId, quality, songInfo, cancelToken =
   return u;
 }
 
+async function audiusGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
+  if (platform !== "au") throw new Error(`${ERROR_CODES.PARAM_ERROR}: audius 只注册 au 平台`);
+  const id = String((songInfo && (songInfo.songmid ?? songInfo.id)) || songId || "").trim();
+  // Audius 的 songmid 就是 track 短 id（如 QJpGKw），大小写敏感，不做小写化/trim 之外的处理。
+  if (!id) throw new Error(`${ERROR_CODES.PARAM_ERROR}: audius 缺 songmid`);
+  const selectedQuality = String(quality || "320k").toLowerCase();
+  // 只有 mp3 原文件，两个档位交付同一 URL（低档拿到原文件，不低于声明）。未知档明确报错，不回落。
+  if (selectedQuality !== "128k" && selectedQuality !== "320k") {
+    throw new Error(`${ERROR_CODES.PARAM_ERROR}: audius 不支持音质 ${selectedQuality}`);
+  }
+  const res = await httpRequestWithRetry(`${AUDIUS_API}/tracks/${encodeURIComponent(id)}?app_name=${AUDIUS_APP_NAME}`, {
+    method: "GET",
+    headers: { "User-Agent": getMobileUserAgent() },
+    timeout: AUDIUS_TIMEOUT_MS,
+    cancelToken
+  }, 1);
+  const t = res && res.body && res.body.data;
+  if (!t || t.id !== id) throw new Error(`${ERROR_CODES.NOT_FOUND}: audius 曲目不存在(${id})`);
+  // is_streamable=false 时 /stream 实测 404（qRgvP「周杰伦 - 反方向的钟」），不能当可播交付。
+  if (t.is_streamable !== true) throw new Error(`${ERROR_CODES.NOT_FOUND}: audius 曲目不可流式(${id})`);
+  // 不在这里跟随 302：跳转目标是带签名的 creatornode 直链，音源侧只拼 URL，不下载 8MB 音频。
+  return `${AUDIUS_API}/tracks/${encodeURIComponent(id)}/stream?app_name=${AUDIUS_APP_NAME}`;
+}
+
 async function ikunGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
   if (platform !== "kw" && platform !== "wy") throw new Error(`${ERROR_CODES.PARAM_ERROR}: ikun仅支持kw/wy平台`);
   const id = songInfo?.hash ?? songInfo?.songmid ?? songId;
@@ -573,6 +603,11 @@ const SOURCE_HANDLERS = {
     reviewAt: "2026-11-23",
     note: "R79（2026-11-23 实测）：`api.vkeys.cn` 落月线路，128k 4.31MB / 320k 10.79MB / flac 55.39MB（真 `fLaC`），三档均为 QQ 官方 CDN `ws.stream.qqmusic.qq.com`（M500/M800/F000 前缀）。只接 v3 `song/link`——同站 `/v2/music/tencent/geturl` 只给 960KB 试听片段。第三方单点，3 天复核",
   }),
+  audius: provider("audius", "Audius", audiusGetUrl, "320k", {
+    platforms: ["au"], anchors: ["songmid", "id"], chain: { au: 1 }, upstreamGroup: "audius",
+    reviewAt: "2026-11-23",
+    note: "R80（2026-11-23 实测）：国外开源曲库，免 key。`/v1/tracks/{id}` 200 + `is_streamable` 判定（false 的曲 /stream 实测 404）；`/stream` 302 → `creatornode.audius.co`，跟随得 `206 audio/mpeg` 8.49MB `ID3v2.4`。中文歌能搜到但多为翻唱/不可流式；au 为独立平台维度，不参与 tx/wy/kw 跨平台兜底",
+  }),
   juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "320k", {
     platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 4 }, upstreamGroup: "juhe",
     reviewAt: "2026-11-23", note: "2026-11-11 恢复；7 天复核，降为 tx 第三源。2026-11-21：flac 档实测实返 audio/mpeg，能力声明由 flac 下调为 320k。R78（11-23 真实复核）：上游全域 HTTP 429（根路径同样 429，CF 层限流/维护页），tx 与 kw 均不可用",
@@ -614,6 +649,7 @@ module.exports = {
   juheGetUrl,
   qingliangTxGetUrl,
   luoyueTxGetUrl,
+  audiusGetUrl,
   ikunGetUrl,
   providerQualitys,
   WY_OUTER_API,

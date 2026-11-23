@@ -1,4 +1,4 @@
-# 源登记表（v9.2.0）
+# 源登记表（v9.3.0）
 
 > 单一真相：运行时 `PROVIDER_CONTRACT` / `SOURCE_HANDLERS`。本表由 `scripts/source-inventory.js` 校验；任何增删源先改契约，再同步本表。
 
@@ -6,15 +6,15 @@
 
 | 项 | 预算 | 当前 |
 |---|---:|---:|
-| 登记源 | 14 | 14 |
-| 上链源（active） | 12 | 12 |
+| 登记源 | 15 | 15 |
+| 上链源（active） | 13 | 13 |
 | 观察源（probation） | 2 | 2 |
 
 - 上链源 = 参与 `buildSourceChain()` 竞速、计入健康分/熔断/探测托管。
 - 观察源 = 默认关闭、不进链、持续探测；只在复核日期前保留名额，到期必须裁决。
 - 同族只保留一条；同族第二条只能作为观察源，且不得与在册源同 `upstreamGroup`。
 
-## 14 个登记源
+## 15 个登记源
 
 | # | id | 名称 | 生命周期 | 平台 | 链位次 | 上游族 | 鉴权 | maxQuality | 备注 |
 |---:|---|---|---|---|---|---|---|---|---|
@@ -32,6 +32,7 @@
 | 12 | `suyinQQ` | 溯音QQ | probation | tx | 无 | oiapi-qq | none | flac | 2026-11-11 实测 403；复核 `2026-11-23`。**R78：`404 code -13001`「接口不存在或已下线」（路由已移除，非 403）** |
 | 13 | `suyinMigu` | 溯音咪咕 | probation | mg | 无 | xcvts-migu | none | flac | 2026-11-11 实测上游 502；复核 `2026-11-23`。**R78：`200 code=1` 能出直链（911ms），mg 平台当前唯一可用候选** |
 | 14 | `luoyueTx` | 落月(tx) | active | tx | tx3 | vkeys-luoyue | none | flac | R79（2026-11-23 实测）：`api.vkeys.cn/music/tencent/song/link` 128k 4.31MB / 320k 10.79MB / flac 55.39MB（真 `fLaC`），三档均落 QQ 官方 CDN `ws.stream.qqmusic.qq.com`（M500/M800/F000 前缀）。**只接 v3 `song/link`**——同站 `/v2/music/tencent/geturl` 只给 960KB 试听片段。第三方单点，3 天复核 |
+| 15 | `audius` | Audius | active | au | au1 | audius | none | 320k | R80（2026-11-23 实测）：`api.audius.co/v1`，免 key；`/v1/tracks/{id}` 200 + `is_streamable` 判定（false 的曲 `/stream` 实测 404，如 qRgvP）；`/stream` 302 → `creatornode.audius.co`，跟随得 `206 audio/mpeg` 8.49MB `ID3v2.4`。au 为独立平台维度（无 flac 档），不参与 tx/wy/kw 跨平台兜底；中文歌能搜到但多为翻唱/不可流式 |
 
 ## 平台链
 
@@ -42,6 +43,7 @@
 | tx | suyinKuwo → qingliangTx → luoyueTx → juheTx | 4 |
 | mg | suyinKuwo | 1（R78 实测该单源已下线 → 零可用） |
 | kg | suyinKuwo | 1（R78 实测该单源已下线 → 零可用） |
+| au | audius | 1（R80 新平台：Audius 独家，暂无第二源） |
 
 ## 显式覆盖缺口（`KNOWN_COVERAGE_GAPS`）
 
@@ -60,7 +62,7 @@
 | 星海**新主域** | `https://yy1.zddyr.top/lx/api/`（与在册 `xinghaiBackend` 同族，现役常量指向旧域 `yy.zddyr.top`，见 `src/core/10-vendors.js:21`） | `?source=kw&songmid=228908` → `200` + `kwplay.php` 中转链 → **`http=206 type=audio/x-flac range=bytes 0-4095/55397039` magic=`fLaC`**（53.5MB 真 FLAC）；`?source=wy&songmid=347230` → `m701.music.126.net` 直链 → **206 / 32.5MB / `fLaC`**；`?source=migu&songmid=228908` → `freetyst.nf.migu.cn` 直链 → **206 / 3.9MB / `ID3v2.3` mp3**；`?source=kg` → `200 code 502 KG_SONG_NOT_FOUND`（接口活、hash 无效）；`?source=qq` → `403`「仅对认证用户开放」 | **kw / wy 可用；mg 实测证否**。mg 追加验证（R79 二次探测）：`songmid=228908` 时 `name=晴天` 与 `name=演员` 返回**完全相同**的 URL（3.9MB ID3v2.3），另一 mid 直接 `502` → 该分支按酷我 mid 做固定映射、不读歌名，无法证明交付的是点的那首歌，**不得接入**（见 K39） |
 | GD Studio | `https://music-api.gdstudio.xyz/api.php`（与退役 `gdWy` 同族） | `types=search&source=netease` → `200` 真实结果；`types=url&source=netease&id=2652820720&br=320` → `m701.music.126.net` → **206 / 11.16MB / `ID3v2.4`**；`source=tencent`、`source=kuwo` → **`400 {"detail":"Value of source is not supported."}`** | 仅 wy 可用（与在册 wy 链重叠） |
 | ChKSz | `https://api.chksz.com`（星海插件二级上游） | `/api/163_music`、`/api/qq_music`（不带 key）→ **`401 {"code":401,"msg":"缺少 apikey 参数"}`** | 需付费 key，**不接** |
-| Audius | `https://api.audius.co/v1`（Open Audio Protocol，只读免 key） | `/tracks/trending?limit=1` → `200` 真实 track；`/tracks/V66vyPP/stream?app_name=…` → **206 / `audio/mpeg` / 8.49MB / `ID3v2.4`**，落到 R2 CDN，支持 Range | **可用**：国外唯一「免 key + 合规 + 全曲 + Range」源 |
+| Audius | `https://api.audius.co/v1`（Open Audio Protocol，只读免 key） | `/tracks/trending?limit=1` → `200` 真实 track；`/tracks/V66vyPP/stream?app_name=…` → **206 / `audio/mpeg` / 8.49MB / `ID3v2.4`**，落到 R2 CDN，支持 Range | **可用 → R80 已落地**：国外唯一「免 key + 合规 + 全曲 + Range」源，已作为 `au` 平台接入（见 #15） |
 | Jamendo | `https://api.jamendo.com/v3.0/tracks`（CC 授权） | `client_id=709fa152` → **`200 code 11 "Your application has been suspended"`** | 需自注册 client_id，**暂不可用** |
 | Internet Archive | `https://archive.org/advancedsearch.php` | `fetch failed`（本机网络层，未通） | **未通**，待换网络复测 |
 | `pdone/lx-music-source` | GitHub ★11,155，v6（commit `f97ffd0`，2026-09-11） | 未逐条探测；第三方评审称无 release、8 个适配器无测试覆盖 | **待评** |
@@ -73,14 +75,14 @@
 
 - **A 级 · 已落地（R79 执行）**：① 落月 `luoyueTx` 接入 tx 链第三源（三档实测真音频，tx 风险档 high→medium）；② 星海后端改主备双域（K38 修复）。`*.zddyr.top` 已在放行清单；`*.vkeys.cn` 本轮补入（第 18 条）。
 - **A 级 · 可靠性修复**：`XINGHAI_BACKEND_API` 单域名且指向上游标注的「旧/备用域」，上游插件已给新主域 `yy1` 并自带「网络失败/5xx 切备用」逻辑 → 见 K38。
-- **B 级 · 待接入**：Audius（国外曲库，纯新增维度、不影响国内链）——音源仓侧取链已验证，App 侧需增平台类型/搜索/UI 方能可见。
+- **A 级 · 已落地（R80）**：Audius（`au` 平台）——音源侧已接入并实测 206 真音频；App 侧平台类型/搜索/UI 同步落地后可见。
 - **C 级 · 不接或暂缓**：ChKSz（付费 key）、Jamendo（应用被停用）、Internet Archive（未通）、GD Studio（仅 wy，与现役链重叠）、`pdone`/`web-music-api`（待评）。
 
 ## 默认开关
 
 | 状态 | 源 |
 |---|---|
-| 默认开启（11） | `suyinKuwo` `wyOuter` `kuwoOfficial` `suyin163` `xinghaiBackend` `helloworldKw` `changqingVip` `juheTx` `qingliangTx` `luoyueTx` `ikun` |
+| 默认开启（12） | `suyinKuwo` `wyOuter` `kuwoOfficial` `suyin163` `xinghaiBackend` `helloworldKw` `changqingVip` `juheTx` `qingliangTx` `luoyueTx` `ikun` `audius` |
 | 默认关闭（3） | `suyinQQ` `suyinMigu`（观察）；`huibq`（**2026-11-20 关闭**：11-16 起上游 owner 暂停服务） |
 
 ## 退役源（不在册、不探测）
@@ -93,13 +95,13 @@
 
 本仓所有源用到的域名，必须同步登记在 HostKeeper 的内置放行清单 `allow-default.list`（仓库 `luanmuc/hostkeeper`，`v1.1.1` 起随包分发）。HostKeeper 按后缀通配匹配，因此新增源时按“域名族”登记，而不是逐个域名登记。
 
-当前登记的 18 条，对应 `src/providers/*` 与 `src/legacy.js` 中的全部外部端点：
+当前登记的 19 条，对应 `src/providers/*` 与 `src/legacy.js` 中的全部外部端点：
 
 | 类别 | 规则 |
 |---|---|
 | 平台主站与 API | `*.163.com` `*.qq.com` `*.kuwo.cn` `*.kugou.com` `*.migu.cn` |
 | 播放 CDN | `*.126.net` |
-| 第三方聚合 / 中转 | `*.oiapi.net` `*.lzmhhh.com` `*.zddyr.top` `*.haitangw.cc` `*.haitangw.net` `*.gdstudio.xyz` `*.onrender.com` `*.xcvts.cn` `*.dpdns.org` `*.lingchuan.com` `*.wwwweb.top` `*.vkeys.cn` |
+| 第三方聚合 / 中转 | `*.oiapi.net` `*.lzmhhh.com` `*.zddyr.top` `*.haitangw.cc` `*.haitangw.net` `*.gdstudio.xyz` `*.onrender.com` `*.xcvts.cn` `*.dpdns.org` `*.lingchuan.com` `*.wwwweb.top` `*.vkeys.cn` `*.audius.co` `*.audius.org` |
 
 维护要求：
 

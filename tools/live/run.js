@@ -45,7 +45,7 @@ async function musicUrl(song, quality, source = 'kw') {
     const meta = ids.filter(k => k.startsWith('_'));
     // v9.1.6：不要写死 3 —— 元信息键随后续审计增长过（`_fallbackPlatform`、`_memory` 加入后是 5）。
     // 断言的本意是「有元信息且源数量正确」，写死具体个数只会让加审计维度就红。
-    rec('L1-2', 'health 返回 14 源 + 元信息键', real.length === 14 && meta.length >= 3,
+    rec('L1-2', 'health 返回 15 源 + 元信息键', real.length === 15 && meta.length >= 3,
       `源=${real.length} 元=${meta.length}(${meta.join('/')}) 源字段=${Object.keys(snap[real[0]] || {}).slice(0,6).join(',')}`);
 
     const cfgOut = await call({ action: 'config', source: 'kw', info: {} });

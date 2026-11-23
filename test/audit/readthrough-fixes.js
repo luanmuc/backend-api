@@ -297,11 +297,11 @@ const killPlayDead = (m) => {
     const distSrc = fs.readFileSync(SRC, 'utf8')
     const distVer = (/@version\s+(\S+)/.exec(distSrc) || [])[1]
     assert(distVer === pkg.version, `产物 @version=${distVer} ≠ package.json=${pkg.version}`)
-    assert(/14 登记源 \/ 12 上链 \/ 2 观察/.test(pkg.description), `package description 口径陈旧: ${pkg.description}`)
+    assert(/15 登记源 \/ 13 上链 \/ 2 观察/.test(pkg.description), `package description 口径陈旧: ${pkg.description}`)
     const header = fs.readFileSync(path.join(ROOT, 'src/00-header.js'), 'utf8')
     const verRe = pkg.version.replace(/[.]/g, '\\.')
     assert(new RegExp('@version ' + verRe).test(header), `头模板版本未升（应含 @version ${pkg.version}）`)
-    assert(/14 登记源 \/ 12 上链 \/ 2 观察/.test(header), '头模板口径陈旧')
+    assert(/15 登记源 \/ 13 上链 \/ 2 观察/.test(header), '头模板口径陈旧')
     assert(new RegExp('@version ' + pkg.version).test(CODE), '产物版本头未升')
     assert(!/12 登记源 \/ 10 上链/.test(CODE), '产物仍写旧口径 12/10')
   })

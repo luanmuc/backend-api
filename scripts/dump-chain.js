@@ -14,7 +14,7 @@ const { execSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'lx-source.js');
 const JSON_OUT = process.argv.includes('--json');
-const PLATFORMS = ['kw', 'wy', 'tx', 'mg', 'kg'];
+const PLATFORMS = ['kw', 'wy', 'tx', 'mg', 'kg', 'au'];
 const QUALITIES = ['128k', '320k', 'flac', 'flac24bit'];
 
 // 最小宿主桩：只用于加载模块，不发起任何网络请求。

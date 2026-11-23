@@ -1,6 +1,6 @@
-# 源生命周期治理（v9.2.0）
+# 源生命周期治理（v9.3.0）
 
-> 目标：把“加源/砍源”从临时决定变成可复核流程。预算固定 **14 登记 = 12 上链 + 2 观察**；一进一出，不允许预算无声膨胀。
+> 目标：把“加源/砍源”从临时决定变成可复核流程。预算固定 **15 登记 = 13 上链 + 2 观察**；一进一出，不允许预算无声膨胀。
 
 ## 1. 预算与名额
 
@@ -67,7 +67,7 @@
 ## 6. 机器闸门
 
 ```bash
-node scripts/source-inventory.js --check   # 14/12/2、同族唯一、probation 规则
+node scripts/source-inventory.js --check   # 15/13/2、同族唯一、probation 规则
 node test/audit/y-provider-contract.js     # 契约 15 条
 node test/audit/s-source-lifecycle.js      # 生命周期 14 条
 node test/lx-source-smoke-test.js          # 端到端冒烟

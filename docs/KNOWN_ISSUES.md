@@ -81,3 +81,12 @@
 - 测试入口：[`TESTING.md`](./TESTING.md)
 - 审计矩阵：[`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)
 - 版本历史：[`CHANGELOG.md`](./CHANGELOG.md)
+| K40 | **OPEN**（R80 登记，产品限制） | 低 | **Audius 曲库以英文为主，中文歌能搜到但多为翻唱且 `is_streamable=false`**：R80 实测 `query=周杰伦` 返回 9 条，首条 `qRgvP` `is_streamable:false`（`/stream` 404）；`hello`/`adele` 才拿到可流式真曲。au 平台暂无第二源，单点 | `src/core/25-handlers.js`（`audiusGetUrl` 的 is_streamable 判定）；`src/providers/audius.js` | **已知取舍**：au 定位是「国外曲库补充」，不承诺中文覆盖；App 侧搜索 UI 需在空结果时给「Audius 以英文曲库为主」提示。若要中文覆盖需另找国内源，与本条无关 |
+## K41 · QuickJS 对 Proxy 的严格一致性校验（已修）
+
+- **现象**：真机 v9.2.0 内置源面板显示「[初始化失败]」，取链报 `source init failed`；App 导出的 JS 日志只有 RN PropTypes 警告（原生 `Log.e` 不进日志文件）。
+- **证据**：真机日志栈 `proxy: inconsistent get → checkFresh → validateProviderContracts → src/legacy.js → <eval>`。
+- **根因**：`src/core/35-source-switch.js` 的 `runtimeToggles` 用 `new Proxy({}, {...})` 做运行时视图；`Object.keys(SOURCE_TOGGLES)` 在 QuickJS（Android quickjs-android）严格 Proxy 一致性校验下抛 `proxy: inconsistent get`，V8/Node 不报（v9.1.6 无该路径所以正常）。
+- **修法/验证**：彻底移除 Proxy → 普通对象 + 对每个登记 id `defineProperty` 动态 getter/setter；`runtimeToggles` 15 键（含 audius）、get/set 均为函数、读写双向生效、全仓无 `new Proxy`。
+- **状态**：✅ v9.3.0 修（2026-11-23），真机复验待新包。
+

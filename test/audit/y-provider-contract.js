@@ -31,13 +31,13 @@ const ids = Object.keys(H);
 const activeIds = ids.filter(id => H[id].lifecycle === 'active');
 const probationIds = ids.filter(id => H[id].lifecycle === 'probation');
 
-rec('Y1', '登记/上链/观察预算 = 14/12/2', () => {
-  assert.strictEqual(ids.length, 14);
-  assert.strictEqual(activeIds.length, 12);
+rec('Y1', '登记/上链/观察预算 = 15/13/2', () => {
+  assert.strictEqual(ids.length, 15);
+  assert.strictEqual(activeIds.length, 13);
   assert.strictEqual(probationIds.length, 2);
 });
-rec('Y2', '12 个上链源名单固定', () => {
-  assert.deepStrictEqual(activeIds.sort(), ['suyinKuwo', 'wyOuter', 'kuwoOfficial', 'helloworldKw', 'ikun', 'xinghaiBackend', 'huibq', 'suyin163', 'juheTx', 'changqingVip', 'qingliangTx', 'luoyueTx'].sort());
+rec('Y2', '13 个上链源名单固定', () => {
+  assert.deepStrictEqual(activeIds.sort(), ['suyinKuwo', 'wyOuter', 'kuwoOfficial', 'helloworldKw', 'ikun', 'xinghaiBackend', 'huibq', 'suyin163', 'juheTx', 'changqingVip', 'qingliangTx', 'luoyueTx', 'audius'].sort());
 });
 rec('Y3', '2 个观察源 = suyinQQ/suyinMigu 且默认关闭', () => {
   assert.deepStrictEqual(probationIds.sort(), ['suyinQQ', 'suyinMigu'].sort());
@@ -72,7 +72,7 @@ rec('Y7', 'active 必须有链位次，且平台位次唯一', () => {
       assert.ok(Number.isInteger(rank) && rank >= 1, `${id}: ${p} rank 非法`);
     }
   }
-  for (const p of ['kw', 'wy', 'tx', 'mg', 'kg']) {
+  for (const p of ['kw', 'wy', 'tx', 'mg', 'kg', 'au']) {
     const ranks = activeIds.filter(id => H[id].chain[p]).map(id => H[id].chain[p]);
     assert.strictEqual(new Set(ranks).size, ranks.length, `${p} 链位次重复: ${ranks.join(',')}`);
   }
@@ -86,7 +86,7 @@ rec('Y8', 'probation 无链位次 / 默认关闭 / 有 reviewAt', () => {
   assert.strictEqual(H.suyinQQ.reviewAt, '2026-11-23'); // R78 真实复核
   assert.strictEqual(H.suyinMigu.reviewAt, '2026-11-23'); // R78 真实复核
 });
-rec('Y9', 'chain-golden.json 12 源 5×4 逐项一致，且不含观察源', () => {
+rec('Y9', 'chain-golden.json 13 源 6×4 逐项一致，且不含观察源', () => {
   // 2026-11-20：huibq 默认关闭后，链里会被 default-off 过滤掉。
   // golden 是「能力基线」（dump-chain 生成时强制开启全部 active 源），
   // 这里用同口径开启，比对的是链序而不是开关状态。
@@ -118,8 +118,8 @@ rec('Y10', '覆盖缺口显式登记（mg/kg 零源、tx 双源后降 medium，R
 });
 rec('Y11', 'validateProviderContracts 正常返回预算', () => {
   const c = mod.validateProviderContracts();
-  assert.strictEqual(c.registered, 14);
-  assert.strictEqual(c.active, 12);
+  assert.strictEqual(c.registered, 15);
+  assert.strictEqual(c.active, 13);
   assert.strictEqual(c.probation, 2);
 });
 rec('Y12', '契约非法：观察源带链位次必须拒绝', () => {

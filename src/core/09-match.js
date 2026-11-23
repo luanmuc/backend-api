@@ -10,7 +10,8 @@ const QUALITY_CEILING_TTL_MS = 21600000; // 能力备档 6 小时
 
 const Q = ["128k", "320k", "flac", "flac24bit"];
 
-const PLATFORM_QUALITIES = { wy: Q, tx: Q, kw: Q, kg: Q, mg: Q };
+// R80：au 是 Audius 独立平台维度（只有 mp3，无 flac 档），不参与 tx/wy/kw 跨平台兜底
+const PLATFORM_QUALITIES = { wy: Q, tx: Q, kw: Q, kg: Q, mg: Q, au: ["128k", "320k"] };
 
 const QUALITY_TO_X = {
   // 通用 br 参考（星海 level 语义 / 长青念心 level）：flac24bit/hires 均 999

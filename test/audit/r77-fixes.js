@@ -189,7 +189,7 @@ run('B08', '契约：复核日过期超 14 天 → CONTRACT_ERROR（时间可注
 run('B09', '契约：当前时间复核日全部新鲜 → 通过', () => {
   const r = bundle.validateProviderContracts(Date.now())
   assert.strictEqual(r.ok, true)
-  assert.strictEqual(r.registered, 14)
+  assert.strictEqual(r.registered, 15)
 })
 run('B10', '契约：reviewAt 写未来日期（用日历绕过宽限）→ CONTRACT_ERROR', () => {
   // R78：R77 期间把复核日顺延到 11-30 是未来日期，checkFresh 的 nowMs-ts 变负永远不超窗，

@@ -129,7 +129,7 @@ check('S11 twoSong 标记全覆盖、跨轮轮换歌曲、多目标源单轮不�
   m.runtimeToggles.huibq = true // 2026-11-20：关闭的源不进探测配置，本组按 13 源全开口径验证
   const cfg0 = m.buildProbeConfig()
   const ids = Object.keys(cfg0)
-  assert(ids.length === 14, `探测配置源数 ${ids.length}`)
+  assert(ids.length === 15, `探测配置源数 ${ids.length}`)
   for (const [id, pc] of Object.entries(cfg0)) {
     assert(pc.twoSong === true, `${id} 缺 twoSong 标记（probeSingleSource 不会展开第二首）`)
   }

@@ -164,7 +164,7 @@ async function test(name, fn) {
   console.log('[T2] 上报结构（inited）');
   const inited = sentEvents.find(e => e.name === 'inited');
   assert.ok(inited, '未收到 inited');
-  assert.strictEqual(Object.keys(inited.payload.sources).length, 5, '应上报5平台');
+  assert.strictEqual(Object.keys(inited.payload.sources).length, 6, '应上报6平台（含 au）');
   assert.deepStrictEqual(inited.payload.sources.wy.qualitys, ['128k', '320k', 'flac'], 'wy 上报音质应裁剪为真实能力');
   assert.ok(inited.payload.status === true, 'inited status 应为 true');
 
@@ -1023,18 +1023,18 @@ async function test(name, fn) {
     assert.ok(!urls41.some(u => /br=1(?!\d)/.test(u)), `flac(br=1) 死链档不应被实际请求（短路生效），实际请求 ${urls41.filter(u => u.includes('oiapi')).join(' | ')}`);
   }
 
-  console.log('[T42] v8.13 Provider Contract：14 登记 / 12 上链 / 2 观察 + 冷启动标签');
+  console.log('[T42] v8.13 Provider Contract：15 登记 / 13 上链 / 2 观察 + 冷启动标签');
   {
     const mod42 = require(SRC);
     const ids = Object.keys(mod42.SOURCE_HANDLERS);
-    assert.strictEqual(ids.length, 14, `登记源必须 14，实际 ${ids.length}`);
+    assert.strictEqual(ids.length, 15, `登记源必须 15，实际 ${ids.length}`);
     const active = ids.filter(id => mod42.SOURCE_HANDLERS[id].lifecycle === 'active');
     const probation = ids.filter(id => mod42.SOURCE_HANDLERS[id].lifecycle === 'probation');
-    assert.strictEqual(active.length, 12, `上链源必须 12，实际 ${active.length}`);
+    assert.strictEqual(active.length, 13, `上链源必须 13，实际 ${active.length}`);
     assert.strictEqual(probation.length, 2, `观察源必须 2，实际 ${probation.length}`);
     assert.deepStrictEqual(probation.sort(), ['suyinMigu', 'suyinQQ'].sort(), '观察源应为 suyinQQ/suyinMigu');
     assert.strictEqual(mod42.SOURCE_HANDLERS.huibq.coldStart, true, 'huibq 应带 coldStart:true');
-    for (const p of ['kw', 'wy', 'tx', 'mg', 'kg']) {
+    for (const p of ['kw', 'wy', 'tx', 'mg', 'kg', 'au']) {
       const chain = mod42.buildSourceChain(p, '128k');
       assert.ok(chain.length >= 1, `${p} 128k 链不能为空`);
       assert.ok(!chain.some(h => h.lifecycle === 'probation'), `${p} 链不得含观察源`);
@@ -1421,7 +1421,7 @@ async function test(name, fn) {
     const re = /([A-Za-z_$][\w$]*)\s*:\s*(true|false)/g;
     let m;
     while ((m = re.exec(clean))) keys.add(m[1]);
-    assert.strictEqual(keys.size, 14, 'SOURCE_TOGGLES 必须为 14 个登记源，实际 ' + keys.size);
+    assert.strictEqual(keys.size, 15, 'SOURCE_TOGGLES 必须为 15 个登记源，实际 ' + keys.size);
     for (const ep of ENDPOINTS) {
       if (ep.toggleable === false) continue;
       for (const sid of ep.sources) {

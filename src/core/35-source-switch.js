@@ -20,6 +20,7 @@ const SOURCE_TOGGLES = {
   juheTx: true,         // Juhe 聚合(tx)：tx 第四源，7 天复核
   qingliangTx: true,    // 晴亮(tx)：tx 主用第二源（2026-11-15 实测 5/5 全曲 320k），3 天复核
   luoyueTx: true,       // 落月(tx)：tx 第三源（R79 实测 128k/320k/flac 三档真音频，flac 55.39MB fLaC），3 天复核
+  audius: true,         // Audius：第 6 平台 au（R80 实测 is_streamable 校验 + /stream 302→206 audio/mpeg），au 只有 mp3 128k/320k
   ikun: true,           // ikun：kw/wy 链尾兜底（公益版免卡密）
   suyinQQ: false,       // 观察源 suyinQQ(tx)：【已退役端点，保留函数】
                         // 2026-11-11 实测 HTTP 403；2026-11-21 复测升级结论：oiapi.net/api/QQ_Music
@@ -46,21 +47,23 @@ function isAutoOff(id) { return !!autoOff[id]; }
 
 function effectiveEnabled(id) { return isUserEnabled(id) && !isAutoOff(id); }
 
-const runtimeToggles = new Proxy({}, {
-  get(_t, id) {
-    if (typeof id !== "string") return undefined;
-    return effectiveEnabled(id);
-  },
-  set(_t, id, value) {
-    if (typeof id !== "string") return false;
-    userEnabled[id] = !!value;
-    if (value) delete autoOff[id];
-    return true;
-  },
-  has(_t, id) { return typeof id === "string" && id in userEnabled; },
-  ownKeys() { return Object.keys(userEnabled); },
-  getOwnPropertyDescriptor() { return { enumerable: true, configurable: true }; },
-});
+// R80 真机 P0 修复（v9.2.0 起）：原先这里是 new Proxy({}, {...}) 的运行时视图，
+// QuickJS（Android quickjs-android）对 Proxy 做严格一致性校验，Object.keys(SOURCE_TOGGLES)
+// 会抛 "proxy: inconsistent get"（栈 checkFresh → validateProviderContracts → legacy.js），
+// 而 V8/Node 不报，导致本地门禁全绿、真机初始化直接失败。现改为普通对象 +
+// defineProperty 动态 getter/setter：Object.keys 走真实自有属性，任何引擎行为一致。
+const runtimeToggles = {};
+for (const id of Object.keys(SOURCE_TOGGLES)) {
+  Object.defineProperty(runtimeToggles, id, {
+    enumerable: true,
+    configurable: true,
+    get() { return effectiveEnabled(id); },
+    set(value) {
+      userEnabled[id] = !!value;
+      if (value) delete autoOff[id];
+    },
+  });
+}
 
 const manualOff = {};
 

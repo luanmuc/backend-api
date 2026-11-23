@@ -196,6 +196,14 @@ function buildProbeConfig() {
       handlerPlatform: "tx",
       handlerSong: { songmid: "0039MnYb0qxYhV", name: "晴天", singer: "周杰伦", duration: 269000 },
     },
+    audius: {
+      tier: "secondary",
+      quality: "128k",
+      useHandler: true,
+      handlerPlatform: "au",
+      // QJpGKw 为 R80 实测可流式曲（YAN MI - HELLO，192s）；qRgvP 那条 is_streamable=false，不可当探针
+      handlerSong: { songmid: "QJpGKw", name: "HELLO", singer: "YAN MI", duration: 192000 },
+    },
     ikun: {
       tier: "secondary",
       quality: "128k",

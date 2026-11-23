@@ -37,8 +37,8 @@ function validateProviderContracts(nowMs = Date.now()) {
   const active = ids.filter(id => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.ACTIVE);
   const probation = ids.filter(id => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.PROBATION);
 
-  if (registered !== 14) errors.push(`登记源必须为 14，实际 ${registered}`);
-  if (active.length !== 12) errors.push(`上链源必须为 12，实际 ${active.length}`);
+  if (registered !== 15) errors.push(`登记源必须为 15，实际 ${registered}`);
+  if (active.length !== 13) errors.push(`上链源必须为 13，实际 ${active.length}`);
   if (probation.length !== 2) errors.push(`观察源必须为 2，实际 ${probation.length}`);
   if (toggleIds.length !== registered) errors.push(`dep('SOURCE_TOGGLES') 必须与 SOURCE_HANDLERS 等量，toggles=${toggleIds.length}, handlers=${registered}`);
   for (const id of toggleIds) if (!SOURCE_HANDLERS[id]) errors.push(`dep('SOURCE_TOGGLES') 存在未登记源 ${id}`);

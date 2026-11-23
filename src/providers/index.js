@@ -1,4 +1,4 @@
-// 11 个上链源 + 1 组观察源（2 个）
+// 12 个上链源 + 1 组观察源（2 个）
 const active = [
   require('./suyinKuwo.js'),
   require('./wyOuter.js'),
@@ -11,6 +11,7 @@ const active = [
   require('./juheTx.js'),
   require('./qingliangTx.js'),
   require('./luoyueTx.js'),
+  require('./audius.js'),
   require('./ikun.js')
 ];
 const probation = require('./55-probation.js');

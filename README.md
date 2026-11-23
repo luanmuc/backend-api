@@ -12,7 +12,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v9.2.0** R79 新源与主备双域版：① 接入落月（`api.vkeys.cn`）作 tx 第三源——128k 4.31MB / 320k 10.79MB / flac 55.39MB 三档实测真音频（`fLaC` 魔数命中），只接 v3 `song/link`（同站 v2 只给 960KB 试听片段）；② `xinghaiBackend` 改主备双域 `yy1`（新主域，避开部分地区 DNS 拦截）→ `yy`（旧备域），仅在网络错误/超时/5xx 切换，4xx 不切；③ 登记口径 **14 登记 / 12 上链 / 2 观察**，tx 风险档 high→medium。`lx-source.js` 内 `@version 9.2.0` | 上一版 **v9.1.7** 为源级能力备档版（K03：能力备档下沉到「平台+源+歌曲」，链起点不再被单源历史最高档一刀压低），产物 386202 bytes；此前 **v9.1.5** 为失效源退役标记版（`suyinQQ` 端点下线 / `suyinMigu` 上游 IP 被限 / `huibq` 保留待复活），产物 367386 bytes；**v9.1.4** 为按平台音质上限版，产物 366678 bytes |
+| 当前版本 | **v9.3.0** R79 新源与主备双域版：① 接入落月（`api.vkeys.cn`）作 tx 第三源——128k 4.31MB / 320k 10.79MB / flac 55.39MB 三档实测真音频（`fLaC` 魔数命中），只接 v3 `song/link`（同站 v2 只给 960KB 试听片段）；② `xinghaiBackend` 改主备双域 `yy1`（新主域，避开部分地区 DNS 拦截）→ `yy`（旧备域），仅在网络错误/超时/5xx 切换，4xx 不切；③ 登记口径 **14 登记 / 12 上链 / 2 观察**，tx 风险档 high→medium。`lx-source.js` 内 `@version 9.3.0` | 上一版 **v9.1.7** 为源级能力备档版（K03：能力备档下沉到「平台+源+歌曲」，链起点不再被单源历史最高档一刀压低），产物 386202 bytes；此前 **v9.1.5** 为失效源退役标记版（`suyinQQ` 端点下线 / `suyinMigu` 上游 IP 被限 / `huibq` 保留待复活），产物 367386 bytes；**v9.1.4** 为按平台音质上限版，产物 366678 bytes |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |

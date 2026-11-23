@@ -1,6 +1,6 @@
 {
-  "version": "9.2.0",
-  "sourceHead": "30ffa32",
+  "version": "9.3.0",
+  "sourceHead": "6f9ca18",
   "platforms": {
     "kw": {
       "128k": [
@@ -86,6 +86,16 @@
       "flac": [
         "suyinKuwo"
       ],
+      "flac24bit": []
+    },
+    "au": {
+      "128k": [
+        "audius"
+      ],
+      "320k": [
+        "audius"
+      ],
+      "flac": [],
       "flac24bit": []
     }
   }

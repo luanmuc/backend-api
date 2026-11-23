@@ -1,11 +1,11 @@
 {
   "name": "lx-music-source",
-  "version": "9.2.0",
+  "version": "9.3.0",
   "engines": {
     "node": ">= 18"
   },
   "private": true,
-  "description": "豆包定制聚合音源：14 登记源 / 12 上链 / 2 观察，单文件构建",
+  "description": "豆包定制聚合音源：15 登记源 / 13 上链 / 2 观察，单文件构建",
   "scripts": {
     "build": "node scripts/build-source.js",
     "verify:bundle": "node scripts/verify-bundle.js",

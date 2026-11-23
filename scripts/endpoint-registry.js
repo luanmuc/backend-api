@@ -27,6 +27,8 @@ const ENDPOINTS = [
   { url: 'https://api.music.lerd.dpdns.org', sources: ['juheTx'], kind: 'payload', note: 'Juhe 源族仅保留 tx，7 天复核' },
   { url: 'https://music.lzmhhh.com/api/music/url', sources: ['qingliangTx'], kind: 'param', note: '晴亮 tx；POST id+type=qq 且必带 Referer，裸 GET 恒 405/404' },
   { url: 'https://api.vkeys.cn/music/tencent/song/link', sources: ['luoyueTx'], kind: 'param', note: '落月 tx；必须带 mid+quality(6=128k/8=320k/10=flac)，裸 GET 报参数错；同站 v2 geturl 只给试听片段，不可用作巡检' },
+  { url: 'https://api.audius.co/v1/tracks/QJpGKw?app_name=LxSource', sources: ['audius'], kind: 'payload', note: 'R80 Audius 元数据：QJpGKw 为实测可流式曲目；200 + is_streamable=true 才算通（false 的曲 /stream 实测 404）' },
+  { url: 'https://api.audius.co/v1/tracks/QJpGKw/stream?app_name=LxSource', sources: ['audius'], kind: 'endpoint', note: 'R80 Audius 取链：302 → creatornode.audius.co，跟随得 206 audio/mpeg' },
   // R79（K38）：星海主备双域都登记——主域 yy1（新，避开 DNS 拦截）、备域 yy（旧）。任一域名失联都应在日报里可见。
   { url: 'https://yy1.zddyr.top/lx/api/', sources: ['xinghaiBackend'], kind: 'payload', note: '主域；R79 实测 kw/wy/mg 可取链（auth.trusted:false 放行）' },
   { url: 'https://yy.zddyr.top/lx/api/', sources: ['xinghaiBackend'], kind: 'payload', note: '备域（旧）；端点 200 曾因无效 token 403，现为回退路径' },
