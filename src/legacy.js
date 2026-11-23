@@ -4,7 +4,7 @@ const { CROSS_FALLBACK_CACHE_TTL_MS, crossFallbackCache, getCrossFallbackCached,
 /*!
  * @name 豆包定制[聚合音源]
  * @description v9.0.0 模块化拆包 + 发布签名版（v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；health 快照按版本区间判定；发布包支持 ed25519 验签）。上一版 v8.16.4 为播放摘除档位归因版。历史版本见 docs/CHANGELOG.md。
- * @version 9.3.0 R80 Audius 新平台（au 平台：is_streamable 校验 + /stream 302 → creatornode；预算 15/13/2）
+ * @version 9.3.1 R81 真机 Proxy 兼容（Date.parse 改纯算术解析，不碰 Date 静态方法；15 登记 / 13 上链 / 2 观察）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */

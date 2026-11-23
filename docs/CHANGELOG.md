@@ -30,6 +30,7 @@
 - `node scripts/equiv-snapshot.js --fast --sample 5` → **基线 1440 / 现 120 / 差异 0**。
 - `npm test` → 冒烟 67 组 + 全部 audit 全绿（含新增 P1~P6），元审计 **16 通过 / 0 失败**。
 - `node scripts/self-check.js` → 「自检通过：@version=9.3.1，actions 齐全，README/ROADMAP 同步」。
+- `LX_APP_DIR=../mobile-app node scripts/cross-repo-version.js --verbose` → 「✅ 产物 9.3.1 = legacy 9.3.1，App 解析器兼容」。首轮 CI（45111452760）曾报 **X3「产物版本 9.3.1 ≠ legacy 版本 9.3.0」** —— `src/legacy.js:7` 的头部 `@version` 漏改，已同步为 9.3.1。
 
 ## 2026-11-23 · v9.3.0：接入 Audius 作为第 6 个平台 au（R80）
 
