@@ -9,7 +9,7 @@
 历史快照 `e9a2259`（v8.16.1 时期）。**当前工作区的版本号 / 行数 / 字节数一律以机器口径为准**（`README.md`「当前版本」行、`docs/AUDIT_MATRIX.md` 的 `lx-source.js` 行、`docs/TESTING.md` 的入口清单，均由 `scripts/docs-audit.js` 自动对齐）；本行不再手写具体版本，避免每次发版后成为一条固定漂移（R78 修：此前手写 v9.1.2 / 7,101 行 / package 9.1.1 已落后 5 个版本）。产物 `@version` 与真实行数以 `lx-source.js` 文件头注释为准
 
 > 复核说明（2026-11-19）：`src/core/` 33 个模块的逐文件结论已由占位符补为实测结论（职责 + 导出面 + 已知缺陷编号）；文件数/总行数按当前 HEAD 实测刷新。
-文件数：**201**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**60517**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**201**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**62678**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -303,7 +303,7 @@
 | `src/core/34-breaker-state.js` | 60 | 逐行 | 熔断计数/播放摘除/解析摘除/音质短路：`breakerMap`、`playDeadStreak` + `playDeadQuality`（v8.16.4 档位归因）、`playDeadDeadline`、`resolveDeadStreak`/`resolveDeadDeadline`、`qualitySkipProbeAt`/`qualityShortCircuitKey`/`forceQualityProbe`；状态对象必须保持同一引用 |
 | `src/core/35-source-switch.js` | 84 | 逐行 | 源开关三态：`SOURCE_TOGGLES` 默认表、`userEnabled`/`autoOff`（+`autoOffReason`/`autoOffAt`）/`manualOff`/`effectiveEnabled`/`runtimeToggles`；状态对象必须保持同一引用（写时其它模块立即可见）；**退役源仍写在册文档（B01-005）** |
 | `test/fixtures/api-surface.json` | 173 | 逐行 | 静态核对（U 组）：语法/编码/无调试残留/非空 |
-| `test/fixtures/equiv-baseline.json` | 10830 | 逐行 | 静态核对（U 组）：语法/编码/无调试残留/非空 |
+| `test/fixtures/equiv-baseline.json` | 12991 | 逐行 | 静态核对（U 组）：语法/编码/无调试残留/非空 |
 | `scripts/cross-repo-version.js` | 55 | 逐行 | 跨仓版本闸门：用 App 正则解析源仓产物，产物版本必须等于 legacy 版本 |
 | `scripts/layer-check.js` | 92 | 逐行 | 分层依赖检查：core 无环/无反向 require/无同名定义/不直读 lx |
 | `scripts/schema-parity.js` | 48 | 逐行 | 静态核对（U 组） |

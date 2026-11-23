@@ -93,7 +93,7 @@ node scripts/dump-chain.js --json        # 链序变更后重生成 golden
 | 脚本 | 职责 | 触发 | 副作用 |
 |---|---|---|---|
 | `api-surface.js` (178) | E0 契约面提取/比对：静态解析导出面（27）/ `__debug`（85）/ 错误码（18）/ 事件字段（12）/ 快照键（6），基线 `test/fixtures/api-surface.json`；拆包前后必须逐项一致 | `npm run api-surface` / 拆包每刀 | 默认只读；`--write` 改 fixture |
-| `equiv-snapshot.js` (216) | E1 行为等价快照：固定 mock 宿主 + 60 歌 × 5 平台 × 4 档 = 1200 例，录 URL/错误码指纹。`--fast --sample 5` 走正常面 100 例（实测 1s）；全量含故障面约 878s，只给段末用 | 拆包每刀（抽样）/ 段末（全量） | `--write` 改 `test/fixtures/equiv-baseline.json` |
+| `equiv-snapshot.js` (216) | E1 行为等价快照：固定 mock 宿主 + 60 歌 × 6 平台 × 4 档 = 1440 例，录 URL/错误码指纹。`--fast --sample 5` 走正常面 120 例（实测 1s）；全量含故障面约 878s，只给段末用 | 拆包每刀（抽样）/ 段末（全量） | `--write` 改 `test/fixtures/equiv-baseline.json` |
 | `v9-gate.sh` (75) | v9 分组门禁 runner（v9.1-b）：`--group fast` = E0+L 分层+C2（0s）；`--group core`（默认）= fast + E1 抽样100 + E3 round3 + X 跨仓版本 + C1 App 契约（36s）；`--group stress` = core + E1 全量 + round4；`--full` 等价 stress | `npm run gate:v9` | 只读；C1 会 cd App 仓跑契约脚本 |
 | `ref-closure.js` (183) | 引用闭包地图（v9.0 拆包选批依据）：静态抽顶层定义的块范围 + 出边/入边/是否用公共层，输出枢纽 top15、叶子、近叶子；`--write` 写 `docs/V9_MODULE_MAP.md` | `npm run ref-map` / 拆包选批前 | 默认只读；`--write` 改 `docs/V9_MODULE_MAP.md` |
 | `lib/js-block.js` (190) | v9.0 拆包切块共享库（**`scripts/lib/` 子目录，不计入顶层 24 个台账**）：`scanToClose` / `blockEnd` / `findDef` / `topDefs` / `parseExports` / `assertParseable`，内置字符串·模板·注释·正则感知 + 默认参数保护 + esbuild 单块 parse 自检 | 被 `/tmp` 迁移脚本与拆包流程 `require` | 纯只读：不写文件、不打网络、不退出 |

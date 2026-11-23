@@ -143,7 +143,7 @@
 ## 汇总
 
 - 文件总数：**201**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**60517**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 总行数：**62678**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_CAPABILITY.md` | 222 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | 13 源逐档实测矩阵（U2~U6/V2/Y1~Y6/Z3） |
@@ -248,7 +248,7 @@
 | `src/core/34-breaker-state.js` | 60 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/35-source-switch.js` | 84 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `test/fixtures/api-surface.json` | 173 | .json | ✓ | — | — | — | — | — | — | U1~U13 |
-| `test/fixtures/equiv-baseline.json` | 10830 | .json | ✓ | — | — | — | — | — | — | U1~U13 |
+| `test/fixtures/equiv-baseline.json` | 12991 | .json | ✓ | — | — | — | — | — | — | U1~U13 |
 | `scripts/cross-repo-version.js` | 55 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `scripts/layer-check.js` | 92 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `scripts/schema-parity.js` | 48 | .js | ✓ | — | — | — | — | — | — | U1~U13 |

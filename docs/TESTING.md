@@ -192,7 +192,7 @@ node scripts/verify-real-platform-chains.js  # G7 平台 ID 链：先搜 songmid
 
 ```bash
 npm run gate:v9          # E0 契约面 + E1 抽样100例 + E3 round3 + C2 产物 + C1 App 契约
-npm run gate:v9 -- --full # 再加 round4(133条) 与 E1 全量(1200例, ~878s)
+npm run gate:v9 -- --full # 再加 round4(133条) 与 E1 全量(1440例, ~878s)
 npm run api-surface      # 只查 E0 契约面
 node scripts/equiv-snapshot.js --fast --sample 5   # 只查 E1（1s）
 node scripts/equiv-snapshot.js --write             # 行为改动被承认后重建基线
