@@ -23,7 +23,7 @@
 | `docs/音源架构执行全过程-2026-11-12.md` | 143 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `.github/workflows/ci.yml` | 488 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
 | `.github/workflows/docs-audit.yml` | 56 | .yml | ✓ | — | — | ✓ | — | — | — | U12/X7/X8 |
-| `README.md` | 144 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `README.md` | 145 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `README_HEALTH.md` | 37 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/P2_TRIAGE.md` | 104 | .md | ✓ | ✓ | — | — | — | — | — | (P2 定档表) |
 | `docs/AGENTS.md` | 207 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
@@ -42,7 +42,7 @@
 | `docs/candidate-status.md` | 8 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/health-daily/` | 998 | .md+.json | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8/U10 |
 | `docs/probe-history.jsonl` | 247 | .jsonl | ✓ | — | — | ✓ | — | — | — | U11/X2 |
-| `lx-source.js` | 7654 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
+| `lx-source.js` | 7725 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | U1/W1/Y1/H a~e/X |
 | `scripts/preflight-push.sh` | 53 | .sh | ✓ | — | — | — | — | — | — | (推送前校验) |
 | `scripts/candidate-audit.js` | 342 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
 | `scripts/cn-date.js` | 17 | .js | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | U1/W1/Y1/X |
@@ -100,10 +100,10 @@
 | `docs/ARCHITECTURE.md` | 93 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/README.md` | 72 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/SCRIPTS.md` | 99 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/TESTING.md` | 202 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
-| `docs/CHANGELOG.md` | 535 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/TESTING.md` | 203 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/CHANGELOG.md` | 550 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `docs/archive/AUDIT_HISTORY.md` | 1441 | .md | ✓ | ✓ | — | — | — | — | — | 归档合集 |
-| `docs/AUDIT_MATRIX.md` | 269 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
+| `docs/AUDIT_MATRIX.md` | 270 | .md | ✓ | ✓ | — | — | — | — | — | U2~U6/V1/V6~V8 |
 | `test/audit/f-repo.js` | 517 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H a~e/X |
 | `test/stress-round3.js` | 364 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/H T1~T14 |
 | `test/audit/g-meta.js` | 451 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/M1~M14/M9b/M9c |
@@ -127,6 +127,7 @@
 | `test/audit/security-url-guard.js` | 128 | .js | — | — | ✓ | — | ✓ | — | ✓ | G6 非法 URL 防线：`validateUrl`/`probeAudioDelivery`/`upgradeToHttps` 三入口 × `javascript:`/`file://`/`data:`/`//evil.com`/空/100KB，12 条；先红 5/12 → 绿 12/0（放宽 `HTTP_URL_REGEX`） |
 | `test/audit/r77-fixes.js` | 281 | .js | — | — | ✓ | — | ✓ | — | ✓ | R77（R76 通读缺陷修复回归，v9.1.7）27 条（R78 增 B10 reviewAt 未来日期）：G12 导出→恢复全字段等价 / G13 FLAC 小端 + ID3v2.2/2.3/2.4 真实字节夹具 / G14 快照纯度 / P2-06 档位复位 / G9 缓存 key 含时长 / 契约复核新鲜度（时间注入）/ interval 回退 / 解析顺序 / 预热锚点 / 探针元数据；红绿双向逐点验证（6 轮旧形态重演） |
 | `test/audit/r81-proxy-compat.js` | 74 | .js | — | — | ✓ | — | ✓ | — | ✓ | R81 真机 QuickJS Proxy 兼容（v9.3.1）6 条：产物无可执行 `Date.parse` / 有 `parseYmdToMs` / 无 `new Proxy`，源码调用归零，12 例日期解析等价（闰年 / 跨纪元 / 非法输入） |
+| `test/audit/r83-governance.js` | 113 | .js | — | — | ✓ | — | ✓ | — | ✓ | R83 治理 7 条：E1 真实环境引擎探针不抛 / E2 模拟宿主 `Date["parse"]` Proxy invariant 抛错被捕获 / R1 带 `reviewAt` 必声明窗口 / R2 窗口 7~365 整数 / R3 到期日 ≥3 个 / R4 时间回拨仍拒未来日期 / R5 2026-12-08 通过、2027-01-02 报「超复核窗口 30 天」 |
 | `test/audit/readthrough-fixes.js` | 451 | .js | ✓ | — | — | ✓ | ✓ | — | ✓ | v8.16.2 RF1~RF18（R-01 档位熔断持久化 / R-02 真实音质入账 / R-03 播放分账 / R-04 快照运行期资格 / R-05 试探键清理 / R-06 半开名额后置 / R-07 gateErr 带码 / R-09 跨平台可取消 / R-10 兜底结构化 / R-11 ttl 死分支 / R-12 七项 / R-08 版本口径）；先红 0/18 → 绿 18/0 |
 | `docs/chain-sample.jsonl` | 45 | .jsonl | ✓ | — | — | — | — | — | — | 出链抽样数据（`scripts/chain-sample.js` 产出，日报消费） |
 | `docs/device-digests.jsonl` | 3 | .jsonl | ✓ | — | — | — | — | — | — | 真机摘要数据（`scripts/pull-device-digests.js` 产出） |
@@ -135,16 +136,16 @@
 | `test/stress-round4.js` | 1343 | .js | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | U1/W1/Y1/V1a~V39b（133 条） |
 | `tools/live/host.js` | 84 | .js | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | U1/W1/Y1/Z*（真宿主桩，L1~L7） |
 | `tools/live/run.js` | 348 | .js | ✓ | — | — | ✓ | ✓ | ✓ | — | U1/Y1/Z*（L1~L7 三分支实跑） |
-| `docs/READTHROUGH.md` | 325 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
+| `docs/READTHROUGH.md` | 326 | .md | ✓ | ✓ | — | — | — | — | — | 本轮通读台账（规则18 自校验） |
 | `docs/archive/READTHROUGH_v8.16.1.md` | 337 | .md | ✓ | ✓ | — | — | — | — | — | 2026-11-17 `lx-source.js` 逐行通读结论（R-01~R-12 + 证伪记录） |
 | `docs/archive/READTHROUGH_v8.16.2.md` | 170 | .md | ✓ | ✓ | — | — | — | — | — | 8.16.2 产物 6045 行 7 段逐行通读（R-13 + 14 观察项 + 15 排除） |
 | `docs/DOC_INDEX.md` | 82 | .md | ✓ | ✓ | — | — | — | — | — | 文档登记表（规则19 自校验） |
-| `docs/KNOWN_ISSUES.md` | 111 | .md | ✓ | ✓ | — | — | — | — | — | 已知问题/技术债台账（K01~K20） |
+| `docs/KNOWN_ISSUES.md` | 112 | .md | ✓ | ✓ | — | — | — | — | — | 已知问题/技术债台账（K01~K20） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | .md | ✓ | ✓ | — | — | — | — | — | 音质策略优化方案（含复现证据） |
 ## 汇总
 
-- 文件总数：**202**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
-- 总行数：**62865**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
+- 文件总数：**203**（`git ls-files` 实测；四轮新增 g-meta + round1~4，五轮新增 round5 + test/mutation/run.js + 第五轮结算报告）
+- 总行数：**63148**（`git ls-files | xargs wc -l` 实测，随改动自动变化）
 - U：**65/65** 文件全覆盖（U 组逐个 `node --check` / 编码 / 待办 / 密钥 / 调试残留）
 - V/W/X/Y/Z：对应组断言条数（V1~V8 / W1~W9 / X1~X9 / Y1~Y6 / Z1~Z5），不按文件重复计数
 | `docs/SOURCE_CAPABILITY.md` | 222 | .md | ✓ | ✓ | — | — | ✓ | ✓ | — | 13 源逐档实测矩阵（U2~U6/V2/Y1~Y6/Z3） |
@@ -160,22 +161,22 @@
 | `scripts/verify-real-platform-chains.js` | 106 | .js | ✓ | — | — | — | ✓ | ✓ | — | G7 平台 ID 链真实证据 |
 | `src/00-header.js` | 6 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/80-entry.js` | 10 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/legacy.js` | 1320 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/55-probation.js` | 41 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/changqingVip.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/helloworldKw.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/qingliangTx.js` | 21 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | V2/Y1~Y6/Z3 |
-| `src/providers/luoyueTx.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | V2/Y1~Y6/Z3 |
-| `src/providers/audius.js` | 21 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | V2/Y1~Y6/Z3/D1 |
-| `src/providers/huibq.js` | 23 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/ikun.js` | 29 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/legacy.js` | 1325 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/55-probation.js` | 43 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/changqingVip.js` | 21 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/helloworldKw.js` | 23 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/qingliangTx.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | V2/Y1~Y6/Z3 |
+| `src/providers/luoyueTx.js` | 23 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | V2/Y1~Y6/Z3 |
+| `src/providers/audius.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | V2/Y1~Y6/Z3/D1 |
+| `src/providers/huibq.js` | 24 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/ikun.js` | 30 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `src/providers/index.js` | 18 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/juheTx.js` | 21 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/kuwoOfficial.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/suyin163.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/suyinKuwo.js` | 30 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/wyOuter.js` | 20 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
-| `src/providers/xinghaiBackend.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/juheTx.js` | 22 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/kuwoOfficial.js` | 21 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/suyin163.js` | 21 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/suyinKuwo.js` | 31 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/wyOuter.js` | 21 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
+| `src/providers/xinghaiBackend.js` | 23 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `test/audit/s-source-lifecycle.js` | 125 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `test/audit/y-provider-contract.js` | 172 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
 | `test/audit/z-cancel.js` | 170 | .js | ✓ | ✓ | — | — | ✓ | ✓ | — | U2~U6/V2/Y1~Y6/Z3 |
@@ -228,7 +229,7 @@
 | `src/core/09-match.js` | 272 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/10-vendors.js` | 144 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/11-provider-meta.js` | 8 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
-| `src/core/12-provider-contract.js` | 137 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
+| `src/core/12-provider-contract.js` | 192 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/13-chain-helpers.js` | 216 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/14-lyric.js` | 93 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/15-verify.js` | 353 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
@@ -239,7 +240,7 @@
 | `src/core/21-cross-search.js` | 181 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/22-chain.js` | 986 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/24-kuwo-official.js` | 106 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
-| `src/core/25-handlers.js` | 671 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
+| `src/core/25-handlers.js` | 675 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/27-sources-admin.js` | 121 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/28-health-export.js` | 117 | .js | ✓ | — | — | — | — | — | — | U1~U13 |
 | `src/core/29-search.js` | 95 | .js | ✓ | — | — | — | — | — | — | U1~U13 |

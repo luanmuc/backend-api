@@ -18,5 +18,6 @@ module.exports = {
     "flac"
   ],
   "coldStart": false,
-  "reviewAt": null
+  "reviewAt": null,
+  "reviewEveryDays": null
 };

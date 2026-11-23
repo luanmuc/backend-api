@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v9.3.2 R82 注释订正版（把 35-source-switch 里「runtimeToggles Proxy 是根因」的旧叙事改为 K41/K42 实证结论：真根因是 Date 被包成 Proxy + 宿主冻结 Date.parse；仅注释与文档变化，运行行为零改动）；上一版 v9.3.1 R81 真机 Proxy 兼容修复版（复核日校验里的 Date.parse 换成纯算术 parseYmdToMs：真机 QuickJS 2024 把 Date 包成 Proxy、宿主 preload 冻结了 Date.parse，读取即抛 proxy: inconsistent get 导致整个音源初始化失败；V8/Node/旧版 QuickJS 不校验该 invariant，所以本地门禁全绿真机必挂。src 内 Date.parse 调用归零）；上一版 v9.3.0 R80 Audius 新平台版（接入 Audius 作为第 6 个平台 au：GET /v1/tracks/{id} 校验 is_streamable（false 的曲 /stream 实测 404），通过后返回 /stream 链，跟随 302 → creatornode.audius.co 得 206 audio/mpeg；au 只有 mp3，128k/320k 两档同文件，不参与 tx/wy/kw 跨平台兜底；预算 15 登记源 / 13 上链 / 2 观察）；上一版 v9.2.0 R79 新源与主备双域版（接入落月 tx 第三源——v3 song/link 实测 128k/320k/flac 三档真音频，flac 55.39MB 真 fLaC；xinghaiBackend 改主备双域 yy1 主 + yy 备，仅网络·超时·5xx 切换，4xx 不切；统计口径 14 登记源 / 12 上链 / 2 观察）；上一版 v9.1.7 R77 全量通读修复版（restore 携带 playDead.quality / FLAC 小端与 ID3v2.2 标签 / 快照只读化 / 时长字段 interval 回退 / G9 缓存 key 含时长 / 复核日期新鲜度门禁）；上一版 v9.1.6 源级能力备档版（K03）：能力备档从「平台+歌曲」下沉到「平台+源+歌曲」，buildSourceChain(platform, quality, songInfo) 按源级备档把「已证明给不到该档的源」剔出候选，不再由平台级备档一刀降低整条链的起点档（旧实现等于一个源给过 128k 就让同平台能给 flac 的源再没机会被请求到）；平台级表保留供健康快照统计；新增 QP13 回归；上一版 v9.1.5 为失效源退役标记版（suyinQQ 端点下线 / suyinMigu 上游 IP 被限 / huibq 保留待复活）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
- * @version 9.3.2 R82 注释订正（Proxy 归因更正为 Date-Proxy，运行行为不变；15 登记 / 13 上链 / 2 观察）
+ * @description v9.3.3 R83 治理版（①Provider Contract 复核日改按源滚动窗口：每项声明 reviewEveryDays 7~365 天，到期日由原来全员 2026-12-07 摊到 12-23/01-22/02-21，上链源只要登记了 reviewAt 也纳入校验；②启动期引擎能力自检 probeEngineCapabilities：量 Date.now/new Date/Date["parse"] 可读性/Object.freeze/Proxy，结果只写日志不扩 digest schema，wrapper 升级引入新 invariant 时能第一时间在日志看到；行为变化仅治理面）；上一版 v9.3.1 R81 真机 Proxy 兼容修复版（复核日校验里的 Date.parse 换成纯算术 parseYmdToMs：真机 QuickJS 2024 把 Date 包成 Proxy、宿主 preload 冻结了 Date.parse，读取即抛 proxy: inconsistent get 导致整个音源初始化失败；V8/Node/旧版 QuickJS 不校验该 invariant，所以本地门禁全绿真机必挂。src 内 Date.parse 调用归零）；上一版 v9.3.0 R80 Audius 新平台版（接入 Audius 作为第 6 个平台 au：GET /v1/tracks/{id} 校验 is_streamable（false 的曲 /stream 实测 404），通过后返回 /stream 链，跟随 302 → creatornode.audius.co 得 206 audio/mpeg；au 只有 mp3，128k/320k 两档同文件，不参与 tx/wy/kw 跨平台兜底；预算 15 登记源 / 13 上链 / 2 观察）；上一版 v9.2.0 R79 新源与主备双域版（接入落月 tx 第三源——v3 song/link 实测 128k/320k/flac 三档真音频，flac 55.39MB 真 fLaC；xinghaiBackend 改主备双域 yy1 主 + yy 备，仅网络·超时·5xx 切换，4xx 不切；统计口径 14 登记源 / 12 上链 / 2 观察）；上一版 v9.1.7 R77 全量通读修复版（restore 携带 playDead.quality / FLAC 小端与 ID3v2.2 标签 / 快照只读化 / 时长字段 interval 回退 / G9 缓存 key 含时长 / 复核日期新鲜度门禁）；上一版 v9.1.6 源级能力备档版（K03）：能力备档从「平台+歌曲」下沉到「平台+源+歌曲」，buildSourceChain(platform, quality, songInfo) 按源级备档把「已证明给不到该档的源」剔出候选，不再由平台级备档一刀降低整条链的起点档（旧实现等于一个源给过 128k 就让同平台能给 flac 的源再没机会被请求到）；平台级表保留供健康快照统计；新增 QP13 回归；上一版 v9.1.5 为失效源退役标记版（suyinQQ 端点下线 / suyinMigu 上游 IP 被限 / huibq 保留待复活）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
+ * @version 9.3.3 R83 治理（reviewEveryDays 滚动窗口 + 引擎能力自检；15 登记 / 13 上链 / 2 观察）
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -500,7 +500,7 @@ var __lxSourceBundle = (() => {
   // src/core/02-config.js
   var require_config = __commonJS({
     "src/core/02-config.js"(exports, module) {
-      var SOURCE_VERSION = true ? "9.3.2" : "8.16.4";
+      var SOURCE_VERSION = true ? "9.3.3" : "8.16.4";
       var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
       function normalizeProbeSongPool(value) {
         if (!Array.isArray(value)) return null;
@@ -4171,6 +4171,8 @@ var __lxSourceBundle = (() => {
           auth: opts.auth || PROVIDER_AUTH.NONE,
           lifecycle,
           reviewAt: opts.reviewAt || null,
+          // R83（K43）：按源滚动复核窗口（天）。未声明则回落契约层默认 14 天。
+          reviewEveryDays: opts.reviewEveryDays || null,
           batch: opts.batch || 1,
           verified: !!opts.verified,
           coldStart: !!opts.coldStart,
@@ -4655,6 +4657,7 @@ var __lxSourceBundle = (() => {
           chain: { tx: 3 },
           upstreamGroup: "vkeys-luoyue",
           reviewAt: "2026-11-23",
+          reviewEveryDays: 60,
           note: "R79\uFF082026-11-23 \u5B9E\u6D4B\uFF09\uFF1A`api.vkeys.cn` \u843D\u6708\u7EBF\u8DEF\uFF0C128k 4.31MB / 320k 10.79MB / flac 55.39MB\uFF08\u771F `fLaC`\uFF09\uFF0C\u4E09\u6863\u5747\u4E3A QQ \u5B98\u65B9 CDN `ws.stream.qqmusic.qq.com`\uFF08M500/M800/F000 \u524D\u7F00\uFF09\u3002\u53EA\u63A5 v3 `song/link`\u2014\u2014\u540C\u7AD9 `/v2/music/tencent/geturl` \u53EA\u7ED9 960KB \u8BD5\u542C\u7247\u6BB5\u3002\u7B2C\u4E09\u65B9\u5355\u70B9\uFF0C3 \u5929\u590D\u6838"
         }),
         audius: provider("audius", "Audius", audiusGetUrl, "320k", {
@@ -4663,6 +4666,7 @@ var __lxSourceBundle = (() => {
           chain: { au: 1 },
           upstreamGroup: "audius",
           reviewAt: "2026-11-23",
+          reviewEveryDays: 30,
           note: "R80\uFF082026-11-23 \u5B9E\u6D4B\uFF09\uFF1A\u56FD\u5916\u5F00\u6E90\u66F2\u5E93\uFF0C\u514D key\u3002`/v1/tracks/{id}` 200 + `is_streamable` \u5224\u5B9A\uFF08false \u7684\u66F2 /stream \u5B9E\u6D4B 404\uFF09\uFF1B`/stream` 302 \u2192 `creatornode.audius.co`\uFF0C\u8DDF\u968F\u5F97 `206 audio/mpeg` 8.49MB `ID3v2.4`\u3002\u4E2D\u6587\u6B4C\u80FD\u641C\u5230\u4F46\u591A\u4E3A\u7FFB\u5531/\u4E0D\u53EF\u6D41\u5F0F\uFF1Bau \u4E3A\u72EC\u7ACB\u5E73\u53F0\u7EF4\u5EA6\uFF0C\u4E0D\u53C2\u4E0E tx/wy/kw \u8DE8\u5E73\u53F0\u515C\u5E95"
         }),
         juheTx: provider("juheTx", "Juhe\u805A\u5408(tx)", juheGetUrl, "320k", {
@@ -4671,6 +4675,7 @@ var __lxSourceBundle = (() => {
           chain: { tx: 4 },
           upstreamGroup: "juhe",
           reviewAt: "2026-11-23",
+          reviewEveryDays: 60,
           note: "2026-11-11 \u6062\u590D\uFF1B7 \u5929\u590D\u6838\uFF0C\u964D\u4E3A tx \u7B2C\u4E09\u6E90\u30022026-11-21\uFF1Aflac \u6863\u5B9E\u6D4B\u5B9E\u8FD4 audio/mpeg\uFF0C\u80FD\u529B\u58F0\u660E\u7531 flac \u4E0B\u8C03\u4E3A 320k\u3002R78\uFF0811-23 \u771F\u5B9E\u590D\u6838\uFF09\uFF1A\u4E0A\u6E38\u5168\u57DF HTTP 429\uFF08\u6839\u8DEF\u5F84\u540C\u6837 429\uFF0CCF \u5C42\u9650\u6D41/\u7EF4\u62A4\u9875\uFF09\uFF0Ctx \u4E0E kw \u5747\u4E0D\u53EF\u7528"
         }),
         qingliangTx: provider("qingliangTx", "\u6674\u4EAE(tx)", qingliangTxGetUrl, "320k", {
@@ -4679,6 +4684,7 @@ var __lxSourceBundle = (() => {
           chain: { tx: 2 },
           upstreamGroup: "qingliang-tx",
           reviewAt: "2026-11-23",
+          reviewEveryDays: 60,
           note: "2026-11-15 \u5B9E\u6D4B 5/5 \u5168\u66F2 320k\uFF1B\u7B2C\u4E09\u65B9\u5355\u70B9\uFF0C3 \u5929\u590D\u6838\u3002R78\uFF0811-23 \u771F\u5B9E\u590D\u6838\uFF09\uFF1A200 code=1 \u51FA aqqmusic \u76F4\u94FE\uFF0Ctx \u94FE\u4E0A\u5F53\u524D\u552F\u4E00\u53EF\u7528\u6E90"
         }),
         ikun: provider("ikun", "ikun", ikunGetUrl, "flac", {
@@ -4698,6 +4704,7 @@ var __lxSourceBundle = (() => {
           lifecycle: PROVIDER_LIFECYCLE.PROBATION,
           upstreamGroup: "oiapi-qq",
           reviewAt: "2026-11-23",
+          reviewEveryDays: 90,
           note: "2026-11-11 \u5B9E\u6D4B HTTP 403\u3002R78\uFF0811-23 \u771F\u5B9E\u590D\u6838\uFF09\uFF1A\u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF0C404 code -13001\u300C\u63A5\u53E3\u4E0D\u5B58\u5728\u6216\u5DF2\u4E0B\u7EBF\u300D\uFF08oiapi \u7684 QQ_Music \u8DEF\u7531\u5DF2\u79FB\u9664\uFF09"
         }),
         suyinMigu: provider("suyinMigu", "\u6EAF\u97F3\u54AA\u5495", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("mg", songId, quality, songInfo, cancelToken), "flac", {
@@ -4707,6 +4714,7 @@ var __lxSourceBundle = (() => {
           lifecycle: PROVIDER_LIFECYCLE.PROBATION,
           upstreamGroup: "xcvts-migu",
           reviewAt: "2026-11-23",
+          reviewEveryDays: 90,
           note: "2026-11-11 \u5B9E\u6D4B\u4E0A\u6E38 502\u3002R78\uFF0811-23 \u771F\u5B9E\u590D\u6838\uFF09\uFF1A200 code=1 \u80FD\u51FA\u76F4\u94FE\uFF0C\u662F mg \u5E73\u53F0\u5F53\u524D\u552F\u4E00\u53EF\u7528\u5019\u9009\uFF08suyinKuwo \u5DF2\u4E0B\u7EBF\uFF09",
           verified: true
         })
@@ -6059,6 +6067,8 @@ var __lxSourceBundle = (() => {
       var { ERROR_CODES } = require_error_codes();
       var { dep } = require_binding();
       var REVIEW_GRACE_DAYS = 14;
+      var REVIEW_EVERY_MIN_DAYS = 7;
+      var REVIEW_EVERY_MAX_DAYS = 365;
       var REVIEW_FUTURE_TOLERANCE_MS = 24 * 3600 * 1e3;
       function parseYmdToMs(s) {
         const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
@@ -6074,9 +6084,51 @@ var __lxSourceBundle = (() => {
         const ms = days * 864e5;
         return Number.isFinite(ms) ? ms : NaN;
       }
+      function probeEngineCapabilities(env) {
+        const E = env || {};
+        const D = E.Date || (typeof Date !== "undefined" ? Date : null);
+        const caps = { dateNow: false, newDate: false, dateParseReadable: false, dateParseError: null, freeze: false, proxy: false };
+        try {
+          caps.dateNow = !!(D && typeof D.now === "function") && Number.isFinite(D.now());
+        } catch (e) {
+          caps.dateNow = false;
+        }
+        try {
+          const d = new D(0);
+          caps.newDate = d.getTime() === 0;
+        } catch (e) {
+          caps.newDate = false;
+        }
+        try {
+          const holder = { Date: D };
+          caps.dateParseReadable = typeof holder.Date["parse"] === "function";
+        } catch (e) {
+          caps.dateParseReadable = false;
+          caps.dateParseError = String(e && e.message || e);
+        }
+        try {
+          const O = E.Object || (typeof Object !== "undefined" ? Object : null);
+          O.freeze({ probe: 1 });
+          caps.freeze = true;
+        } catch (e) {
+          caps.freeze = false;
+        }
+        try {
+          const P = E.Proxy || (typeof Proxy !== "undefined" ? Proxy : null);
+          caps.proxy = typeof P === "function";
+        } catch (e) {
+          caps.proxy = false;
+        }
+        return caps;
+      }
       function validateProviderContracts(nowMs = Date.now()) {
-        const checkFresh = (owner, reviewAt) => {
+        const checkFresh = (owner, reviewAt, reviewEveryDays) => {
           if (!reviewAt) return;
+          const days = reviewEveryDays == null ? REVIEW_GRACE_DAYS : Number(reviewEveryDays);
+          if (!Number.isInteger(days) || days < REVIEW_EVERY_MIN_DAYS || days > REVIEW_EVERY_MAX_DAYS) {
+            errors.push(`${owner}: reviewEveryDays \u975E\u6CD5 ${reviewEveryDays}\uFF08\u5141\u8BB8 ${REVIEW_EVERY_MIN_DAYS}~${REVIEW_EVERY_MAX_DAYS} \u5929\uFF09`);
+            return;
+          }
           const ts = parseYmdToMs(reviewAt);
           if (!Number.isFinite(ts)) {
             errors.push(`${owner}: reviewAt \u975E\u6CD5 ${reviewAt}`);
@@ -6086,8 +6138,8 @@ var __lxSourceBundle = (() => {
             errors.push(`${owner}: reviewAt ${reviewAt} \u662F\u672A\u6765\u65E5\u671F\uFF0C\u5FC5\u987B\u586B\u771F\u5B9E\u590D\u6838\u65E5\uFF08\u4E0D\u5F97\u7528\u672A\u6765\u65E5\u671F\u7ED5\u8FC7\u5BBD\u9650\uFF09`);
             return;
           }
-          if (nowMs - ts > REVIEW_GRACE_DAYS * 24 * 3600 * 1e3) {
-            errors.push(`${owner}: reviewAt ${reviewAt} \u8FC7\u671F\u8D85 ${REVIEW_GRACE_DAYS} \u5929\uFF0C\u9700\u590D\u6838\u6216\u663E\u5F0F\u987A\u5EF6`);
+          if (nowMs - ts > days * 24 * 3600 * 1e3) {
+            errors.push(`${owner}: reviewAt ${reviewAt} \u5DF2\u8D85\u590D\u6838\u7A97\u53E3 ${days} \u5929\uFF0C\u9700\u590D\u6838\u6216\u663E\u5F0F\u987A\u5EF6`);
           }
         };
         const errors = [];
@@ -6122,9 +6174,10 @@ var __lxSourceBundle = (() => {
             if (Object.keys(h.chain).length) errors.push(`${id}: probation \u6E90\u4E0D\u5F97\u6709\u94FE\u4F4D\u6B21`);
             if (dep("SOURCE_TOGGLES")[id] !== false) errors.push(`${id}: probation \u6E90\u9ED8\u8BA4\u5FC5\u987B\u5173\u95ED`);
             if (!h.reviewAt) errors.push(`${id}: probation \u6E90\u5FC5\u987B\u6709 reviewAt`);
-            else checkFresh(`${id} \u590D\u6838\u65E5`, h.reviewAt);
-          } else if (!Object.keys(h.chain).length) {
-            errors.push(`${id}: active \u6E90\u5FC5\u987B\u6709\u94FE\u4F4D\u6B21`);
+            else checkFresh(`${id} \u590D\u6838\u65E5`, h.reviewAt, h.reviewEveryDays);
+          } else {
+            if (!Object.keys(h.chain).length) errors.push(`${id}: active \u6E90\u5FC5\u987B\u6709\u94FE\u4F4D\u6B21`);
+            if (h.reviewAt) checkFresh(`${id} \u590D\u6838\u65E5`, h.reviewAt, h.reviewEveryDays);
           }
         }
         for (const platform of Object.keys(PLATFORM_QUALITIES)) {
@@ -6134,7 +6187,7 @@ var __lxSourceBundle = (() => {
           if (new Set(ranks).size !== ranks.length) errors.push(`${platform}: \u94FE\u4F4D\u6B21\u91CD\u590D`);
         }
         for (const gap of KNOWN_COVERAGE_GAPS) {
-          checkFresh(`\u8986\u76D6\u7F3A\u53E3 ${gap.platform}`, gap.reviewAt);
+          checkFresh(`\u8986\u76D6\u7F3A\u53E3 ${gap.platform}`, gap.reviewAt, gap.reviewEveryDays);
           const count = active.filter((id) => SOURCE_HANDLERS[id].platforms.includes(gap.platform) && SOURCE_HANDLERS[id].chain[gap.platform] != null).length;
           if (gap.platform === "mg" || gap.platform === "kg") {
             if (count !== 1) errors.push(`${gap.platform}: \u8986\u76D6\u7F3A\u53E3\u767B\u8BB0\u4E3A\u5355\u6E90\uFF0C\u5B9E\u9645 ${count} \u6E90`);
@@ -6158,17 +6211,18 @@ var __lxSourceBundle = (() => {
         // 2026-11-21 与 R79 复测均为 `code 502「咪咕搜索接口均不可用（服务器 IP 可能被咪咕限制）」`；
         // 且 R79 实测 `xinghaiBackend` 的 mg 分支对任意 mid 恒定返回同一首音频（`name` 传「晴天」「演员」
         // 返回完全相同的 URL，3.9MB ID3v2.3），无法证明身份 → 不能接。mg 仍是零可用源。
-        Object.freeze({ platform: "mg", reason: "suyinKuwo \u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF08R78 404 -13001\uFF09\uFF1B\u89C2\u5BDF\u6E90 suyinMigu \u590D\u6D4B\u4E3A code 502\uFF08\u4E0A\u6E38 IP \u88AB\u54AA\u5495\u9650\uFF09\uFF1BR79 \u5B9E\u6D4B xinghaiBackend mg \u5206\u652F\u5BF9\u4EFB\u610F mid \u6052\u5B9A\u8FD4\u56DE\u540C\u4E00\u9996\uFF08\u4E0D\u53EF\u8BC1\u8EAB\u4EFD\uFF09\u2192 \u5F53\u524D\u65E0\u53EF\u7528 mg \u6E90", risk: "high", reviewAt: "2026-11-23" }),
-        Object.freeze({ platform: "kg", reason: "suyinKuwo \u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF08R78 404 -13001\uFF09\uFF0C\u5F53\u524D\u96F6\u4E0A\u94FE\u6E90\uFF0C\u65E0\u7B2C\u4E8C\u6E90", risk: "high", reviewAt: "2026-11-23" }),
+        Object.freeze({ platform: "mg", reason: "suyinKuwo \u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF08R78 404 -13001\uFF09\uFF1B\u89C2\u5BDF\u6E90 suyinMigu \u590D\u6D4B\u4E3A code 502\uFF08\u4E0A\u6E38 IP \u88AB\u54AA\u5495\u9650\uFF09\uFF1BR79 \u5B9E\u6D4B xinghaiBackend mg \u5206\u652F\u5BF9\u4EFB\u610F mid \u6052\u5B9A\u8FD4\u56DE\u540C\u4E00\u9996\uFF08\u4E0D\u53EF\u8BC1\u8EAB\u4EFD\uFF09\u2192 \u5F53\u524D\u65E0\u53EF\u7528 mg \u6E90", risk: "high", reviewAt: "2026-11-23", reviewEveryDays: 30 }),
+        Object.freeze({ platform: "kg", reason: "suyinKuwo \u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF08R78 404 -13001\uFF09\uFF0C\u5F53\u524D\u96F6\u4E0A\u94FE\u6E90\uFF0C\u65E0\u7B2C\u4E8C\u6E90", risk: "high", reviewAt: "2026-11-23", reviewEveryDays: 30 }),
         // v9.1.2（B04-001）：原写「suyinKuwo + juheTx 双源」漏记了链位次更靠前的 qingliangTx，
         // 且 reviewAt 与 docs/SOURCE_REGISTRY.md 的「覆盖缺口」表（2026-11-18）不一致。
         // 现按登记表对齐为三源 + 同日期，两处口径必须同步改。
         // R78：三源里 juheTx 全域 429、suyinKuwo 与 suyinQQ 已下线，实际只剩 qingliangTx 一个点。
         // R79：接入 luoyueTx 后实测可用 2 源（qingliangTx + 落月），单点故障已消除，风险档由 high 下调 medium。
-        Object.freeze({ platform: "tx", reason: "\u767B\u8BB0\u56DB\u6E90\uFF0CR79 \u5B9E\u6D4B\u53EF\u7528 2 \u6E90\uFF08qingliangTx 200 code=1 \u51FA aqqmusic \u76F4\u94FE\uFF1BluoyueTx v3 128k/320k/flac \u4E09\u6863\u771F\u97F3\u9891\uFF0Cflac 55.39MB fLaC\uFF09\uFF1BjuheTx \u5168\u57DF 429\u3001suyinKuwo \u63A5\u53E3\u4E0B\u7EBF", risk: "medium", reviewAt: "2026-11-23" })
+        Object.freeze({ platform: "tx", reason: "\u767B\u8BB0\u56DB\u6E90\uFF0CR79 \u5B9E\u6D4B\u53EF\u7528 2 \u6E90\uFF08qingliangTx 200 code=1 \u51FA aqqmusic \u76F4\u94FE\uFF1BluoyueTx v3 128k/320k/flac \u4E09\u6863\u771F\u97F3\u9891\uFF0Cflac 55.39MB fLaC\uFF09\uFF1BjuheTx \u5168\u57DF 429\u3001suyinKuwo \u63A5\u53E3\u4E0B\u7EBF", risk: "medium", reviewAt: "2026-11-23", reviewEveryDays: 60 })
       ]);
       module.exports = {
         validateProviderContracts,
+        probeEngineCapabilities,
         KNOWN_COVERAGE_GAPS
       };
     }
@@ -6581,7 +6635,7 @@ var __lxSourceBundle = (() => {
       var { ERROR_CODES } = require_error_codes();
       var { createCancelToken, canceledError, throwIfCanceled, raceWithCancel } = require_cancel();
       var { ADMISSION_POLICY, normalizeErrCode, crossFallbackPolicy } = require_verdict();
-      var { validateProviderContracts, KNOWN_COVERAGE_GAPS } = require_provider_contract();
+      var { validateProviderContracts, probeEngineCapabilities, KNOWN_COVERAGE_GAPS } = require_provider_contract();
       var { suyinMiguGetUrl, buildSearchKeywords } = require_suyin_extra();
       var { suyinQQGetUrl, getQQSongId } = require_suyin_qq();
       var SUYIN_163_API = "https://oiapi.net/api/Music_163";
@@ -6703,6 +6757,8 @@ var __lxSourceBundle = (() => {
       bindDep("resolveCrossPlatformCandidate", resolveCrossPlatformCandidate);
       bindDep("tryCrossPlatformFallback", tryCrossPlatformFallback);
       var PROVIDER_CONTRACT = validateProviderContracts();
+      var ENGINE_CAPABILITIES = probeEngineCapabilities();
+      logInfo(`[\u5F15\u64CE\u80FD\u529B] ${JSON.stringify(ENGINE_CAPABILITIES)}`);
       Object.keys(PLATFORM_QUALITIES).forEach((platform) => {
         const actions = ["musicUrl"];
         if (platform === "wy") actions.push("lyric", "pic");
@@ -7023,7 +7079,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.3.2 \u5DF2\u52A0\u8F7D\uFF0815 \u767B\u8BB0 / 13 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.3.3 \u5DF2\u52A0\u8F7D\uFF0815 \u767B\u8BB0 / 13 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {
@@ -7239,7 +7295,8 @@ var __lxSourceBundle = (() => {
           "flac"
         ],
         "coldStart": false,
-        "reviewAt": null
+        "reviewAt": null,
+        "reviewEveryDays": null
       };
     }
   });
@@ -7264,7 +7321,8 @@ var __lxSourceBundle = (() => {
           "128k"
         ],
         "coldStart": false,
-        "reviewAt": null
+        "reviewAt": null,
+        "reviewEveryDays": null
       };
     }
   });
@@ -7289,7 +7347,8 @@ var __lxSourceBundle = (() => {
           "128k"
         ],
         "coldStart": false,
-        "reviewAt": null
+        "reviewAt": null,
+        "reviewEveryDays": null
       };
     }
   });
@@ -7314,7 +7373,8 @@ var __lxSourceBundle = (() => {
           "128k"
         ],
         "coldStart": false,
-        "reviewAt": null
+        "reviewAt": null,
+        "reviewEveryDays": null
       };
     }
   });
@@ -7341,7 +7401,8 @@ var __lxSourceBundle = (() => {
           "flac"
         ],
         "coldStart": false,
-        "reviewAt": null
+        "reviewAt": null,
+        "reviewEveryDays": null
       };
     }
   });
@@ -7368,7 +7429,8 @@ var __lxSourceBundle = (() => {
           "flac"
         ],
         "coldStart": false,
-        "reviewAt": null
+        "reviewAt": null,
+        "reviewEveryDays": null
       };
     }
   });
@@ -7393,7 +7455,8 @@ var __lxSourceBundle = (() => {
           "128k"
         ],
         "coldStart": false,
-        "reviewAt": null
+        "reviewAt": null,
+        "reviewEveryDays": null
       };
     }
   });
@@ -7421,7 +7484,8 @@ var __lxSourceBundle = (() => {
           "320k"
         ],
         "coldStart": true,
-        "reviewAt": null
+        "reviewAt": null,
+        "reviewEveryDays": null
       };
     }
   });
@@ -7447,7 +7511,8 @@ var __lxSourceBundle = (() => {
           "320k"
         ],
         "coldStart": false,
-        "reviewAt": "2026-11-23"
+        "reviewAt": "2026-11-23",
+        "reviewEveryDays": 60
       };
     }
   });
@@ -7473,7 +7538,8 @@ var __lxSourceBundle = (() => {
           "320k"
         ],
         "coldStart": false,
-        "reviewAt": "2026-11-23"
+        "reviewAt": "2026-11-23",
+        "reviewEveryDays": 60
       };
     }
   });
@@ -7500,7 +7566,8 @@ var __lxSourceBundle = (() => {
           "flac"
         ],
         "coldStart": false,
-        "reviewAt": "2026-11-23"
+        "reviewAt": "2026-11-23",
+        "reviewEveryDays": 60
       };
     }
   });
@@ -7526,7 +7593,8 @@ var __lxSourceBundle = (() => {
           "320k"
         ],
         "coldStart": false,
-        "reviewAt": "2026-11-23"
+        "reviewAt": "2026-11-23",
+        "reviewEveryDays": 30
       };
     }
   });
@@ -7560,7 +7628,8 @@ var __lxSourceBundle = (() => {
           "flac"
         ],
         "coldStart": false,
-        "reviewAt": null
+        "reviewAt": null,
+        "reviewEveryDays": null
       };
     }
   });
@@ -7586,7 +7655,8 @@ var __lxSourceBundle = (() => {
             "flac"
           ],
           "coldStart": false,
-          "reviewAt": "2026-11-23"
+          "reviewAt": "2026-11-23",
+          "reviewEveryDays": 90
         },
         "suyinMigu": {
           "id": "suyinMigu",
@@ -7605,7 +7675,8 @@ var __lxSourceBundle = (() => {
             "flac"
           ],
           "coldStart": false,
-          "reviewAt": "2026-11-23"
+          "reviewAt": "2026-11-23",
+          "reviewEveryDays": 90
         }
       };
     }

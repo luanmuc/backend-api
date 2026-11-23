@@ -9,9 +9,9 @@
 历史快照 `e9a2259`（v8.16.1 时期）。**当前工作区的版本号 / 行数 / 字节数一律以机器口径为准**（`README.md`「当前版本」行、`docs/AUDIT_MATRIX.md` 的 `lx-source.js` 行、`docs/TESTING.md` 的入口清单，均由 `scripts/docs-audit.js` 自动对齐）；本行不再手写具体版本，避免每次发版后成为一条固定漂移（R78 修：此前手写 v9.1.2 / 7,101 行 / package 9.1.1 已落后 5 个版本）。产物 `@version` 与真实行数以 `lx-source.js` 文件头注释为准
 
 > 复核说明（2026-11-19）：`src/core/` 33 个模块的逐文件结论已由占位符补为实测结论（职责 + 导出面 + 已知缺陷编号）；文件数/总行数按当前 HEAD 实测刷新。
-文件数：**202**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**62865**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**203**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**63148**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
 
-> 台账 HEAD `0a47921`（v9.3.2）：R82 提交前最近一次全仓审计的锚点；此后每次提交 HEAD 前进 1 条，lag=1 由规则 18 判为同步（不再堕入「审计改写台账 → 又产生待提交改动」的旧循环）。
+> 台账 HEAD `5371183`（v9.3.3）：R83 提交前远端自动文档巡检的锚点；此后每次提交 HEAD 前进 1 条，lag≤20 由规则 18 判为同步（不再因审计改写台账反复产生待提交改动）。
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -55,18 +55,18 @@
 | `.github/workflows/ci.yml` | 488 | 全文 | 10 个执行 job + `changes` 前置（test-fast / audit-a / audit-b / stress-long / stress-short / mutation / probe / ecosystem / sign-release / purge-cdn；2026-11-21 把 L3/L4 五个审计 step 从 `test-fast` 拆进 `audit-a`/`audit-b` 并行，墙钟 2m51 → 约 1m30）；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 56 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 8 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
-| `README.md` | 144 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
+| `README.md` | 145 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 37 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
-| `lx-source.js` | 7654 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / **18 错误码**；2026-11-17 逐行通读（v8.16.1）结论见 `docs/archive/READTHROUGH_v8.16.1.md`：证伪「版本漂移」1 条，确认缺陷 12 条（R-01~R-12，其中 P0 两条：档位熔断持久化丢失、真实音质未入账），无缺陷模块 9 类；**v8.16.2~v8.16.4 产物侧逐行结论见 `docs/archive/READTHROUGH_v8.16.2.md`（6045 行 7/7 段）** |
+| `lx-source.js` | 7725 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / **18 错误码**；2026-11-17 逐行通读（v8.16.1）结论见 `docs/archive/READTHROUGH_v8.16.1.md`：证伪「版本漂移」1 条，确认缺陷 12 条（R-01~R-12，其中 P0 两条：档位熔断持久化丢失、真实音质未入账），无缺陷模块 9 类；**v8.16.2~v8.16.4 产物侧逐行结论见 `docs/archive/READTHROUGH_v8.16.2.md`（6045 行 7/7 段）** |
 | `docs/P2_TRIAGE.md` | 104 | 当前态 | P2 57 条逐条定档（A 12 已修 / B 26 / C 19），2026-11-19 新建 |
 | `docs/AGENTS.md` | 207 | 全文 | 协作 7 规则 / L0~L4 验证链；「4 处 clearTimeout」实为 5 |
 | `docs/ARCHITECTURE.md` | 93 | 全文 | 「39 键」实 40；「3136 行」+ 八段行段表全部漂移（与 DEV_GUIDE 冲突）→ **2026-11-12 已修：4509 行** |
 | `docs/ARCHIVE_OLD_TAGS.md` | 138 | 归档 | 旧 tag 表（v11.11→v29.x）；「旧 tag 已全部删除」未核远端 |
 | `docs/archive/AUDIT_HISTORY.md` | 1441 | 归档合集 | v9~第五轮历史计划原文，只读 |
-| `docs/AUDIT_MATRIX.md` | 269 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
+| `docs/AUDIT_MATRIX.md` | 270 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/AUDIT_PLAN_v10.md` | 288 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 2019 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 535 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 550 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 621 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -75,7 +75,7 @@
 | `docs/README.md` | 72 | 全文 | 文档地图；「5 个测试入口」实 14；「D-01~D-26」已到 D-39 |
 | `docs/SCRIPTS.md` | 99 | 全文 | 14 脚本 + 3 hook；「17 条规则」实 14；行数 235/110 实 236/111；prepare-commit-msg 的 exit 1 描述属 commit-msg |
 | `docs/SOURCE_AUDIT.md` | 104 | 全文 | 11-06 基线 21/35 + 11-09 顶注 10/10；「短路探路 6h」实默认 1h |
-| `docs/TESTING.md` | 202 | 全文 | 口径正确（253 审计 / 479 合计 / 22 变异）；72 文件、58/14145、203.45KB 三处过期（历史值已冻结） |
+| `docs/TESTING.md` | 203 | 全文 | 口径正确（253 审计 / 479 合计 / 22 变异）；72 文件、58/14145、203.45KB 三处过期（历史值已冻结） |
 | `docs/archive/AUDIT_PROGRESS-2026-11-07.md` | 82 | 归档 | 96 维执行轨迹；F-08~F-14 待决策记录（部分已修） |
 | `docs/archive/AUDIT_REPORT-2026-11-05.md` | 146 | 归档 | 音源+App 五步审计 13 问题（2 中 11 低） |
 | `docs/archive/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | 归档 | 音质策略方案；P0/P1 与 K08/K07 已落地，K07 的 App 入口仍 P2；2026-11-20 归档 |
@@ -154,6 +154,7 @@
 | `test/audit/security-url-guard.js` | 128 | 断言 | G6 非法 URL 防线 12 条：`validateUrl`（源返回取链）与 `probeAudioDelivery`（验真探针）对 `javascript:` / `file://` / `data:` / `//evil.com` / 空与 null 必须给 `PARAM_ERROR`（空给 `NOT_FOUND`），100KB 合法 URL 不得误杀；`upgradeToHttps` 只升 http 且不得把非法串升成合法；`HTTP_URL_REGEX` 单真相；红绿双向：放宽成正则 `/^[a-z]+:/i` → 5 条红；实跑 12/0 |
 | `test/audit/r77-fixes.js` | 281 | 断言 | R77 修复回归 27 条（A01~A08 标签/匹配夹具、B01~B10 产物行为、C01~C08 源码防回退锚点）：G12 playDead.quality 往返等价（含 "*" 多档与非法拒包）/ G13 FLAC 小端长度 + ID3v2.2/2.3/2.4 真实字节夹具 / G14 快照不布防 + gate setProbe:false 静态锚点 / P2-06 探测 PASS 档位复位 / G9 有时长才加 duration 段 / 契约复核日 14 天宽限（时间可注入）/ interval 回退 / 原串优先解析 / 预热锚点分表 / 探针轮换清 singer·duration；红绿双向：7 轮旧形态重演对应断言全红后还原 26/0 |
 | `test/audit/r81-proxy-compat.js` | 74 | 6 | R81 真机 QuickJS Proxy 兼容守卫：产物可执行代码（去注释）`Date.parse` / `new Proxy` 必须为 0、必须含纯算术 `parseYmdToMs`；源码 `Date.parse(` 归零；`parseYmdToMs` 与 `Date.parse` 12 例等价（闰年 / 跨纪元 / 非法输入） |
+| `test/audit/r83-governance.js` | 113 | 7 | R83 治理回归：E1 真实环境引擎能力探针（`Date.now`/`new Date`/`Date["parse"]`/`freeze`/`Proxy`）不抛；E2 模拟宿主读 `Date["parse"]` 抛 `proxy: inconsistent get` 必须捕获；R1 带 `reviewAt` 的登记项必须声明 `reviewEveryDays`；R2 窗口为 7~365 整数；R3 到期日至少 3 个不同日期；R4 时间回拨 1970 仍拒未来日期；R5 2026-12-08 整体通过、2027-01-02 报 30 天窗口已超 |
 | `test/audit/readthrough-fixes.js` | 451 | 断言 | v8.16.2 通读缺陷回归 RF1~RF18：档位熔断跨重启保留（含其他档失败不抹掉已熔断档 + 全档聚合仍 open）/ 真实交付音质入账 + 降级样本不进请求分母 / 播放与取链分账 / 快照 eligible 走运行期资格 / 试探键清理命中 / preGate 不提前消耗半开名额 / gateErr 带 code 与 sourceId / 跨平台 fallback 可取消 / 兜底判据结构化（静态）/ ttl=0 死分支删除（静态）/ 取链摘除持久化 / PLATFORM_UNSUPPORTED / 逐平台资格 / kwoff 死读清除（静态）/ provider 不回写调用方对象（静态）/ 206 content-type / cacheTtlMs 热更新（静态）/ 版本口径（静态）；先红 0/18 → 绿 18/0 |
 | `test/audit/s-health-events.js` | 290 | 断言 | 22 条 S1~S6（healthEvents 只读环形缓冲/同 traceId 串联/返回副本/隐私边界/超容丢弃）；先红 6 通过 16 失败 → 绿 22/0 |
 | `test/audit/t-health-events-stress.js` | 146 | 断言 | 12 条 T1~T9（10000 条灌满/容量 500/dropped 9500/同 trace 链/limit 边界/隐私注入）；容量注入 500→100 翻红后还原 12/0 |
@@ -165,11 +166,11 @@
 | `test/stress-test.js` | 228 | 断言 | 12 条 S1~S11 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 348 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |
-| `docs/READTHROUGH.md` | 325 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/READTHROUGH.md` | 326 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
 | `docs/archive/READTHROUGH_v8.16.1.md` | 337 | 全文 | 2026-11-17 `lx-source.js` 逐行通读结论文档：证伪 1 条 + 缺陷 R-01~R-12 + 无缺陷模块清单 + 复现骨架 + 修复顺序 |
 | `docs/archive/READTHROUGH_v8.16.2.md` | 170 | 全文 | 2026-11-17 8.16.2 产物（6045 行）7 段逐行通读：R-13（`skipReason` 只读副作用）+ 14 观察项 + 15 排除 + 6 项测试盲区 |
 | `docs/DOC_INDEX.md` | 82 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
-| `docs/KNOWN_ISSUES.md` | 111 | 全文 | 已知问题/技术债台账（K01~K20，活文档；判断是否重构先看这里） |
+| `docs/KNOWN_ISSUES.md` | 112 | 全文 | 已知问题/技术债台账（K01~K20，活文档；判断是否重构先看这里） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | 全文 | 音质能力备档与档位短路优化方案、复现证据、P0/P1/P2 |
 
 ## 五、维护规则（这段是契约，不是说明）
@@ -219,22 +220,22 @@
 | `scripts/verify-real-platform-chains.js` | 106 | 全文 | G7 先搜平台 ID 再隔离取链；公网不可用时如实保留上游失败码 |
 | `src/00-header.js` | 6 | 全文 | 单文件 banner |
 | `src/80-entry.js` | 10 | 全文 | 导出面 + 非枚举 PROVIDER_SPECS |
-| `src/legacy.js` | 1320 | 全文 | v8.13 实现源（契约/生命周期/取消）；8.16.2 产物侧逐行结论见 [`READTHROUGH_v8.16.2.md`](./archive/READTHROUGH_v8.16.2.md)（6045 行 7/7 段） |
-| `src/providers/55-probation.js` | 41 | 全文 | 两个观察源规格 |
-| `src/providers/changqingVip.js` | 20 | 全文 | 12 源契约规格 |
-| `src/providers/helloworldKw.js` | 22 | 全文 | 12 源契约规格 |
-| `src/providers/qingliangTx.js` | 21 | 全文 | v8.16.0 新增：晴亮 tx 第二源规格（tx chain 2 / 320k / qingliang-tx 族） |
-| `src/providers/luoyueTx.js` | 22 | 全文 | v9.2.0 新增：落月 tx 第三源规格（tx chain 3 / 128k·320k·flac / vkeys-luoyue 族；只接 v3 `song/link`，v2 仅试听片段） |
-| `src/providers/audius.js` | 21 | 全文 | v9.3.0 新增：Audius au 平台规格（chain au:1 / 320k / 128k·320k 同文件 / audius 族；is_streamable 判定，false 的曲 404） |
-| `src/providers/huibq.js` | 23 | 全文 | 12 源契约规格 |
-| `src/providers/ikun.js` | 29 | 全文 | 12 源契约规格 |
+| `src/legacy.js` | 1325 | 全文 | v8.13 实现源（契约/生命周期/取消）；8.16.2 产物侧逐行结论见 [`READTHROUGH_v8.16.2.md`](./archive/READTHROUGH_v8.16.2.md)（6045 行 7/7 段） |
+| `src/providers/55-probation.js` | 43 | 全文 | 两个观察源规格 |
+| `src/providers/changqingVip.js` | 21 | 全文 | 12 源契约规格 |
+| `src/providers/helloworldKw.js` | 23 | 全文 | 12 源契约规格 |
+| `src/providers/qingliangTx.js` | 22 | 全文 | v8.16.0 新增：晴亮 tx 第二源规格（tx chain 2 / 320k / qingliang-tx 族） |
+| `src/providers/luoyueTx.js` | 23 | 全文 | v9.2.0 新增：落月 tx 第三源规格（tx chain 3 / 128k·320k·flac / vkeys-luoyue 族；只接 v3 `song/link`，v2 仅试听片段） |
+| `src/providers/audius.js` | 22 | 全文 | v9.3.0 新增：Audius au 平台规格（chain au:1 / 320k / 128k·320k 同文件 / audius 族；is_streamable 判定，false 的曲 404） |
+| `src/providers/huibq.js` | 24 | 全文 | 12 源契约规格 |
+| `src/providers/ikun.js` | 30 | 全文 | 12 源契约规格 |
 | `src/providers/index.js` | 18 | 全文 | active/probation/all 规格入口 |
-| `src/providers/juheTx.js` | 21 | 全文 | 12 源契约规格 |
-| `src/providers/kuwoOfficial.js` | 20 | 全文 | 12 源契约规格 |
-| `src/providers/suyin163.js` | 20 | 全文 | 12 源契约规格 |
-| `src/providers/suyinKuwo.js` | 30 | 全文 | 12 源契约规格 |
-| `src/providers/wyOuter.js` | 20 | 全文 | 12 源契约规格 |
-| `src/providers/xinghaiBackend.js` | 22 | 全文 | 12 源契约规格 |
+| `src/providers/juheTx.js` | 22 | 全文 | 12 源契约规格 |
+| `src/providers/kuwoOfficial.js` | 21 | 全文 | 12 源契约规格 |
+| `src/providers/suyin163.js` | 21 | 全文 | 12 源契约规格 |
+| `src/providers/suyinKuwo.js` | 31 | 全文 | 12 源契约规格 |
+| `src/providers/wyOuter.js` | 21 | 全文 | 12 源契约规格 |
+| `src/providers/xinghaiBackend.js` | 23 | 全文 | 12 源契约规格 |
 | `test/audit/s-source-lifecycle.js` | 125 | 全文 | v8.13 审计入口 |
 | `test/audit/y-provider-contract.js` | 172 | 全文 | v8.13 审计入口 |
 | `test/audit/z-cancel.js` | 170 | 全文 | v8.13 审计入口 |
@@ -285,7 +286,7 @@
 | `src/core/09-match.js` | 272 | 逐行 | 身份匹配与音质排序：`songInfoMatch`/`titleMatch`/`artistMatch`/`durationMatch`、`identityNormalize`/`identityTokens`、`FRAGMENT_RE`/`isPreviewFragmentUrl` 片段判据、`QUALITY_RANK` 档位排序、`durationHintByKey` 时长提示 |
 | `src/core/10-vendors.js` | 144 | 逐行 | 外部接口常量与供应商取链碎片（20 个互不连通孤岛分量 / 22 定义）：`KUWO_SEARCH_API`/`QQ_SEARCH_API`/`WY_SEARCH_API`/`GD_API` 等 + `lingchuanGetUrl`/`xinghaiBackupGetUrl`；**三个退役源取链函数仍打入发布包（B01-002）**；**聆川/Huibq「未配置」守卫恒假、CONFIG_ERROR 分支不可达（B01-003/B02-003）** |
 | `src/core/11-provider-meta.js` | 8 | 逐行 | 纯常量层（无依赖）：`PROVIDER_LIFECYCLE`（active/probation）与 `PROVIDER_AUTH`（none/optional），冻结对象；供 22-chain / 25-handlers 顶层直接引用 |
-| `src/core/12-provider-contract.js` | 137 | 逐行 | Provider Contract 校验：`validateProviderContracts` 硬校验 14 登记 / 12 上链 / 2 观察、每源必须含 128k 与 maxQuality、probation 无链位次且默认关、每平台至少 1 上链源且位次不重复；`KNOWN_COVERAGE_GAPS` 登记 mg/kg 单源高危、tx 多源中危；**tx 行 reason 漏记 qingliangTx、reviewAt 与登记表不一致（B04-001）** |
+| `src/core/12-provider-contract.js` | 192 | 逐行 | Provider Contract 校验：`validateProviderContracts` 硬校验 14 登记 / 12 上链 / 2 观察、每源必须含 128k 与 maxQuality、probation 无链位次且默认关、每平台至少 1 上链源且位次不重复；`KNOWN_COVERAGE_GAPS` 登记 mg/kg 单源高危、tx 多源中危；**tx 行 reason 漏记 qingliangTx、reviewAt 与登记表不一致（B04-001）** |
 | `src/core/13-chain-helpers.js` | 216 | 逐行 | 链路辅助：`suyinKuwoGetUrl`/`suyinGetUrl`、`skipReason`/`structuralSkipReason`（R-13 只读语义）、`sortChainByHealth`、`getUrlWithCrossPlatformFallback`；**C10 只断言 10/10 成功，重复外呼/重复写缓存无上限断言（B06-003）** |
 | `src/core/14-lyric.js` | 93 | 逐行 | 歌词/封面/头探测：`getLyricForPlatform`（仅 wy，歌词不重试以免 5s→10s 拖慢切歌）、`getPicForPlatform`（wy 必须回退 `songs[0].album.picUrl/blurPicUrl`，顶层 picUrl 恒 null）、`kuwoPicSearch`（`hts_MVPIC` 优先、`MVPIC` 拼 `img2.kuwo.cn`） |
 | `src/core/15-verify.js` | 353 | 逐行 | 交付验真三阈值（`VERIFY_MIN_ORIGINAL_SEC`/`VERIFY_DUR_GAP_SEC`/`VERIFY_DUR_RATIO`）+ `verifyDelivery`、`probeAudioDelivery`/`probeByHeaders`/`headerEvidence`、`qualityFromDelivery`/`qualityConfidenceOf`（估算档不宣称精确档） |
@@ -296,7 +297,7 @@
 | `src/core/21-cross-search.js` | 181 | 逐行 | 跨平台搜索候选：`crossSearchPlatform`、`normalizeQQCandidate`/`normalizeWYCandidate`/`normalizeKWCandidate`、`scoreCrossCandidate`/`pickCrossCandidate`、`strictTitleMatch`/`crossVariantCompatible`（`CROSS_VARIANT_RE` 变体词兼容） |
 | `src/core/22-chain.js` | 986 | 逐行 | 取链主路径：`tryCrossPlatformFallback`/`CROSS_PLATFORM_ORDER`、`getUrlWithFallback`（含 cancelToken）、`resolveBudgetBounds`（总预算 + 末档保底 16s）、`buildSourceChain`/`computeEligibility`/`getDeliveryQuality`/`noteQualityCeiling`、`warmUpColdStartSources`；**冷启预热硬编码平台 kw 与固定歌曲，与 guard 请求平台不一致（B02-006）** |
 | `src/core/24-kuwo-official.js` | 106 | 逐行 | 酷我官方线路：`kuwoOfficialGetUrl`/`kuwoOfficialSearch`/`kuwoOfficialConvert`（音质转换 API） |
-| `src/core/25-handlers.js` | 671 | 逐行 | 平台处理器表：`SOURCE_HANDLERS`（13 登记）+ `provider` 工厂 + 各平台取链入口（wyOuter/xinghaiBackend/helloworldKw/changqing/huibq/juhe/qingliangTx/ikun）+ `providerQualitys`/`assertDeliverableUrl`/`isAudioPlayable`；**退役源 id 残留（B01-001）**；**Huibq 假成功正则过宽（B02-007）** |
+| `src/core/25-handlers.js` | 675 | 逐行 | 平台处理器表：`SOURCE_HANDLERS`（13 登记）+ `provider` 工厂 + 各平台取链入口（wyOuter/xinghaiBackend/helloworldKw/changqing/huibq/juhe/qingliangTx/ikun）+ `providerQualitys`/`assertDeliverableUrl`/`isAudioPlayable`；**退役源 id 残留（B01-001）**；**Huibq 假成功正则过宽（B02-007）** |
 | `src/core/27-sources-admin.js` | 121 | 逐行 | 源开关与账本清理：`toggleSource`、`clearSourceLedger`/`clearCrossFallbackCache`/`clearResolveDead`/`clearPlayDeadTrials`、`clearTrialKeys`（R-05 裸键 + 历史前缀双删）、`probeState`/`playDeadTrialAt` |
 | `src/core/28-health-export.js` | 117 | 逐行 | 健康状态导出：`exportHealthState`（只导出/恢复 v2，`HEALTH_STATE_VERSION=2`）、`HEALTH_STATE_SOURCE_VERSION`（8.16.4）、`HEALTH_QUALITIES`/`HEALTH_STATES` 枚举、`collectHealthControls`；**v8.16.4 起 `byQuality[q].breaker` 与 `playDead.quality` 入快照（B02-001）** |
 | `src/core/29-search.js` | 95 | 逐行 | 聚合搜索入口：`suyinKuwoSearch`、`parseMessageSongInfo`（消息歌解析）、`setDurationHint`（身份键旁路 Map，不回写 App 桥对象）、`boundedMapSet`（`MEMORY_MAP_MAX` 容量上限） |

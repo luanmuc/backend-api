@@ -4,7 +4,7 @@ const { CROSS_FALLBACK_CACHE_TTL_MS, crossFallbackCache, getCrossFallbackCached,
 /*!
  * @name 豆包定制[聚合音源]
  * @description v9.0.0 模块化拆包 + 发布签名版（v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；health 快照按版本区间判定；发布包支持 ed25519 验签）。上一版 v8.16.4 为播放摘除档位归因版。历史版本见 docs/CHANGELOG.md。
- * @version 9.3.2 R82 注释订正（Proxy 归因更正为 Date-Proxy，运行行为不变；15 登记 / 13 上链 / 2 观察）
+ * @version 9.3.3 R83 治理（reviewEveryDays 滚动窗口 + 引擎能力自检；15 登记 / 13 上链 / 2 观察）
  * @author 豆包定制
  * @contribution 基线同v11.11(2026-10-15实测)；v11.12为代码加固(防错歌/https/熔断分类/探测一致性/清理)；v11.13(2026-10-28)：D11日志防御——vm无console沙箱验证通过(修复前加载抛TypeError复现)，真机装包待验证；v12.0(2026-10-28)：星海后端kw高音质——E10实测(128k/320k/flac/flac24bit四档code200、URL均Range 206、魔数正确、码率吻合、ID3歌名对应songmid)，解除仅128k限制并接入kw链双源，URL http→https升级(实测https 206可播)；v12.1-v13.4(2026-10-28)：失败缓存差异化+探测收敛+决策日志+updateAlert+自动化测试CI+端点巡检+音质表收敛+配置化，走验证链L0-L1(L2按需)
  */
@@ -143,7 +143,7 @@ const { ADMISSION_POLICY, normalizeErrCode, crossFallbackPolicy } = require("./c
 // GD Studio（实测：仅网易云 netease，br=999→真实flac/br=320→320k/br=128→128k；免费公共服务，5分钟50次限制，仅用于wy高音质链，不进128k兜底竞速）
 
 // 溯音系（实测：仅 Kuwo 可用；QQ -403维护中；163 免费歌恢复可用；咪咕 502 IP限制）
-const { validateProviderContracts, KNOWN_COVERAGE_GAPS } = require("./core/12-provider-contract.js");
+const { validateProviderContracts, probeEngineCapabilities, KNOWN_COVERAGE_GAPS } = require("./core/12-provider-contract.js");
 const { suyinMiguGetUrl, buildSearchKeywords } = require("./core/30-suyin-extra.js");
 const { suyinQQGetUrl, getQQSongId } = require("./core/31-suyin-qq.js");
 
@@ -877,6 +877,11 @@ bindDep("tryCrossPlatformFallback", tryCrossPlatformFallback);
 // ============================================================
 // v8.13：Provider Contract 在加载时校验——契约不合法直接拒绝加载，不允许带病启动。
 const PROVIDER_CONTRACT = validateProviderContracts();
+// R83：引擎能力自检（10ms 级）。只写日志，不进健康快照/digest：
+// 快照按源 id 迭代、digest 有 1:1 schema 校验，塞顶层字段会破坏 App 面板与 telemetry 契约。
+// 用途：wrapper-android 升级后若引入新的 Proxy/invariant，启动日志第一时间能看到。
+const ENGINE_CAPABILITIES = probeEngineCapabilities();
+logInfo(`[引擎能力] ${JSON.stringify(ENGINE_CAPABILITIES)}`);
 
 Object.keys(PLATFORM_QUALITIES).forEach(platform => {
   // v3.0：歌词/封面按平台真实能力声明（App fork 声明即注册 getLyric/getPic）——
@@ -1174,7 +1179,7 @@ send(EVENT_NAMES.inited, {
 // `/豆包定制聚合音源\s+v(\S+)/` 取第一个匹配并与 @version 比对，App 内置升级正则同理。
 // 因此：①不能改成模板变量；②本注释也不要写出被该正则命中的完整串（否则注释先于 logInfo
 // 被匹配到，会报「版本串不同步」）。升版本时这里和 `src/00-header.js` 的 @version 一起改。
-logInfo(`豆包定制聚合音源 v9.3.2 已加载（15 登记 / 13 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v9.3.3 已加载（15 登记 / 13 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

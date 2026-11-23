@@ -1,5 +1,20 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-23 · v9.3.3：复核日滚动窗口 + 引擎能力自检（R83）
+
+**背景**：①`docs/KNOWN_ISSUES.md` **K43** 指出 15 个登记项（13 provider + 2 覆盖缺口）的 `reviewAt` 全是 `2026-11-23`，统一 14 天宽限 → **2026-12-07 集体过期**，到期前无人动、到期后整仓红；②R81/R82 证明「本地 Node 绿 ≠ 真机可用」，`wrapper-android` 一旦升级引入新的 Proxy invariant，音源会在初始化那一刻直接死掉，且当前没有任何启动期观测。
+
+| # | 改动 | 落点 | 判据/证据 |
+|---|---|---|---|
+| 1 | **复核窗口按源声明** | `src/core/12-provider-contract.js`：新增 `REVIEW_EVERY_MIN_DAYS=7` / `MAX=365`，`checkFresh(owner, reviewAt, reviewEveryDays)` 按声明窗口判过期；未声明才回落 `REVIEW_GRACE_DAYS=14`；非法值直接契约失败 | 15 个登记项到期日由 **12-07 一个日期** 摊到 **12-23（30 天：audius/mg/kg）/ 01-22（60 天：juheTx/luoyueTx/qingliangTx/tx 缺口）/ 02-21（90 天：suyinQQ/suyinMigu）** |
+| 2 | **上链源不再漏管** | 旧实现只校验 probation 与覆盖缺口，active 源即便登记 `reviewAt` 也无人看；R83 改为 active 分支同样 `checkFresh` | `r83-governance` R5：时间注入到 **2026-12-08**（旧集体过期日次日）必须 `ok:true`；注入 **2027-01-02** 必须报「已超复核窗口 30 天」 |
+| 3 | **字段链路透传** | `src/core/25-handlers.js` 的 `provider()` 增 `reviewEveryDays`；6 个 provider 文件（`audius`/`juheTx`/`luoyueTx`/`qingliangTx`/`55-probation` 两项）与 `SOURCE_HANDLERS` 内联选项同步；`test/audit/y-provider-contract.js` Y16 白名单加字段 | Y16 逐字段一致；`r83-governance` R1/R2 断言所有带 `reviewAt` 的项都有 7~365 整数窗口 |
+| 4 | **启动期引擎能力自检** | 新增 `probeEngineCapabilities(env?)`：量 `Date.now` / `new Date(0)` / `Date["parse"]` 可读性 / `Object.freeze` / `Proxy`；`src/legacy.js` 初始化时 `logInfo('[引擎能力] …')` | 真机事故形态可被捕获：E2 用「读 `parse` 即抛 `proxy: inconsistent get`」的宿主模拟，必须 `dateParseReadable:false` 且不冒泡；**只写日志**，不进健康快照 / 不扩 telemetry `digest.schema.json` |
+| 5 | **回归入口** | 新增 `test/audit/r83-governance.js`（E1~E2 + R1~R5，7 条）并挂进 `npm test` | 首跑 **7/0**；E2 为红绿双向的「宿主 Proxy invariant」模拟 |
+
+**行为**：契约错误码仍 **19** 个；`@version 9.3.3`，产物 **400561 bytes / 7725 行**（v9.3.2 为 397273 bytes / 7654 行，+3288 bytes 为自检实现 + 注释 + 窗口字段 + 9 个 provider 的显式 null 字段）。
+**未做**：不改 `reviewAt` 语义（仍是「上一次真实复核日」，仍禁止写未来日期绕过窗口）；不把引擎能力塞进 `getHealthSnapshot()`（快照按源 id 迭代、App 面板与多测做 `deepStrictEqual`，加顶层键会破坏既有契约）；不恢复 ed25519 在线验签链，App 侧只做 manifest `size+sha256` 且 **fail-open**（K36）。
+
 ## 2026-11-23 · v9.3.2：注释归因订正（R82）
 
 **背景**：R82 前后端一起检查时发现 `src/core/35-source-switch.js:52-56` 的注释仍写着「R80 真机 P0 根因是 runtimeToggles 的 `new Proxy`」，与 `docs/KNOWN_ISSUES.md` 的 **K41（第一轮误判，已排除）** / **K42（真根因 Date-Proxy）** 直接冲突 —— 后来人读代码会照旧叙事把方向再走一遍。

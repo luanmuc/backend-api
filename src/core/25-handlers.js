@@ -58,6 +58,8 @@ function provider(id, name, fn, maxQuality, opts = {}) {
     auth: opts.auth || PROVIDER_AUTH.NONE,
     lifecycle,
     reviewAt: opts.reviewAt || null,
+    // R83（K43）：按源滚动复核窗口（天）。未声明则回落契约层默认 14 天。
+    reviewEveryDays: opts.reviewEveryDays || null,
     batch: opts.batch || 1,
     verified: !!opts.verified,
     coldStart: !!opts.coldStart,
@@ -601,20 +603,22 @@ const SOURCE_HANDLERS = {
   luoyueTx: provider("luoyueTx", "落月(tx)", luoyueTxGetUrl, "flac", {
     platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 3 }, upstreamGroup: "vkeys-luoyue",
     reviewAt: "2026-11-23",
+    reviewEveryDays: 60,
     note: "R79（2026-11-23 实测）：`api.vkeys.cn` 落月线路，128k 4.31MB / 320k 10.79MB / flac 55.39MB（真 `fLaC`），三档均为 QQ 官方 CDN `ws.stream.qqmusic.qq.com`（M500/M800/F000 前缀）。只接 v3 `song/link`——同站 `/v2/music/tencent/geturl` 只给 960KB 试听片段。第三方单点，3 天复核",
   }),
   audius: provider("audius", "Audius", audiusGetUrl, "320k", {
     platforms: ["au"], anchors: ["songmid", "id"], chain: { au: 1 }, upstreamGroup: "audius",
     reviewAt: "2026-11-23",
+    reviewEveryDays: 30,
     note: "R80（2026-11-23 实测）：国外开源曲库，免 key。`/v1/tracks/{id}` 200 + `is_streamable` 判定（false 的曲 /stream 实测 404）；`/stream` 302 → `creatornode.audius.co`，跟随得 `206 audio/mpeg` 8.49MB `ID3v2.4`。中文歌能搜到但多为翻唱/不可流式；au 为独立平台维度，不参与 tx/wy/kw 跨平台兜底",
   }),
   juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "320k", {
     platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 4 }, upstreamGroup: "juhe",
-    reviewAt: "2026-11-23", note: "2026-11-11 恢复；7 天复核，降为 tx 第三源。2026-11-21：flac 档实测实返 audio/mpeg，能力声明由 flac 下调为 320k。R78（11-23 真实复核）：上游全域 HTTP 429（根路径同样 429，CF 层限流/维护页），tx 与 kw 均不可用",
+    reviewAt: "2026-11-23", reviewEveryDays: 60, note: "2026-11-11 恢复；7 天复核，降为 tx 第三源。2026-11-21：flac 档实测实返 audio/mpeg，能力声明由 flac 下调为 320k。R78（11-23 真实复核）：上游全域 HTTP 429（根路径同样 429，CF 层限流/维护页），tx 与 kw 均不可用",
   }),
   qingliangTx: provider("qingliangTx", "晴亮(tx)", qingliangTxGetUrl, "320k", {
     platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 2 }, upstreamGroup: "qingliang-tx",
-    reviewAt: "2026-11-23", note: "2026-11-15 实测 5/5 全曲 320k；第三方单点，3 天复核。R78（11-23 真实复核）：200 code=1 出 aqqmusic 直链，tx 链上当前唯一可用源",
+    reviewAt: "2026-11-23", reviewEveryDays: 60, note: "2026-11-15 实测 5/5 全曲 320k；第三方单点，3 天复核。R78（11-23 真实复核）：200 code=1 出 aqqmusic 直链，tx 链上当前唯一可用源",
   }),
   ikun: provider("ikun", "ikun", ikunGetUrl, "flac", {
     platforms: ["kw", "wy"], anchors: ["hash", "songmid", "id"], chain: { kw: 7, wy: 5 }, upstreamGroup: "ikun",
@@ -626,14 +630,14 @@ const SOURCE_HANDLERS = {
   // ---- 观察源：2 个（probation，只探测、不进链） ----
   suyinQQ: provider("suyinQQ", "溯音QQ", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("tx", songId, quality, songInfo, cancelToken), "flac", {
     platforms: ["tx"], anchors: ["songmid", "id"], lifecycle: PROVIDER_LIFECYCLE.PROBATION,
-    upstreamGroup: "oiapi-qq", reviewAt: "2026-11-23", note: "2026-11-11 实测 HTTP 403。R78（11-23 真实复核）：接口已下线，404 code -13001「接口不存在或已下线」（oiapi 的 QQ_Music 路由已移除）",
+    upstreamGroup: "oiapi-qq", reviewAt: "2026-11-23", reviewEveryDays: 90, note: "2026-11-11 实测 HTTP 403。R78（11-23 真实复核）：接口已下线，404 code -13001「接口不存在或已下线」（oiapi 的 QQ_Music 路由已移除）",
   }),
   suyinMigu: provider("suyinMigu", "溯音咪咕", (platform, songId, quality, songInfo, cancelToken) => suyinGetUrl("mg", songId, quality, songInfo, cancelToken), "flac", {
     platforms: ["mg"],
     // v9.1.6（K30）：溯音咪咕同样按歌名搜索（SUYIN_MIGU_API 传 gm=关键词），不读 copyrightId。
     anchors: [],
     lifecycle: PROVIDER_LIFECYCLE.PROBATION,
-    upstreamGroup: "xcvts-migu", reviewAt: "2026-11-23", note: "2026-11-11 实测上游 502。R78（11-23 真实复核）：200 code=1 能出直链，是 mg 平台当前唯一可用候选（suyinKuwo 已下线）",
+    upstreamGroup: "xcvts-migu", reviewAt: "2026-11-23", reviewEveryDays: 90, note: "2026-11-11 实测上游 502。R78（11-23 真实复核）：200 code=1 能出直链，是 mg 平台当前唯一可用候选（suyinKuwo 已下线）",
     verified: true,
   }),
 };

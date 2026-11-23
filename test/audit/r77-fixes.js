@@ -180,11 +180,11 @@ run('B07', 'G9：同 id 不同时长分槽，不再互相覆盖', () => {
   const b2 = D.buildCacheKey('kw', { songmid: 'X1', name: '晴天', duration: 245000 }, 'flac')
   assert.notStrictEqual(a, b2)
 })
-run('B08', '契约：复核日过期超 14 天 → CONTRACT_ERROR（时间可注入）', () => {
+run('B08', '契约：复核日超出声明窗口 → CONTRACT_ERROR（时间可注入）', () => {
   let threw = null
   try { bundle.validateProviderContracts(Date.parse('2027-01-15T00:00:00Z')) } catch (e) { threw = e }
   assert.ok(threw, '应抛契约错误')
-  assert.ok(String(threw.message).includes('过期'), threw && threw.message)
+  assert.ok(String(threw.message).includes('超复核窗口'), threw && threw.message)
 })
 run('B09', '契约：当前时间复核日全部新鲜 → 通过', () => {
   const r = bundle.validateProviderContracts(Date.now())

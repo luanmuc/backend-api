@@ -152,7 +152,7 @@ rec('Y15', '契约非法：qualitys 与 maxQuality 不一致必须拒绝', () =>
 rec('Y16', 'PROVIDER_SPECS 与 SOURCE_HANDLERS 逐字段一致', () => {
   const specs = mod.PROVIDER_SPECS;
   assert(specs && Array.isArray(specs.all), 'PROVIDER_SPECS 未导出');
-  const FIELDS = ['lifecycle', 'platforms', 'chain', 'upstreamGroup', 'auth', 'maxQuality', 'qualitys', 'coldStart', 'reviewAt'];
+  const FIELDS = ['lifecycle', 'platforms', 'chain', 'upstreamGroup', 'auth', 'maxQuality', 'qualitys', 'coldStart', 'reviewAt', 'reviewEveryDays'];
   for (const spec of specs.all) {
     const h = H[spec.id];
     assert(h, `PROVIDER_SPECS 里的 ${spec.id} 在 SOURCE_HANDLERS 中不存在`);

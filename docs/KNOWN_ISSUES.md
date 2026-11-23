@@ -106,6 +106,7 @@
 - **为什么不现在改**：`reviewAt` 语义是「上一次真实复核的日期」，R78 已加反向判定（写未来日期超 1 天容差即契约失败，`REVIEW_FUTURE_TOLERANCE_MS`）。把它挪到 12 月等于伪造复核锚点，会把唯一的时间证据废掉。
 - **正确处置**：12-07 之前做一次真实复核（抽检各 provider 端点并把 `reviewAt` 更新到当天），或对确认无变化的条目显式顺延并写明理由；不要等到期日集中爆发。
 - **登记位置**：`src/providers/*.js`、`src/core/12-provider-contract.js` 的 `KNOWN_COVERAGE_GAPS`。
-- **状态**：⏳ OPEN（提醒项，非缺陷）
+- **R83 处置（2026-11-23）**：不改 `reviewAt`（不伪造复核日），改为每项声明 `reviewEveryDays` 滚动窗口（audius/mg/kg 30 天、juheTx/luoyueTx/qingliangTx 60 天、suyinQQ/suyinMigu 90 天）；`checkFresh` 按声明窗口判定，上链源也纳入；回归 `test/audit/r83-governance.js` **R5** 明确锁住「2026-12-08 必须通过、2027-01-02 起 30 天窗口先红」。
+- **状态**：✅ FIXED（R83，2026-11-23）
 
 

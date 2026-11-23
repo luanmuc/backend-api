@@ -19,5 +19,6 @@ module.exports = {
     "320k"
   ],
   "coldStart": true,
-  "reviewAt": null
+  "reviewAt": null,
+  "reviewEveryDays": null
 };

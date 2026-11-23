@@ -1,4 +1,4 @@
-# 源登记表（v9.3.0）
+# 源登记表（v9.3.3）
 
 > 单一真相：运行时 `PROVIDER_CONTRACT` / `SOURCE_HANDLERS`。本表由 `scripts/source-inventory.js` 校验；任何增删源先改契约，再同步本表。
 
@@ -26,12 +26,12 @@
 | 6 | `helloworldKw` | helloworld(kw) | active | kw | kw4 | kuwo-convert | none | flac | 可能只给片段，靠验真闸门 |
 | 7 | `changqingVip` | 长青kw | active | kw | kw6 | changqing-kw | none | 128k | 与已砍 `nianxinVip` 同质 |
 | 8 | `huibq` | Huibq | active | kw/wy | kw8, wy8 | huibq | none | 320k | 唯一 `coldStart`；取链超时由 `resolveColdStartTimeout(coldStartTimeoutMs, raceBudgetMs)` 决定，无独立 provider timeout。**2026-11-20 实测：服务已死**——`HTTP 503 + 「This service has been suspended by its owner.」`，根路径同 503，0.8s 即返回；probe-history 显示 **11-16 起连续 5 天全 503**（此前 11-04~11-15 连续 12 天全 200） |
-| 9 | `juheTx` | Juhe聚合(tx) | active | tx | tx3 | juhe | none | 320k | 7 天复核 `2026-11-23`（R78 真实复核）。**R78：上游全域 HTTP 429**（`/tx`、`/kw`、根路径均 429 + HTML 维护页，CF 层限流），当前 0% 可用。**R79：接入落月后降为 tx 第四源；tx 风险档由 high 降 medium（可用源 2 个）** |
-| 10 | `qingliangTx` | 晴亮(tx) | active | tx | tx2 | qingliang-tx | none | 320k | 2026-11-15 实测 5/5 全曲 320k（206 + audio/mpeg）；第三方单点，3 天复核 `2026-11-23`。**R78 复核：`200 code=1` 出 `aqqmusic.tc.qq.com` 直链（768ms），是 tx 链上当前唯一可用源。**R79：落月 tx 接入后转为 tx 第二源，flac 档由落月覆盖（实测 55.39MB 真 fLaC）** |
+| 9 | `juheTx` | Juhe聚合(tx) | active | tx | tx3 | juhe | none | 320k | 复核 `2026-11-23`，窗口 60 天（R83 `reviewEveryDays`）。**R78：上游全域 HTTP 429**（`/tx`、`/kw`、根路径均 429 + HTML 维护页，CF 层限流），当前 0% 可用。**R79：接入落月后降为 tx 第四源；tx 风险档由 high 降 medium（可用源 2 个）** |
+| 10 | `qingliangTx` | 晴亮(tx) | active | tx | tx2 | qingliang-tx | none | 320k | 2026-11-15 实测 5/5 全曲 320k（206 + audio/mpeg）；第三方单点，复核 `2026-11-23`，窗口 60 天（R83）。**R78 复核：`200 code=1` 出 `aqqmusic.tc.qq.com` 直链（768ms），是 tx 链上当前唯一可用源。**R79：落月 tx 接入后转为 tx 第二源，flac 档由落月覆盖（实测 55.39MB 真 fLaC）** |
 | 11 | `ikun` | ikun | active | kw/wy | kw7, wy5 | ikun | optional | flac | 公益版免卡密，卡密可选 |
 | 12 | `suyinQQ` | 溯音QQ | probation | tx | 无 | oiapi-qq | none | flac | 2026-11-11 实测 403；复核 `2026-11-23`。**R78：`404 code -13001`「接口不存在或已下线」（路由已移除，非 403）** |
 | 13 | `suyinMigu` | 溯音咪咕 | probation | mg | 无 | xcvts-migu | none | flac | 2026-11-11 实测上游 502；复核 `2026-11-23`。**R78：`200 code=1` 能出直链（911ms），mg 平台当前唯一可用候选** |
-| 14 | `luoyueTx` | 落月(tx) | active | tx | tx3 | vkeys-luoyue | none | flac | R79（2026-11-23 实测）：`api.vkeys.cn/music/tencent/song/link` 128k 4.31MB / 320k 10.79MB / flac 55.39MB（真 `fLaC`），三档均落 QQ 官方 CDN `ws.stream.qqmusic.qq.com`（M500/M800/F000 前缀）。**只接 v3 `song/link`**——同站 `/v2/music/tencent/geturl` 只给 960KB 试听片段。第三方单点，3 天复核 |
+| 14 | `luoyueTx` | 落月(tx) | active | tx | tx3 | vkeys-luoyue | none | flac | R79（2026-11-23 实测）：`api.vkeys.cn/music/tencent/song/link` 128k 4.31MB / 320k 10.79MB / flac 55.39MB（真 `fLaC`），三档均落 QQ 官方 CDN `ws.stream.qqmusic.qq.com`（M500/M800/F000 前缀）。**只接 v3 `song/link`**——同站 `/v2/music/tencent/geturl` 只给 960KB 试听片段。第三方单点，复核 `2026-11-23`，窗口 60 天（R83） |
 | 15 | `audius` | Audius | active | au | au1 | audius | none | 320k | R80（2026-11-23 实测）：`api.audius.co/v1`，免 key；`/v1/tracks/{id}` 200 + `is_streamable` 判定（false 的曲 `/stream` 实测 404，如 qRgvP）；`/stream` 302 → `creatornode.audius.co`，跟随得 `206 audio/mpeg` 8.49MB `ID3v2.4`。au 为独立平台维度（无 flac 档），不参与 tx/wy/kw 跨平台兜底；中文歌能搜到但多为翻唱/不可流式 |
 
 ## 平台链
@@ -49,9 +49,9 @@
 
 | 平台 | 风险 | 原因 | 复核 |
 |---|---|---|---|
-| mg | high | `suyinKuwo` 已下线（R78 404 -13001）→ 零上链源。**R79 纠正**：`suyinMigu` 经 11-21 与 R79 两次复测均为 `code 502`（上游 IP 被咪咕限）；`xinghaiBackend` 的 mg 分支对任意 mid 恒定返回同一首（`name` 传「晴天」「演员」URL 完全相同，3.9MB ID3v2.3），不可证身份 → **当前无可用 mg 源** | 2026-11-23 |
-| kg | high | `suyinKuwo` 已下线（R78 404 -13001）→ 零上链源，无第二源 | 2026-11-23 |
-| tx | medium | 登记四源，**R79 实测可用 2 源**（`qingliangTx` 200 code=1 出 aqqmusic 直链；`luoyueTx` v3 三档真音频）；`juheTx` 全域 429、`suyinKuwo` 已下线 → 单点故障已消除 | 2026-11-23 |
+| mg | high | `suyinKuwo` 已下线（R78 404 -13001）→ 零上链源。**R79 纠正**：`suyinMigu` 经 11-21 与 R79 两次复测均为 `code 502`（上游 IP 被咪咕限）；`xinghaiBackend` 的 mg 分支对任意 mid 恒定返回同一首（`name` 传「晴天」「演员」URL 完全相同，3.9MB ID3v2.3），不可证身份 → **当前无可用 mg 源** | 2026-11-23（窗口 30 天，到期 12-23） |
+| kg | high | `suyinKuwo` 已下线（R78 404 -13001）→ 零上链源，无第二源 | 2026-11-23（窗口 30 天，到期 12-23） |
+| tx | medium | 登记四源，**R79 实测可用 2 源**（`qingliangTx` 200 code=1 出 aqqmusic 直链；`luoyueTx` v3 三档真音频）；`juheTx` 全域 429、`suyinKuwo` 已下线 → 单点故障已消除 | 2026-11-23（窗口 60 天，到期 01-22） |
 
 ## 候选测评（R79，2026-11-23 全网搜集 + 真机级实测）
 

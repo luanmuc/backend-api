@@ -17,7 +17,8 @@ module.exports = {
       "flac"
     ],
     "coldStart": false,
-    "reviewAt": "2026-11-23"
+    "reviewAt": "2026-11-23",
+    "reviewEveryDays": 90,
   },
   "suyinMigu": {
     "id": "suyinMigu",
@@ -36,6 +37,7 @@ module.exports = {
       "flac"
     ],
     "coldStart": false,
-    "reviewAt": "2026-11-23"
+    "reviewAt": "2026-11-23",
+    "reviewEveryDays": 90,
   }
 };
