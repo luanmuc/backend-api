@@ -1,5 +1,22 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-23 · v9.3.2：注释归因订正（R82）
+
+**背景**：R82 前后端一起检查时发现 `src/core/35-source-switch.js:52-56` 的注释仍写着「R80 真机 P0 根因是 runtimeToggles 的 `new Proxy`」，与 `docs/KNOWN_ISSUES.md` 的 **K41（第一轮误判，已排除）** / **K42（真根因 Date-Proxy）** 直接冲突 —— 后来人读代码会照旧叙事把方向再走一遍。
+
+**改动**
+
+| # | 项 | 落地 |
+|---|---|---|
+| 1 | 注释订正 | `35-source-switch.js` 段注释改为「普通对象 + `defineProperty` 视图（勿改回 Proxy）」，注明 v9.2.0 的归因已被 R81 推翻、真根因见 K41/K42 |
+| 2 | 治理提醒 | `docs/KNOWN_ISSUES.md` 新增 **K43**：13 个 provider + 2 个覆盖缺口的 `reviewAt` 均为 `2026-11-23`，14 天宽限到 **2026-12-07** 集体过期，需在此之前复核或显式顺延 |
+
+**行为**：零改动（只有注释与文档）。`@version 9.3.2`，产物 **397273 bytes / 7654 行**（v9.3.1 为 396999 bytes，+274 来自头部注释）。
+
+**验证**：`npm run build` rc0；`verify:bundle` **8/0**；`equiv --fast --sample 5` 基线 1440 / 现 120 / **差异 0**；`r81-proxy-compat` 全过；`npm test` 全绿；`self-check` 「@version=9.3.2，actions 齐全」；`docs-audit` 硬失败 0。
+
+---
+
 ## 2026-11-23 · v9.3.1：真机 `proxy: inconsistent get` 根除（R81）
 
 **背景**：v9.3.0（R80 Audius）已出包并推送，用户装后真机仍在音源面板弹「初始化失败：proxy: inconsistent get」，栈 `checkFresh → validateProviderContracts → src/legacy.js → <eval>`。上一轮判定的「runtimeToggles 的 Proxy」已被移除且产物 `new Proxy` 计数为 0，说明那一轮打空 —— 必须重新定根因。

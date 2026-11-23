@@ -47,11 +47,11 @@ function isAutoOff(id) { return !!autoOff[id]; }
 
 function effectiveEnabled(id) { return isUserEnabled(id) && !isAutoOff(id); }
 
-// R80 真机 P0 修复（v9.2.0 起）：原先这里是 new Proxy({}, {...}) 的运行时视图，
-// QuickJS（Android quickjs-android）对 Proxy 做严格一致性校验，Object.keys(SOURCE_TOGGLES)
-// 会抛 "proxy: inconsistent get"（栈 checkFresh → validateProviderContracts → legacy.js），
-// 而 V8/Node 不报，导致本地门禁全绿、真机初始化直接失败。现改为普通对象 +
-// defineProperty 动态 getter/setter：Object.keys 走真实自有属性，任何引擎行为一致。
+// 普通对象 + defineProperty 动态 getter/setter 视图（勿改回 Proxy）。
+// 来由更正（R82）：v9.2.0 曾把真机 `proxy: inconsistent get` 归因到这里的 `new Proxy({}, {...})`，
+// R81 用产物行号对齐 + 引擎 so 版本（QuickJS CONFIG_VERSION 2024-02-14）实证后已推翻：
+// 真根因是 `Date` 被包成 Proxy、宿主 preload 冻结 `Date.parse`（见 KNOWN_ISSUES K41 订正 / K42）。
+// 这处改普通对象本身没错（少一个 Proxy 面），但不是当时的根因；Object.keys 走真实自有属性，各引擎一致。
 const runtimeToggles = {};
 for (const id of Object.keys(SOURCE_TOGGLES)) {
   Object.defineProperty(runtimeToggles, id, {

@@ -9,7 +9,9 @@
 历史快照 `e9a2259`（v8.16.1 时期）。**当前工作区的版本号 / 行数 / 字节数一律以机器口径为准**（`README.md`「当前版本」行、`docs/AUDIT_MATRIX.md` 的 `lx-source.js` 行、`docs/TESTING.md` 的入口清单，均由 `scripts/docs-audit.js` 自动对齐）；本行不再手写具体版本，避免每次发版后成为一条固定漂移（R78 修：此前手写 v9.1.2 / 7,101 行 / package 9.1.1 已落后 5 个版本）。产物 `@version` 与真实行数以 `lx-source.js` 文件头注释为准
 
 > 复核说明（2026-11-19）：`src/core/` 33 个模块的逐文件结论已由占位符补为实测结论（职责 + 导出面 + 已知缺陷编号）；文件数/总行数按当前 HEAD 实测刷新。
-文件数：**202**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**62836**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+文件数：**202**（口径：211 个 tracked 文件，其中 `docs/health-daily/` 27 个按「整目录 1 单位」登记，见 `scripts/docs-audit.js` 的 `AUTO_GEN_DIRS`）　总行数：**62865**（`git -c core.quotepath=false ls-files` + `wc -l` 实测）
+
+> 台账 HEAD `b5e7a57`（v9.3.2）：R82 提交前最近一次全仓审计的锚点；此后每次提交 HEAD 前进 1 条，lag=1 由规则 18 判为同步（不再堕入「审计改写台账 → 又产生待提交改动」的旧循环）。
 
 ## 一、先说三个硬阻塞（比数字过期严重）
 
@@ -53,7 +55,7 @@
 | `.github/workflows/ci.yml` | 488 | 全文 | 10 个执行 job + `changes` 前置（test-fast / audit-a / audit-b / stress-long / stress-short / mutation / probe / ecosystem / sign-release / purge-cdn；2026-11-21 把 L3/L4 五个审计 step 从 `test-fast` 拆进 `audit-a`/`audit-b` 并行，墙钟 2m51 → 约 1m30）；断言数注释过期（32/21/22）；**mutation 已带 `--strict`（X3 闭环）且 job 内 `npm ci` 安装 esbuild**；schedule `0 20 * * *`；probe 只放行 exit 2，其余显式失败 |
 | `.github/workflows/docs-audit.yml` | 56 | 全文 | 注释仍写「probe UTC 06:00」；红项硬失败正确；`--dry-run` 段吞错（`|| true`） |
 | `.gitignore` | 8 | 全文 | 只有 `node_modules/`；`.cov/` 不在仓内 |
-| `README.md` | 143 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
+| `README.md` | 144 | 全文 | **L14 当前版本 v8.10.4 / @version 8.10.3 与 L73 v8.11.1 自相矛盾**；L73 写 32 断言（实 12） |
 | `README_HEALTH.md` | 37 | 生成 | 20 端点 / 可用 11；更新于 11-08 → 已 2 天未刷新 |
 | `lx-source.js` | 7654 | 全文 | 40 键 `USER_CONFIG` / 15 `ALLOWED_KEYS` / **18 错误码**；2026-11-17 逐行通读（v8.16.1）结论见 `docs/archive/READTHROUGH_v8.16.1.md`：证伪「版本漂移」1 条，确认缺陷 12 条（R-01~R-12，其中 P0 两条：档位熔断持久化丢失、真实音质未入账），无缺陷模块 9 类；**v8.16.2~v8.16.4 产物侧逐行结论见 `docs/archive/READTHROUGH_v8.16.2.md`（6045 行 7/7 段）** |
 | `docs/P2_TRIAGE.md` | 104 | 当前态 | P2 57 条逐条定档（A 12 已修 / B 26 / C 19），2026-11-19 新建 |
@@ -64,7 +66,7 @@
 | `docs/AUDIT_MATRIX.md` | 269 | 全文 | 67 行 vs 75 文件 → 漏 8 个；行数全过期（3185/1111/838/174…）；自称「未覆盖 0」已不成立 |
 | `docs/AUDIT_PLAN_v10.md` | 288 | 全文 | v11 重构版：26 域总表 + §2b 定制明细 + §3 音质政策 + §4 跨仓联动 + §6 缺口 G2~G9/QP-L1~3 + §7 已知取舍 + §9 v9 承接矩阵 |
 | `docs/AUDIT_RESULTS.md` | 2019 | 全文 | D-01~D-39 总账 + §0~§26.13；历史段落数字按规则冻结（写的是当时事实）；U 组「.js 数」已校正为 31 |
-| `docs/CHANGELOG.md` | 518 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
+| `docs/CHANGELOG.md` | 535 | 全文 | 版本摘要，末条到 v8.11.1；无派生数字 |
 | `docs/DEV_GUIDE.md` | 621 | 全文 | §二行段已到 3357（与 ARCHITECTURE 冲突）；§11.1 面板表 14 行缺 `memoryMapMax`；L371 92/55 自相矛盾；L3 仍写 v8.10.12 |
 | `docs/DOC_SEMANTIC_CHECKLIST.md` | 36 | 全文 | 机审不了的语义项；「17 条规则」实 14 |
 | `docs/INTERFACE_CHANGE_PLAYBOOK.md` | 62 | 全文 | 跨仓改接口 7 步；与当前 action 面一致 |
@@ -163,11 +165,11 @@
 | `test/stress-test.js` | 228 | 断言 | 12 条 S1~S11 |
 | `tools/live/host.js` | 84 | 工具 | 真宿主桩：`request(url,opts,cb)` 契约 + 302 手动跟链记 `hops` + `Range` 标记 + binary 回 Buffer；每次调用记 `{url,status,ms,hops,range}` |
 | `tools/live/run.js` | 348 | 工具 | L1~L7 实跑三分支 `l1l4`/`l5`/`l6l7`；`fullCalls()` 排除 Range、`rangeCalls()` 二分，避免把验真外呼算成解析 |
-| `docs/READTHROUGH.md` | 323 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
+| `docs/READTHROUGH.md` | 325 | 全文 | 本文件：通读台账（活文档，规则18 自校验） |
 | `docs/archive/READTHROUGH_v8.16.1.md` | 337 | 全文 | 2026-11-17 `lx-source.js` 逐行通读结论文档：证伪 1 条 + 缺陷 R-01~R-12 + 无缺陷模块清单 + 复现骨架 + 修复顺序 |
 | `docs/archive/READTHROUGH_v8.16.2.md` | 170 | 全文 | 2026-11-17 8.16.2 产物（6045 行）7 段逐行通读：R-13（`skipReason` 只读副作用）+ 14 观察项 + 15 排除 + 6 项测试盲区 |
 | `docs/DOC_INDEX.md` | 82 | 全文 | 文档登记索引（新增文档必须先登记，规则19 硬门槛） |
-| `docs/KNOWN_ISSUES.md` | 102 | 全文 | 已知问题/技术债台账（K01~K20，活文档；判断是否重构先看这里） |
+| `docs/KNOWN_ISSUES.md` | 111 | 全文 | 已知问题/技术债台账（K01~K20，活文档；判断是否重构先看这里） |
 | `docs/QUALITY_POLICY_OPTIMIZATION_PLAN.md` | 266 | 全文 | 音质能力备档与档位短路优化方案、复现证据、P0/P1/P2 |
 
 ## 五、维护规则（这段是契约，不是说明）

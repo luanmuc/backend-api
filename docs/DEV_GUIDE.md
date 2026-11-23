@@ -1,8 +1,8 @@
 # 聚合音源开发文档（DEV_GUIDE）
-> 当前音源版本：@version 9.3.0（升版时同步本行与 README/ROADMAP；f-repo V2 校验）
+> 当前音源版本：@version 9.3.2（升版时同步本行与 README/ROADMAP/DEV_GUIDE；f-repo V2 校验）
 
 
-> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v9.3.0 R80 Audius 新平台版：第 6 平台 au + audius 源（免 key，`api.audius.co/v1`，128k/320k mp3，`is_streamable:false` 的曲直接 `NOT_FOUND`）；15 登记 / 13 上链 / 2 观察；Provider Contract；生命周期治理；真取消；预算边界与归因；健康态源版本兼容；单文件构建**；历史版本见 [`CHANGELOG.md`](./CHANGELOG.md)）
+> 适用仓库：`luanmuc/backend-api` · 基线文件：`lx-source.js`（当前 **v9.3.2 R82 注释归因订正版：产物 397273 bytes / 7654 行，R82 只订正 `35-source-switch` 注释归因（K41/K42）并新增复核日治理提醒（K43），无行为变更；上一版 v9.3.1 为 R81 真机 Proxy 兼容版（396999 bytes，`parseYmdToMs`）；上一版 v9.3.0 R80 Audius 新平台版：第 6 平台 au + audius 源（免 key，`api.audius.co/v1`，128k/320k mp3，`is_streamable:false` 的曲直接 `NOT_FOUND`）；15 登记 / 13 上链 / 2 观察；Provider Contract；生命周期治理；真取消；预算边界与归因；健康态源版本兼容；单文件构建**；历史版本见 [`CHANGELOG.md`](./CHANGELOG.md)）
 > 本文件 = 代码深度分析 + 官方协议合规对照 + 实证驱动的升级路线图 + 发布 SOP。**改音源前先读此文件。**
 
 ---

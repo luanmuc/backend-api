@@ -100,3 +100,12 @@
 - **验证**：12 例（闰年 `2024-02-29` / 跨纪元 `1969-12-31` / 非法 `2026-13-01`）与 `Date.parse` 逐例相等；产物去注释后 `Date.parse` 0 次、`new Proxy` 0 次；新增 `test/audit/r81-proxy-compat.js` 6 条守卫并入 `npm test`。
 - **状态**：✅ v9.3.1 修（2026-11-23），真机复验待 b205。
 
+## K43 · provider / 覆盖缺口的 `reviewAt` 集中在 2026-11-23（2026-12-07 起集体过期）
+
+- **现象**：13 个已登记 provider 与 2 条覆盖缺口（mg/kg）的 `reviewAt` 全部写 `2026-11-23`。`REVIEW_GRACE_DAYS = 14`（`src/core/12-provider-contract.js:14`），过期判定为 `nowMs - ts > 14 天` → **2026-12-07 起** `validateProviderContracts` 会对全部相关条目报「过期超 14 天」，真机初始化与 CI 一起红。
+- **为什么不现在改**：`reviewAt` 语义是「上一次真实复核的日期」，R78 已加反向判定（写未来日期超 1 天容差即契约失败，`REVIEW_FUTURE_TOLERANCE_MS`）。把它挪到 12 月等于伪造复核锚点，会把唯一的时间证据废掉。
+- **正确处置**：12-07 之前做一次真实复核（抽检各 provider 端点并把 `reviewAt` 更新到当天），或对确认无变化的条目显式顺延并写明理由；不要等到期日集中爆发。
+- **登记位置**：`src/providers/*.js`、`src/core/12-provider-contract.js` 的 `KNOWN_COVERAGE_GAPS`。
+- **状态**：⏳ OPEN（提醒项，非缺陷）
+
+
