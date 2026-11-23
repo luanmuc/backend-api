@@ -12,7 +12,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v9.3.0** R81 真机 Proxy 兼容修复版：复核日校验里的 `Date.parse` 换成纯算术 `parseYmdToMs` —— 真机 QuickJS 2024（`wrapper-android 2.4.0`）把 `Date` 包成 Proxy，宿主 `user-api-preload.js` 的 `freezeObjectProperty(globalThis)` 又把 `Date.parse` 冻结成 non-configurable/non-writable，读取即抛 `proxy: inconsistent get`，从 v9.2.0 起真机初始化必挂；V8/Node/旧版 QuickJS 都不校验这个 invariant，所以本地门禁全绿也发现不了。src 内 `Date.parse` 调用归零，新增 `r81-proxy-compat` 6 条守卫。`lx-source.js` 内 `@version 9.3.0` | 上一版 **v9.3.0** R80 Audius 新平台版（第 6 平台 `au`：`GET /v1/tracks/{id}` 校验 `is_streamable` 后回 `/stream` 链，跟随 302 → `creatornode.audius.co` 得 206，预算 **15 登记 / 13 上链 / 2 观察**）；此前 **v9.2.0** R79 新源与主备双域版（落月 tx 第三源 + 星海主备域），产物 392277 bytes；**v9.1.7** 源级能力备档 K03，产物 386202 bytes |
+| 当前版本 | **v9.3.1** R81 真机 Proxy 兼容修复版：复核日校验里的 `Date.parse` 换成纯算术 `parseYmdToMs` —— 真机 QuickJS 2024（`wrapper-android 2.4.0`）把 `Date` 包成 Proxy，宿主 `user-api-preload.js` 的 `freezeObjectProperty(globalThis)` 又把 `Date.parse` 冻结成 non-configurable/non-writable，读取即抛 `proxy: inconsistent get`，从 v9.2.0 起真机初始化必挂；V8/Node/旧版 QuickJS 都不校验这个 invariant，所以本地门禁全绿也发现不了。src 内 `Date.parse` 调用归零，新增 `r81-proxy-compat` 6 条守卫。`lx-source.js` 内 `@version 9.3.1` | 上一版 **v9.3.0** R80 Audius 新平台版（第 6 平台 `au`：`GET /v1/tracks/{id}` 校验 `is_streamable` 后回 `/stream` 链，跟随 302 → `creatornode.audius.co` 得 206，预算 **15 登记 / 13 上链 / 2 观察**）；此前 **v9.2.0** R79 新源与主备双域版（落月 tx 第三源 + 星海主备域），产物 392277 bytes；**v9.1.7** 源级能力备档 K03，产物 386202 bytes |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
