@@ -27,9 +27,9 @@ function rec(id, name, fn) {
 const H = mod.SOURCE_HANDLERS;
 const ids = Object.keys(H);
 
-rec('S1', '预算：13 登记 / 11 上链 / 2 观察', () => {
-  assert.strictEqual(ids.length, 13);
-  assert.strictEqual(ids.filter(id => H[id].lifecycle === 'active').length, 11);
+rec('S1', '预算：14 登记 / 12 上链 / 2 观察', () => {
+  assert.strictEqual(ids.length, 14);
+  assert.strictEqual(ids.filter(id => H[id].lifecycle === 'active').length, 12);
   assert.strictEqual(ids.filter(id => H[id].lifecycle === 'probation').length, 2);
 });
 rec('S2', '退役 8 源完全不在册、不探测', () => {
@@ -77,9 +77,9 @@ rec('S8', '五平台均有上链源，mg/kg 单源风险已登记', () => {
 });
 rec('S9', 'source-inventory --check 可执行且通过', () => {
   const out = execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'source-inventory.js'), '--check'], { encoding: 'utf8' });
-  assert.match(out, /13 登记 \/ 11 上链 \/ 2 观察/);
+  assert.match(out, /14 登记 \/ 12 上链 \/ 2 观察/);
 });
-rec('S10', 'SOURCE_REGISTRY.md 存在且登记 13 源', () => {
+rec('S10', 'SOURCE_REGISTRY.md 存在且登记 14 源', () => {
   const f = path.join(ROOT, 'docs', 'SOURCE_REGISTRY.md');
   assert.ok(fs.existsSync(f), '缺少 docs/SOURCE_REGISTRY.md');
   const t = fs.readFileSync(f, 'utf8');
@@ -89,7 +89,7 @@ rec('S11', 'SOURCE_LIFECYCLE.md 含七步准入与预算', () => {
   const t = fs.readFileSync(path.join(ROOT, 'docs', 'SOURCE_LIFECYCLE.md'), 'utf8');
   // R36：原来是裸 `/12/`——文档里"12"出现 4 次（含无关数字），写错预算（如 13 登记）也照样绿。
   // 收紧到真实预算句式。
-  assert.match(t, /13 登记 = 11 上链 \+ 2 观察/);
+  assert.match(t, /14 登记 = 12 上链 \+ 2 观察/);
   assert.match(t, /七步|7 步/);
   assert.match(t, /probation/);
 });
@@ -98,7 +98,7 @@ rec('S12', 'SOURCE_RETIREMENT.md 含五条退出线', () => {
   assert.match(t, /五条|5 条|退出线/);
   assert.match(t, /一进一出/);
 });
-rec('S13', '端点登记表与 13 源对齐（无退役端点）', () => {
+rec('S13', '端点登记表与 14 源对齐（无退役端点）', () => {
   const reg = require(path.join(ROOT, 'scripts', 'endpoint-registry.js'));
   const text = JSON.stringify(reg.ENDPOINTS || reg);
   for (const id of ['xinghaiBackup', 'lingchuan', 'gdWy', 'juheKw', 'juheWy', 'juheKg', 'juheMg', 'nianxinVip']) {
@@ -107,7 +107,7 @@ rec('S13', '端点登记表与 13 源对齐（无退役端点）', () => {
   // R36：原来是 `readFileSync(...).includes('12')`——近乎恒真：文件里任何一处出现 "12"
   //（阈值 12000、注释里的版本号、行号）都能让它绿，等于没验预算口径。
   const inv = fs.readFileSync(path.join(ROOT, 'scripts', 'source-inventory.js'), 'utf8');
-  assert.match(inv, /13 登记源 = 11 上链（active）\+ 2 观察（probation）/);
+  assert.match(inv, /14 登记源 = 12 上链（active）\+ 2 观察（probation）/);
 });
 rec('S14', '产物版本头与 package.json 一致', () => {
   const ver = require(path.join(ROOT, 'package.json')).version.replace(/[.]/g, '\\.');

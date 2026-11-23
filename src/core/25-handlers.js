@@ -12,15 +12,21 @@ const HUIBQ_REQUEST_KEY = "share-v3";
 
 const QINGLIANG_TX_TIMEOUT_MS = 8000;
 
+// R79：落月（api.vkeys.cn）—— tx 第二源。只接 v3 `song/link`：同站 `/v2/music/tencent/geturl`
+// 实测只给 960,887 字节（约 30 秒）试听片段，接错会把片段当全曲交付。
+const LUOYUE_TX_API = "https://api.vkeys.cn/music/tencent/song/link";
+const LUOYUE_TX_QUALITY = { "128k": "6", "320k": "8", flac: "10" };
+const LUOYUE_TX_TIMEOUT_MS = 8000;
+
 const WY_OUTER_API = "https://music.163.com/song/media/outer/url?id={id}.mp3";
 
 const HELLOWORLD_KW_BR = { "128k": "128kmp3", "320k": "320kmp3", flac: "2000kflac", flac24bit: "4000kflac" };
 const { wrapExecute } = require("./19-dispatch.js");
 const { getUrlWithFallback } = require("./22-chain.js");
 const { ERROR_CODES } = require("./02-error-codes.js");
-const { HTTP_URL_REGEX, TIMEOUT_CONFIG, getMobileUserAgent, httpRequest, httpRequestWithRetry, upgradeToHttps } = require("./07-net.js");
+const { HTTP_URL_REGEX, TIMEOUT_CONFIG, getMobileUserAgent, httpRequest, httpRequestWithRetry, upgradeToHttps, RETRY_TIMES } = require("./07-net.js");
 const { getHashOrMid, isPreviewFragmentUrl, normalizeDurationSec } = require("./09-match.js");
-const { HELLOWORLD_KW_CONVERT_API, IKUN_API, JUHE_API, XINGHAI_BACKEND_API } = require("./10-vendors.js");
+const { HELLOWORLD_KW_CONVERT_API, IKUN_API, JUHE_API, XINGHAI_BACKEND_APIS } = require("./10-vendors.js");
 const { USER_CONFIG, cfg } = require("./02-config.js");
 const { createTemplateVipSource } = require("./16-chain-misc.js");
 const { suyinGetUrl, suyinKuwoGetUrl } = require("./13-chain-helpers.js");
@@ -104,17 +110,32 @@ async function xinghaiBackendGetUrl(platform, songId, quality, songInfo, cancelT
     quality: selectedQuality
   };
   const query = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
-  const res = await httpRequestWithRetry(`${XINGHAI_BACKEND_API}?${query}`, {
-    method: "GET",
-    // v8.4 修复：上游 token 校验升级——自定义 X-Token 被判"无效/过期，请使用官方版本"返回 403；
-    // 实测不带 X-Token 的第三方调用放行(200，受总 QPS 限，notice 要求标注来源)。故不再发送自定义 token。
-    headers: {
-      "X-Client": "lx-aggregate/12.0",
-      "User-Agent": "LX-Music-Mobile"
-    },
-    timeout: TIMEOUT_CONFIG.parse,
-    cancelToken
-  });
+  // R79（K38）：主备域名有序尝试。主域只给 1 次机会（快速失败即切备用），备用走完整重试；
+  // 只在「网络错误 / 超时 / 5xx」切换，4xx 与业务码直接抛出（同一业务错在备用域再打一遍没意义）。
+  let res = null;
+  let lastError = null;
+  for (let i = 0; i < XINGHAI_BACKEND_APIS.length; i++) {
+    try {
+      res = await httpRequestWithRetry(`${XINGHAI_BACKEND_APIS[i]}?${query}`, {
+        method: "GET",
+        // v8.4 修复：上游 token 校验升级——自定义 X-Token 被判"无效/过期，请使用官方版本"返回 403；
+        // 实测不带 X-Token 的第三方调用放行(200，受总 QPS 限，notice 要求标注来源)。故不再发送自定义 token。
+        headers: {
+          "X-Client": "lx-aggregate/12.0",
+          "User-Agent": "LX-Music-Mobile"
+        },
+        timeout: TIMEOUT_CONFIG.parse,
+        cancelToken
+      }, i === 0 ? 0 : RETRY_TIMES);
+      break;
+    } catch (e) {
+      lastError = e;
+      if (e && (e.canceled || e.code === ERROR_CODES.CANCELED)) throw e;
+      const switchable = e && (e.code === ERROR_CODES.NETWORK_ERROR || e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.SERVER_ERROR);
+      if (!switchable) throw e;
+    }
+  }
+  if (!res) throw lastError || new Error(`${ERROR_CODES.NETWORK_ERROR}: 星海后端主备域名均不可达`);
   const body = res.body;
   if (!body || typeof body !== "object") throw new Error(`${ERROR_CODES.SERVER_ERROR}: 星海后端返回无效`);
   if (Number(body.code) !== 200 || !body.url) throw new Error(body.msg ? `${ERROR_CODES.NOT_FOUND}: ${body.msg}` : `${ERROR_CODES.NOT_FOUND}: 星海后端无可用链接`);
@@ -333,6 +354,43 @@ async function qingliangTxGetUrl(platform, songId, quality, songInfo, cancelToke
   throw new Error(`${ERROR_CODES.NOT_FOUND}: 晴亮tx响应异常(${(d && d.msg) || code || "未知"})`);
 }
 
+async function luoyueTxGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
+  if (platform !== "tx") throw new Error(`${ERROR_CODES.PARAM_ERROR}: 落月只注册了 tx`);
+  const qqId = dep('getQQSongId')(songInfo);
+  const mid = (qqId && qqId.type === "mid" ? qqId.value : null) || songInfo?.songmid || songInfo?.id || songId || "";
+  // 该线路只按 mid 出链，歌名不参与校验——缺 mid 必须报错，绝不兜底（v8.11.4 F-01 同型坑）
+  if (!mid || typeof mid !== "string" || !mid.trim()) {
+    throw new Error(`${ERROR_CODES.PARAM_ERROR}: 落月tx缺 songmid`);
+  }
+  const selectedQuality = String(quality || "128k").toLowerCase();
+  const q = LUOYUE_TX_QUALITY[selectedQuality];
+  // 上游按数字档位取链（6=128k / 8=320k / 10=flac）。未知档位明确报错，不得回落到别的档，
+  // 否则「请求 flac 拿到 128k」会被能力层记成 flac 成功。
+  if (!q) throw new Error(`${ERROR_CODES.PARAM_ERROR}: 落月tx不支持音质 ${selectedQuality}`);
+  const res = await httpRequestWithRetry(`${LUOYUE_TX_API}?mid=${encodeURIComponent(mid.trim())}&quality=${q}`, {
+    method: "GET",
+    headers: { "User-Agent": "LX-Music-Mobile", "Referer": "https://api.vkeys.cn/" },
+    timeout: LUOYUE_TX_TIMEOUT_MS,
+    cancelToken
+  }, 1);
+  const d = res && res.body;
+  // 实测成功形：{ code: 0, message: "访问成功", data: { songMID, kbps, link, url } }；
+  // 与 v2 线路的 code:200 不同，这里 code 0 才是成功。
+  if (!d || Number(d.code) !== 0) throw new Error(`${ERROR_CODES.NOT_FOUND}: 落月tx ${(d && (d.message || d.msg)) || "响应异常"}`);
+  const url = d.data && typeof d.data.url === "string" ? d.data.url : "";
+  if (!url || !HTTP_URL_REGEX.test(url)) throw new Error(`${ERROR_CODES.SERVER_ERROR}: 落月tx 未返回可用直链`);
+  const u = upgradeToHttps(url);
+  if (isPreviewFragmentUrl(u)) {
+    const err = new Error(`${ERROR_CODES.PREVIEW_FRAGMENT}: 落月tx只给试听片段`);
+    err.code = ERROR_CODES.PREVIEW_FRAGMENT;
+    err.evidence = "medium";
+    err.fragmentUrl = u;
+    err.fragmentQuality = selectedQuality;
+    throw err;
+  }
+  return u;
+}
+
 async function ikunGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
   if (platform !== "kw" && platform !== "wy") throw new Error(`${ERROR_CODES.PARAM_ERROR}: ikun仅支持kw/wy平台`);
   const id = songInfo?.hash ?? songInfo?.songmid ?? songId;
@@ -510,8 +568,13 @@ const SOURCE_HANDLERS = {
     coldStart: true,
     note: "onrender；**2026-11-16 起服务被 owner 主动暂停**（503 「This service has been suspended by its owner.」，根路径同样 503，0.8s 即返回）；11-04~11-15 连续 12 天 200 曾完全可用，冷启动只解释 11-01~11-03 的连接超时",
   }),
+  luoyueTx: provider("luoyueTx", "落月(tx)", luoyueTxGetUrl, "flac", {
+    platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 3 }, upstreamGroup: "vkeys-luoyue",
+    reviewAt: "2026-11-23",
+    note: "R79（2026-11-23 实测）：`api.vkeys.cn` 落月线路，128k 4.31MB / 320k 10.79MB / flac 55.39MB（真 `fLaC`），三档均为 QQ 官方 CDN `ws.stream.qqmusic.qq.com`（M500/M800/F000 前缀）。只接 v3 `song/link`——同站 `/v2/music/tencent/geturl` 只给 960KB 试听片段。第三方单点，3 天复核",
+  }),
   juheTx: provider("juheTx", "Juhe聚合(tx)", juheGetUrl, "320k", {
-    platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 3 }, upstreamGroup: "juhe",
+    platforms: ["tx"], anchors: ["songmid", "id"], chain: { tx: 4 }, upstreamGroup: "juhe",
     reviewAt: "2026-11-23", note: "2026-11-11 恢复；7 天复核，降为 tx 第三源。2026-11-21：flac 档实测实返 audio/mpeg，能力声明由 flac 下调为 320k。R78（11-23 真实复核）：上游全域 HTTP 429（根路径同样 429，CF 层限流/维护页），tx 与 kw 均不可用",
   }),
   qingliangTx: provider("qingliangTx", "晴亮(tx)", qingliangTxGetUrl, "320k", {
@@ -550,6 +613,7 @@ module.exports = {
   huibqGetUrl,
   juheGetUrl,
   qingliangTxGetUrl,
+  luoyueTxGetUrl,
   ikunGetUrl,
   providerQualitys,
   WY_OUTER_API,

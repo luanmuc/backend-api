@@ -31,13 +31,13 @@ const ids = Object.keys(H);
 const activeIds = ids.filter(id => H[id].lifecycle === 'active');
 const probationIds = ids.filter(id => H[id].lifecycle === 'probation');
 
-rec('Y1', '登记/上链/观察预算 = 13/11/2', () => {
-  assert.strictEqual(ids.length, 13);
-  assert.strictEqual(activeIds.length, 11);
+rec('Y1', '登记/上链/观察预算 = 14/12/2', () => {
+  assert.strictEqual(ids.length, 14);
+  assert.strictEqual(activeIds.length, 12);
   assert.strictEqual(probationIds.length, 2);
 });
-rec('Y2', '11 个上链源名单固定', () => {
-  assert.deepStrictEqual(activeIds.sort(), ['suyinKuwo', 'wyOuter', 'kuwoOfficial', 'helloworldKw', 'ikun', 'xinghaiBackend', 'huibq', 'suyin163', 'juheTx', 'changqingVip', 'qingliangTx'].sort());
+rec('Y2', '12 个上链源名单固定', () => {
+  assert.deepStrictEqual(activeIds.sort(), ['suyinKuwo', 'wyOuter', 'kuwoOfficial', 'helloworldKw', 'ikun', 'xinghaiBackend', 'huibq', 'suyin163', 'juheTx', 'changqingVip', 'qingliangTx', 'luoyueTx'].sort());
 });
 rec('Y3', '2 个观察源 = suyinQQ/suyinMigu 且默认关闭', () => {
   assert.deepStrictEqual(probationIds.sort(), ['suyinQQ', 'suyinMigu'].sort());
@@ -86,7 +86,7 @@ rec('Y8', 'probation 无链位次 / 默认关闭 / 有 reviewAt', () => {
   assert.strictEqual(H.suyinQQ.reviewAt, '2026-11-23'); // R78 真实复核
   assert.strictEqual(H.suyinMigu.reviewAt, '2026-11-23'); // R78 真实复核
 });
-rec('Y9', 'chain-golden.json 11 源 5×4 逐项一致，且不含观察源', () => {
+rec('Y9', 'chain-golden.json 12 源 5×4 逐项一致，且不含观察源', () => {
   // 2026-11-20：huibq 默认关闭后，链里会被 default-off 过滤掉。
   // golden 是「能力基线」（dump-chain 生成时强制开启全部 active 源），
   // 这里用同口径开启，比对的是链序而不是开关状态。
@@ -103,23 +103,23 @@ rec('Y9', 'chain-golden.json 11 源 5×4 逐项一致，且不含观察源', () 
     }
   }
 });
-rec('Y10', '覆盖缺口显式登记（mg/kg 零源、tx 实际单点，R78 复核后三平台 risk=high）', () => {
+rec('Y10', '覆盖缺口显式登记（mg/kg 零源、tx 双源后降 medium，R79 复核）', () => {
   const gaps = mod.KNOWN_COVERAGE_GAPS;
   assert.ok(gaps.some(g => g.platform === 'mg' && g.risk === 'high'));
   assert.ok(gaps.some(g => g.platform === 'kg' && g.risk === 'high'));
   // R78：suyinKuwo 下线 + juhe 全域 429 后，tx 的可用源只剩 qingliangTx 单点，
   // 原来按「三源登记」给的 medium 档已不成立，随实际可用源数升 high。
-  assert.ok(gaps.some(g => g.platform === 'tx' && g.risk === 'high'));
+  assert.ok(gaps.some(g => g.platform === 'tx' && g.risk === 'medium'));
   const snap = mod.getHealthSnapshot();
   assert.ok(snap._coverageGaps.length >= 3, '健康快照缺 _coverageGaps');
   assert.strictEqual(snap._platformRisk.mg.risk, 'high');
   assert.strictEqual(snap._platformRisk.kg.risk, 'high');
-  assert.strictEqual(snap._platformRisk.tx.risk, 'high');
+  assert.strictEqual(snap._platformRisk.tx.risk, 'medium');
 });
 rec('Y11', 'validateProviderContracts 正常返回预算', () => {
   const c = mod.validateProviderContracts();
-  assert.strictEqual(c.registered, 13);
-  assert.strictEqual(c.active, 11);
+  assert.strictEqual(c.registered, 14);
+  assert.strictEqual(c.active, 12);
   assert.strictEqual(c.probation, 2);
 });
 rec('Y12', '契约非法：观察源带链位次必须拒绝', () => {

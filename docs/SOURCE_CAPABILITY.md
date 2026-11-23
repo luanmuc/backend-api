@@ -1,6 +1,6 @@
 # 音源能力矩阵与适配要求
 
-> 实测日期：2026-11-21　基线：`lx-source.js` v9.1.3（13 登记源 / 11 上链 / 2 观察）
+> 实测日期：2026-11-21（R79 增量 2026-11-23）　基线：`lx-source.js` v9.2.0（14 登记源 / 12 上链 / 2 观察）
 > 方法：mock `lx` 宿主后逐个源调用 `SOURCE_HANDLERS[id].fn`，对返回 URL 发 `Range: bytes=0-1023` 验真
 > 出口网络：本机直连（`yy.zddyr.top` 经代理会 TLS 中断，直连正常）
 
@@ -20,8 +20,9 @@
 | `helloworldKw` | helloworld(kw) | kw | 128k·320k·flac | active | kw:4 |
 | `changqingVip` | 长青kw | kw | 128k | active | kw:6 |
 | `huibq` | Huibq | kw/wy | 128k·320k | active | kw:8 / wy:8 |
-| `juheTx` | Juhe聚合(tx) | tx | 128k·320k·flac | active | tx:3 |
+| `juheTx` | Juhe聚合(tx) | tx | 128k·320k·flac | active | tx:4 |
 | `qingliangTx` | 晴亮(tx) | tx | 128k·320k | active | tx:2 |
+| `luoyueTx` | 落月(tx) | tx | 128k·320k·flac | active | tx:3 |
 | `ikun` | ikun | kw/wy | 128k·320k·flac | active | kw:7 / wy:5 |
 | `suyinQQ` | 溯音QQ | tx | 128k·320k·flac | probation | — |
 | `suyinMigu` | 溯音咪咕 | mg | 128k·320k·flac | probation | — |
@@ -45,12 +46,15 @@
 | `huibq` | wy | 503 | 503 | — | — |
 | `juheTx` | tx | 206 mpeg | 206 mpeg | **206 mpeg** | `ws.stream.qqmusic.qq.com` |
 | `qingliangTx` | tx | 206 mpeg | 206 mpeg | — | `aqqmusic.tc.qq.com` |
+| `luoyueTx` | tx | 206 mpeg | 206 mpeg | **206 flac** | `ws.stream.qqmusic.qq.com` |
 | `ikun` | kw | 206 mpeg | 206 mpeg | 206 flac | `car-er.kuwo.cn` |
 | `ikun` | wy | 206 mpeg | 206 mpeg | **206 mpeg** | `m701.music.126.net` |
 | `suyinQQ` | tx | 404 | 404 | 404 | — |
 | `suyinMigu` | mg | NOT_FOUND | NOT_FOUND | NOT_FOUND | — |
 
-可用 10 / 失效 3。所有可用档位都满足 `HTTP 206` 且 `content-type` 命中音频。
+可用 11 / 失效 3。所有可用档位都满足 `HTTP 206` 且 `content-type` 命中音频。
+
+R79 复核（2026-11-23）：`luoyueTx` 三档均 `Range: bytes=0-4095` → `206`，128k 4.31MB / 320k 10.79MB / flac 55.39MB（`fLaC` 命中），落 QQ 官方 CDN（M500/M800/F000 前缀）；同站 `/v2/music/tencent/geturl` 只给 960,887 字节试听片段，故只接 v3 `song/link`。mg 侧：`suyinMigu` 两首仍 `code 502`，`xinghaiBackend` mg 分支对任意 mid 恒定返回同一首（`name=晴天`/`name=演员` URL 完全相同、3.9MB `ID3v2.3`）→ **mg 仍无可用源**。
 
 ## 3. 音质真实性：两处虚标
 

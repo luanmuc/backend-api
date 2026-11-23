@@ -1,7 +1,7 @@
 /*!
  * @name 豆包定制[聚合音源]
- * @description v9.1.7 R77 全量通读修复版（restore 携带 playDead.quality / FLAC 小端与 ID3v2.2 标签 / 快照只读化 / 时长字段 interval 回退 / G9 缓存 key 含时长 / 复核日期新鲜度门禁）；上一版 v9.1.6 源级能力备档版（K03）：能力备档从「平台+歌曲」下沉到「平台+源+歌曲」，buildSourceChain(platform, quality, songInfo) 按源级备档把「已证明给不到该档的源」剔出候选，不再由平台级备档一刀降低整条链的起点档（旧实现等于一个源给过 128k 就让同平台能给 flac 的源再没机会被请求到）；平台级表保留供健康快照统计；新增 QP13 回归；上一版 v9.1.5 为失效源退役标记版（suyinQQ 端点下线 / suyinMigu 上游 IP 被限 / huibq 保留待复活）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
- * @version 9.1.7
+ * @description v9.2.0 R79 新源与主备双域版（接入落月 tx 第三源——v3 song/link 实测 128k/320k/flac 三档真音频，flac 55.39MB 真 fLaC；xinghaiBackend 改主备双域 yy1 主 + yy 备，仅网络·超时·5xx 切换，4xx 不切；统计口径 14 登记源 / 12 上链 / 2 观察）；上一版 v9.1.7 R77 全量通读修复版（restore 携带 playDead.quality / FLAC 小端与 ID3v2.2 标签 / 快照只读化 / 时长字段 interval 回退 / G9 缓存 key 含时长 / 复核日期新鲜度门禁）；上一版 v9.1.6 源级能力备档版（K03）：能力备档从「平台+歌曲」下沉到「平台+源+歌曲」，buildSourceChain(platform, quality, songInfo) 按源级备档把「已证明给不到该档的源」剔出候选，不再由平台级备档一刀降低整条链的起点档（旧实现等于一个源给过 128k 就让同平台能给 flac 的源再没机会被请求到）；平台级表保留供健康快照统计；新增 QP13 回归；上一版 v9.1.5 为失效源退役标记版（suyinQQ 端点下线 / suyinMigu 上游 IP 被限 / huibq 保留待复活）（13 登记源 / 11 上链 / 2 观察；v9.1：URL/跨平台缓存命中前必须探测可用性，探不过清缓存再走链路，避免死链被长期复用。v9.0.0 阶段为13 登记源 / 11 上链 / 2 观察；v9.0：6272 行单文件拆为 33 个 src/core 模块，legacy 只留装配与 3 个启动期求值定义；发布包支持 ed25519 签名校验，App 侧内置公钥验签后才采用；健康快照按版本区间判定；上一版 v8.16.4 为播放摘除档位归因版）
+ * @version 9.2.0 R79 新源与主备双域（落月 tx + 星海主备域）
  * @author 豆包定制
  */
 var __lxSourceBundle = (() => {
@@ -71,9 +71,11 @@ var __lxSourceBundle = (() => {
         // 11-04~11-15 曾连续 12 天全 200，属暂停而非冷启动；保留函数便于复活
         // 2026-11-21 复测：kw 1424ms / wy 915ms 双档均为 HTTP 503，与关闭时记录一致
         juheTx: true,
-        // Juhe 聚合(tx)：tx 第三源，7 天复核
+        // Juhe 聚合(tx)：tx 第四源，7 天复核
         qingliangTx: true,
         // 晴亮(tx)：tx 主用第二源（2026-11-15 实测 5/5 全曲 320k），3 天复核
+        luoyueTx: true,
+        // 落月(tx)：tx 第三源（R79 实测 128k/320k/flac 三档真音频，flac 55.39MB fLaC），3 天复核
         ikun: true,
         // ikun：kw/wy 链尾兜底（公益版免卡密）
         suyinQQ: false,
@@ -503,7 +505,7 @@ var __lxSourceBundle = (() => {
   // src/core/02-config.js
   var require_config = __commonJS({
     "src/core/02-config.js"(exports, module) {
-      var SOURCE_VERSION = true ? "9.1.7" : "8.16.4";
+      var SOURCE_VERSION = true ? "9.2.0" : "8.16.4";
       var DEFAULT_PROBE_SONG_POOL = ["\u6674\u5929", "\u6D77\u9614\u5929\u7A7A", "\u7A3B\u9999", "\u9752\u82B1\u74F7", "\u4E03\u91CC\u9999", "\u591C\u66F2", "\u540E\u6765", "\u5149\u5E74\u4E4B\u5916", "\u6F14\u5458", "\u5E73\u51E1\u4E4B\u8DEF", "\u6210\u90FD", "\u5C0F\u5E78\u8FD0"];
       function normalizeProbeSongPool(value) {
         if (!Array.isArray(value)) return null;
@@ -1113,7 +1115,8 @@ var __lxSourceBundle = (() => {
       var GD_API = "https://music-api.gdstudio.xyz/api.php?use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light";
       var JUHE_API = "https://api.music.lerd.dpdns.org";
       var LINGCHUAN_API = "https://api.lingchuan.com/v1";
-      var XINGHAI_BACKEND_API = "https://yy.zddyr.top/lx/api/";
+      var XINGHAI_BACKEND_APIS = ["https://yy1.zddyr.top/lx/api/", "https://yy.zddyr.top/lx/api/"];
+      var XINGHAI_BACKEND_API = XINGHAI_BACKEND_APIS[0];
       var KUWO_SEARCH_API = "http://search.kuwo.cn/r.s";
       var KUWO_CONVERT_API = "http://antiserver.kuwo.cn/anti.s";
       var QQ_SEARCH_API = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp";
@@ -1202,6 +1205,7 @@ var __lxSourceBundle = (() => {
         GD_API,
         JUHE_API,
         XINGHAI_BACKEND_API,
+        XINGHAI_BACKEND_APIS,
         KUWO_SEARCH_API,
         KUWO_CONVERT_API,
         QQ_SEARCH_API,
@@ -4136,14 +4140,17 @@ var __lxSourceBundle = (() => {
       var CHANGQING_KW_URL_TEMPLATE = "https://musicapi.haitangw.net/music/kw.php?type=mp3&id={id}&level={level}";
       var HUIBQ_REQUEST_KEY = "share-v3";
       var QINGLIANG_TX_TIMEOUT_MS = 8e3;
+      var LUOYUE_TX_API = "https://api.vkeys.cn/music/tencent/song/link";
+      var LUOYUE_TX_QUALITY = { "128k": "6", "320k": "8", flac: "10" };
+      var LUOYUE_TX_TIMEOUT_MS = 8e3;
       var WY_OUTER_API = "https://music.163.com/song/media/outer/url?id={id}.mp3";
       var HELLOWORLD_KW_BR = { "128k": "128kmp3", "320k": "320kmp3", flac: "2000kflac", flac24bit: "4000kflac" };
       var { wrapExecute } = require_dispatch();
       var { getUrlWithFallback } = require_chain();
       var { ERROR_CODES } = require_error_codes();
-      var { HTTP_URL_REGEX, TIMEOUT_CONFIG, getMobileUserAgent, httpRequest, httpRequestWithRetry, upgradeToHttps } = require_net();
+      var { HTTP_URL_REGEX, TIMEOUT_CONFIG, getMobileUserAgent, httpRequest, httpRequestWithRetry, upgradeToHttps, RETRY_TIMES } = require_net();
       var { getHashOrMid, isPreviewFragmentUrl, normalizeDurationSec } = require_match();
-      var { HELLOWORLD_KW_CONVERT_API, IKUN_API, JUHE_API, XINGHAI_BACKEND_API } = require_vendors();
+      var { HELLOWORLD_KW_CONVERT_API, IKUN_API, JUHE_API, XINGHAI_BACKEND_APIS } = require_vendors();
       var { USER_CONFIG, cfg } = require_config();
       var { createTemplateVipSource } = require_chain_misc();
       var { suyinGetUrl, suyinKuwoGetUrl } = require_chain_helpers();
@@ -4220,17 +4227,30 @@ var __lxSourceBundle = (() => {
           quality: selectedQuality
         };
         const query = Object.keys(params).map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join("&");
-        const res = await httpRequestWithRetry(`${XINGHAI_BACKEND_API}?${query}`, {
-          method: "GET",
-          // v8.4 修复：上游 token 校验升级——自定义 X-Token 被判"无效/过期，请使用官方版本"返回 403；
-          // 实测不带 X-Token 的第三方调用放行(200，受总 QPS 限，notice 要求标注来源)。故不再发送自定义 token。
-          headers: {
-            "X-Client": "lx-aggregate/12.0",
-            "User-Agent": "LX-Music-Mobile"
-          },
-          timeout: TIMEOUT_CONFIG.parse,
-          cancelToken
-        });
+        let res = null;
+        let lastError = null;
+        for (let i = 0; i < XINGHAI_BACKEND_APIS.length; i++) {
+          try {
+            res = await httpRequestWithRetry(`${XINGHAI_BACKEND_APIS[i]}?${query}`, {
+              method: "GET",
+              // v8.4 修复：上游 token 校验升级——自定义 X-Token 被判"无效/过期，请使用官方版本"返回 403；
+              // 实测不带 X-Token 的第三方调用放行(200，受总 QPS 限，notice 要求标注来源)。故不再发送自定义 token。
+              headers: {
+                "X-Client": "lx-aggregate/12.0",
+                "User-Agent": "LX-Music-Mobile"
+              },
+              timeout: TIMEOUT_CONFIG.parse,
+              cancelToken
+            }, i === 0 ? 0 : RETRY_TIMES);
+            break;
+          } catch (e) {
+            lastError = e;
+            if (e && (e.canceled || e.code === ERROR_CODES.CANCELED)) throw e;
+            const switchable = e && (e.code === ERROR_CODES.NETWORK_ERROR || e.code === ERROR_CODES.NETWORK_TIMEOUT || e.code === ERROR_CODES.SERVER_ERROR);
+            if (!switchable) throw e;
+          }
+        }
+        if (!res) throw lastError || new Error(`${ERROR_CODES.NETWORK_ERROR}: \u661F\u6D77\u540E\u7AEF\u4E3B\u5907\u57DF\u540D\u5747\u4E0D\u53EF\u8FBE`);
         const body = res.body;
         if (!body || typeof body !== "object") throw new Error(`${ERROR_CODES.SERVER_ERROR}: \u661F\u6D77\u540E\u7AEF\u8FD4\u56DE\u65E0\u6548`);
         if (Number(body.code) !== 200 || !body.url) throw new Error(body.msg ? `${ERROR_CODES.NOT_FOUND}: ${body.msg}` : `${ERROR_CODES.NOT_FOUND}: \u661F\u6D77\u540E\u7AEF\u65E0\u53EF\u7528\u94FE\u63A5`);
@@ -4418,6 +4438,37 @@ var __lxSourceBundle = (() => {
         }
         throw new Error(`${ERROR_CODES.NOT_FOUND}: \u6674\u4EAEtx\u54CD\u5E94\u5F02\u5E38(${d && d.msg || code || "\u672A\u77E5"})`);
       }
+      async function luoyueTxGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
+        if (platform !== "tx") throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u843D\u6708\u53EA\u6CE8\u518C\u4E86 tx`);
+        const qqId = dep("getQQSongId")(songInfo);
+        const mid = (qqId && qqId.type === "mid" ? qqId.value : null) || (songInfo == null ? void 0 : songInfo.songmid) || (songInfo == null ? void 0 : songInfo.id) || songId || "";
+        if (!mid || typeof mid !== "string" || !mid.trim()) {
+          throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u843D\u6708tx\u7F3A songmid`);
+        }
+        const selectedQuality = String(quality || "128k").toLowerCase();
+        const q = LUOYUE_TX_QUALITY[selectedQuality];
+        if (!q) throw new Error(`${ERROR_CODES.PARAM_ERROR}: \u843D\u6708tx\u4E0D\u652F\u6301\u97F3\u8D28 ${selectedQuality}`);
+        const res = await httpRequestWithRetry(`${LUOYUE_TX_API}?mid=${encodeURIComponent(mid.trim())}&quality=${q}`, {
+          method: "GET",
+          headers: { "User-Agent": "LX-Music-Mobile", "Referer": "https://api.vkeys.cn/" },
+          timeout: LUOYUE_TX_TIMEOUT_MS,
+          cancelToken
+        }, 1);
+        const d = res && res.body;
+        if (!d || Number(d.code) !== 0) throw new Error(`${ERROR_CODES.NOT_FOUND}: \u843D\u6708tx ${d && (d.message || d.msg) || "\u54CD\u5E94\u5F02\u5E38"}`);
+        const url = d.data && typeof d.data.url === "string" ? d.data.url : "";
+        if (!url || !HTTP_URL_REGEX.test(url)) throw new Error(`${ERROR_CODES.SERVER_ERROR}: \u843D\u6708tx \u672A\u8FD4\u56DE\u53EF\u7528\u76F4\u94FE`);
+        const u = upgradeToHttps(url);
+        if (isPreviewFragmentUrl(u)) {
+          const err = new Error(`${ERROR_CODES.PREVIEW_FRAGMENT}: \u843D\u6708tx\u53EA\u7ED9\u8BD5\u542C\u7247\u6BB5`);
+          err.code = ERROR_CODES.PREVIEW_FRAGMENT;
+          err.evidence = "medium";
+          err.fragmentUrl = u;
+          err.fragmentQuality = selectedQuality;
+          throw err;
+        }
+        return u;
+      }
       async function ikunGetUrl(platform, songId, quality, songInfo, cancelToken = null) {
         var _a, _b;
         if (platform !== "kw" && platform !== "wy") throw new Error(`${ERROR_CODES.PARAM_ERROR}: ikun\u4EC5\u652F\u6301kw/wy\u5E73\u53F0`);
@@ -4580,10 +4631,18 @@ var __lxSourceBundle = (() => {
           coldStart: true,
           note: "onrender\uFF1B**2026-11-16 \u8D77\u670D\u52A1\u88AB owner \u4E3B\u52A8\u6682\u505C**\uFF08503 \u300CThis service has been suspended by its owner.\u300D\uFF0C\u6839\u8DEF\u5F84\u540C\u6837 503\uFF0C0.8s \u5373\u8FD4\u56DE\uFF09\uFF1B11-04~11-15 \u8FDE\u7EED 12 \u5929 200 \u66FE\u5B8C\u5168\u53EF\u7528\uFF0C\u51B7\u542F\u52A8\u53EA\u89E3\u91CA 11-01~11-03 \u7684\u8FDE\u63A5\u8D85\u65F6"
         }),
-        juheTx: provider("juheTx", "Juhe\u805A\u5408(tx)", juheGetUrl, "320k", {
+        luoyueTx: provider("luoyueTx", "\u843D\u6708(tx)", luoyueTxGetUrl, "flac", {
           platforms: ["tx"],
           anchors: ["songmid", "id"],
           chain: { tx: 3 },
+          upstreamGroup: "vkeys-luoyue",
+          reviewAt: "2026-11-23",
+          note: "R79\uFF082026-11-23 \u5B9E\u6D4B\uFF09\uFF1A`api.vkeys.cn` \u843D\u6708\u7EBF\u8DEF\uFF0C128k 4.31MB / 320k 10.79MB / flac 55.39MB\uFF08\u771F `fLaC`\uFF09\uFF0C\u4E09\u6863\u5747\u4E3A QQ \u5B98\u65B9 CDN `ws.stream.qqmusic.qq.com`\uFF08M500/M800/F000 \u524D\u7F00\uFF09\u3002\u53EA\u63A5 v3 `song/link`\u2014\u2014\u540C\u7AD9 `/v2/music/tencent/geturl` \u53EA\u7ED9 960KB \u8BD5\u542C\u7247\u6BB5\u3002\u7B2C\u4E09\u65B9\u5355\u70B9\uFF0C3 \u5929\u590D\u6838"
+        }),
+        juheTx: provider("juheTx", "Juhe\u805A\u5408(tx)", juheGetUrl, "320k", {
+          platforms: ["tx"],
+          anchors: ["songmid", "id"],
+          chain: { tx: 4 },
           upstreamGroup: "juhe",
           reviewAt: "2026-11-23",
           note: "2026-11-11 \u6062\u590D\uFF1B7 \u5929\u590D\u6838\uFF0C\u964D\u4E3A tx \u7B2C\u4E09\u6E90\u30022026-11-21\uFF1Aflac \u6863\u5B9E\u6D4B\u5B9E\u8FD4 audio/mpeg\uFF0C\u80FD\u529B\u58F0\u660E\u7531 flac \u4E0B\u8C03\u4E3A 320k\u3002R78\uFF0811-23 \u771F\u5B9E\u590D\u6838\uFF09\uFF1A\u4E0A\u6E38\u5168\u57DF HTTP 429\uFF08\u6839\u8DEF\u5F84\u540C\u6837 429\uFF0CCF \u5C42\u9650\u6D41/\u7EF4\u62A4\u9875\uFF09\uFF0Ctx \u4E0E kw \u5747\u4E0D\u53EF\u7528"
@@ -4636,6 +4695,7 @@ var __lxSourceBundle = (() => {
         huibqGetUrl,
         juheGetUrl,
         qingliangTxGetUrl,
+        luoyueTxGetUrl,
         ikunGetUrl,
         providerQualitys,
         WY_OUTER_API,
@@ -4865,7 +4925,7 @@ var __lxSourceBundle = (() => {
         const probeSong = probePool[(globalThis.__probeRound || 0) % probePool.length];
         const probe163Id = PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length];
         const cfg2 = {
-          // ---- 上链源：11 个 ----
+          // ---- 上链源：12 个 ----
           suyinKuwo: {
             tier: "core",
             probes: [
@@ -4933,6 +4993,13 @@ var __lxSourceBundle = (() => {
           },
           juheTx: juheProbeCfg("tx", { songmid: "228908", id: "228908", quality: "128k" }),
           qingliangTx: {
+            tier: "secondary",
+            quality: "128k",
+            useHandler: true,
+            handlerPlatform: "tx",
+            handlerSong: { songmid: "0039MnYb0qxYhV", name: "\u6674\u5929", singer: "\u5468\u6770\u4F26", duration: 269e3 }
+          },
+          luoyueTx: {
             tier: "secondary",
             quality: "128k",
             useHandler: true,
@@ -5980,8 +6047,8 @@ var __lxSourceBundle = (() => {
         const registered = ids.length;
         const active = ids.filter((id) => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.ACTIVE);
         const probation = ids.filter((id) => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.PROBATION);
-        if (registered !== 13) errors.push(`\u767B\u8BB0\u6E90\u5FC5\u987B\u4E3A 13\uFF0C\u5B9E\u9645 ${registered}`);
-        if (active.length !== 11) errors.push(`\u4E0A\u94FE\u6E90\u5FC5\u987B\u4E3A 11\uFF0C\u5B9E\u9645 ${active.length}`);
+        if (registered !== 14) errors.push(`\u767B\u8BB0\u6E90\u5FC5\u987B\u4E3A 14\uFF0C\u5B9E\u9645 ${registered}`);
+        if (active.length !== 12) errors.push(`\u4E0A\u94FE\u6E90\u5FC5\u987B\u4E3A 12\uFF0C\u5B9E\u9645 ${active.length}`);
         if (probation.length !== 2) errors.push(`\u89C2\u5BDF\u6E90\u5FC5\u987B\u4E3A 2\uFF0C\u5B9E\u9645 ${probation.length}`);
         if (toggleIds.length !== registered) errors.push(`dep('SOURCE_TOGGLES') \u5FC5\u987B\u4E0E SOURCE_HANDLERS \u7B49\u91CF\uFF0Ctoggles=${toggleIds.length}, handlers=${registered}`);
         for (const id of toggleIds) if (!SOURCE_HANDLERS[id]) errors.push(`dep('SOURCE_TOGGLES') \u5B58\u5728\u672A\u767B\u8BB0\u6E90 ${id}`);
@@ -6038,13 +6105,18 @@ var __lxSourceBundle = (() => {
         // 接口不存在或已下线`；Migu_Music 仍活（`200 code=1` 能出直链）；juhe 全域 `429`（根路径也
         // 429，CF 层限流/挂维护页）；qingliangTx `200 code=1` 能出直链。故 mg/kg 的「单源」已变成
         // 「零可用源」，tx 的「三源」实际只剩 qingliangTx 单点，风险档与文案随之改写。
-        Object.freeze({ platform: "mg", reason: "suyinKuwo \u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF08R78 404 -13001\uFF09\uFF0C\u5F53\u524D\u96F6\u4E0A\u94FE\u6E90\uFF1B\u552F\u4E00\u53EF\u7528\u5019\u9009\u662F\u89C2\u5BDF\u6E90 suyinMigu\uFF08R78 \u5B9E\u6D4B 200 code=1 \u53EF\u51FA\u94FE\uFF0C\u9ED8\u8BA4\u5173\u95ED\u4E0D\u8FDB\u94FE\uFF09", risk: "high", reviewAt: "2026-11-23" }),
+        // R79（2026-11-23 实测纠正）：R78 写的「suyinMigu 200 code=1 可出链」已被推翻 ——
+        // 2026-11-21 与 R79 复测均为 `code 502「咪咕搜索接口均不可用（服务器 IP 可能被咪咕限制）」`；
+        // 且 R79 实测 `xinghaiBackend` 的 mg 分支对任意 mid 恒定返回同一首音频（`name` 传「晴天」「演员」
+        // 返回完全相同的 URL，3.9MB ID3v2.3），无法证明身份 → 不能接。mg 仍是零可用源。
+        Object.freeze({ platform: "mg", reason: "suyinKuwo \u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF08R78 404 -13001\uFF09\uFF1B\u89C2\u5BDF\u6E90 suyinMigu \u590D\u6D4B\u4E3A code 502\uFF08\u4E0A\u6E38 IP \u88AB\u54AA\u5495\u9650\uFF09\uFF1BR79 \u5B9E\u6D4B xinghaiBackend mg \u5206\u652F\u5BF9\u4EFB\u610F mid \u6052\u5B9A\u8FD4\u56DE\u540C\u4E00\u9996\uFF08\u4E0D\u53EF\u8BC1\u8EAB\u4EFD\uFF09\u2192 \u5F53\u524D\u65E0\u53EF\u7528 mg \u6E90", risk: "high", reviewAt: "2026-11-23" }),
         Object.freeze({ platform: "kg", reason: "suyinKuwo \u63A5\u53E3\u5DF2\u4E0B\u7EBF\uFF08R78 404 -13001\uFF09\uFF0C\u5F53\u524D\u96F6\u4E0A\u94FE\u6E90\uFF0C\u65E0\u7B2C\u4E8C\u6E90", risk: "high", reviewAt: "2026-11-23" }),
         // v9.1.2（B04-001）：原写「suyinKuwo + juheTx 双源」漏记了链位次更靠前的 qingliangTx，
         // 且 reviewAt 与 docs/SOURCE_REGISTRY.md 的「覆盖缺口」表（2026-11-18）不一致。
         // 现按登记表对齐为三源 + 同日期，两处口径必须同步改。
         // R78：三源里 juheTx 全域 429、suyinKuwo 与 suyinQQ 已下线，实际只剩 qingliangTx 一个点。
-        Object.freeze({ platform: "tx", reason: "\u767B\u8BB0\u4E09\u6E90\uFF0CR78 \u5B9E\u6D4B\u5B9E\u9645\u4EC5 qingliangTx \u53EF\u7528\uFF08200 code=1 \u51FA\u76F4\u94FE\uFF09\uFF1BjuheTx \u5168\u57DF 429\u3001suyinKuwo/suyinQQ \u63A5\u53E3\u4E0B\u7EBF", risk: "high", reviewAt: "2026-11-23" })
+        // R79：接入 luoyueTx 后实测可用 2 源（qingliangTx + 落月），单点故障已消除，风险档由 high 下调 medium。
+        Object.freeze({ platform: "tx", reason: "\u767B\u8BB0\u56DB\u6E90\uFF0CR79 \u5B9E\u6D4B\u53EF\u7528 2 \u6E90\uFF08qingliangTx 200 code=1 \u51FA aqqmusic \u76F4\u94FE\uFF1BluoyueTx v3 128k/320k/flac \u4E09\u6863\u771F\u97F3\u9891\uFF0Cflac 55.39MB fLaC\uFF09\uFF1BjuheTx \u5168\u57DF 429\u3001suyinKuwo \u63A5\u53E3\u4E0B\u7EBF", risk: "medium", reviewAt: "2026-11-23" })
       ]);
       module.exports = {
         validateProviderContracts,
@@ -6902,7 +6974,7 @@ var __lxSourceBundle = (() => {
         mediaEnvelope: 2,
         sources: sourceConfig
       });
-      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.1.7 \u5DF2\u52A0\u8F7D\uFF0813 \u767B\u8BB0 / 11 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
+      logInfo(`\u8C46\u5305\u5B9A\u5236\u805A\u5408\u97F3\u6E90 v9.2.0 \u5DF2\u52A0\u8F7D\uFF0814 \u767B\u8BB0 / 12 \u4E0A\u94FE / 2 \u89C2\u5BDF\uFF1BProvider Contract + \u751F\u547D\u5468\u671F\u6CBB\u7406 + \u771F\u53D6\u6D88\uFF1B\u5355\u6587\u4EF6\u6784\u5EFA\uFF09\uFF0C\u4E0A\u62A5 ${Object.keys(sourceConfig).length} \u4E2A\u97F3\u6E90\uFF08\u5386\u53F2\u7248\u672C\u89C1 docs/CHANGELOG.md\uFF09`);
       startHealthCheck();
       if (typeof module !== "undefined" && module.exports) {
         module.exports = {
@@ -7316,7 +7388,7 @@ var __lxSourceBundle = (() => {
           "tx"
         ],
         "chain": {
-          "tx": 3
+          "tx": 4
         },
         "upstreamGroup": "juhe",
         "auth": "none",
@@ -7350,6 +7422,33 @@ var __lxSourceBundle = (() => {
         "qualitys": [
           "128k",
           "320k"
+        ],
+        "coldStart": false,
+        "reviewAt": "2026-11-23"
+      };
+    }
+  });
+
+  // src/providers/luoyueTx.js
+  var require_luoyueTx = __commonJS({
+    "src/providers/luoyueTx.js"(exports, module) {
+      module.exports = {
+        "id": "luoyueTx",
+        "name": "\u843D\u6708(tx)",
+        "lifecycle": "active",
+        "platforms": [
+          "tx"
+        ],
+        "chain": {
+          "tx": 3
+        },
+        "upstreamGroup": "vkeys-luoyue",
+        "auth": "none",
+        "maxQuality": "flac",
+        "qualitys": [
+          "128k",
+          "320k",
+          "flac"
         ],
         "coldStart": false,
         "reviewAt": "2026-11-23"
@@ -7451,6 +7550,7 @@ var __lxSourceBundle = (() => {
         require_huibq(),
         require_juheTx(),
         require_qingliangTx(),
+        require_luoyueTx(),
         require_ikun()
       ];
       var probation = require_probation();

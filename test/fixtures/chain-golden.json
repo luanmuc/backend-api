@@ -1,6 +1,6 @@
 {
-  "version": "9.1.7",
-  "sourceHead": "f7a1708",
+  "version": "9.2.0",
+  "sourceHead": "30ffa32",
   "platforms": {
     "kw": {
       "128k": [
@@ -49,15 +49,18 @@
       "128k": [
         "suyinKuwo",
         "qingliangTx",
+        "luoyueTx",
         "juheTx"
       ],
       "320k": [
         "suyinKuwo",
         "qingliangTx",
+        "luoyueTx",
         "juheTx"
       ],
       "flac": [
-        "suyinKuwo"
+        "suyinKuwo",
+        "luoyueTx"
       ],
       "flac24bit": []
     },

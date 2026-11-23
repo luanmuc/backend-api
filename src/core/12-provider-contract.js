@@ -37,8 +37,8 @@ function validateProviderContracts(nowMs = Date.now()) {
   const active = ids.filter(id => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.ACTIVE);
   const probation = ids.filter(id => SOURCE_HANDLERS[id].lifecycle === PROVIDER_LIFECYCLE.PROBATION);
 
-  if (registered !== 13) errors.push(`登记源必须为 13，实际 ${registered}`);
-  if (active.length !== 11) errors.push(`上链源必须为 11，实际 ${active.length}`);
+  if (registered !== 14) errors.push(`登记源必须为 14，实际 ${registered}`);
+  if (active.length !== 12) errors.push(`上链源必须为 12，实际 ${active.length}`);
   if (probation.length !== 2) errors.push(`观察源必须为 2，实际 ${probation.length}`);
   if (toggleIds.length !== registered) errors.push(`dep('SOURCE_TOGGLES') 必须与 SOURCE_HANDLERS 等量，toggles=${toggleIds.length}, handlers=${registered}`);
   for (const id of toggleIds) if (!SOURCE_HANDLERS[id]) errors.push(`dep('SOURCE_TOGGLES') 存在未登记源 ${id}`);
@@ -96,13 +96,18 @@ const KNOWN_COVERAGE_GAPS = Object.freeze([
   // 接口不存在或已下线`；Migu_Music 仍活（`200 code=1` 能出直链）；juhe 全域 `429`（根路径也
   // 429，CF 层限流/挂维护页）；qingliangTx `200 code=1` 能出直链。故 mg/kg 的「单源」已变成
   // 「零可用源」，tx 的「三源」实际只剩 qingliangTx 单点，风险档与文案随之改写。
-  Object.freeze({ platform: "mg", reason: "suyinKuwo 接口已下线（R78 404 -13001），当前零上链源；唯一可用候选是观察源 suyinMigu（R78 实测 200 code=1 可出链，默认关闭不进链）", risk: "high", reviewAt: "2026-11-23" }),
+  // R79（2026-11-23 实测纠正）：R78 写的「suyinMigu 200 code=1 可出链」已被推翻 ——
+  // 2026-11-21 与 R79 复测均为 `code 502「咪咕搜索接口均不可用（服务器 IP 可能被咪咕限制）」`；
+  // 且 R79 实测 `xinghaiBackend` 的 mg 分支对任意 mid 恒定返回同一首音频（`name` 传「晴天」「演员」
+  // 返回完全相同的 URL，3.9MB ID3v2.3），无法证明身份 → 不能接。mg 仍是零可用源。
+  Object.freeze({ platform: "mg", reason: "suyinKuwo 接口已下线（R78 404 -13001）；观察源 suyinMigu 复测为 code 502（上游 IP 被咪咕限）；R79 实测 xinghaiBackend mg 分支对任意 mid 恒定返回同一首（不可证身份）→ 当前无可用 mg 源", risk: "high", reviewAt: "2026-11-23" }),
   Object.freeze({ platform: "kg", reason: "suyinKuwo 接口已下线（R78 404 -13001），当前零上链源，无第二源", risk: "high", reviewAt: "2026-11-23" }),
   // v9.1.2（B04-001）：原写「suyinKuwo + juheTx 双源」漏记了链位次更靠前的 qingliangTx，
   // 且 reviewAt 与 docs/SOURCE_REGISTRY.md 的「覆盖缺口」表（2026-11-18）不一致。
   // 现按登记表对齐为三源 + 同日期，两处口径必须同步改。
   // R78：三源里 juheTx 全域 429、suyinKuwo 与 suyinQQ 已下线，实际只剩 qingliangTx 一个点。
-  Object.freeze({ platform: "tx", reason: "登记三源，R78 实测实际仅 qingliangTx 可用（200 code=1 出直链）；juheTx 全域 429、suyinKuwo/suyinQQ 接口下线", risk: "high", reviewAt: "2026-11-23" }),
+  // R79：接入 luoyueTx 后实测可用 2 源（qingliangTx + 落月），单点故障已消除，风险档由 high 下调 medium。
+  Object.freeze({ platform: "tx", reason: "登记四源，R79 实测可用 2 源（qingliangTx 200 code=1 出 aqqmusic 直链；luoyueTx v3 128k/320k/flac 三档真音频，flac 55.39MB fLaC）；juheTx 全域 429、suyinKuwo 接口下线", risk: "medium", reviewAt: "2026-11-23" }),
 ]);
 
 module.exports = {

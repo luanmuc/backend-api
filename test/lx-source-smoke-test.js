@@ -1023,14 +1023,14 @@ async function test(name, fn) {
     assert.ok(!urls41.some(u => /br=1(?!\d)/.test(u)), `flac(br=1) 死链档不应被实际请求（短路生效），实际请求 ${urls41.filter(u => u.includes('oiapi')).join(' | ')}`);
   }
 
-  console.log('[T42] v8.13 Provider Contract：13 登记 / 11 上链 / 2 观察 + 冷启动标签');
+  console.log('[T42] v8.13 Provider Contract：14 登记 / 12 上链 / 2 观察 + 冷启动标签');
   {
     const mod42 = require(SRC);
     const ids = Object.keys(mod42.SOURCE_HANDLERS);
-    assert.strictEqual(ids.length, 13, `登记源必须 13，实际 ${ids.length}`);
+    assert.strictEqual(ids.length, 14, `登记源必须 14，实际 ${ids.length}`);
     const active = ids.filter(id => mod42.SOURCE_HANDLERS[id].lifecycle === 'active');
     const probation = ids.filter(id => mod42.SOURCE_HANDLERS[id].lifecycle === 'probation');
-    assert.strictEqual(active.length, 11, `上链源必须 11，实际 ${active.length}`);
+    assert.strictEqual(active.length, 12, `上链源必须 12，实际 ${active.length}`);
     assert.strictEqual(probation.length, 2, `观察源必须 2，实际 ${probation.length}`);
     assert.deepStrictEqual(probation.sort(), ['suyinMigu', 'suyinQQ'].sort(), '观察源应为 suyinQQ/suyinMigu');
     assert.strictEqual(mod42.SOURCE_HANDLERS.huibq.coldStart, true, 'huibq 应带 coldStart:true');
@@ -1421,7 +1421,7 @@ async function test(name, fn) {
     const re = /([A-Za-z_$][\w$]*)\s*:\s*(true|false)/g;
     let m;
     while ((m = re.exec(clean))) keys.add(m[1]);
-    assert.strictEqual(keys.size, 13, 'SOURCE_TOGGLES 必须为 13 个登记源，实际 ' + keys.size);
+    assert.strictEqual(keys.size, 14, 'SOURCE_TOGGLES 必须为 14 个登记源，实际 ' + keys.size);
     for (const ep of ENDPOINTS) {
       if (ep.toggleable === false) continue;
       for (const sid of ep.sources) {

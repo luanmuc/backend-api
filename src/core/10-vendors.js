@@ -18,7 +18,12 @@ const JUHE_API = "https://api.music.lerd.dpdns.org";  // v4.0：Juhe聚合API(CF
 
 const LINGCHUAN_API = "https://api.lingchuan.com/v1";
 
-const XINGHAI_BACKEND_API = "https://yy.zddyr.top/lx/api/";
+// R79（K38）：上游插件 v3.2.20 明写 `primary: yy1.zddyr.top`（新域名，避开部分地区 DNS 拦截）、
+// `backup: yy.zddyr.top`（原域名，主域不可用时自动回退），并实现了 requestWithFallback。
+// 本仓此前只硬编码了一个域名，且恰是上游标注的「旧/备用域」——与 R78 记录的真机
+// NETWORK_ERROR 287ms 互证。改为有序候选：主域优先，网络/超时/5xx 才切备用（4xx 不切，避免多打请求）。
+const XINGHAI_BACKEND_APIS = ["https://yy1.zddyr.top/lx/api/", "https://yy.zddyr.top/lx/api/"];
+const XINGHAI_BACKEND_API = XINGHAI_BACKEND_APIS[0];
 
 const KUWO_SEARCH_API = "http://search.kuwo.cn/r.s";
 
@@ -121,6 +126,7 @@ module.exports = {
   GD_API,
   JUHE_API,
   XINGHAI_BACKEND_API,
+  XINGHAI_BACKEND_APIS,
   KUWO_SEARCH_API,
   KUWO_CONVERT_API,
   QQ_SEARCH_API,

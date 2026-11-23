@@ -7,7 +7,7 @@ module.exports = {
     "tx"
   ],
   "chain": {
-    "tx": 3
+    "tx": 4
   },
   "upstreamGroup": "juhe",
   "auth": "none",

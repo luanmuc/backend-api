@@ -2,7 +2,7 @@
 /**
  * v8.13 源库存与预算校验（生命周期治理的机器闸门）
  *
- * 口径：13 登记源 = 11 上链（active）+ 2 观察（probation）。
+ * 口径：14 登记源 = 12 上链（active）+ 2 观察（probation）。
  * 用法：
  *   node scripts/source-inventory.js          # 打印清单
  *   node scripts/source-inventory.js --check  # 只校验，违规退出 1
@@ -13,7 +13,7 @@ const path = require('path');
 
 const SOURCE_FILE = path.join(__dirname, '..', 'lx-source.js');
 const RETIRED = ['xinghaiBackup', 'lingchuan', 'gdWy', 'juheKw', 'juheWy', 'juheKg', 'juheMg', 'nianxinVip'];
-const BUDGET = { total: 13, active: 11, probation: 2 };
+const BUDGET = { total: 14, active: 12, probation: 2 };
 const AUTH = new Set(['none', 'optional', 'card', 'paid']);
 const LIFECYCLE = new Set(['active', 'probation']);
 

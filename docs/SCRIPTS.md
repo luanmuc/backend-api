@@ -9,7 +9,7 @@
 | 脚本 | 职责 | 触发 | 副作用 |
 |---|---|---|---|
 | `build-source.js` (56) | 单文件产物构建：`src/*.js` → esbuild IIFE + CommonJS 桥，写 `lx-source.js`，并校验产物 IIFE 形态与 `@version` 一致性 | `npm run build` / 发布前 | **改** `lx-source.js`（唯一权威产物） |
-| `verify-bundle.js` (105) | 产物门禁 B1~B8：版本头、契约 13/11/2、逐源一致、五平台链可重建、取消 API、退役源不在产物、体积/行数上限；**dist/ 不存在时先就地重建再校验**（干净检出也能跑） | `npm run verify:bundle` / CI | 缺产物会写 dist/ |
+| `verify-bundle.js` (105) | 产物门禁 B1~B8：版本头、契约 14/12/2、逐源一致、五平台链可重建、取消 API、退役源不在产物、体积/行数上限；**dist/ 不存在时先就地重建再校验**（干净检出也能跑） | `npm run verify:bundle` / CI | 缺产物会写 dist/ |
 | `source-inventory.js` (112) | 源清单预算：13/11/2（登记/上链/观察）+ 退役 8 源不得回产物 + 观察源默认关闭、必须有 `reviewAt`、不得占链位 | `npm run inventory` / CI | 只读 + 报错退出 |
 | `dump-chain.js` (75) | 链序 golden 生成：11 个 active 源 × 5 平台 × 4 音质，写 `test/fixtures/chain-golden.json`（`sourceHead` 读真实 HEAD，不写死） | 链序变更后手动 `--json` | **改** `test/fixtures/chain-golden.json` |
 
@@ -49,7 +49,7 @@
 
 | 脚本 | 职责 | 关键出口 |
 |---|---|---|
-| `endpoint-registry.js` (79) | 19 条端点登记表（源端点 14 + 工具端点 5；按 kind 分 9 payload + 7 param + 3 endpoint），探测与巡检的唯一来源 | `ENDPOINTS`/`urls`/`sourcesOf`/`EXCLUDE_DOMAINS` |
+| `endpoint-registry.js` (82) | 21 条端点登记表（源端点 16 + 工具端点 5；按 kind 分 10 payload + 8 param + 3 endpoint），探测与巡检的唯一来源 | `ENDPOINTS`/`urls`/`sourcesOf`/`EXCLUDE_DOMAINS` |
 | `source-toggles.js` (129) | 单遍字符扫描解析 `SOURCE_TOGGLES` 真值（health-daily 与 probe 共用） | `parseToggles`/`stripLineComment`/`matchBrace` |
 | `cn-date.js` (17) | 北京日期（CI cron 是 UTC，直接 `new Date()` 会差一天） | `todayCN` |
 | `lib/history.js` (v9.1.4) | 巡检历史（`probe-history.jsonl`）的唯一读写口：归一化旧 schema、原子追加、30 天清理、探测级/天级聚合、Wilson 下限、全历史连续失败天数 | `load`/`append`/`windowStats`/`dailyAggregate`/`consecutiveFailDays`/`prevDataDate` |

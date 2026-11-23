@@ -115,7 +115,7 @@ function buildProbeConfig() {
   const probeSong = probePool[(globalThis.__probeRound || 0) % probePool.length];
   const probe163Id = PROBE_163_IDS[(globalThis.__probeRound || 0) % PROBE_163_IDS.length];
   const cfg = {
-    // ---- 上链源：11 个 ----
+    // ---- 上链源：12 个 ----
     suyinKuwo: {
       tier: "core",
       probes: [
@@ -183,6 +183,13 @@ function buildProbeConfig() {
     },
     juheTx: juheProbeCfg("tx", { songmid: "228908", id: "228908", quality: "128k" }),
     qingliangTx: {
+      tier: "secondary",
+      quality: "128k",
+      useHandler: true,
+      handlerPlatform: "tx",
+      handlerSong: { songmid: "0039MnYb0qxYhV", name: "晴天", singer: "周杰伦", duration: 269000 },
+    },
+    luoyueTx: {
       tier: "secondary",
       quality: "128k",
       useHandler: true,

@@ -17,8 +17,9 @@ const SOURCE_TOGGLES = {
                         //（503「This service has been suspended by its owner.」，根路径同 503）；
                         // 11-04~11-15 曾连续 12 天全 200，属暂停而非冷启动；保留函数便于复活
                         // 2026-11-21 复测：kw 1424ms / wy 915ms 双档均为 HTTP 503，与关闭时记录一致
-  juheTx: true,         // Juhe 聚合(tx)：tx 第三源，7 天复核
+  juheTx: true,         // Juhe 聚合(tx)：tx 第四源，7 天复核
   qingliangTx: true,    // 晴亮(tx)：tx 主用第二源（2026-11-15 实测 5/5 全曲 320k），3 天复核
+  luoyueTx: true,       // 落月(tx)：tx 第三源（R79 实测 128k/320k/flac 三档真音频，flac 55.39MB fLaC），3 天复核
   ikun: true,           // ikun：kw/wy 链尾兜底（公益版免卡密）
   suyinQQ: false,       // 观察源 suyinQQ(tx)：【已退役端点，保留函数】
                         // 2026-11-11 实测 HTTP 403；2026-11-21 复测升级结论：oiapi.net/api/QQ_Music

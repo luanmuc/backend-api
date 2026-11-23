@@ -165,7 +165,7 @@ console.log('\n[V] 交叉引用与一致性');
   const srcCnt = (STATIC_SRC.match(/id:\s*"[\w.]+"/g) || []).length;
   // 注意：juhe 五源写在同一行，按行数统计会得 16，真实是 20 个键（用 parseToggles 的解析结果做真值）
   const parsedN = (() => { try { const o = require(abs('scripts/source-toggles.js')).parseToggles(); return Object.keys(o.toggles || o).length; } catch (e) { return -1; } })();
-  rec('V4', `SOURCE_TOGGLES 实测 ${parsedN} 个开关（文档口径 ${docN || '未声明'}）`, parsedN === 13, `解析 ${parsedN} 键 / 行内 ${toggleN} 行`);
+  rec('V4', `SOURCE_TOGGLES 实测 ${parsedN} 个开关（文档口径 ${docN || '未声明'}）`, parsedN === 14, `解析 ${parsedN} 键 / 行内 ${toggleN} 行`);
 
   const errBlock = (STATIC_SRC.match(/const ERROR_CODES = \{([\s\S]*?)\n\};/) || [])[1] || '';
   const errCnt = (errBlock.match(/^\s{2}\w+:/gm) || []).length;
@@ -211,13 +211,13 @@ console.log('\n[W] 脚本自洽');
   const fieldOk = list.every(e => e.url && Array.isArray(e.sources) && e.kind);
   // v9.1.4：19 条（新增 txSearch / wySearch 两条 param 工具端点 —— 它们此前每天触发
   // 「源码中未登记端点」告警，属真漏登记，不是噪声）
-  rec('W5', `endpoint-registry 导出 ${list.length} 条、url 唯一且字段完整`, list.length === 19 && new Set(urls).size === list.length && fieldOk,
+  rec('W5', `endpoint-registry 导出 ${list.length} 条、url 唯一且字段完整`, list.length === 21 && new Set(urls).size === list.length && fieldOk,
     `uniqUrl=${new Set(urls).size} fieldOk=${fieldOk}`);
 
   const tog = require(abs('scripts/source-toggles.js'));
   const raw = typeof tog.parseToggles === 'function' ? tog.parseToggles() : null;
   const t = raw && raw.toggles ? raw.toggles : raw;   // 真实返回是 {toggles, ...}，取内层
-  rec('W6', 'source-toggles 可解析出 13 个开关真值', !!t && Object.keys(t).length === 13, t ? Object.keys(t).length + ' 键' : 'no export');
+  rec('W6', 'source-toggles 可解析出 14 个开关真值', !!t && Object.keys(t).length === 14, t ? Object.keys(t).length + ' 键' : 'no export');
 
   const cn = require(abs('scripts/cn-date.js'));
   const today = typeof cn.todayCN === 'function' ? cn.todayCN() : null;
@@ -269,7 +269,7 @@ console.log('\n[X] 功能联动（跨模块）');
   [...srcToggle.matchAll(/(\w+):\s*(true|false)/g)].forEach(m => { srcPairs[m[1]] = m[2] === 'true'; });
   const mismatch = Object.keys(srcPairs).filter(k => tt[k] !== srcPairs[k]);
   rec('X5', `source-toggles 解析值与源码默认值逐键一致（源码 ${Object.keys(srcPairs).length} 键 / 解析 ${Object.keys(tt).length} 键）`,
-    mismatch.length === 0 && Object.keys(srcPairs).length === 13, mismatch.join(','));
+    mismatch.length === 0 && Object.keys(srcPairs).length === 14, mismatch.join(','));
 
   // 真判据（R23）：数 docs-audit 里实际存在的 `function ruleXxx(` 规则函数，
   // 与 DOC_SEMANTIC_CHECKLIST 声明的条数逐数比对。旧写法只数注释里「规则 N」出现次数，恒 ≥10。

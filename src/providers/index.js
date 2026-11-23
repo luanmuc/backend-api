@@ -10,6 +10,7 @@ const active = [
   require('./huibq.js'),
   require('./juheTx.js'),
   require('./qingliangTx.js'),
+  require('./luoyueTx.js'),
   require('./ikun.js')
 ];
 const probation = require('./55-probation.js');

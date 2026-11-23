@@ -99,9 +99,9 @@ const baseSong = { name: '晴天', singer: '周杰伦', duration: 269, songmid: 
     await sleep(20);
     assert.strictEqual(canceled, 2, `应取消 2 个，实际 ${canceled}`);
   });
-  await rec('Z8', '11 个上链 handler 预取消均不调用 fn', async () => {
+  await rec('Z8', '12 个上链 handler 预取消均不调用 fn', async () => {
     const active = mod.PROVIDER_CONTRACT && Object.keys(mod.SOURCE_HANDLERS).filter(id => mod.SOURCE_HANDLERS[id].lifecycle === 'active');
-    assert.strictEqual(active.length, 11);
+    assert.strictEqual(active.length, 12);
     let invoked = 0;
     for (const id of active) {
       const real = mod.SOURCE_HANDLERS[id];

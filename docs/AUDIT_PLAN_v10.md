@@ -59,7 +59,7 @@
 | 安全与密钥 | 明文 token、密钥、无 `/tmp` 硬编码 | `f-repo.js` | 2 | A |
 | 裁决层 admission | 证据分级、codeRank、admit 单入口、弱证据 TTL、关源清账 | `r-admission.js` | 24 | A |
 | 跨平台兜底 | 主平台失败识别、身份匹配、ID 隔离、grace、缓存失效 | `u-cross-platform.js` | 12 | A |
-| Provider Contract | 13/11/2、链位不重复、观察源无链位 | `y-provider-contract.js` | 15 | A |
+| Provider Contract | 14/12/2、链位不重复、观察源无链位 | `y-provider-contract.js` | 15 | A |
 | 取消语义 | 真取消、竞态、在途清理 | `z-cancel.js` | 11 | A |
 | 健康事件 | 事件白名单、去重、脱敏 | `s-health-events.js` | 27 | A |
 | 桥媒体信封 | `__lxMedia:2`、分片、解码 | `x-media-envelope.js` | 12 | A |
@@ -101,7 +101,7 @@
 | 降级所有权（fallbackOwner host/source） | `lx-source.js` | `w-fallback-owner` 2 | ✅ |
 | 媒体信封（`__lxMedia:2`/分片/解码） | `lx-source.js` | `x-media-envelope` 12 | ✅ |
 | 取消语义（真取消/在途清理） | `lx-source.js` | `z-cancel` 11 | ✅ |
-| Provider Contract（13/11/2/链位不重复） | `lx-source.js` | `y-provider-contract` 15 | ✅ |
+| Provider Contract（14/12/2/链位不重复） | `lx-source.js` | `y-provider-contract` 15 | ✅ |
 | 候选源接入（fish/helloworld/hyw/jiexiang/lx/qdy） | `lx-source.js` | `candidate-audit-test` 6 | ✅ |
 | 健康事件（白名单/去重/脱敏） | `lx-source.js` | `s-health-events` 27、`t-health-events-stress` 12 | ✅ |
 | QuickJS 真引擎（宿主无 Buffer） | `lx-source.js` | `q-quickjs-real` 3 | ✅ |
@@ -278,6 +278,7 @@ node scripts/sign-release.js --verify --pub "$LX_PUBKEY"   # 发布签名可验
 | 2026-11-23 | **R76 全量通读**：v9.1.6 产物 7375 行逐行只读通读；定案 P1×2 + P2×6（报告 `docs/reports/R76-音源全量通读-2026-11-23.md`）；§6 新增 G12~G14 三个覆盖面 | 对已发布产物复现 6 通过 / 4 失败（失败=缺陷坐实）；`verify:bundle` 8/0；未改代码 |
 | 2026-11-23 | **R77 全量通读修复（v9.1.7）**：新增 `test/audit/r77-fixes.js`（25 条）固化 R76 定案修复——G12 导出→恢复全字段等价 / G13 FLAC 小端 + ID3v2.2/2.3/2.4 真实字节夹具 / G14 快照纯度 / P2-06 档位复位 / G9 缓存 key 含时长 / 契约复核新鲜度（`REVIEW_GRACE_DAYS=14` + 时间注入）/ interval 回退 / 原串优先解析 / 预热锚点分表 / 探针轮换清 singer·duration；红绿双向 6 轮旧形态重演全红后还原 25/0；`npm test` **48→49 脚本**、`test/` 入口 **52→53**、`test/audit` **46→47**、审计合计 **589→615**；同步补齐 ci.yml L4.3 此前遗漏的 `security-url-guard` / `force-probe-contract` / `anchors-contract` |
 | 2026-11-23 | **R78 真实复核与 `reviewAt` 门禁收口（v9.1.7 同版）**：①对 4 个源 + 3 个覆盖缺口做真复核（6 次真实上游探测），结论：`suyinKuwo`/`suyinQQ`/`suyin163` 三接口 `404 code -13001` 已下线、`juhe` 全域 `429`、`qingliangTx` 与 `suyinMigu` 可用；②`reviewAt` 语义收口为「真实复核日」，`REVIEW_FUTURE_TOLERANCE_MS=24h` 反向卡死「写未来日期绕过 14 天宽限」（R77 的 11-26/11-30 正是这种写法，登记 K35）；③覆盖缺口 risk 按实际可用源数改写（tx medium→high）；④新增 **B10** 双向验证（删未来判定 26/1 红、还原 27/0 绿）+ C06 提取式防回退；⑤新增 **K34**（上游大面积失效，外部 OPEN）与 **K32** 观测三件套/升级触发条件。审计合计 **614→615** |
+| 2026-11-23 | **R79 新源与主备双域（v9.2.0）**：①新增 `luoyueTx`（落月 tx，`api.vkeys.cn/music/tencent/song/link`，128k/320k/flac 三档真音频验真）→ tx 链四源（`suyinKuwo→qingliangTx→luoyueTx→juheTx`）；②`xinghaiBackend` 改主备双域 `yy1`→`yy`，仅 NETWORK_ERROR/TIMEOUT/SERVER_ERROR 切换；③mg 放开证否（星海 mg 分支对任意 mid 恒定返回同一首 + `suyinMigu` 复测 `code 502`），改为如实登记不接；④预算 13/11 → 14/12（`luoyueTx: true`），契约/开关/探针/端点表 19→21/台账/verify-bundle/tools-live/smoke 全链同步；`npm test` EXIT=0（R77 回归 **27/0**）、`verify-bundle` 8/0、`api-surface` E0、`cross-repo` 9.2.0 一致；产物 392277 bytes |
 | 2026-11-22 | **R75 补 G6**：新增 `test/audit/security-url-guard.js`（12 条）覆盖 `validateUrl` / `probeAudioDelivery` / `upgradeToHttps` 三处运行时校验；`npm test` **47→48 脚本**、`test/` 入口 **51→52**、`test/audit` **45→46**、审计合计 **577→589** | 12/0；红绿双向（把 `HTTP_URL_REGEX` 放宽成 `/^[a-z]+:/i` → 5 条红）；`npm test` rc0 |
 | 2026-11-22 | 基线升到 **v9.1.6 / `c38a2c1`**（产物 9.1.6 / 7375 行 / 379380 bytes / manifest `487606a8`）；App **b199 / `b3ce7440`**；`npm test` **46→47 脚本**（新增 `force-probe-contract` 10 条，审计合计 **567→577**）；`test/` 入口 **49→51**（按需 **3→4**）；错误码 **18→19**（`UNSUPPORTED_ACTION`，R71d） | `npm test` **rc=0**（V **133/0**、T **14/0**、元审计 16/0、`f-repo` **57/0**、`FP` **10/0**）；`stress-test` S **12/0**；变异 **22 killed / 0 survived**；`docs-audit` 待处理 0 / 报告 44 / 硬失败 0；`v9-gate[core]` 34s；`verify:bundle` **8/0**；`api-surface` 错误码 **19** |
 | 2026-11-20 | 基线升到 **v9.1.4 / `297c88e`**（巡检链重构，脚本级、产物仍 9.1.3）；App 基线 b151→**b187**、RNTP 88b062b→**3f8546d**；`npm test` **45→46 脚本**；新增两个审计面（**巡检链口径单一真相**、**巡检共享库收敛**）；§2b 补「巡检链口径」定制行 | `npm test` **rc=0**（V **133/0**、S 12/0、T 14/0）；`f-repo` **57/0**；`docs-audit` 0 待处理；`self-check` 通过；`v9-gate[fast]` 通过；`tg-truth` 口径全一致 |

@@ -12,7 +12,7 @@
 
 | 事项 | 说明 |
 |---|---|
-| 当前版本 | **v9.1.7** 源级能力备档版（K03）：能力备档从「平台 + 歌曲」下沉到「平台 + 源 + 歌曲」。新增 `qualityCeilingBySourceMap`（key `${platform}|${sourceId}|${mid}`）与 `getQualityCeilingBySource()`，`buildSourceChain(platform, quality, songInfo)` 把「该源在这首歌已被证明给不到这一档」的源剔出候选；**删掉平台级备档降低整条链起点的旧逻辑**——旧实现在 `22-chain.js` 里把 `effectiveQuality` 直接压到平台历史最高档，一个源给过 128k 就让同平台能给 flac 的源再没机会被请求到。平台级表保留供健康快照统计（`qualityCeilingMap.size`）。链空时的诊断补 `source-quality-ceiling` 原因，不再只报「无可用音源」。新增 **QP13** 回归。`lx-source.js` 内 `@version 9.1.7`，产物 **386202 bytes**（R71/R71d/R71e 起：`forceQualityProbe` 与 `reportPlayback` 的未知源都改 `resolve({ok:false, code:'UNSUPPORTED_ACTION'})`，业务否定与协议错误由码值区分，App 侧三分流后 miss 与 failed 不再并为一句） | 上一版 **v9.1.5** 为失效源退役标记版（`suyinQQ` 端点下线 / `suyinMigu` 上游 IP 被限 / `huibq` 保留待复活），产物 367386 bytes；此前 **v9.1.4** 为按平台音质上限版，产物 366678 bytes |
+| 当前版本 | **v9.2.0** R79 新源与主备双域版：① 接入落月（`api.vkeys.cn`）作 tx 第三源——128k 4.31MB / 320k 10.79MB / flac 55.39MB 三档实测真音频（`fLaC` 魔数命中），只接 v3 `song/link`（同站 v2 只给 960KB 试听片段）；② `xinghaiBackend` 改主备双域 `yy1`（新主域，避开部分地区 DNS 拦截）→ `yy`（旧备域），仅在网络错误/超时/5xx 切换，4xx 不切；③ 登记口径 **14 登记 / 12 上链 / 2 观察**，tx 风险档 high→medium。`lx-source.js` 内 `@version 9.2.0` | 上一版 **v9.1.7** 为源级能力备档版（K03：能力备档下沉到「平台+源+歌曲」，链起点不再被单源历史最高档一刀压低），产物 386202 bytes；此前 **v9.1.5** 为失效源退役标记版（`suyinQQ` 端点下线 / `suyinMigu` 上游 IP 被限 / `huibq` 保留待复活），产物 367386 bytes；**v9.1.4** 为按平台音质上限版，产物 366678 bytes |
 | 支持平台 | 网易云(wy) / QQ(tx) / 酷我(kw) / 酷狗(kg) / 咪咕(mg) |
 | 音质能力 | flac / 320k / 128k（按真实来源能力裁剪上报） |
 | 集成方式 | App CI 用 GitHub Contents API 拉 `luanmuc/backend-api/contents/lx-source.js` |
