@@ -1174,7 +1174,7 @@ send(EVENT_NAMES.inited, {
 // `/豆包定制聚合音源\s+v(\S+)/` 取第一个匹配并与 @version 比对，App 内置升级正则同理。
 // 因此：①不能改成模板变量；②本注释也不要写出被该正则命中的完整串（否则注释先于 logInfo
 // 被匹配到，会报「版本串不同步」）。升版本时这里和 `src/00-header.js` 的 @version 一起改。
-logInfo(`豆包定制聚合音源 v9.3.0 已加载（15 登记 / 13 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
+logInfo(`豆包定制聚合音源 v9.3.1 已加载（15 登记 / 13 上链 / 2 观察；Provider Contract + 生命周期治理 + 真取消；单文件构建），上报 ${Object.keys(sourceConfig).length} 个音源（历史版本见 docs/CHANGELOG.md）`);
 
 // 启动健康探测（全自动自愈）
 startHealthCheck();

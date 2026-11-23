@@ -82,11 +82,21 @@
 - 审计矩阵：[`AUDIT_MATRIX.md`](./AUDIT_MATRIX.md)
 - 版本历史：[`CHANGELOG.md`](./CHANGELOG.md)
 | K40 | **OPEN**（R80 登记，产品限制） | 低 | **Audius 曲库以英文为主，中文歌能搜到但多为翻唱且 `is_streamable=false`**：R80 实测 `query=周杰伦` 返回 9 条，首条 `qRgvP` `is_streamable:false`（`/stream` 404）；`hello`/`adele` 才拿到可流式真曲。au 平台暂无第二源，单点 | `src/core/25-handlers.js`（`audiusGetUrl` 的 is_streamable 判定）；`src/providers/audius.js` | **已知取舍**：au 定位是「国外曲库补充」，不承诺中文覆盖；App 侧搜索 UI 需在空结果时给「Audius 以英文曲库为主」提示。若要中文覆盖需另找国内源，与本条无关 |
-## K41 · QuickJS 对 Proxy 的严格一致性校验（已修）
+## K41 · Proxy 一致性校验的第一轮误判（已排除，不是根因）
 
-- **现象**：真机 v9.2.0 内置源面板显示「[初始化失败]」，取链报 `source init failed`；App 导出的 JS 日志只有 RN PropTypes 警告（原生 `Log.e` 不进日志文件）。
+- **现象**：真机 v9.2.0 面板显示「[初始化失败]」，取链报 `source init failed`；App 导出的 JS 日志只有 RN PropTypes 警告（原生 `Log.e` 不进日志文件）。
 - **证据**：真机日志栈 `proxy: inconsistent get → checkFresh → validateProviderContracts → src/legacy.js → <eval>`。
-- **根因**：`src/core/35-source-switch.js` 的 `runtimeToggles` 用 `new Proxy({}, {...})` 做运行时视图；`Object.keys(SOURCE_TOGGLES)` 在 QuickJS（Android quickjs-android）严格 Proxy 一致性校验下抛 `proxy: inconsistent get`，V8/Node 不报（v9.1.6 无该路径所以正常）。
-- **修法/验证**：彻底移除 Proxy → 普通对象 + 对每个登记 id `defineProperty` 动态 getter/setter；`runtimeToggles` 15 键（含 audius）、get/set 均为函数、读写双向生效、全仓无 `new Proxy`。
-- **状态**：✅ v9.3.0 修（2026-11-23），真机复验待新包。
+- **第一轮判断（错）**：`src/core/35-source-switch.js` 的 `runtimeToggles` 用 `new Proxy({}, {...})` 做运行时视图，怀疑 `Object.keys(SOURCE_TOGGLES)` 撞上 QuickJS 严格校验。
+- **为什么错**：2026-11-23 11:49 真机装 **v9.3.0** 后仍弹同一句 `proxy: inconsistent get`，而 v9.3.0 产物去注释后 `new Proxy` 计数为 **0** —— Proxy 源不在脚本侧，删掉它当然无效。
+- **结论**：本条降级为「已排除方向」，真正根因见 K42。保留记录是为提醒：靠「猜哪个对象是 Proxy」定位会连续打空两轮。
+
+## K42 · 真机 `Date.parse` 撞 QuickJS Date-Proxy invariant（已修，v9.3.1）
+
+- **行号硬对齐**（v9.3.0 产物 7654 行 / 396999 B）：`checkFresh (unknown.js:6066)` = `const ts = Date.parse(...)`；`validateProviderContracts (6111)` = `else checkFresh(..., h.reviewAt)`。v9.2.0 对应行号 6076/6111，差值正是 `runtimeToggles` 那段改动 → 证明真机加载的确实是新版产物。
+- **根因链**：① 真机引擎是 **QuickJS 2024-02-14**（`wang.harlon.quickjs:wrapper-android:2.4.0` 的 so 里 `CONFIG_VERSION` 串即 2024-02-14，且含 `proxy: inconsistent get` 消息）；② 该版本把 `Date` 包成 Proxy，其 get 会对属性再包一层 Proxy；③ 宿主 `android/app/src/main/assets/script/user-api-preload.js:762` 的 `freezeObjectProperty(globalThis)` 把 `Date.parse` 冻成 non-configurable/non-writable；④ 读 `Date.parse` → Proxy get 返回值 ≠ target 上不可配置描述符的原值 → `JS_ProxyGetProperty` 抛 `proxy: inconsistent get`。
+- **为什么 v9.1.6 正常**：复核日新鲜度校验是 R77 之后（v9.1.7/9.2.0）才引入的，v9.1.6 初始化路径从不调用 `Date.parse`；`Date.now()` 全链都在用且真机正常，说明只有被冻结的静态 `parse` 命中这条 invariant。
+- **本地为什么全绿**：V8/Node 不校验该 invariant；自编译 QuickJS 2021-03-27 / 2020-07-05 / 2020-01-19 / 2026-06-04 配真 preload 跑 9.1.6/9.2.0/9.3.0 全部 `SETUP_OK`（旧版没有该检查、新版未把 Date 包 Proxy）。
+- **修法**：`src/core/12-provider-contract.js` 删除 `Date.parse`，改纯算术 `parseYmdToMs`（`YYYY-MM-DD` 正则 + Howard Hinnant `days_from_civil`，不碰任何 Date 静态方法）；`Date.now` 保留。
+- **验证**：12 例（闰年 `2024-02-29` / 跨纪元 `1969-12-31` / 非法 `2026-13-01`）与 `Date.parse` 逐例相等；产物去注释后 `Date.parse` 0 次、`new Proxy` 0 次；新增 `test/audit/r81-proxy-compat.js` 6 条守卫并入 `npm test`。
+- **状态**：✅ v9.3.1 修（2026-11-23），真机复验待 b205。
 

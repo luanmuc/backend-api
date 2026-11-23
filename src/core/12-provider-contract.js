@@ -17,10 +17,31 @@ const REVIEW_GRACE_DAYS = 14;
 // FUTURE_TOLERANCE 判非法。容差 1 天是因为 reviewAt 只到日历日精度、按 UTC 零点解析，
 // 北京凌晨（00:00~08:00）时 UTC 仍是前一日，今天的日期会算成 +4~8h。
 const REVIEW_FUTURE_TOLERANCE_MS = 24 * 3600 * 1e3;
+// R81 真机 P0：真机 QuickJS 2024（wrapper-android 2.4.0）把 Date 包成 Proxy，宿主
+// user-api-preload.js 的 freezeObjectProperty(globalThis) 又把 Date.parse 冻结成
+// non-configurable/non-writable，读 Date.parse 会抛 "proxy: inconsistent get"（栈
+// checkFresh → validateProviderContracts → legacy.js）。V8/Node/旧版 QuickJS 都不校验
+// 这个 invariant，所以本地门禁全绿、真机初始化直接失败。这里改用纯算术解析 YYYY-MM-DD，
+// 不碰 Date 的任何静态方法（Date.now 已证真机可用，保留不动）。
+function parseYmdToMs(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
+  if (!m) return NaN;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  if (!(mo >= 1 && mo <= 12) || !(d >= 1 && d <= 31)) return NaN;
+  // 日历年 → 距 1970-01-01 的天数（Howard Hinnant days_from_civil）
+  const yy = mo <= 2 ? y - 1 : y;
+  const era = Math.floor(yy / 400);
+  const yoe = yy - era * 400;
+  const doy = Math.floor((153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5) + d - 1;
+  const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+  const days = era * 146097 + doe - 719468;
+  const ms = days * 86400000;
+  return Number.isFinite(ms) ? ms : NaN;
+}
 function validateProviderContracts(nowMs = Date.now()) {
   const checkFresh = (owner, reviewAt) => {
     if (!reviewAt) return;
-    const ts = Date.parse(`${String(reviewAt)}T00:00:00Z`);
+    const ts = parseYmdToMs(reviewAt);
     if (!Number.isFinite(ts)) { errors.push(`${owner}: reviewAt 非法 ${reviewAt}`); return; }
     if (ts - nowMs > REVIEW_FUTURE_TOLERANCE_MS) {
       errors.push(`${owner}: reviewAt ${reviewAt} 是未来日期，必须填真实复核日（不得用未来日期绕过宽限）`);

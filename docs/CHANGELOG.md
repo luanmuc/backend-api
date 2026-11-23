@@ -1,5 +1,36 @@
 # 版本历史（CHANGELOG）
 
+## 2026-11-23 · v9.3.1：真机 `proxy: inconsistent get` 根除（R81）
+
+**背景**：v9.3.0（R80 Audius）已出包并推送，用户装后真机仍在音源面板弹「初始化失败：proxy: inconsistent get」，栈 `checkFresh → validateProviderContracts → src/legacy.js → <eval>`。上一轮判定的「runtimeToggles 的 Proxy」已被移除且产物 `new Proxy` 计数为 0，说明那一轮打空 —— 必须重新定根因。
+
+**根因（行号 + 引擎版本双向对齐）**
+
+| 证据 | 内容 |
+|---|---|
+| 产物行号 | v9.3.0 `dist/lx-source.js` 7654 行：`:6066` 正是 `const ts = Date.parse(...)`；`:6111` 是 `else checkFresh(..., h.reviewAt)`，与真机栈完全一致（v9.2.0 对应 6076/6111，差值即 runtimeToggles 段，证明真机加载的是新版） |
+| 真机引擎 | `wang.harlon.quickjs:wrapper-android:2.4.0` 的 so（`jni/x86_64/libquickjs-android-wrapper.so`）内含 `CONFIG_VERSION` 串 **2024-02-14** 与消息 `proxy: inconsistent get` → 不是 2021 系旧版 |
+| 触发条件 | QuickJS 2024 把 `Date` 包成 Proxy（handler get 会对属性返回新的 Proxy 包装）；宿主 `user-api-preload.js:762` 的 `freezeObjectProperty(globalThis)` 把 `Date.parse` 冻成 non-configurable/non-writable → 读取返回值与不可配置描述符不一致 → `JS_ProxyGetProperty` 抛 `proxy: inconsistent get` |
+| 时间线 | 复核日校验是 R77 之后（v9.1.7/9.2.0）引入；v9.1.6 初始化不碰 `Date.parse` 所以正常，`Date.now()` 全链在用且真机正常 → 只有被冻结的静态 `parse` 命中 invariant |
+| 本地为何绿 | V8/Node 不校验该 invariant；自编译 QuickJS 2021-03-27 / 2020-07-05 / 2020-01-19 / 2026-06-04 配真 preload 跑 9.1.6/9.2.0/9.3.0 全部 `SETUP_OK` |
+
+**改动**
+
+| # | 项 | 落地 |
+|---|---|---|
+| 1 | 去掉 Date 静态解析 | `src/core/12-provider-contract.js` 新增 `parseYmdToMs`（`YYYY-MM-DD` 正则 + Howard Hinnant `days_from_civil`），`checkFresh` 改用它；`Date.now` 保留（真机已证可用） |
+| 2 | 防回潮守卫 | 新增 `test/audit/r81-proxy-compat.js`（6 条）：产物可执行代码（去注释）`Date.parse` 必须 0、必须含 `parseYmdToMs`、`new Proxy` 必须 0；源码 `Date.parse(` 必须 0；`parseYmdToMs` 与 `Date.parse` 12 例等价。已并入 `npm test` |
+| 3 | 版本与文档 | `@version 9.3.1`（`00-header.js`）、`package.json`/`package-lock.json`、`legacy.js` 加载日志、README/ROADMAP/CHANGELOG/KNOWN_ISSUES(K41 订正 + K42)/TESTING 入口表与计数（54 入口 / 50 脚本 / L4.3 191 条） |
+
+**逐项证据（2026-11-23）**
+
+- `node /tmp/ymd_check.js`：`2026-11-23` / `2024-02-29` / `1970-01-01` / `1969-12-31` / `2000-03-01` / `2026-13-01` / `2026-11-32` 等 12 例 `parseYmdToMs` 与 `Date.parse` **全部 MATCH**。
+- `npm run build` → `lx-source.js` 396999 B / 7654 行；去注释后 `Date.parse` **0**、`new Proxy` **0**、`parseYmdToMs` **2**。
+- `npm run verify:bundle` → **8 passed / 0 failed**（B1 认到 9.3.1 版本头，B3 契约 15/13/2）。
+- `node scripts/equiv-snapshot.js --fast --sample 5` → **基线 1440 / 现 120 / 差异 0**。
+- `npm test` → 冒烟 67 组 + 全部 audit 全绿（含新增 P1~P6），元审计 **16 通过 / 0 失败**。
+- `node scripts/self-check.js` → 「自检通过：@version=9.3.1，actions 齐全，README/ROADMAP 同步」。
+
 ## 2026-11-23 · v9.3.0：接入 Audius 作为第 6 个平台 au（R80）
 
 **背景**：R79 全网测评里 Audius 是唯一「免 key + 合规 + 全曲 + Range」的国外源，当时列为待决策。R80 按用户「单开一轮」落地。
